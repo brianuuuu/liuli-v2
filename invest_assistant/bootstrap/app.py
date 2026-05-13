@@ -8,6 +8,7 @@ from invest_assistant.modules.basic.report_library.router import router as repor
 from invest_assistant.modules.basic.stock_master.router import router as stock_master_router
 from invest_assistant.modules.basic.system_config.router import router as system_config_router
 from invest_assistant.modules.console.router import router as console_router
+from invest_assistant.modules.market_radar.router import router as market_radar_router
 
 
 def create_app() -> FastAPI:
@@ -25,4 +26,5 @@ def create_app() -> FastAPI:
     app.include_router(report_library_router)
     app.include_router(disclosure_library_router)
     app.include_router(console_router)
+    app.include_router(market_radar_router)
     return app
