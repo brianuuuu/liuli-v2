@@ -34,3 +34,14 @@ def test_app_health_endpoint_returns_ok():
 def test_settings_default_database_url_points_to_var_db():
     settings = get_settings()
     assert settings.database_url.endswith("var/db/liuli.sqlite3")
+
+
+def test_console_system_status_requires_auth_and_returns_status_when_authenticated():
+    client = TestClient(create_app())
+    unauthenticated = client.get("/api/console/system-status")
+    assert unauthenticated.status_code == 401
+    token = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).json()["access_token"]
+    response = client.get("/api/console/system-status", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["api"] == "ok"
+    assert response.json()["database"] == "ok"
