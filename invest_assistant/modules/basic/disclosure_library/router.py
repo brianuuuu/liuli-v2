@@ -25,8 +25,14 @@ def create_disclosure(payload: CompanyDisclosureCreate, db: Session = Depends(ge
 
 
 @router.post("/fetch")
-def fetch_disclosures() -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="disclosure fetching is not implemented in phase 1")
+def fetch_disclosures(
+    keyword: str = "",
+    page_num: int = 1,
+    page_size: int = 30,
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    items = service.fetch_cninfo(db, keyword=keyword, page_num=page_num, page_size=page_size)
+    return {"fetched": len(items)}
 
 
 @router.get("/{disclosure_id}", response_model=CompanyDisclosureRead)
@@ -46,13 +52,25 @@ def update_disclosure(disclosure_id: int, payload: CompanyDisclosureUpdate, db: 
 
 
 @router.post("/{disclosure_id}/download")
-def download_disclosure(disclosure_id: int) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="disclosure download is not implemented in phase 1")
+def download_disclosure(disclosure_id: int, db: Session = Depends(get_db)):
+    item = service.get_disclosure(db, disclosure_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="disclosure not found")
+    try:
+        return service.download_disclosure_file(db, item)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{disclosure_id}/parse")
-def parse_disclosure(disclosure_id: int) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="disclosure parsing is not implemented in phase 1")
+def parse_disclosure(disclosure_id: int, db: Session = Depends(get_db)):
+    item = service.get_disclosure(db, disclosure_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="disclosure not found")
+    try:
+        return service.parse_disclosure_file(db, item)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{disclosure_id}/file")
@@ -78,8 +96,11 @@ def parsed_disclosure(disclosure_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{disclosure_id}/to-source-item")
-def to_source_item(disclosure_id: int) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="market radar integration is not implemented in phase 1")
+def to_source_item(disclosure_id: int, db: Session = Depends(get_db)):
+    item = service.get_disclosure(db, disclosure_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="disclosure not found")
+    return service.disclosure_to_source_item(db, item)
 
 
 @router.post("/{disclosure_id}/to-track-evidence")
