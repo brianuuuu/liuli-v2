@@ -53,3 +53,58 @@ def test_system_config_crud():
     )
     assert update.status_code == 200
     assert update.json()["config_value"] == "7d"
+
+
+def test_report_library_creates_report_index():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    response = client.post(
+        "/api/reports",
+        json={
+            "title": "阶段 1 测试报告",
+            "report_type": "daily",
+            "source_module": "system",
+            "target_type": "market",
+            "target_id": None,
+            "summary": "test summary",
+            "file_format": "md",
+            "file_path": "reports/test.md",
+            "generated_by": "manual",
+            "status": "draft",
+            "publish_time": None,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["title"] == "阶段 1 测试报告"
+
+
+def test_disclosure_library_creates_index_without_fetching_file():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    stock = client.post(
+        "/api/stocks/import",
+        json=[{"stock_code": "000001", "stock_name": "平安银行", "market": "A股", "exchange": "SZSE"}],
+        headers=headers,
+    ).json()[0]
+    response = client.post(
+        "/api/disclosures",
+        json={
+            "stock_id": stock["id"],
+            "source": "cninfo",
+            "disclosure_type": "announcement",
+            "title": "测试公告",
+            "publish_time": "2026-05-13T00:00:00",
+            "report_period": "2026Q1",
+            "source_url": "https://example.com/disclosure.pdf",
+            "file_path": None,
+            "parsed_text_path": None,
+            "parsed_markdown_path": None,
+            "parse_status": "pending",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["title"] == "测试公告"
