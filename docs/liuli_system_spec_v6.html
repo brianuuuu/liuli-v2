@@ -1,0 +1,4447 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>liuli 系统规格说明书 v6</title>
+<style>
+:root {
+  --fg:#16213e; --muted:#5b6478; --line:#d8e0f0; --blue:#2454d6; --bg:#f7f9fc; --code:#f0f4ff;
+}
+body {
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  line-height:1.72;
+}
+.container {
+  max-width: 1160px; margin: 0 auto; padding: 42px 30px 90px;
+  background:white; min-height:100vh; box-shadow:0 0 30px rgba(20,40,90,.06);
+}
+h1 { font-size: 34px; text-align:center; margin: 0 0 28px; color:#0f2b68; }
+h2 { font-size: 24px; margin-top: 44px; padding-bottom:8px; border-bottom:2px solid var(--line); color:#153e8a; }
+h3 { font-size: 19px; margin-top: 30px; color:#2454d6; }
+h4 { font-size: 16px; margin-top: 20px; color:#37527f; }
+p { margin: 8px 0; }
+blockquote {
+  border-left:4px solid var(--blue); margin:18px 0; padding:10px 16px;
+  background:#f2f6ff; color:#33415c;
+}
+pre {
+  background:#0f172a; color:#e2e8f0; padding:16px 18px; border-radius:10px;
+  overflow:auto; font-size:13px; line-height:1.55;
+}
+code { background:var(--code); color:#123c8c; padding:2px 5px; border-radius:5px; }
+pre code { background:transparent; color:inherit; padding:0; }
+table { border-collapse: collapse; width:100%; margin:16px 0; font-size:14px; }
+th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#f1f5ff; color:#173b7a; }
+strong { color:#0f2b68; }
+</style>
+</head>
+<body>
+<main class="container">
+<h1>liuli 系统规格说明书 v6</h1>
+
+<blockquote>项目名称：`liuli`</blockquote>
+<blockquote>定位：个人投资辅助系统</blockquote>
+<blockquote>形态：Web + Android + 后端服务</blockquote>
+<blockquote>用户模式：单用户安全登录，业务上按个人投资系统设计</blockquote>
+<blockquote>架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化</blockquote>
+<blockquote>本版重点更新：AI 配置不单独成中心化页面；配置归 `.env`、`system_config` 和模块内 `ai.py`；表结构汇总中为每张表增加简要说明</blockquote>
+
+<p>---</p>
+
+<h2>1. 系统目标</h2>
+
+<p><code>liuli</code> 是一个面向个人投资者的投资辅助系统，用于把外部信息流、行情变化、公司公告、财报、舆情评论，转化为可跟踪、可复盘、可反哺 AI 的投资认知闭环。</p>
+
+<p>系统核心不是直接给出买卖建议，而是辅助完成：</p>
+
+<p>1. <strong>发现好赛道</strong>：持续更新、持续验证、持续证伪。</p>
+<p>2. <strong>发现好标的</strong>：持续筛选、持续 PK、持续冒泡。</p>
+<p>3. <strong>发现好时机</strong>：持续预警、持续跟踪、持续等待。</p>
+<p>4. <strong>调整资产结构</strong>：持续复盘、持续优化、持续调整。</p>
+
+<p>---</p>
+
+<h2>2. 核心投资闭环</h2>
+
+<pre><code class="language-text">
+市场雷达
+
+  ↓
+
+赛道发现
+
+  ↓
+
+标的分析
+
+  ↓
+
+预警中心
+
+  ↓
+
+组合管理
+
+  ↓
+
+知识库沉淀
+
+  ↓
+
+Skills 提炼
+
+  ↓
+
+Agent 编排
+
+  ↓
+
+业务反哺
+
+</code></pre>
+
+<h3>2.1 模块定位</h3>
+
+<table>
+<thead><tr><th>模块</th><th>层级</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td>市场雷达 `market_radar`</td><td>信号层</td><td>发现市场正在关注什么</td></tr>
+<tr><td>赛道发现 `track_discovery`</td><td>判断层</td><td>判断方向是否值得长期跟踪</td></tr>
+<tr><td>标的分析 `stock_analysis`</td><td>研究层</td><td>找出能承接赛道的公司</td></tr>
+<tr><td>预警中心 `alert_center`</td><td>时机层</td><td>跟踪价格、估值、事件、热度异动</td></tr>
+<tr><td>组合管理 `portfolio`</td><td>行动层</td><td>管理持仓、权重、风险暴露</td></tr>
+<tr><td>知识库 `knowledge_base`</td><td>认知沉淀层</td><td>沉淀经验，提炼 Skills，编排 Agent</td></tr>
+<tr><td>控制台 `console`</td><td>后台管理层</td><td>管理数据源、任务、标签、配置、系统状态</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h2>3. 核心边界</h2>
+
+<h3>3.1 系统要做什么</h3>
+
+<pre><code class="language-text">
+1. 接入行情、新闻、公告财报、舆情评论等数据源。
+
+2. 用标签把新闻流结构化。
+
+3. 用热度统计展示市场注意力。
+
+4. 用赛道假设管理投资者认知。
+
+5. 用标的分析筛选高质量候选公司。
+
+6. 用预警中心跟踪时机和风险。
+
+7. 用组合管理持续调整资产结构。
+
+8. 用知识库沉淀经验，并反哺 AI 分析能力。
+
+</code></pre>
+
+<h3>3.2 系统不做什么</h3>
+
+<pre><code class="language-text">
+1. 不直接输出买入/卖出指令。
+
+2. 不做多人协作 SaaS。
+
+3. 不做复杂租户隔离。
+
+4. 不把 AI Gateway 过度抽象成中心化平台。
+
+5. 不把市场热度误当成投资价值。
+
+6. 不为了组件复用而过度拆分目录。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>4. 核心架构原则</h2>
+
+<h3>4.1 业务模块内聚优先</h3>
+
+<p>本项目采用 <strong>业务模块内聚优先</strong> 的代码组织方式。</p>
+
+<p>原则：</p>
+
+<pre><code class="language-text">
+1. 一个业务能力尽量收敛在一个模块目录内。
+
+2. 外部接口 client 优先贴近使用模块，不提前抽象到 services。
+
+3. 只有当两个以上模块真实复用时，才上移到 services 或 shared。
+
+4. shared 只放无业务含义的通用工具。
+
+5. 不追求组件复用的形式优雅，优先保证 AI 编码时上下文集中、修改路径短、业务边界清晰。
+
+</code></pre>
+
+<p>一句话：</p>
+
+<pre><code class="language-text">
+先让功能在一个目录里长完整，再根据真实复用关系向外抽象。
+
+</code></pre>
+
+<h3>4.2 modules、shared、services 的边界</h3>
+
+<pre><code class="language-text">
+modules = 业务房间
+
+shared  = 公共工具箱
+
+services = 外部接口插座
+
+</code></pre>
+
+<table>
+<thead><tr><th>目录</th><th>作用</th><th>是否有业务逻辑</th><th>是否有业务数据</th></tr></thead>
+<tbody>
+<tr><td>`modules`</td><td>业务能力归属</td><td>有</td><td>有</td></tr>
+<tr><td>`shared`</td><td>无业务工具</td><td>无</td><td>无</td></tr>
+<tr><td>`services`</td><td>跨模块外部服务适配</td><td>很少</td><td>无</td></tr>
+</tbody></table>
+
+<h4>shared 存在的必要性</h4>
+
+<p><code>shared</code> 用于承载无业务归属、跨模块稳定复用的基础工具，例如：</p>
+
+<pre><code class="language-text">
+时间工具
+
+分页结构
+
+统一响应格式
+
+通用异常
+
+日志辅助
+
+金额/百分比格式化
+
+少量全局枚举
+
+文件路径基础工具
+
+</code></pre>
+
+<p>不应该放：</p>
+
+<pre><code class="language-text">
+标签抽取
+
+巨潮拉取
+
+财联社抓取
+
+赛道评分
+
+标的评分
+
+财报解析
+
+AI Prompt
+
+股票匹配
+
+预警规则
+
+组合计算
+
+</code></pre>
+
+<h4>services 存在的必要性</h4>
+
+<p><code>services</code> 用于承载已经跨模块复用的外部接口适配，例如：</p>
+
+<pre><code class="language-text">
+Tushare
+
+AkShare
+
+AI 服务商
+
+东方财富
+
+财联社
+
+巨潮
+
+</code></pre>
+
+<p>但不是所有外部接口都必须一开始放进 <code>services</code>。</p>
+
+<p>判断规则：</p>
+
+<pre><code class="language-text">
+一个模块使用 → 放模块内部
+
+两个以上模块稳定复用 → 上移 services
+
+</code></pre>
+
+<p>例如：</p>
+
+<pre><code class="language-text">
+cninfo_client 第一版只服务 disclosure_library，可放在 disclosure_library 内。
+
+Tushare 高概率被 stock_master、stock_analysis、alert_center、portfolio 多模块使用，适合放 services/tushare。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>5. Python 服务进程模型</h2>
+
+<p>第一版采用两个 Python 进程：</p>
+
+<pre><code class="language-text">
+1. API 进程：处理 Web / Android 请求
+
+2. Worker 进程：后台执行定时任务和耗时任务
+
+</code></pre>
+
+<h3>5.1 API 进程</h3>
+
+<p>API 进程负责：</p>
+
+<pre><code class="language-text">
+登录鉴权
+
+页面数据查询
+
+新增/编辑/删除
+
+手动触发任务请求
+
+读取任务结果
+
+读取报告
+
+读取新闻/标签/预警/组合数据
+
+</code></pre>
+
+<p>启动示例：</p>
+
+<pre><code class="language-bash">
+uvicorn invest_assistant.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+</code></pre>
+
+<p>如果长期运行并切换到 MySQL/PostgreSQL，可改为：</p>
+
+<pre><code class="language-bash">
+uvicorn invest_assistant.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+</code></pre>
+
+<p>API 进程不要直接执行重任务。</p>
+
+<h3>5.2 Worker 进程</h3>
+
+<p>Worker 进程负责：</p>
+
+<pre><code class="language-text">
+抓财联社新闻
+
+抽取标签
+
+聚合市场热度
+
+聚合标签关系
+
+同步股票基础库
+
+拉取巨潮公告财报
+
+下载 PDF
+
+解析 PDF
+
+生成报告
+
+执行预警规则
+
+知识沉淀 → Skills 提炼 → Agent 编排
+
+</code></pre>
+
+<p>启动示例：</p>
+
+<pre><code class="language-bash">
+python -m invest_assistant.worker
+
+</code></pre>
+
+<p>内部运行：</p>
+
+<pre><code class="language-text">
+APScheduler
+
+job_center
+
+各模块 jobs.py
+
+</code></pre>
+
+<h3>5.3 API 与 Worker 协作方式</h3>
+
+<pre><code class="language-text">
+Web / Android
+
+     ↓
+
+API 进程
+
+     ↓
+
+数据库 / 文件系统
+
+
+
+Worker 进程
+
+     ↓
+
+定时抓取、解析、聚合、生成报告
+
+     ↓
+
+数据库 / var 文件目录
+
+</code></pre>
+
+<p>API 和 Worker 不直接互相调用，主要通过：</p>
+
+<pre><code class="language-text">
+数据库
+
+var 文件目录
+
+job_run_request
+
+job_run_log
+
+</code></pre>
+
+<p>协作。</p>
+
+<h3>5.4 手动触发任务</h3>
+
+<p>控制台点击“立即执行”时：</p>
+
+<pre><code class="language-text">
+/console/jobs
+
+  ↓
+
+API 写入 job_run_request
+
+  ↓
+
+Worker 轮询 pending request
+
+  ↓
+
+执行对应 JobDefinition.handler
+
+  ↓
+
+写入 job_run_log
+
+</code></pre>
+
+<p>原则：</p>
+
+<pre><code class="language-text">
+API 负责响应用户；
+
+Worker 负责搬砖干活。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>6. 用户与权限</h2>
+
+<p>第一版只做安全登录鉴权。</p>
+
+<pre><code class="language-text">
+用户系统 = 访问安全层
+
+不是业务协作层
+
+不是权限管理系统
+
+不是 SaaS 租户系统
+
+</code></pre>
+
+<h3>6.1 功能</h3>
+
+<pre><code class="language-text">
+登录
+
+退出
+
+修改密码
+
+密码哈希
+
+JWT / Session
+
+接口鉴权
+
+登录过期
+
+登录失败限制，可后置
+
+</code></pre>
+
+<h3>6.2 模块位置</h3>
+
+<pre><code class="language-text">
+invest_assistant/modules/basic/auth/
+
+├── models.py
+
+├── schemas.py
+
+├── service.py
+
+├── router.py
+
+├── security.py
+
+└── dependencies.py
+
+</code></pre>
+
+<h3>6.3 用户表</h3>
+
+<pre><code class="language-sql">
+user_account
+
+- id
+
+- username
+
+- password_hash
+
+- display_name
+
+- email
+
+- status
+
+- last_login_at
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<p>第一版只需要一个默认用户。</p>
+
+<p>---</p>
+
+<h2>7. 数据源体系</h2>
+
+<p>系统一级数据源分为四类。</p>
+
+<table>
+<thead><tr><th>数据源类型</th><th>作用</th><th>典型来源</th></tr></thead>
+<tbody>
+<tr><td>行情数据</td><td>看价格、成交量、资金流、估值、技术状态</td><td>AkShare、Tushare、东方财富</td></tr>
+<tr><td>市场新闻</td><td>看市场注意力、事件驱动、热点变化</td><td>财联社、东方财富、证券时报、RSS</td></tr>
+<tr><td>公司公告财报</td><td>看公司真实变化、业绩兑现、风险披露</td><td>巨潮资讯、交易所、Tushare</td></tr>
+<tr><td>舆情评论</td><td>看市场叙事、观点扩散、情绪变化</td><td>雪球、股吧、微博、公众号、社群</td></tr>
+</tbody></table>
+
+<p>一句话：</p>
+
+<pre><code class="language-text">
+行情看交易，新闻看注意力，公告财报看兑现，舆情看情绪。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>8. 术语统一：只使用“赛道”</h2>
+
+<p>系统不引入“题材”作为新的标签类型。</p>
+
+<p>统一三类标签：</p>
+
+<pre><code class="language-text">
+stock    标的标签
+
+track    赛道标签
+
+hotword  热点词标签
+
+</code></pre>
+
+<h3>8.1 赛道标签 track</h3>
+
+<p>赛道不必都是长期产业方向，短期市场方向也可以算赛道。</p>
+
+<p>例如：</p>
+
+<pre><code class="language-text">
+AI算力
+
+智能汽车
+
+先进封装
+
+电子特气
+
+低空经济
+
+黄金避险
+
+航运
+
+军工
+
+出口链
+
+中特估
+
+人民币升值受益
+
+</code></pre>
+
+<p>长期赛道、短期赛道都统一归到 <code>track</code>。</p>
+
+<p>不再引入：</p>
+
+<pre><code class="language-text">
+theme
+
+topic
+
+subject
+
+题材
+
+</code></pre>
+
+<p>如果后续需要区分长短期，不靠新增类型，而靠字段或分析判断：</p>
+
+<pre><code class="language-text">
+horizon = short / mid / long
+
+</code></pre>
+
+<p>或者由 <code>track_discovery</code> 判断：</p>
+
+<pre><code class="language-text">
+短期事件型赛道
+
+中期景气型赛道
+
+长期生产力赛道
+
+</code></pre>
+
+<p>---</p>
+
+<h2>9. 代码目录结构</h2>
+
+<p>项目根目录：</p>
+
+<pre><code class="language-text">
+liuli/
+
+├── invest_assistant/       # 主程序代码
+
+├── data/                   # 种子数据、样例数据、导入模板
+
+├── docs/                   # 架构与系统文档
+
+├── tools/                  # 手动脚本、调试脚本、运维工具
+
+├── tests/                  # 自动化测试
+
+├── var/                    # 运行时数据、日志、缓存、SQLite、报告文件、原始文件
+
+├── pyproject.toml
+
+├── README.md
+
+└── .env.example
+
+</code></pre>
+
+<h3>9.1 主程序结构</h3>
+
+<pre><code class="language-text">
+invest_assistant/
+
+├── __init__.py
+
+├── main.py
+
+├── worker.py
+
+
+
+├── bootstrap/
+
+│   ├── __init__.py
+
+│   ├── config.py
+
+│   ├── database.py
+
+│   ├── logging.py
+
+│   ├── scheduler.py
+
+│   └── app.py
+
+
+
+├── modules/
+
+│   ├── basic/
+
+│   │   ├── auth/
+
+│   │   ├── stock_master/
+
+│   │   ├── system_config/
+
+│   │   ├── job_center/
+
+│   │   ├── report_library/
+
+│   │   └── disclosure_library/
+
+│   │
+
+│   ├── market_radar/
+
+│   ├── track_discovery/
+
+│   ├── stock_analysis/
+
+│   ├── alert_center/
+
+│   ├── portfolio/
+
+│   ├── knowledge_base/
+
+│   └── console/
+
+│
+
+├── services/
+
+│   ├── market_data/
+
+│   ├── news/
+
+│   ├── disclosure/
+
+│   ├── sentiment/
+
+│   ├── akshare/
+
+│   ├── tushare/
+
+│   ├── cls/
+
+│   ├── cninfo/              # 只有跨模块复用后才需要
+
+│   └── ai/
+
+│
+
+└── shared/
+
+    ├── enums.py
+
+    ├── errors.py
+
+    ├── time_utils.py
+
+    ├── pagination.py
+
+    ├── response.py
+
+    ├── file_utils.py
+
+    └── db_types.py
+
+</code></pre>
+
+<p>---</p>
+
+<h2>10. data、var、tools、tests</h2>
+
+<h3>10.1 data</h3>
+
+<p>静态数据资产目录，可进 Git。</p>
+
+<pre><code class="language-text">
+data/
+
+├── seed/
+
+│   ├── stocks.csv
+
+│   ├── tags.csv
+
+│   ├── track_tags.csv
+
+│   └── hotword_tags.csv
+
+├── samples/
+
+├── import/
+
+└── export/
+
+</code></pre>
+
+<h3>10.2 var</h3>
+
+<p>运行时数据目录，通常不进 Git。</p>
+
+<pre><code class="language-text">
+var/
+
+├── db/
+
+│   └── liuli.sqlite3
+
+├── logs/
+
+├── cache/
+
+├── raw/
+
+│   ├── news/
+
+│   ├── disclosures/
+
+│   └── financial_reports/
+
+├── processed/
+
+│   └── disclosures/
+
+│       ├── markdown/
+
+│       └── text/
+
+├── reports/
+
+│   ├── market_radar/
+
+│   ├── track_discovery/
+
+│   ├── stock_analysis/
+
+│   ├── alert_center/
+
+│   ├── portfolio/
+
+│   └── knowledge_base/
+
+└── exports/
+
+</code></pre>
+
+<h3>10.3 tests</h3>
+
+<p>自动化测试目录。</p>
+
+<pre><code class="language-text">
+tests/
+
+├── unit/
+
+├── integration/
+
+├── fixtures/
+
+└── conftest.py
+
+</code></pre>
+
+<h3>10.4 tools</h3>
+
+<p>人工操作脚本与调试工具。</p>
+
+<pre><code class="language-text">
+tools/
+
+├── dev/
+
+├── jobs/
+
+├── debug/
+
+└── export/
+
+</code></pre>
+
+<p>判断规则：</p>
+
+<pre><code class="language-text">
+能被 pytest 稳定重复执行的 → tests/
+
+为了手动跑、调试、修数据的 → tools/
+
+运行时生成的日志、缓存、数据库、报告 → var/
+
+样例数据、种子数据、导入模板 → data/
+
+</code></pre>
+
+<p>---</p>
+
+<h2>11. 基础模块 basic</h2>
+
+<h3>11.1 basic/auth</h3>
+
+<p>安全登录鉴权。</p>
+
+<h3>11.2 basic/stock_master</h3>
+
+<p>股票基础库，属于基础业务主数据模块。</p>
+
+<p>定位：</p>
+
+<pre><code class="language-text">
+标的主数据 / 标的身份识别 / 代码名称映射
+
+</code></pre>
+
+<p>它负责回答：</p>
+
+<pre><code class="language-text">
+这个标的是谁？
+
+代码是什么？
+
+属于哪个市场？
+
+不同数据源里的名称怎么统一？
+
+新闻里提到的公司如何映射到 stock_id？
+
+</code></pre>
+
+<p>第一版字段：</p>
+
+<pre><code class="language-sql">
+stock
+
+- id
+
+- stock_code
+
+- stock_name
+
+- market
+
+- exchange
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<p>后续扩展：</p>
+
+<pre><code class="language-text">
+stock_alias
+
+stock_industry
+
+stock_market_status
+
+stock_sync_log
+
+</code></pre>
+
+<h3>11.3 basic/system_config</h3>
+
+<p>系统配置模块，第一版保持轻量。</p>
+
+<p><code>.env</code> 放敏感和启动级配置：</p>
+
+<pre><code class="language-text">
+DATABASE_URL
+
+TUSHARE_TOKEN
+
+OPENAI_API_KEY
+
+QWEN_API_KEY
+
+SECRET_KEY
+
+LOG_LEVEL
+
+</code></pre>
+
+<p><code>system_config</code> 表放业务运行配置：</p>
+
+<pre><code class="language-text">
+数据源启停
+
+抓取频率
+
+热度窗口
+
+预警阈值
+
+标签抽取策略
+
+AI任务使用哪个模型
+
+</code></pre>
+
+<p>表结构：</p>
+
+<pre><code class="language-sql">
+system_config
+
+- id
+
+- config_key
+
+- config_value
+
+- config_type
+
+- module_name
+
+- description
+
+- enabled
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<p>---</p>
+
+<h2>12. basic/job_center 任务中心</h2>
+
+<h3>12.1 定位</h3>
+
+<p><code>job_center</code> 是轻量任务中心，属于基础业务支撑模块。</p>
+
+<p>它负责：</p>
+
+<pre><code class="language-text">
+任务注册
+
+任务启停
+
+手动触发
+
+任务状态
+
+执行日志
+
+失败记录
+
+下次运行时间
+
+</code></pre>
+
+<p>它不负责：</p>
+
+<pre><code class="language-text">
+抓新闻的具体逻辑
+
+解析财报的具体逻辑
+
+抽标签的具体逻辑
+
+生成报告的具体逻辑
+
+</code></pre>
+
+<p>一句话：</p>
+
+<pre><code class="language-text">
+job_center 管“任务怎么跑”，各业务模块管“任务具体干什么”。
+
+</code></pre>
+
+<h3>12.2 目录结构</h3>
+
+<pre><code class="language-text">
+modules/basic/job_center/
+
+├── models.py          # job_config / job_run_request / job_run_log
+
+├── schemas.py
+
+├── service.py
+
+├── router.py
+
+├── types.py           # JobDefinition / JobResult
+
+├── registry.py        # 收集各模块 JOBS
+
+├── scheduler.py       # APScheduler 装配
+
+├── dispatcher.py      # 执行任务、记录日志
+
+└── worker.py          # worker 主循环，可选
+
+</code></pre>
+
+<h3>12.3 任务基本要素</h3>
+
+<p>一个任务的基本要素：</p>
+
+<pre><code class="language-text">
+任务名称
+
+所属模块
+
+展示名称
+
+任务描述
+
+执行函数
+
+触发方式
+
+Cron 表达式
+
+任务参数
+
+是否启用
+
+超时时间
+
+重试次数
+
+执行日志
+
+</code></pre>
+
+<p>对应任务定义：</p>
+
+<pre><code class="language-python">
+from dataclasses import dataclass
+
+from typing import Callable, Literal, Any
+
+
+
+TriggerType = Literal[&quot;schedule&quot;, &quot;manual&quot;, &quot;both&quot;]
+
+
+
+@dataclass
+
+class JobDefinition:
+
+    job_name: str
+
+    module_name: str
+
+    display_name: str
+
+    description: str
+
+    handler: Callable[..., Any]
+
+
+
+    trigger_type: TriggerType = &quot;manual&quot;
+
+    cron_expr: str | None = None
+
+    enabled: bool = True
+
+
+
+    timeout_seconds: int = 300
+
+    max_retries: int = 0
+
+
+
+    params_schema: dict | None = None
+
+    tags: list[str] | None = None
+
+</code></pre>
+
+<h3>12.4 任务命名规范</h3>
+
+<p>统一使用：</p>
+
+<pre><code class="language-text">
+模块名.动作名
+
+</code></pre>
+
+<p>示例：</p>
+
+<pre><code class="language-text">
+market_radar.fetch_news
+
+market_radar.extract_tags
+
+market_radar.aggregate_heat
+
+market_radar.aggregate_edges
+
+
+
+stock_master.sync_stock_basic
+
+
+
+disclosure_library.fetch_cninfo
+
+disclosure_library.parse_pdf
+
+
+
+alert_center.evaluate_rules
+
+
+
+knowledge_base.extract_skills
+
+knowledge_base.compile_agents
+
+</code></pre>
+
+<h3>12.5 任务执行结果规范</h3>
+
+<pre><code class="language-python">
+from dataclasses import dataclass
+
+
+
+@dataclass
+
+class JobResult:
+
+    success: bool
+
+    message: str = &quot;&quot;
+
+    fetched_count: int = 0
+
+    processed_count: int = 0
+
+    inserted_count: int = 0
+
+    updated_count: int = 0
+
+    skipped_count: int = 0
+
+    extra: dict | None = None
+
+</code></pre>
+
+<h3>12.6 业务模块任务注册</h3>
+
+<p>每个模块统一暴露 <code>JOBS</code> 列表。</p>
+
+<p>例如：</p>
+
+<pre><code class="language-text">
+market_radar/jobs.py
+
+stock_master/jobs.py
+
+disclosure_library/jobs.py
+
+alert_center/jobs.py
+
+knowledge_base/jobs.py
+
+</code></pre>
+
+<p><code>market_radar/jobs.py</code> 示例：</p>
+
+<pre><code class="language-python">
+from invest_assistant.modules.basic.job_center.types import JobDefinition
+
+
+
+def fetch_news_job(**kwargs):
+
+    ...
+
+
+
+def extract_tags_job(**kwargs):
+
+    ...
+
+
+
+def aggregate_heat_job(**kwargs):
+
+    ...
+
+
+
+JOBS = [
+
+    JobDefinition(
+
+        job_name=&quot;market_radar.fetch_news&quot;,
+
+        module_name=&quot;market_radar&quot;,
+
+        display_name=&quot;抓取市场新闻&quot;,
+
+        description=&quot;抓取财联社等市场新闻并写入 source_item&quot;,
+
+        handler=fetch_news_job,
+
+        trigger_type=&quot;both&quot;,
+
+        cron_expr=&quot;*/1 * * * *&quot;,
+
+        timeout_seconds=60,
+
+        max_retries=2,
+
+        tags=[&quot;news&quot;, &quot;market_radar&quot;],
+
+    ),
+
+    JobDefinition(
+
+        job_name=&quot;market_radar.extract_tags&quot;,
+
+        module_name=&quot;market_radar&quot;,
+
+        display_name=&quot;抽取新闻标签&quot;,
+
+        description=&quot;对未打标新闻抽取 stock / track / hotword 标签&quot;,
+
+        handler=extract_tags_job,
+
+        trigger_type=&quot;both&quot;,
+
+        cron_expr=&quot;*/1 * * * *&quot;,
+
+        timeout_seconds=180,
+
+        max_retries=1,
+
+        tags=[&quot;tag&quot;, &quot;market_radar&quot;],
+
+    ),
+
+]
+
+</code></pre>
+
+<h3>12.7 任务中心注册表</h3>
+
+<p><code>job_center/registry.py</code> 统一收集各模块任务：</p>
+
+<pre><code class="language-python">
+from invest_assistant.modules.market_radar.jobs import JOBS as MARKET_RADAR_JOBS
+
+from invest_assistant.modules.basic.stock_master.jobs import JOBS as STOCK_MASTER_JOBS
+
+from invest_assistant.modules.basic.disclosure_library.jobs import JOBS as DISCLOSURE_JOBS
+
+
+
+ALL_JOBS = [
+
+    *MARKET_RADAR_JOBS,
+
+    *STOCK_MASTER_JOBS,
+
+    *DISCLOSURE_JOBS,
+
+]
+
+
+
+JOB_REGISTRY = {
+
+    job.job_name: job
+
+    for job in ALL_JOBS
+
+}
+
+</code></pre>
+
+<h3>12.8 模块任务数量较多时怎么拆</h3>
+
+<p>少于 5 个任务：</p>
+
+<pre><code class="language-text">
+module/jobs.py
+
+</code></pre>
+
+<p>超过 5 个任务，或任务类型明显不同：</p>
+
+<pre><code class="language-text">
+module/jobs/
+
+├── __init__.py
+
+├── news_jobs.py
+
+├── tag_jobs.py
+
+├── aggregate_jobs.py
+
+├── report_jobs.py
+
+└── cleanup_jobs.py
+
+</code></pre>
+
+<p><code>jobs/__init__.py</code> 对外统一导出：</p>
+
+<pre><code class="language-python">
+from .news_jobs import JOBS as NEWS_JOBS
+
+from .tag_jobs import JOBS as TAG_JOBS
+
+from .aggregate_jobs import JOBS as AGGREGATE_JOBS
+
+
+
+JOBS = [
+
+    *NEWS_JOBS,
+
+    *TAG_JOBS,
+
+    *AGGREGATE_JOBS,
+
+]
+
+</code></pre>
+
+<p>对 <code>job_center</code> 来说，模块始终只暴露一个入口：</p>
+
+<pre><code class="language-python">
+from invest_assistant.modules.market_radar.jobs import JOBS as MARKET_RADAR_JOBS
+
+</code></pre>
+
+<h3>12.9 新增任务流程</h3>
+
+<p>新增任务本质上做两件事：</p>
+
+<pre><code class="language-text">
+1. 在业务模块里注册任务定义
+
+2. 让任务中心把任务同步到 job_config 表
+
+</code></pre>
+
+<p>标准流程：</p>
+
+<pre><code class="language-text">
+新增任务函数
+
+↓
+
+加入模块 JOBS
+
+↓
+
+重启 worker 或执行 sync_job_definitions
+
+↓
+
+job_center 自动写入/更新 job_config
+
+↓
+
+/console/jobs 页面出现新任务
+
+</code></pre>
+
+<p>不要手工直接改数据库表。</p>
+
+<p>代码里的 <code>JobDefinition</code> 是任务定义源头；数据库里的 <code>job_config</code> 是运行时配置状态。</p>
+
+<p>同步策略：</p>
+
+<pre><code class="language-text">
+如果 job_config 里没有这个 job_name → 新增
+
+如果已经存在 → 更新 display_name / description / 默认 cron 等字段
+
+但不要覆盖用户在控制台修改过的 enabled / cron_expr，除非明确要求重置
+
+</code></pre>
+
+<h3>12.10 任务相关表</h3>
+
+<h4>job_config</h4>
+
+<pre><code class="language-sql">
+job_config
+
+- id
+
+- job_name
+
+- module_name
+
+- display_name
+
+- description
+
+- trigger_type
+
+- cron_expr
+
+- enabled
+
+- timeout_seconds
+
+- max_retries
+
+- last_run_at
+
+- last_status
+
+- next_run_at
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<h4>job_run_request</h4>
+
+<pre><code class="language-sql">
+job_run_request
+
+- id
+
+- job_name
+
+- params_json
+
+- status            -- pending / running / success / failed / canceled
+
+- requested_by
+
+- requested_at
+
+- started_at
+
+- finished_at
+
+- error_message
+
+</code></pre>
+
+<h4>job_run_log</h4>
+
+<pre><code class="language-sql">
+job_run_log
+
+- id
+
+- job_name
+
+- module_name
+
+- trigger_type      -- schedule / manual
+
+- status            -- success / failed
+
+- params_json
+
+- result_json
+
+- started_at
+
+- finished_at
+
+- duration_ms
+
+- fetched_count
+
+- processed_count
+
+- inserted_count
+
+- updated_count
+
+- error_message
+
+</code></pre>
+
+<h3>12.11 控制台入口</h3>
+
+<p>页面路径：</p>
+
+<pre><code class="language-text">
+/console/jobs
+
+</code></pre>
+
+<p>功能：</p>
+
+<pre><code class="language-text">
+查看任务列表
+
+启用/停用任务
+
+立即执行任务
+
+修改 cron
+
+查看最近执行日志
+
+查看失败原因
+
+同步任务定义
+
+</code></pre>
+
+<p>边界：</p>
+
+<pre><code class="language-text">
+页面路径：/console/jobs
+
+代码归属：basic/job_center
+
+具体任务逻辑：各模块 jobs.py
+
+</code></pre>
+
+<p>---</p>
+
+<h2>13. basic/report_library</h2>
+
+<p><code>report_library</code> 是报告归档库 / 报告阅读入口，不是第六大业务模块。</p>
+
+<p>它只负责：</p>
+
+<pre><code class="language-text">
+统一保存报告元数据
+
+统一查询报告
+
+统一展示报告列表
+
+统一提供 Android/Web 阅读接口
+
+</code></pre>
+
+<p>它不负责生成报告。报告由各业务模块自己生成。</p>
+
+<p>关系：</p>
+
+<pre><code class="language-text">
+market_radar/report_generator.py
+
+track_discovery/report_generator.py
+
+stock_analysis/report_generator.py
+
+alert_center/report_generator.py
+
+portfolio/report_generator.py
+
+knowledge_base/report_generator.py
+
+        ↓
+
+modules/basic/report_library
+
+        ↓
+
+Web / Android 报告页读取
+
+</code></pre>
+
+<p>核心表：</p>
+
+<pre><code class="language-sql">
+report
+
+- id
+
+- title
+
+- report_type        -- daily / weekly / track / stock / portfolio / alert / knowledge
+
+- source_module      -- market_radar / track_discovery / stock_analysis / portfolio
+
+- target_type        -- market / track / stock / portfolio / alert
+
+- target_id
+
+- summary
+
+- file_format        -- md / html / pdf
+
+- file_path          -- var/reports/xxx/xxx.md
+
+- generated_by       -- ai / system / manual
+
+- status
+
+- publish_time
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<p>报告文件本体放：</p>
+
+<pre><code class="language-text">
+var/reports/
+
+├── market_radar/
+
+├── track_discovery/
+
+├── stock_analysis/
+
+├── alert_center/
+
+├── portfolio/
+
+└── knowledge_base/
+
+</code></pre>
+
+<p>一句话：</p>
+
+<pre><code class="language-text">
+report_library 管“报告索引”，var/reports 管“报告文件本体”。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>14. basic/disclosure_library</h2>
+
+<p>公告财报库，属于基础事实数据模块。</p>
+
+<p>它负责：</p>
+
+<pre><code class="language-text">
+公告元数据入库
+
+财报元数据入库
+
+PDF 文件保存路径
+
+PDF 转 Markdown / Text 的路径
+
+公告类型分类
+
+关联 stock_id
+
+同步状态
+
+解析状态
+
+</code></pre>
+
+<p>第一版可把巨潮接口适配放在模块内：</p>
+
+<pre><code class="language-text">
+modules/basic/disclosure_library/
+
+├── models.py
+
+├── schemas.py
+
+├── service.py
+
+├── router.py
+
+├── repository.py
+
+├── jobs.py
+
+├── parser.py
+
+└── cninfo_client.py        # 巨潮接口适配，先放这里
+
+</code></pre>
+
+<p>等巨潮接口被多个模块直接复用，再上移：</p>
+
+<pre><code class="language-text">
+services/cninfo/client.py
+
+</code></pre>
+
+<p>核心表：</p>
+
+<pre><code class="language-sql">
+company_disclosure
+
+- id
+
+- stock_id
+
+- source              -- cninfo / exchange / tushare
+
+- disclosure_type     -- announcement / annual_report / quarterly_report / interim_report
+
+- title
+
+- publish_time
+
+- report_period
+
+- source_url
+
+- file_path
+
+- parsed_text_path
+
+- parsed_markdown_path
+
+- parse_status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<p>文件本体放：</p>
+
+<pre><code class="language-text">
+var/raw/disclosures/
+
+├── announcements/
+
+└── financial_reports/
+
+</code></pre>
+
+<p>解析后文本放：</p>
+
+<pre><code class="language-text">
+var/processed/disclosures/
+
+├── markdown/
+
+└── text/
+
+</code></pre>
+
+<p>控制台入口：</p>
+
+<pre><code class="language-text">
+/console/disclosures
+
+</code></pre>
+
+<p>---</p>
+
+<h2>15. 市场雷达 market_radar</h2>
+
+<h3>15.1 定位</h3>
+
+<p>市场雷达是信号层，负责把新闻流、公告流、舆情流转化为市场注意力结构。</p>
+
+<p>它回答：</p>
+
+<pre><code class="language-text">
+市场现在在关注什么？
+
+哪些标签突然升温？
+
+哪些标的被哪些热点词带出来？
+
+哪些标的被哪些赛道反复提及？
+
+</code></pre>
+
+<p>它不判断：</p>
+
+<pre><code class="language-text">
+这个赛道好不好
+
+这个公司值不值得买
+
+这个热点是否能持续
+
+</code></pre>
+
+<h3>15.2 核心数据流</h3>
+
+<pre><code class="language-text">
+财联社新闻 / 市场新闻 / 公告标题 / 舆情评论
+
+  ↓
+
+source_item
+
+  ↓
+
+标签抽取
+
+  ↓
+
+source_tag
+
+  ↓
+
+tag_heat_snapshot
+
+  ↓
+
+tag_edge_snapshot
+
+  ↓
+
+热度榜 / 趋势图 / 关系图
+
+</code></pre>
+
+<h3>15.3 标签体系</h3>
+
+<table>
+<thead><tr><th>类型</th><th>含义</th><th>示例</th></tr></thead>
+<tbody>
+<tr><td>stock</td><td>标的标签</td><td>小米集团、比亚迪、中际旭创</td></tr>
+<tr><td>track</td><td>赛道标签</td><td>AI算力、智能汽车、军工、黄金避险</td></tr>
+<tr><td>hotword</td><td>热点词标签</td><td>特朗普、马斯克、美伊冲突、关税、降息</td></tr>
+</tbody></table>
+
+<h3>15.4 核心表</h3>
+
+<pre><code class="language-sql">
+tag
+
+- id
+
+- name
+
+- type              -- stock / track / hotword
+
+- category          -- hotword 子类，可选
+
+- stock_id          -- type=stock 时关联 stock
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+source_item
+
+- id
+
+- source_type       -- news / announcement / policy / financial / sentiment
+
+- source_name
+
+- title
+
+- content
+
+- source_url
+
+- publish_time
+
+- created_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+source_tag
+
+- id
+
+- source_item_id
+
+- tag_id
+
+- trigger_text
+
+- confidence
+
+- extractor         -- rule / ai / manual
+
+- created_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+tag_heat_snapshot
+
+- id
+
+- tag_id
+
+- window_type       -- 1h / 24h / 7d / 30d
+
+- stat_time
+
+- trigger_count
+
+- source_count
+
+- heat_score
+
+- avg_count
+
+- change_ratio
+
+- rank_no
+
+- created_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+tag_edge_snapshot
+
+- id
+
+- stock_tag_id
+
+- related_tag_id
+
+- related_tag_type  -- track / hotword
+
+- window_type
+
+- stat_time
+
+- cooccur_count
+
+- source_count
+
+- weight
+
+- latest_source_item_id
+
+- created_at
+
+</code></pre>
+
+<h3>15.5 关系边规则</h3>
+
+<p>只保存两类关系：</p>
+
+<pre><code class="language-text">
+stock - hotword
+
+stock - track
+
+</code></pre>
+
+<p>不保存：</p>
+
+<pre><code class="language-text">
+hotword - track
+
+hotword - hotword
+
+track - track
+
+stock - stock
+
+</code></pre>
+
+<p>意义：</p>
+
+<pre><code class="language-text">
+标签负责记录市场提到了什么；
+
+关系线只回答：哪个标的被哪个赛道/热点词带出来。
+
+</code></pre>
+
+<h3>15.6 页面</h3>
+
+<pre><code class="language-text">
+/market-radar
+
+/market-radar/graph
+
+/market-radar/tags/[id]
+
+</code></pre>
+
+<p>---</p>
+
+<h2>16. 赛道发现 track_discovery</h2>
+
+<h3>16.1 定位</h3>
+
+<p>赛道发现是判断层，用于管理投资者的赛道认知假设。</p>
+
+<p>它回答：</p>
+
+<pre><code class="language-text">
+这个方向是不是值得长期跟踪？
+
+它是概念期、验证期、兑现期，还是过热期？
+
+我的赛道判断有没有被证据增强或削弱？
+
+</code></pre>
+
+<h3>16.2 内容</h3>
+
+<pre><code class="language-text">
+赛道假设
+
+验证指标
+
+支持/削弱证据
+
+赛道阶段判断
+
+相关标的候选
+
+状态变化历史
+
+复盘记录
+
+</code></pre>
+
+<h3>16.3 核心表</h3>
+
+<pre><code class="language-sql">
+track_thesis
+
+- id
+
+- user_id
+
+- title
+
+- core_thesis
+
+- underlying_change
+
+- old_bottleneck
+
+- new_solution
+
+- value_chain_shift
+
+- time_horizon
+
+- confidence_level
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+track_validation_indicator
+
+- id
+
+- thesis_id
+
+- name
+
+- indicator_type
+
+- data_source
+
+- current_value
+
+- direction
+
+- validation_meaning
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+track_evidence
+
+- id
+
+- thesis_id
+
+- source_item_id
+
+- evidence_direction   -- support / weaken / neutral / noise
+
+- evidence_strength
+
+- summary
+
+- affected_segments
+
+- related_stock_ids
+
+- created_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+track_related_stock
+
+- id
+
+- thesis_id
+
+- stock_id
+
+- role
+
+- relevance_score
+
+- evidence_count
+
+- heat_score
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+track_status_history
+
+- id
+
+- thesis_id
+
+- old_status
+
+- new_status
+
+- reason
+
+- changed_at
+
+</code></pre>
+
+<h3>16.4 页面</h3>
+
+<pre><code class="language-text">
+/track-discovery
+
+/track-discovery/[id]
+
+/track-discovery/candidates
+
+</code></pre>
+
+<p>---</p>
+
+<h2>17. 标的分析 stock_analysis</h2>
+
+<h3>17.1 定位</h3>
+
+<p>标的分析是研究层，用于发现能够承接好赛道的公司。</p>
+
+<p>它回答：</p>
+
+<pre><code class="language-text">
+这个公司是否真正受益？
+
+它在同赛道里竞争力如何？
+
+估值、成长性、风险如何？
+
+是否值得进入观察池或核心储备池？
+
+</code></pre>
+
+<h3>17.2 内容</h3>
+
+<pre><code class="language-text">
+标的池
+
+同赛道横向 PK
+
+公司核心逻辑
+
+财务质量
+
+估值区间
+
+成长性
+
+竞争格局
+
+风险点
+
+研究笔记
+
+评分快照
+
+冒泡排序
+
+</code></pre>
+
+<h3>17.3 核心表</h3>
+
+<pre><code class="language-text">
+stock_research_note
+
+stock_score_snapshot
+
+stock_compare_group
+
+stock_risk_point
+
+stock_thesis
+
+stock_analysis_report
+
+</code></pre>
+
+<h3>17.4 页面</h3>
+
+<pre><code class="language-text">
+/stock-analysis
+
+/stock-analysis/[stock_id]
+
+/stock-analysis/compare
+
+/stock-analysis/pool
+
+</code></pre>
+
+<p>---</p>
+
+<h2>18. 预警中心 alert_center</h2>
+
+<h3>18.1 定位</h3>
+
+<p>预警中心是时机层，用于发现好时机和风险异动。</p>
+
+<p>它回答：</p>
+
+<pre><code class="language-text">
+什么时候需要注意？
+
+什么变化触发了观察？
+
+价格、估值、公告、热度、资金是否出现异常？
+
+</code></pre>
+
+<h3>18.2 预警类型</h3>
+
+<pre><code class="language-text">
+价格预警
+
+估值预警
+
+资金预警
+
+新闻热度预警
+
+标签关系预警
+
+公告事件预警
+
+赛道状态变化预警
+
+组合风险预警
+
+</code></pre>
+
+<h3>18.3 核心表</h3>
+
+<pre><code class="language-sql">
+alert_rule
+
+- id
+
+- user_id
+
+- rule_type
+
+- target_type
+
+- target_id
+
+- condition_json
+
+- enabled
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+alert_event
+
+- id
+
+- rule_id
+
+- event_time
+
+- event_level
+
+- title
+
+- message
+
+- status
+
+- created_at
+
+</code></pre>
+
+<h3>18.4 页面</h3>
+
+<pre><code class="language-text">
+/alerts
+
+/alerts/rules
+
+/alerts/events
+
+</code></pre>
+
+<p>---</p>
+
+<h2>19. 组合管理 portfolio</h2>
+
+<h3>19.1 定位</h3>
+
+<p>组合管理是行动层，用于管理持仓、权重、风险暴露和复盘调整。</p>
+
+<p>它回答：</p>
+
+<pre><code class="language-text">
+我的资产结构是否合理？
+
+持仓是否过度集中？
+
+赛道权重是否偏离认知？
+
+调仓之后是否改善组合质量？
+
+</code></pre>
+
+<h3>19.2 内容</h3>
+
+<pre><code class="language-text">
+组合
+
+持仓
+
+成本
+
+权重
+
+收益
+
+风险暴露
+
+赛道分布
+
+调仓记录
+
+组合复盘
+
+</code></pre>
+
+<h3>19.3 核心表</h3>
+
+<pre><code class="language-sql">
+portfolio
+
+- id
+
+- user_id
+
+- name
+
+- base_currency
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+portfolio_position
+
+- id
+
+- portfolio_id
+
+- stock_id
+
+- quantity
+
+- cost_price
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<h3>19.4 页面</h3>
+
+<pre><code class="language-text">
+/portfolio
+
+/portfolio/[id]
+
+/portfolio/review
+
+</code></pre>
+
+<p>---</p>
+
+<h2>20. 知识库 knowledge_base</h2>
+
+<h3>20.1 定位</h3>
+
+<p>知识库不是普通笔记库，而是把个人经验转化为 AI 分析能力的认知加工厂。</p>
+
+<p>核心链路：</p>
+
+<pre><code class="language-text">
+知识沉淀 → Skills 提炼 → Agent 编排 → 业务反哺
+
+</code></pre>
+
+<h3>20.2 内部阶段</h3>
+
+<table>
+<thead><tr><th>阶段</th><th>性质</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>知识沉淀</td><td>记录</td><td>个人心得、复盘、研究经验</td></tr>
+<tr><td>Skills 提炼</td><td>规则化</td><td>把经验提炼成分析准则、判断模板、证伪条件</td></tr>
+<tr><td>Agent 编排</td><td>能力化</td><td>把多个 Skills 组合成可执行分析流程</td></tr>
+<tr><td>业务反哺</td><td>应用</td><td>Agent 被市场雷达、赛道发现、标的分析、预警中心、组合管理调用</td></tr>
+</tbody></table>
+
+<h3>20.3 目录</h3>
+
+<pre><code class="language-text">
+knowledge_base/
+
+├── models.py
+
+├── schemas.py
+
+├── service.py
+
+├── router.py
+
+├── note_service.py
+
+├── skill_service.py
+
+├── agent_service.py
+
+├── feedback_service.py
+
+└── ai.py
+
+</code></pre>
+
+<h3>20.4 核心表</h3>
+
+<pre><code class="language-sql">
+knowledge_note
+
+- id
+
+- title
+
+- content
+
+- note_type          -- thesis / stock / portfolio / alert / market / mistake / principle
+
+- related_module
+
+- related_id
+
+- tags
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+knowledge_skill
+
+- id
+
+- title
+
+- skill_type
+
+- principle
+
+- description
+
+- input_schema
+
+- output_schema
+
+- prompt_template
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+knowledge_agent
+
+- id
+
+- name
+
+- target_module
+
+- description
+
+- skills_json
+
+- workflow_json
+
+- status
+
+- created_at
+
+- updated_at
+
+</code></pre>
+
+<pre><code class="language-sql">
+knowledge_feedback_log
+
+- id
+
+- agent_id
+
+- target_module
+
+- target_id
+
+- feedback_type
+
+- result_summary
+
+- effectiveness
+
+- created_at
+
+</code></pre>
+
+<h3>20.5 页面</h3>
+
+<pre><code class="language-text">
+/knowledge
+
+/knowledge/notes
+
+/knowledge/skills
+
+/knowledge/agents
+
+/knowledge/reviews
+
+</code></pre>
+
+<p>---</p>
+
+<h2>21. 控制台 console</h2>
+
+<h3>21.1 定位</h3>
+
+<p>控制台是后台管理入口，统一管理配置、任务、标签、股票基础库和系统状态。</p>
+
+<p>它不做投资分析，只做系统运营管理。</p>
+
+<p>AI 配置不单独做控制台入口，第一版统一放在 <code>.env</code>、<code>system_config</code> 和各模块 <code>ai.py</code> 中；控制台最多保留 AI 调用日志查看入口。</p>
+
+<p>核心规则：</p>
+
+<pre><code class="language-text">
+页面路径 = 用户从哪里操作
+
+代码目录 = 能力归哪个业务模块
+
+console 是操作面板，不是业务能力归属地
+
+</code></pre>
+
+<h3>21.2 页面路径</h3>
+
+<pre><code class="language-text">
+/console
+
+/console/data-sources
+
+/console/jobs
+
+/console/tags
+
+/console/tag-candidates
+
+/console/stocks
+
+/console/disclosures
+
+/console/ai-logs
+
+/console/system-config
+
+/console/system-status
+
+</code></pre>
+
+<h3>21.3 典型归属</h3>
+
+<pre><code class="language-text">
+/console/tags
+
+→ 页面在 console
+
+→ 标签业务归 market_radar
+
+
+
+/console/stocks
+
+→ 页面在 console
+
+→ 股票主数据归 basic/stock_master
+
+
+
+/console/disclosures
+
+→ 页面在 console
+
+→ 公告财报能力归 basic/disclosure_library
+
+
+
+/console/jobs
+
+→ 页面在 console
+
+→ 任务能力归 basic/job_center
+
+</code></pre>
+
+<h3>21.4 console 目录</h3>
+
+<pre><code class="language-text">
+console/
+
+├── __init__.py
+
+├── router.py
+
+├── schemas.py
+
+├── service.py
+
+├── dashboard.py
+
+└── pages/
+
+    ├── data_sources.py
+
+    ├── jobs.py
+
+    ├── tags.py
+
+    ├── tag_candidates.py
+
+    ├── stocks.py
+
+    ├── disclosures.py
+
+    ├── ai_logs.py
+
+    └── system_status.py
+
+</code></pre>
+
+<p>---</p>
+
+<h2>22. Web 页面结构</h2>
+
+<pre><code class="language-text">
+web/
+
+├── app/
+
+│   ├── login/
+
+│   ├── market-radar/
+
+│   ├── track-discovery/
+
+│   ├── stock-analysis/
+
+│   ├── alerts/
+
+│   ├── portfolio/
+
+│   ├── knowledge/
+
+│   └── console/
+
+</code></pre>
+
+<h3>22.1 业务前台</h3>
+
+<pre><code class="language-text">
+/market-radar
+
+/track-discovery
+
+/stock-analysis
+
+/alerts
+
+/portfolio
+
+/knowledge
+
+</code></pre>
+
+<h3>22.2 系统后台</h3>
+
+<pre><code class="language-text">
+/console
+
+/console/data-sources
+
+/console/jobs
+
+/console/tags
+
+/console/tag-candidates
+
+/console/stocks
+
+/console/disclosures
+
+/console/system-config
+
+/console/system-status
+
+</code></pre>
+
+<h3>22.3 标签 CRUD 界面</h3>
+
+<pre><code class="language-text">
+/console/tags
+
+/console/tag-candidates
+
+</code></pre>
+
+<p>第一版在 <code>/console/tags</code> 内用弹窗完成新增、编辑、停用、删除。</p>
+
+<h3>22.4 公告财报界面</h3>
+
+<pre><code class="language-text">
+/console/disclosures
+
+</code></pre>
+
+<p>功能：</p>
+
+<pre><code class="language-text">
+公告财报列表
+
+手动拉取
+
+拉取任务
+
+解析状态
+
+文件归档
+
+重新解析
+
+加入赛道证据
+
+加入标的分析
+
+</code></pre>
+
+<h3>22.5 任务中心界面</h3>
+
+<pre><code class="language-text">
+/console/jobs
+
+</code></pre>
+
+<p>功能：</p>
+
+<pre><code class="language-text">
+查看任务列表
+
+启用/停用任务
+
+立即执行任务
+
+修改 cron
+
+查看最近执行日志
+
+查看失败原因
+
+同步任务定义
+
+</code></pre>
+
+<p>---</p>
+
+<h2>23. Android App 定位</h2>
+
+<p>Android 是随身记录本 + 重大新闻浏览器 + 报告阅读器 + 预警终端，不是完整研究工作台。</p>
+
+<h3>23.1 Android 主要内容</h3>
+
+<p>底部导航建议：</p>
+
+<pre><code class="language-text">
+记录 | 新闻 | 报告 | 预警
+
+</code></pre>
+
+<h4>记录</h4>
+
+<p>对应 <code>knowledge_base</code>。</p>
+
+<pre><code class="language-text">
+快速记一条心得
+
+记录市场观察
+
+记录标的评论
+
+记录赛道想法
+
+记录组合反思
+
+记录错误复盘
+
+</code></pre>
+
+<h4>新闻</h4>
+
+<p>对应 <code>market_radar</code>。</p>
+
+<pre><code class="language-text">
+浏览重大新闻
+
+查看新闻关联标签
+
+查看关联标的
+
+查看关联赛道
+
+收藏 / 标记待研究
+
+一键写评论
+
+</code></pre>
+
+<h4>报告</h4>
+
+<p>对应 <code>basic/report_library</code>。</p>
+
+<pre><code class="language-text">
+市场日报
+
+市场周报
+
+AI研报
+
+赛道报告
+
+标的报告
+
+组合报告
+
+预警复盘报告
+
+专题研究
+
+</code></pre>
+
+<h4>预警</h4>
+
+<p>对应 <code>alert_center</code>。</p>
+
+<pre><code class="language-text">
+查看预警列表
+
+查看预警详情
+
+标记已读
+
+标记已处理
+
+写处理备注
+
+跳转相关新闻/标的/赛道
+
+</code></pre>
+
+<h3>23.2 Android 不优先做</h3>
+
+<pre><code class="language-text">
+标签库维护
+
+数据源管理
+
+任务调度
+
+赛道假设复杂编辑
+
+标的横向PK
+
+组合深度分析
+
+关系图大屏展示
+
+系统控制台
+
+</code></pre>
+
+<h3>23.3 Android 技术建议</h3>
+
+<pre><code class="language-text">
+Kotlin
+
+Jetpack Compose
+
+Retrofit / OkHttp
+
+Room
+
+Hilt
+
+Kotlin Coroutines / Flow
+
+Vico 或 MPAndroidChart
+
+</code></pre>
+
+<p>---</p>
+
+<h2>24. AI 使用原则</h2>
+
+<p>不做复杂全局 AI Gateway。</p>
+
+<p>原则：</p>
+
+<pre><code class="language-text">
+业务优先，数据优先，AI 后置。
+
+每个模块自己决定用哪个 AI。
+
+AI 是模块内部工具，不反客为主。
+
+</code></pre>
+
+<h3>24.1 AI client 放 services</h3>
+
+<pre><code class="language-text">
+services/ai/
+
+├── openai_client.py
+
+├── qwen_client.py
+
+├── kimi_client.py
+
+├── deepseek_client.py
+
+└── gemini_client.py
+
+</code></pre>
+
+<h3>24.2 每个模块内部有自己的 ai.py</h3>
+
+<pre><code class="language-text">
+market_radar/ai.py
+
+track_discovery/ai.py
+
+stock_analysis/ai.py
+
+knowledge_base/ai.py
+
+</code></pre>
+
+<h3>24.3 AI 配置不单独做配置中心</h3>
+
+<p>第一版不单独建设 AI 配置页面，也不做中心化 AI Gateway。</p>
+
+<p>AI 配置分三层：</p>
+
+<pre><code class="language-text">
+.env
+
+- 放 API Key、基础密钥、默认模型等敏感或启动级配置
+
+
+
+system_config
+
+- 放可调整的业务运行参数，例如某模块是否启用 AI、默认任务模型名、调用开关
+
+
+
+模块内 ai.py
+
+- 放该模块具体 Prompt、输出结构、模型调用逻辑
+
+</code></pre>
+
+<p>不单独保留：</p>
+
+<pre><code class="language-text">
+</code></pre>
+
+<p>如后续需要排查调用问题，可以保留：</p>
+
+<pre><code class="language-text">
+/console/ai-logs
+
+</code></pre>
+
+<p>用于查看 AI 调用日志、失败原因和耗时。</p>
+
+<p>---</p>
+
+<h2>25. SQL 管理原则</h2>
+
+<p>建议：</p>
+
+<pre><code class="language-text">
+统一迁移，分模块归属。
+
+</code></pre>
+
+<h3>25.1 建表迁移统一维护</h3>
+
+<pre><code class="language-text">
+migrations/
+
+└── versions/
+
+</code></pre>
+
+<p>或者第一版 SQLite 可用：</p>
+
+<pre><code class="language-text">
+sql/
+
+├── schema/
+
+├── seed/
+
+└── views/
+
+</code></pre>
+
+<h3>25.2 查询 SQL 模块内维护</h3>
+
+<pre><code class="language-text">
+modules/market_radar/sql/
+
+├── heat_rankings.sql
+
+├── aggregate_heat.sql
+
+└── aggregate_edges.sql
+
+</code></pre>
+
+<p>原则：</p>
+
+<pre><code class="language-text">
+数据库是统一的；
+
+业务归属是分模块的；
+
+查询逻辑贴近业务模块。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>26. 数据库选型</h2>
+
+<h3>26.1 MVP 阶段</h3>
+
+<p>推荐：</p>
+
+<pre><code class="language-text">
+SQLite
+
+FastAPI
+
+SQLAlchemy
+
+APScheduler
+
+Next.js
+
+ECharts
+
+</code></pre>
+
+<p>适合本地验证、单人使用、快速迭代。</p>
+
+<p>必须开启：</p>
+
+<pre><code class="language-sql">
+PRAGMA journal_mode=WAL;
+
+PRAGMA synchronous=NORMAL;
+
+PRAGMA foreign_keys=ON;
+
+</code></pre>
+
+<p>SQLite 阶段建议：</p>
+
+<pre><code class="language-text">
+API workers = 1 或 2
+
+写任务集中在 worker
+
+API 尽量读多写少
+
+</code></pre>
+
+<h3>26.2 长期运行</h3>
+
+<p>推荐：</p>
+
+<pre><code class="language-text">
+MySQL 8.x 或 PostgreSQL
+
+</code></pre>
+
+<p>选择建议：</p>
+
+<pre><code class="language-text">
+本地验证：SQLite
+
+长期运行：MySQL
+
+复杂分析：PostgreSQL
+
+</code></pre>
+
+<p>---</p>
+
+<h2>27. 技术选型建议</h2>
+
+<h3>27.1 后端</h3>
+
+<pre><code class="language-text">
+Python
+
+FastAPI
+
+SQLAlchemy
+
+APScheduler
+
+Pydantic
+
+</code></pre>
+
+<h3>27.2 Web</h3>
+
+<pre><code class="language-text">
+Next.js
+
+React
+
+Tailwind CSS
+
+ECharts
+
+</code></pre>
+
+<h3>27.3 Android</h3>
+
+<pre><code class="language-text">
+Kotlin
+
+Jetpack Compose
+
+Retrofit
+
+Room
+
+Hilt
+
+</code></pre>
+
+<h3>27.4 数据源</h3>
+
+<pre><code class="language-text">
+AkShare
+
+Tushare
+
+财联社
+
+巨潮资讯
+
+东方财富
+
+AI 服务
+
+</code></pre>
+
+<p>---</p>
+
+<h2>28. MVP 开发顺序</h2>
+
+<h3>阶段 1：系统骨架</h3>
+
+<pre><code class="language-text">
+项目目录
+
+FastAPI 启动
+
+Worker 进程
+
+SQLite 数据库
+
+登录鉴权
+
+控制台基础页面
+
+stock_master 极简版
+
+system_config 极简版
+
+job_center 极简版
+
+</code></pre>
+
+<h3>阶段 2：市场雷达</h3>
+
+<pre><code class="language-text">
+source_item
+
+tag
+
+source_tag
+
+tag_heat_snapshot
+
+tag_edge_snapshot
+
+财联社新闻接入
+
+规则标签抽取
+
+热度榜
+
+关系图
+
+market_radar.jobs 注册
+
+</code></pre>
+
+<h3>阶段 3：公告财报库</h3>
+
+<pre><code class="language-text">
+company_disclosure
+
+巨潮公告/财报拉取
+
+PDF 文件归档
+
+文本/Markdown 解析
+
+/console/disclosures 管理入口
+
+disclosure_library.jobs 注册
+
+</code></pre>
+
+<h3>阶段 4：赛道发现</h3>
+
+<pre><code class="language-text">
+track_thesis
+
+验证指标
+
+证据链
+
+状态变化
+
+从 market_radar 引用热度数据
+
+从 disclosure_library 引用公告财报证据
+
+</code></pre>
+
+<h3>阶段 5：标的分析</h3>
+
+<pre><code class="language-text">
+标的池
+
+研究笔记
+
+同赛道 PK
+
+评分快照
+
+冒泡排序
+
+财报分析
+
+</code></pre>
+
+<h3>阶段 6：预警中心</h3>
+
+<pre><code class="language-text">
+预警规则
+
+预警事件
+
+热度预警
+
+价格预警
+
+公告事件预警
+
+alert_center.jobs 注册
+
+</code></pre>
+
+<h3>阶段 7：组合管理</h3>
+
+<pre><code class="language-text">
+组合
+
+持仓
+
+权重
+
+收益
+
+风险暴露
+
+组合复盘
+
+</code></pre>
+
+<h3>阶段 8：知识库反哺</h3>
+
+<pre><code class="language-text">
+知识沉淀
+
+Skills 提炼
+
+Agent 编排
+
+业务反哺
+
+knowledge_base.jobs 注册
+
+</code></pre>
+
+<p>---</p>
+
+<h2>29. 关键设计判断</h2>
+
+<h3>29.1 market_radar 和 track_discovery 分开</h3>
+
+<pre><code class="language-text">
+market_radar = 信号层
+
+track_discovery = 判断层
+
+</code></pre>
+
+<p>市场雷达负责发现“热闹”，赛道发现负责判断“热闹是不是方向”。</p>
+
+<h3>29.2 stock_master 是基础模块</h3>
+
+<pre><code class="language-text">
+stock_master 是基础业务主数据模块，不是 shared 工具模块。
+
+</code></pre>
+
+<h3>29.3 job_center 是基础任务中心</h3>
+
+<pre><code class="language-text">
+job_center 管任务生命周期；
+
+各业务模块管任务具体逻辑。
+
+</code></pre>
+
+<h3>29.4 shared 克制使用</h3>
+
+<pre><code class="language-text">
+shared 放无业务含义的通用工具；
+
+不要放业务逻辑、外部接口、AI prompt、解析器、标签逻辑。
+
+</code></pre>
+
+<h3>29.5 services 后置抽象</h3>
+
+<pre><code class="language-text">
+一个模块使用 → 放模块内部
+
+两个以上模块稳定复用 → 上移 services
+
+</code></pre>
+
+<h3>29.6 knowledge_base 独立于 portfolio</h3>
+
+<pre><code class="language-text">
+portfolio 管资产结构；
+
+knowledge_base 管认知结构。
+
+</code></pre>
+
+<h3>29.7 report_library 放 basic，文件放 var</h3>
+
+<pre><code class="language-text">
+modules/basic/report_library 管报告索引；
+
+var/reports 管报告文件本体；
+
+各业务模块自己生成报告。
+
+</code></pre>
+
+<h3>29.8 disclosure_library 放 basic</h3>
+
+<pre><code class="language-text">
+modules/basic/disclosure_library 管公告财报归档、解析、索引；
+
+cninfo_client 第一版可放 disclosure_library 内；
+
+var/raw/disclosures 管 PDF/原文文件本体。
+
+</code></pre>
+
+<h3>29.9 控制台是操作面板</h3>
+
+<pre><code class="language-text">
+console 是操作面板，不是业务能力归属地。
+
+</code></pre>
+
+<h3>29.10 API 和 Worker 分离</h3>
+
+<pre><code class="language-text">
+API 负责响应用户；
+
+Worker 负责后台任务；
+
+二者通过数据库、任务表和 var 文件目录协作。
+
+</code></pre>
+
+<p>---</p>
+
+
+<p>---</p>
+
+<h2>31. API 汇总</h2>
+
+<blockquote>本节集中展示系统主要 API。具体请求/响应字段以后以 OpenAPI 文档为准。</blockquote>
+<blockquote>约定：所有业务接口默认以 `/api` 开头；除登录接口外，均需要鉴权。</blockquote>
+
+<h3>31.1 鉴权 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>POST</td><td>`/api/auth/login`</td><td>登录，返回 Token / Session</td></tr>
+<tr><td>POST</td><td>`/api/auth/logout`</td><td>退出登录</td></tr>
+<tr><td>GET</td><td>`/api/auth/me`</td><td>获取当前用户信息</td></tr>
+<tr><td>POST</td><td>`/api/auth/change-password`</td><td>修改密码</td></tr>
+</tbody></table>
+
+<h3>31.2 控制台 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/console/dashboard`</td><td>控制台首页汇总</td></tr>
+<tr><td>GET</td><td>`/api/console/system-status`</td><td>系统状态</td></tr>
+<tr><td>GET</td><td>`/api/console/data-sources`</td><td>数据源状态列表</td></tr>
+<tr><td>GET</td><td>`/api/console/ai-logs`</td><td>AI 调用日志</td></tr>
+<tr><td>GET</td><td>`/api/console/system-config`</td><td>系统配置列表</td></tr>
+<tr><td>PUT</td><td>`/api/console/system-config/{config_key}`</td><td>更新系统配置</td></tr>
+</tbody></table>
+
+<h3>31.3 任务中心 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/jobs`</td><td>查询任务配置列表</td></tr>
+<tr><td>GET</td><td>`/api/jobs/{job_name}`</td><td>查询任务详情</td></tr>
+<tr><td>POST</td><td>`/api/jobs/sync-definitions`</td><td>从代码中的 `JOBS` 同步任务定义到 `job_config`</td></tr>
+<tr><td>POST</td><td>`/api/jobs/{job_name}/run`</td><td>手动触发任务，写入 `job_run_request`</td></tr>
+<tr><td>PUT</td><td>`/api/jobs/{job_name}`</td><td>更新任务配置，如启停、cron、超时</td></tr>
+<tr><td>GET</td><td>`/api/jobs/{job_name}/logs`</td><td>查询任务执行日志</td></tr>
+<tr><td>GET</td><td>`/api/jobs/run-requests`</td><td>查询手动触发请求列表</td></tr>
+</tbody></table>
+
+<h3>31.4 股票基础库 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/stocks`</td><td>股票基础库列表</td></tr>
+<tr><td>GET</td><td>`/api/stocks/{stock_id}`</td><td>股票详情</td></tr>
+<tr><td>GET</td><td>`/api/stocks/search`</td><td>按代码/名称/别名搜索股票</td></tr>
+<tr><td>POST</td><td>`/api/stocks/import`</td><td>导入股票基础数据</td></tr>
+<tr><td>PUT</td><td>`/api/stocks/{stock_id}`</td><td>修正股票基础信息</td></tr>
+<tr><td>GET</td><td>`/api/stocks/{stock_id}/aliases`</td><td>查询股票别名</td></tr>
+<tr><td>POST</td><td>`/api/stocks/{stock_id}/aliases`</td><td>新增股票别名</td></tr>
+</tbody></table>
+
+<h3>31.5 系统配置 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/system-config`</td><td>查询系统配置</td></tr>
+<tr><td>GET</td><td>`/api/system-config/{config_key}`</td><td>查询单项配置</td></tr>
+<tr><td>PUT</td><td>`/api/system-config/{config_key}`</td><td>修改单项配置</td></tr>
+<tr><td>POST</td><td>`/api/system-config`</td><td>新增配置项</td></tr>
+</tbody></table>
+
+<h3>31.6 公告财报库 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/disclosures`</td><td>公告/财报列表</td></tr>
+<tr><td>GET</td><td>`/api/disclosures/{id}`</td><td>公告/财报详情</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/fetch`</td><td>手动拉取巨潮公告/财报，生成任务请求</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/{id}/download`</td><td>下载或重新下载原始文件</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/{id}/parse`</td><td>解析 PDF/原文为文本或 Markdown</td></tr>
+<tr><td>GET</td><td>`/api/disclosures/{id}/file`</td><td>读取原始文件</td></tr>
+<tr><td>GET</td><td>`/api/disclosures/{id}/parsed`</td><td>读取解析后的文本/Markdown</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/{id}/to-source-item`</td><td>将重大公告写入 `source_item`，供市场雷达使用</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/{id}/to-track-evidence`</td><td>加入赛道证据</td></tr>
+<tr><td>POST</td><td>`/api/disclosures/{id}/to-stock-analysis`</td><td>加入标的分析材料</td></tr>
+</tbody></table>
+
+<h3>31.7 报告库 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/reports`</td><td>报告列表，支持按类型、模块、日期筛选</td></tr>
+<tr><td>GET</td><td>`/api/reports/{id}`</td><td>报告详情</td></tr>
+<tr><td>GET</td><td>`/api/reports/{id}/content`</td><td>读取报告文件内容</td></tr>
+<tr><td>GET</td><td>`/api/reports/{id}/download`</td><td>下载报告文件</td></tr>
+<tr><td>POST</td><td>`/api/reports`</td><td>新增报告索引</td></tr>
+<tr><td>PUT</td><td>`/api/reports/{id}`</td><td>更新报告元数据</td></tr>
+<tr><td>DELETE</td><td>`/api/reports/{id}`</td><td>删除报告索引，可选是否删除文件</td></tr>
+</tbody></table>
+
+<h3>31.8 市场雷达 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/market-radar/overview`</td><td>市场雷达总览</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/source-items`</td><td>新闻/信息源列表</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/source-items/{id}`</td><td>信息源详情</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/tags`</td><td>标签列表</td></tr>
+<tr><td>POST</td><td>`/api/market-radar/tags`</td><td>新增标签</td></tr>
+<tr><td>PUT</td><td>`/api/market-radar/tags/{tag_id}`</td><td>编辑标签</td></tr>
+<tr><td>DELETE</td><td>`/api/market-radar/tags/{tag_id}`</td><td>删除/停用标签</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/tags/{tag_id}`</td><td>标签详情</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/tags/{tag_id}/trend`</td><td>标签热度趋势</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/tags/{tag_id}/sources`</td><td>触发该标签的信息源</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/rankings`</td><td>热度榜，参数：`type=stock/track/hotword`、`window=1h/24h/7d/30d`</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/graphs/stock-track`</td><td>标的-赛道关系图</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/graphs/stock-hotword`</td><td>标的-热点词关系图</td></tr>
+<tr><td>GET</td><td>`/api/market-radar/tag-candidates`</td><td>候选标签列表</td></tr>
+<tr><td>POST</td><td>`/api/market-radar/tag-candidates/{id}/approve`</td><td>审核通过候选标签</td></tr>
+<tr><td>POST</td><td>`/api/market-radar/tag-candidates/{id}/reject`</td><td>拒绝候选标签</td></tr>
+<tr><td>POST</td><td>`/api/market-radar/tag-candidates/{id}/merge`</td><td>合并到已有标签</td></tr>
+</tbody></table>
+
+<h3>31.9 赛道发现 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/track-discovery/theses`</td><td>赛道假设列表</td></tr>
+<tr><td>POST</td><td>`/api/track-discovery/theses`</td><td>新增赛道假设</td></tr>
+<tr><td>GET</td><td>`/api/track-discovery/theses/{id}`</td><td>赛道假设详情</td></tr>
+<tr><td>PUT</td><td>`/api/track-discovery/theses/{id}`</td><td>编辑赛道假设</td></tr>
+<tr><td>DELETE</td><td>`/api/track-discovery/theses/{id}`</td><td>删除/归档赛道假设</td></tr>
+<tr><td>GET</td><td>`/api/track-discovery/theses/{id}/indicators`</td><td>验证指标</td></tr>
+<tr><td>POST</td><td>`/api/track-discovery/theses/{id}/indicators`</td><td>新增验证指标</td></tr>
+<tr><td>GET</td><td>`/api/track-discovery/theses/{id}/evidence`</td><td>证据列表</td></tr>
+<tr><td>POST</td><td>`/api/track-discovery/theses/{id}/evidence`</td><td>新增证据</td></tr>
+<tr><td>GET</td><td>`/api/track-discovery/theses/{id}/related-stocks`</td><td>相关标的候选</td></tr>
+<tr><td>POST</td><td>`/api/track-discovery/theses/{id}/related-stocks`</td><td>新增相关标的</td></tr>
+<tr><td>POST</td><td>`/api/track-discovery/theses/{id}/status`</td><td>更新赛道状态，写入状态历史</td></tr>
+<tr><td>GET</td><td>`/api/track-discovery/candidates`</td><td>从市场雷达升温信号中生成的候选赛道</td></tr>
+</tbody></table>
+
+<h3>31.10 标的分析 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/stock-analysis/pool`</td><td>标的池</td></tr>
+<tr><td>POST</td><td>`/api/stock-analysis/pool`</td><td>加入标的池</td></tr>
+<tr><td>PUT</td><td>`/api/stock-analysis/pool/{id}`</td><td>更新标的池状态</td></tr>
+<tr><td>GET</td><td>`/api/stock-analysis/stocks/{stock_id}`</td><td>标的分析主页</td></tr>
+<tr><td>GET</td><td>`/api/stock-analysis/stocks/{stock_id}/notes`</td><td>研究笔记</td></tr>
+<tr><td>POST</td><td>`/api/stock-analysis/stocks/{stock_id}/notes`</td><td>新增研究笔记</td></tr>
+<tr><td>GET</td><td>`/api/stock-analysis/stocks/{stock_id}/scores`</td><td>评分快照</td></tr>
+<tr><td>POST</td><td>`/api/stock-analysis/stocks/{stock_id}/scores`</td><td>新增评分快照</td></tr>
+<tr><td>GET</td><td>`/api/stock-analysis/compare-groups`</td><td>对比组列表</td></tr>
+<tr><td>POST</td><td>`/api/stock-analysis/compare-groups`</td><td>新建同赛道 PK 对比组</td></tr>
+<tr><td>GET</td><td>`/api/stock-analysis/reports`</td><td>标的研报列表</td></tr>
+</tbody></table>
+
+<h3>31.11 预警中心 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/alerts/rules`</td><td>预警规则列表</td></tr>
+<tr><td>POST</td><td>`/api/alerts/rules`</td><td>新增预警规则</td></tr>
+<tr><td>PUT</td><td>`/api/alerts/rules/{id}`</td><td>修改预警规则</td></tr>
+<tr><td>DELETE</td><td>`/api/alerts/rules/{id}`</td><td>删除/停用预警规则</td></tr>
+<tr><td>GET</td><td>`/api/alerts/events`</td><td>预警事件列表</td></tr>
+<tr><td>GET</td><td>`/api/alerts/events/{id}`</td><td>预警事件详情</td></tr>
+<tr><td>POST</td><td>`/api/alerts/events/{id}/read`</td><td>标记已读</td></tr>
+<tr><td>POST</td><td>`/api/alerts/events/{id}/handle`</td><td>标记已处理并写处理备注</td></tr>
+</tbody></table>
+
+<h3>31.12 组合管理 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/portfolios`</td><td>组合列表</td></tr>
+<tr><td>POST</td><td>`/api/portfolios`</td><td>新建组合</td></tr>
+<tr><td>GET</td><td>`/api/portfolios/{id}`</td><td>组合详情</td></tr>
+<tr><td>PUT</td><td>`/api/portfolios/{id}`</td><td>更新组合</td></tr>
+<tr><td>GET</td><td>`/api/portfolios/{id}/positions`</td><td>持仓列表</td></tr>
+<tr><td>POST</td><td>`/api/portfolios/{id}/positions`</td><td>新增/调整持仓</td></tr>
+<tr><td>PUT</td><td>`/api/portfolios/{id}/positions/{position_id}`</td><td>修改持仓</td></tr>
+<tr><td>DELETE</td><td>`/api/portfolios/{id}/positions/{position_id}`</td><td>删除持仓</td></tr>
+<tr><td>GET</td><td>`/api/portfolios/{id}/review`</td><td>组合复盘</td></tr>
+<tr><td>POST</td><td>`/api/portfolios/{id}/review`</td><td>新增组合复盘</td></tr>
+</tbody></table>
+
+<h3>31.13 知识库 API</h3>
+
+<table>
+<thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>`/api/knowledge/notes`</td><td>知识笔记列表</td></tr>
+<tr><td>POST</td><td>`/api/knowledge/notes`</td><td>新增知识笔记</td></tr>
+<tr><td>GET</td><td>`/api/knowledge/notes/{id}`</td><td>笔记详情</td></tr>
+<tr><td>PUT</td><td>`/api/knowledge/notes/{id}`</td><td>编辑笔记</td></tr>
+<tr><td>DELETE</td><td>`/api/knowledge/notes/{id}`</td><td>删除/归档笔记</td></tr>
+<tr><td>GET</td><td>`/api/knowledge/skills`</td><td>Skills 列表</td></tr>
+<tr><td>POST</td><td>`/api/knowledge/skills`</td><td>新增 Skill</td></tr>
+<tr><td>PUT</td><td>`/api/knowledge/skills/{id}`</td><td>编辑 Skill</td></tr>
+<tr><td>GET</td><td>`/api/knowledge/agents`</td><td>Agent 列表</td></tr>
+<tr><td>POST</td><td>`/api/knowledge/agents`</td><td>新增 Agent 编排</td></tr>
+<tr><td>PUT</td><td>`/api/knowledge/agents/{id}`</td><td>编辑 Agent</td></tr>
+<tr><td>POST</td><td>`/api/knowledge/agents/{id}/run`</td><td>运行 Agent，反哺业务模块</td></tr>
+<tr><td>GET</td><td>`/api/knowledge/feedback-logs`</td><td>业务反哺记录</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h2>32. 表结构汇总</h2>
+
+<blockquote>本节集中展示主要数据表。每张表名后附简要说明；详细 DDL、索引、约束以迁移文件为准。</blockquote>
+
+<h3>32.1 basic/auth</h3>
+
+<h4>`user_account`：用户登录账户表，负责系统访问安全</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>username</td><td>登录用户名</td></tr>
+<tr><td>password_hash</td><td>密码哈希</td></tr>
+<tr><td>display_name</td><td>显示名</td></tr>
+<tr><td>email</td><td>邮箱，可选</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>last_login_at</td><td>最近登录时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.2 basic/stock_master</h3>
+
+<h4>`stock`：股票/标的主数据表，统一不同数据源中的标的身份</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_code</td><td>股票代码</td></tr>
+<tr><td>stock_name</td><td>股票名称</td></tr>
+<tr><td>market</td><td>市场，如 A股、港股、美股</td></tr>
+<tr><td>exchange</td><td>交易所</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_alias`：股票别名表，用于维护简称、曾用名、英文名等映射</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>关联 stock</td></tr>
+<tr><td>alias</td><td>别名/简称/曾用名</td></tr>
+<tr><td>alias_type</td><td>别名类型</td></tr>
+<tr><td>source</td><td>来源</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.3 basic/system_config</h3>
+
+<h4>`system_config`：系统运行配置表，保存非敏感、可调整的业务配置</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>config_key</td><td>配置键</td></tr>
+<tr><td>config_value</td><td>配置值</td></tr>
+<tr><td>config_type</td><td>类型，如 string/int/bool/json</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>enabled</td><td>是否启用</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.4 basic/job_center</h3>
+
+<h4>`job_config`：任务配置表，保存任务启停、Cron、超时和运行状态</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>全局唯一任务名</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>display_name</td><td>展示名称</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>trigger_type</td><td>schedule/manual/both</td></tr>
+<tr><td>cron_expr</td><td>Cron 表达式</td></tr>
+<tr><td>enabled</td><td>是否启用</td></tr>
+<tr><td>timeout_seconds</td><td>超时时间</td></tr>
+<tr><td>max_retries</td><td>最大重试次数</td></tr>
+<tr><td>last_run_at</td><td>最近执行时间</td></tr>
+<tr><td>last_status</td><td>最近执行状态</td></tr>
+<tr><td>next_run_at</td><td>下次执行时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`job_run_request`：任务手动触发请求表，记录控制台触发的待执行任务</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>任务名</td></tr>
+<tr><td>params_json</td><td>执行参数</td></tr>
+<tr><td>status</td><td>pending/running/success/failed/canceled</td></tr>
+<tr><td>requested_by</td><td>触发用户</td></tr>
+<tr><td>requested_at</td><td>请求时间</td></tr>
+<tr><td>started_at</td><td>开始时间</td></tr>
+<tr><td>finished_at</td><td>结束时间</td></tr>
+<tr><td>error_message</td><td>错误信息</td></tr>
+</tbody></table>
+
+<h4>`job_run_log`：任务执行日志表，记录每次任务运行结果和统计信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>任务名</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>trigger_type</td><td>schedule/manual</td></tr>
+<tr><td>status</td><td>success/failed</td></tr>
+<tr><td>params_json</td><td>参数</td></tr>
+<tr><td>result_json</td><td>结果</td></tr>
+<tr><td>started_at</td><td>开始时间</td></tr>
+<tr><td>finished_at</td><td>结束时间</td></tr>
+<tr><td>duration_ms</td><td>耗时</td></tr>
+<tr><td>fetched_count</td><td>拉取数量</td></tr>
+<tr><td>processed_count</td><td>处理数量</td></tr>
+<tr><td>inserted_count</td><td>新增数量</td></tr>
+<tr><td>updated_count</td><td>更新数量</td></tr>
+<tr><td>error_message</td><td>错误信息</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.5 basic/report_library</h3>
+
+<h4>`report`：报告索引表，保存报告元数据和文件路径</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>报告标题</td></tr>
+<tr><td>report_type</td><td>daily/weekly/track/stock/portfolio/alert/knowledge</td></tr>
+<tr><td>source_module</td><td>来源模块</td></tr>
+<tr><td>target_type</td><td>market/track/stock/portfolio/alert</td></tr>
+<tr><td>target_id</td><td>目标对象 ID</td></tr>
+<tr><td>summary</td><td>摘要</td></tr>
+<tr><td>file_format</td><td>md/html/pdf</td></tr>
+<tr><td>file_path</td><td>报告文件路径</td></tr>
+<tr><td>generated_by</td><td>ai/system/manual</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.6 basic/disclosure_library</h3>
+
+<h4>`company_disclosure`：公告财报索引表，保存公告/财报元数据、文件路径和解析状态</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>关联 stock</td></tr>
+<tr><td>source</td><td>cninfo/exchange/tushare</td></tr>
+<tr><td>disclosure_type</td><td>announcement/annual_report/quarterly_report/interim_report</td></tr>
+<tr><td>title</td><td>公告标题</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>report_period</td><td>报告期</td></tr>
+<tr><td>source_url</td><td>来源 URL</td></tr>
+<tr><td>file_path</td><td>原始文件路径</td></tr>
+<tr><td>parsed_text_path</td><td>解析文本路径</td></tr>
+<tr><td>parsed_markdown_path</td><td>解析 Markdown 路径</td></tr>
+<tr><td>parse_status</td><td>解析状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.7 market_radar</h3>
+
+<h4>`tag`：标签主表，保存标的、赛道、热点词三类标签</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>标签名称</td></tr>
+<tr><td>type</td><td>stock/track/hotword</td></tr>
+<tr><td>category</td><td>分类，可选</td></tr>
+<tr><td>stock_id</td><td>type=stock 时关联 stock</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`source_item`：信息源表，保存新闻、公告、政策、舆情等原始信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>source_type</td><td>news/announcement/policy/financial/sentiment</td></tr>
+<tr><td>source_name</td><td>来源名称</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>正文</td></tr>
+<tr><td>source_url</td><td>来源 URL</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`source_tag`：信息-标签触发表，记录每条信息触发了哪些标签</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>source_item_id</td><td>信息源 ID</td></tr>
+<tr><td>tag_id</td><td>标签 ID</td></tr>
+<tr><td>trigger_text</td><td>触发文本</td></tr>
+<tr><td>confidence</td><td>置信度</td></tr>
+<tr><td>extractor</td><td>rule/ai/manual</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`tag_heat_snapshot`：标签热度快照表，按时间窗口保存标签热度</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>tag_id</td><td>标签 ID</td></tr>
+<tr><td>window_type</td><td>1h/24h/7d/30d</td></tr>
+<tr><td>stat_time</td><td>统计时间</td></tr>
+<tr><td>trigger_count</td><td>触发次数</td></tr>
+<tr><td>source_count</td><td>信息源数量</td></tr>
+<tr><td>heat_score</td><td>热度分</td></tr>
+<tr><td>avg_count</td><td>平均次数</td></tr>
+<tr><td>change_ratio</td><td>变化率</td></tr>
+<tr><td>rank_no</td><td>排名</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`tag_edge_snapshot`：标签关系快照表，保存标的-赛道、标的-热点词关系强度</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_tag_id</td><td>标的标签 ID</td></tr>
+<tr><td>related_tag_id</td><td>关联标签 ID</td></tr>
+<tr><td>related_tag_type</td><td>track/hotword</td></tr>
+<tr><td>window_type</td><td>1h/24h/7d/30d</td></tr>
+<tr><td>stat_time</td><td>统计时间</td></tr>
+<tr><td>cooccur_count</td><td>共现次数</td></tr>
+<tr><td>source_count</td><td>信息源数量</td></tr>
+<tr><td>weight</td><td>关系权重</td></tr>
+<tr><td>latest_source_item_id</td><td>最近触发信息源</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`tag_candidate`：候选标签表，保存 AI/规则发现但尚未审核的新标签</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>候选标签名称</td></tr>
+<tr><td>suggested_type</td><td>建议类型</td></tr>
+<tr><td>category</td><td>分类</td></tr>
+<tr><td>source_item_id</td><td>来源信息</td></tr>
+<tr><td>confidence</td><td>置信度</td></tr>
+<tr><td>reason</td><td>推荐原因</td></tr>
+<tr><td>status</td><td>pending/approved/rejected/merged</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.8 track_discovery</h3>
+
+<h4>`track_thesis`：赛道假设表，保存需要长期验证的赛道认知假设</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>title</td><td>赛道假设标题</td></tr>
+<tr><td>core_thesis</td><td>核心假设</td></tr>
+<tr><td>underlying_change</td><td>底层变化</td></tr>
+<tr><td>old_bottleneck</td><td>旧瓶颈</td></tr>
+<tr><td>new_solution</td><td>新解决方案</td></tr>
+<tr><td>value_chain_shift</td><td>价值链变化</td></tr>
+<tr><td>time_horizon</td><td>时间周期</td></tr>
+<tr><td>confidence_level</td><td>置信度</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_validation_indicator`：赛道验证指标表，保存判断赛道真伪和阶段的指标</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>name</td><td>指标名称</td></tr>
+<tr><td>indicator_type</td><td>指标类型</td></tr>
+<tr><td>data_source</td><td>数据来源</td></tr>
+<tr><td>current_value</td><td>当前值</td></tr>
+<tr><td>direction</td><td>变化方向</td></tr>
+<tr><td>validation_meaning</td><td>验证意义</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_evidence`：赛道证据表，保存支持、削弱或中性的证据记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>source_item_id</td><td>信息源 ID</td></tr>
+<tr><td>evidence_direction</td><td>support/weaken/neutral/noise</td></tr>
+<tr><td>evidence_strength</td><td>证据强度</td></tr>
+<tr><td>summary</td><td>摘要</td></tr>
+<tr><td>affected_segments</td><td>影响环节</td></tr>
+<tr><td>related_stock_ids</td><td>相关股票</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`track_related_stock`：赛道相关标的表，保存赛道下的候选承接公司</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>role</td><td>赛道角色</td></tr>
+<tr><td>relevance_score</td><td>相关度</td></tr>
+<tr><td>evidence_count</td><td>证据数量</td></tr>
+<tr><td>heat_score</td><td>热度</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_status_history`：赛道状态历史表，记录赛道状态变化和原因</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>old_status</td><td>原状态</td></tr>
+<tr><td>new_status</td><td>新状态</td></tr>
+<tr><td>reason</td><td>变更原因</td></tr>
+<tr><td>changed_at</td><td>变更时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.9 stock_analysis</h3>
+
+<h4>`stock_research_note`：标的研究笔记表，保存围绕具体公司的研究记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>note_type</td><td>笔记类型</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>内容</td></tr>
+<tr><td>related_track_id</td><td>关联赛道</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_score_snapshot`：标的评分快照表，保存某时点的公司多维评分</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>score_date</td><td>评分日期</td></tr>
+<tr><td>track_id</td><td>关联赛道</td></tr>
+<tr><td>growth_score</td><td>成长性分</td></tr>
+<tr><td>valuation_score</td><td>估值分</td></tr>
+<tr><td>moat_score</td><td>壁垒分</td></tr>
+<tr><td>risk_score</td><td>风险分</td></tr>
+<tr><td>total_score</td><td>总分</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`stock_compare_group`：标的对比组表，用于同赛道公司横向 PK</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>对比组名称</td></tr>
+<tr><td>track_id</td><td>关联赛道</td></tr>
+<tr><td>stock_ids</td><td>对比股票</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_thesis`：标的假设表，保存公司投资逻辑、验证指标和证伪条件</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>thesis_text</td><td>标的假设</td></tr>
+<tr><td>key_logic</td><td>核心逻辑</td></tr>
+<tr><td>validation_indicators</td><td>验证指标</td></tr>
+<tr><td>falsification_conditions</td><td>证伪条件</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.10 alert_center</h3>
+
+<h4>`alert_rule`：预警规则表，保存价格、热度、公告、组合等触发条件</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>rule_type</td><td>规则类型</td></tr>
+<tr><td>target_type</td><td>目标类型</td></tr>
+<tr><td>target_id</td><td>目标 ID</td></tr>
+<tr><td>condition_json</td><td>触发条件</td></tr>
+<tr><td>enabled</td><td>是否启用</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`alert_event`：预警事件表，保存规则触发后的具体提醒记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>rule_id</td><td>规则 ID</td></tr>
+<tr><td>event_time</td><td>事件时间</td></tr>
+<tr><td>event_level</td><td>级别</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>message</td><td>消息</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.11 portfolio</h3>
+
+<h4>`portfolio`：投资组合表，保存组合名称、基准货币等组合元信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>name</td><td>组合名称</td></tr>
+<tr><td>base_currency</td><td>基准货币</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`portfolio_position`：组合持仓表，保存组合内具体标的和持仓成本</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>portfolio_id</td><td>组合 ID</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>quantity</td><td>数量</td></tr>
+<tr><td>cost_price</td><td>成本价</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>32.12 knowledge_base</h3>
+
+<h4>`knowledge_note`：知识笔记表，保存心得、复盘、原则、错误案例等认知材料</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>内容</td></tr>
+<tr><td>note_type</td><td>thesis/stock/portfolio/alert/market/mistake/principle</td></tr>
+<tr><td>related_module</td><td>关联模块</td></tr>
+<tr><td>related_id</td><td>关联对象</td></tr>
+<tr><td>tags</td><td>标签</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_skill`：知识 Skill 表，将经验提炼为可复用分析准则</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>Skill 标题</td></tr>
+<tr><td>skill_type</td><td>Skill 类型</td></tr>
+<tr><td>principle</td><td>分析准则</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>input_schema</td><td>输入结构</td></tr>
+<tr><td>output_schema</td><td>输出结构</td></tr>
+<tr><td>prompt_template</td><td>Prompt 模板</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_agent`：知识 Agent 表，将多个 Skills 编排为可执行分析流程</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>Agent 名称</td></tr>
+<tr><td>target_module</td><td>目标模块</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>skills_json</td><td>编排的 Skills</td></tr>
+<tr><td>workflow_json</td><td>工作流</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_feedback_log`：业务反哺日志表，记录 Agent/Skill 对业务模块的反哺结果</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>agent_id</td><td>Agent ID</td></tr>
+<tr><td>target_module</td><td>目标模块</td></tr>
+<tr><td>target_id</td><td>目标对象</td></tr>
+<tr><td>feedback_type</td><td>反馈类型</td></tr>
+<tr><td>result_summary</td><td>结果摘要</td></tr>
+<tr><td>effectiveness</td><td>有效性</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h2>33. 一句话总结</h2>
+
+<p><code>liuli</code> 的本质是：</p>
+
+<pre><code class="language-text">
+用市场雷达感知变化，
+
+用赛道发现判断方向，
+
+用标的分析筛选公司，
+
+用预警中心等待时机，
+
+用组合管理调整结构，
+
+用知识库沉淀认知，
+
+再通过 Skills 和 Agent 反哺业务分析，
+
+最终形成个人投资认知与行动闭环。
+
+</code></pre>
+</main>
+</body>
+</html>
