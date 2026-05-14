@@ -11,11 +11,21 @@
 body {
   margin: 0;
   min-width: 960px;
-  background: #f3f7fc;
+  padding: 8px;
+  background: #eaf1f9;
+}
+
+#root {
+  min-height: calc(100vh - 16px);
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: calc(100vh - 16px);
+  overflow: hidden;
+  border: 1px solid #d8e2ef;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
 }
 
 .app-sider {
@@ -87,12 +97,11 @@ body {
   align-items: center;
   justify-content: space-between;
   height: 38px;
-  margin: 8px 12px 0;
-  padding: 0 10px;
-  border: 1px solid #d8e2ef;
-  border-radius: 8px;
-  background: rgba(248, 251, 255, 0.96);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  margin: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid #d8e2ef;
+  background: rgba(248, 251, 255, 0.88);
+  box-shadow: none;
   backdrop-filter: blur(10px);
 }
 
@@ -127,7 +136,7 @@ body {
 }
 
 .app-content {
-  min-height: calc(100vh - 46px);
+  min-height: calc(100vh - 54px);
   padding: 16px 22px 28px;
   background:
     linear-gradient(180deg, rgba(232, 241, 255, 0.58) 0, rgba(243, 247, 252, 0) 180px),
@@ -275,6 +284,12 @@ body {
 [data-theme="dark"] {
   color: #e5e7eb;
   background: #0f1115;
+}
+
+[data-theme="dark"] .app-shell {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #111318;
+  box-shadow: none;
 }
 
 [data-theme="dark"] .app-sider,
