@@ -1,16 +1,16 @@
 :root {
   font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  color: #172033;
-  background: #e8f0f8;
-  --ll-border: #d5dfec;
-  --ll-border-soft: #e3ebf4;
-  --ll-panel: #fbfdff;
-  --ll-panel-subtle: #f5f9fe;
-  --ll-surface: #edf4fb;
-  --ll-text: #10203a;
-  --ll-muted: #66758b;
+  color: #1e293b;
+  background: #eaeff5;
+  --ll-border: #e2e8f0;
+  --ll-border-soft: #f1f5f9;
+  --ll-panel: #ffffff;
+  --ll-panel-subtle: #f8fafc;
+  --ll-surface: #f4f7fa;
+  --ll-text: #0f172a;
+  --ll-muted: #64748b;
   --ll-accent: #2563eb;
-  --ll-accent-soft: #e8f1ff;
+  --ll-accent-soft: #eff6ff;
 }
 
 * {
@@ -21,8 +21,7 @@ body {
   margin: 0;
   min-width: 960px;
   padding: 7px;
-  background:
-    linear-gradient(180deg, #f4f8fd 0, #e7eff8 100%);
+  background: linear-gradient(180deg, #eaeff5 0, #e2e8f0 100%);
 }
 
 #root {
@@ -40,7 +39,7 @@ body {
 
 .app-sider {
   border-right: 1px solid var(--ll-border);
-  background: linear-gradient(180deg, #fbfdff 0%, #f3f8fd 100%);
+  background: var(--ll-panel);
 }
 
 .brand {
@@ -91,19 +90,22 @@ body {
 }
 
 .app-sider .ant-menu-item {
-  height: 36px;
-  margin: 3px 0;
-  border: 1px solid transparent;
+  height: 38px;
+  margin: 4px 0;
   border-radius: 6px;
-  color: #26364f;
+  color: var(--ll-text);
   font-weight: 500;
 }
 
+.app-sider .ant-menu-item:hover {
+  color: var(--ll-accent);
+  background: var(--ll-panel-subtle);
+}
+
 .app-sider .ant-menu-item-selected {
-  color: #145cff;
-  border-color: #d6e5fb;
-  background: #edf5ff;
-  box-shadow: inset 2px 0 0 var(--ll-accent);
+  color: var(--ll-accent);
+  background: var(--ll-accent-soft);
+  font-weight: 600;
 }
 
 .top-status-bar {
@@ -114,9 +116,9 @@ body {
   margin: 0;
   padding: 0 14px;
   border-bottom: 1px solid var(--ll-border);
-  background: rgba(250, 253, 255, 0.92);
+  background: rgba(255, 255, 255, 0.85);
   box-shadow: none;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
 }
 
 .top-status-left,
@@ -226,9 +228,7 @@ body {
 .app-content {
   min-height: calc(100vh - 52px);
   padding: 14px 20px 24px;
-  background:
-    linear-gradient(180deg, rgba(232, 241, 255, 0.62) 0, rgba(237, 244, 251, 0) 166px),
-    var(--ll-surface);
+  background: var(--ll-surface);
 }
 
 .module-tabs {
@@ -286,7 +286,7 @@ body {
 
 .workbench-card .ant-card-head {
   min-height: 40px;
-  background: linear-gradient(180deg, #ffffff 0, #f9fbfe 100%);
+  background: var(--ll-panel-subtle);
   border-bottom-color: var(--ll-border-soft);
   font-weight: 700;
 }
@@ -325,8 +325,8 @@ body {
   padding: 14px 15px;
   border: 1px solid var(--ll-border-soft);
   border-radius: 7px;
-  background: linear-gradient(180deg, #ffffff 0, #f9fcff 100%);
-  box-shadow: none;
+  background: var(--ll-panel);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
 .metric-panel-label {
@@ -391,10 +391,10 @@ body {
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th {
-  background: #f4f8fd;
+  background: var(--ll-panel-subtle);
   border-bottom-color: var(--ll-border-soft);
-  color: #34435a;
-  font-weight: 700;
+  color: var(--ll-muted);
+  font-weight: 600;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
