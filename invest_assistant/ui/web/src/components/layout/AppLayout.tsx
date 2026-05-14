@@ -30,7 +30,7 @@ export function AppLayout() {
       <Sider width={208} className="app-sider" theme="light">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
-            <span />
+            <img src="/favicon.svg" alt="logo" style={{ width: '100%', height: '100%' }} />
           </div>
           <div>
             <Typography.Title level={4}>琉璃 Liuli</Typography.Title>
