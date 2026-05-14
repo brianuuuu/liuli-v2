@@ -1,0 +1,138 @@
+from fastapi.testclient import TestClient
+
+from invest_assistant.bootstrap.app import create_app
+from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
+from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
+from invest_assistant.modules.basic.stock_master.service import import_stocks
+
+
+def reset_db():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
+def login_headers(client: TestClient) -> dict[str, str]:
+    token = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def seed_stock() -> int:
+    db = SessionLocal()
+    try:
+        stock = import_stocks(
+            db,
+            [StockImportItem(stock_code="000001", stock_name="平安银行", market="A股", exchange="SZSE")],
+        )[0]
+        return stock.id
+    finally:
+        db.close()
+
+
+def test_stock_analysis_core_flow():
+    reset_db()
+    stock_id = seed_stock()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    note = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/notes",
+        json={"note_type": "research", "title": "核心逻辑", "content": "银行科技金融受益", "related_track_id": None},
+        headers=headers,
+    )
+    assert note.status_code == 200
+
+    score = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/scores",
+        json={
+            "score_date": "2026-05-14",
+            "track_id": None,
+            "growth_score": 7,
+            "valuation_score": 6,
+            "moat_score": 5,
+            "risk_score": 3,
+            "total_score": 15,
+        },
+        headers=headers,
+    )
+    assert score.status_code == 200
+
+    pool = client.post("/api/stock-analysis/pool", json={"stock_id": stock_id, "status": "watching"}, headers=headers)
+    assert pool.status_code == 200
+
+    group = client.post(
+        "/api/stock-analysis/compare-groups",
+        json={"name": "银行PK", "track_id": None, "stock_ids": str([stock_id]), "description": "同赛道对比"},
+        headers=headers,
+    )
+    assert group.status_code == 200
+
+
+def test_alert_center_rule_event_flow():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    rule = client.post(
+        "/api/alerts/rules",
+        json={"rule_type": "heat", "target_type": "track", "target_id": 1, "condition_json": "{\"min_heat\": 10}", "enabled": True},
+        headers=headers,
+    )
+    assert rule.status_code == 200
+    event = client.post(
+        "/api/alerts/events",
+        json={"rule_id": rule.json()["id"], "event_level": "info", "title": "热度预警", "message": "AI算力升温", "status": "unread"},
+        headers=headers,
+    )
+    assert event.status_code == 200
+    handled = client.post(f"/api/alerts/events/{event.json()['id']}/handle", headers=headers)
+    assert handled.status_code == 200
+    assert handled.json()["status"] == "handled"
+
+
+def test_portfolio_flow():
+    reset_db()
+    stock_id = seed_stock()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    portfolio = client.post("/api/portfolios", json={"name": "主组合", "base_currency": "CNY"}, headers=headers)
+    assert portfolio.status_code == 200
+    position = client.post(
+        f"/api/portfolios/{portfolio.json()['id']}/positions",
+        json={"stock_id": stock_id, "quantity": 100, "cost_price": 10.5},
+        headers=headers,
+    )
+    assert position.status_code == 200
+    review = client.post(
+        f"/api/portfolios/{portfolio.json()['id']}/review",
+        json={"title": "周复盘", "content": "仓位稳定", "risk_summary": "低"},
+        headers=headers,
+    )
+    assert review.status_code == 200
+
+
+def test_knowledge_base_flow_and_jobs_registered():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    note = client.post(
+        "/api/knowledge/notes",
+        json={"title": "复盘原则", "content": "证据优先", "note_type": "principle", "related_module": None, "related_id": None, "tags": "复盘", "status": "active"},
+        headers=headers,
+    )
+    assert note.status_code == 200
+    skill = client.post(
+        "/api/knowledge/skills",
+        json={"title": "证据检查", "skill_type": "analysis", "principle": "先看证据", "description": "检查证据链", "input_schema": "{}", "output_schema": "{}", "prompt_template": "检查 {target}", "status": "active"},
+        headers=headers,
+    )
+    assert skill.status_code == 200
+    agent = client.post(
+        "/api/knowledge/agents",
+        json={"name": "赛道复盘Agent", "target_module": "track_discovery", "description": "复盘赛道", "skills_json": "[]", "workflow_json": "[]", "status": "active"},
+        headers=headers,
+    )
+    assert agent.status_code == 200
+    run = client.post(f"/api/knowledge/agents/{agent.json()['id']}/run", headers=headers)
+    assert run.status_code == 200
+    assert "knowledge_base.extract_skills" in JOB_REGISTRY
+    assert "knowledge_base.compile_agents" in JOB_REGISTRY

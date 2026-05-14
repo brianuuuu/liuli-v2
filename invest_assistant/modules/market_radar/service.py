@@ -114,7 +114,7 @@ def extract_tags(db: Session) -> JobResult:
 
 
 def aggregate_heat(db: Session) -> JobResult:
-    now = utc_now()
+    now = db.scalar(select(func.max(SourceItem.publish_time))) or utc_now()
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
@@ -152,7 +152,7 @@ def aggregate_heat(db: Session) -> JobResult:
 
 
 def aggregate_edges(db: Session) -> JobResult:
-    now = utc_now()
+    now = db.scalar(select(func.max(SourceItem.publish_time))) or utc_now()
     inserted = 0
     tags_by_id = {tag.id: tag for tag in db.scalars(select(Tag))}
     for window, delta in WINDOWS.items():
