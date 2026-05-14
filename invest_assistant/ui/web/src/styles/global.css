@@ -31,10 +31,12 @@ body {
 .app-shell {
   min-height: calc(100vh - 14px);
   overflow: hidden;
-  border: 1px solid var(--ll-border);
+  border: 1px solid transparent;
   border-radius: 9px;
   background: var(--ll-panel);
-  box-shadow: 0 10px 26px rgba(24, 42, 70, 0.05);
+  box-shadow:
+    0 4px 12px -2px rgba(24, 42, 70, 0.04),
+    0 16px 36px -6px rgba(24, 42, 70, 0.08);
 }
 
 .app-sider {
@@ -278,7 +280,7 @@ body {
 .workbench-card {
   margin-bottom: 10px;
   overflow: hidden;
-  border: 1px solid var(--ll-border-soft);
+  border: 1px solid var(--ll-border);
   border-radius: 7px;
   background: var(--ll-panel);
   box-shadow: none;
@@ -287,7 +289,7 @@ body {
 .workbench-card .ant-card-head {
   min-height: 40px;
   background: var(--ll-panel-subtle);
-  border-bottom-color: var(--ll-border-soft);
+  border-bottom-color: var(--ll-border);
   font-weight: 700;
 }
 
@@ -323,7 +325,7 @@ body {
 
 .metric-panel {
   padding: 14px 15px;
-  border: 1px solid var(--ll-border-soft);
+  border: 1px solid var(--ll-border);
   border-radius: 7px;
   background: var(--ll-panel);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
@@ -365,7 +367,7 @@ body {
   justify-content: space-between;
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid var(--ll-border-soft);
+  border: 1px solid var(--ll-border);
   background: var(--ll-panel-subtle);
   color: #26364f;
   font-size: 13px;
@@ -381,18 +383,18 @@ body {
   grid-template-columns: 120px 1fr;
   gap: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--ll-border-soft);
+  border-bottom: 1px solid var(--ll-border);
 }
 
 .ant-table-wrapper .ant-table {
-  border: 1px solid var(--ll-border-soft);
+  border: 1px solid var(--ll-border);
   border-radius: 7px;
   overflow: hidden;
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th {
   background: var(--ll-panel-subtle);
-  border-bottom-color: var(--ll-border-soft);
+  border-bottom-color: var(--ll-border);
   color: var(--ll-muted);
   font-weight: 600;
 }
@@ -421,54 +423,41 @@ body {
 }
 
 [data-theme="dark"] {
-  color: #e5e7eb;
-  background: #0f1115;
-  --ll-border: rgba(255, 255, 255, 0.14);
-  --ll-border-soft: rgba(255, 255, 255, 0.1);
-  --ll-panel: #141414;
-  --ll-panel-subtle: rgba(255, 255, 255, 0.06);
-  --ll-surface: #0f1115;
-  --ll-text: #f3f4f6;
-  --ll-muted: #9ca3af;
+  color: #e2e8f0;
+  background: #0b0f19;
+  --ll-border: rgba(255, 255, 255, 0.08);
+  --ll-border-soft: rgba(255, 255, 255, 0.04);
+  --ll-panel: #131b2c;
+  --ll-panel-subtle: #1a233a;
+  --ll-surface: #0b0f19;
+  --ll-text: #f1f5f9;
+  --ll-muted: #94a3b8;
+  --ll-accent: #3b82f6;
+  --ll-accent-soft: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme="dark"] body {
+  background: #06090f;
 }
 
 [data-theme="dark"] .app-shell {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: #111318;
-  box-shadow: none;
-}
-
-[data-theme="dark"] .app-sider,
-[data-theme="dark"] .top-status-bar {
-  background: #141414;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="dark"] .top-status-bar {
-  box-shadow: none;
+  background: rgba(19, 27, 44, 0.85);
 }
 
-[data-theme="dark"] .app-content {
-  background: #0f1115;
+[data-theme="dark"] .brand-mark {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
 }
 
-[data-theme="dark"] .brand h4,
-[data-theme="dark"] .page-header h3,
-[data-theme="dark"] .metric-panel-value {
-  color: #f3f4f6;
-}
-
-[data-theme="dark"] .workbench-card,
 [data-theme="dark"] .metric-panel {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #141414;
-}
-
-[data-theme="dark"] .compact-list-row {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 [data-theme="dark"] .login-page {
-  background: #0f1115;
+  background: #06090f;
 }
