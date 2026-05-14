@@ -5,6 +5,12 @@ __pycache__/
 .env
 old/
 liuli.egg-info/
+node_modules/
+dist/
+invest_assistant/ui/web/node_modules/
+invest_assistant/ui/web/dist/
+.playwright-mcp/
+liuli-*.png
 var/*
 !var/.gitkeep
 !var/db/

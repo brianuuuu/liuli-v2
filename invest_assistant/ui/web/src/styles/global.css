@@ -1,0 +1,116 @@
+:root {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  color: #1f2937;
+  background: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 960px;
+  background: #f5f7fb;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-sider {
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+}
+
+.brand {
+  height: 76px;
+  padding: 16px 20px 12px;
+}
+
+.brand h4 {
+  margin: 0;
+}
+
+.top-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+}
+
+.app-content {
+  min-height: calc(100vh - 48px);
+  padding: 20px;
+  background: #f5f7fb;
+}
+
+.module-tabs {
+  margin-top: 8px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.page-header h3 {
+  margin: 0 0 4px;
+}
+
+.workbench-card {
+  margin-bottom: 12px;
+  border-radius: 6px;
+}
+
+.detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #eef2f7;
+}
+
+.login-card {
+  width: 360px;
+}
+
+.login-form {
+  margin-top: 24px;
+}
+
+[data-theme="dark"] {
+  color: #e5e7eb;
+  background: #0f1115;
+}
+
+[data-theme="dark"] .app-sider,
+[data-theme="dark"] .top-status-bar {
+  background: #141414;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .app-content {
+  background: #0f1115;
+}
+
+[data-theme="dark"] .login-page {
+  background: #0f1115;
+}
