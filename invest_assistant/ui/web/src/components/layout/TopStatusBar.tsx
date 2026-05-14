@@ -7,7 +7,7 @@ export function TopStatusBar() {
 
   return (
     <div className="top-status-bar">
-      <Space size={12}>
+      <Space size={8} className="top-status-left">
         <Select
           value="all"
           size="small"
@@ -24,11 +24,11 @@ export function TopStatusBar() {
         <Tag>任务状态待同步</Tag>
         <Typography.Text type="secondary">当前主题：{resolvedMode === "dark" ? "深色" : "浅色"}</Typography.Text>
       </Space>
-      <Space size={8}>
+      <Space size={6} className="top-status-right">
         <Select<ThemeMode>
           value={mode}
           size="small"
-          style={{ width: 112 }}
+          className="theme-select"
           onChange={setMode}
           options={[
             { value: "light", label: "浅色" },

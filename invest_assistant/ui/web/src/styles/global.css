@@ -86,16 +86,49 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 22px;
-  border-bottom: 1px solid #e5ecf6;
-  background: rgba(255, 255, 255, 0.92);
+  height: 38px;
+  margin: 8px 12px 0;
+  padding: 0 10px;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+  background: rgba(248, 251, 255, 0.96);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
   backdrop-filter: blur(10px);
 }
 
+.top-status-left,
+.top-status-right {
+  min-width: 0;
+}
+
+.top-status-bar .ant-select-selector,
+.top-status-bar .ant-input-affix-wrapper,
+.top-status-bar .ant-btn,
+.top-status-bar .ant-tag {
+  border-color: #dbe5f1;
+}
+
+.top-status-bar .ant-tag {
+  margin-inline-end: 0;
+  line-height: 22px;
+  background: #f4f8ff;
+}
+
+.top-status-bar .ant-btn,
+.top-status-bar .ant-select-selector,
+.top-status-bar .ant-input-affix-wrapper {
+  height: 26px;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.top-status-bar .ant-input-affix-wrapper input {
+  font-size: 12px;
+}
+
 .app-content {
-  min-height: calc(100vh - 52px);
-  padding: 20px 22px 28px;
+  min-height: calc(100vh - 46px);
+  padding: 16px 22px 28px;
   background:
     linear-gradient(180deg, rgba(232, 241, 255, 0.58) 0, rgba(243, 247, 252, 0) 180px),
     #f3f7fc;
@@ -149,6 +182,10 @@ body {
 
 .global-search {
   width: 280px;
+}
+
+.theme-select {
+  width: 112px;
 }
 
 .metric-grid {
@@ -244,6 +281,10 @@ body {
 [data-theme="dark"] .top-status-bar {
   background: #141414;
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .top-status-bar {
+  box-shadow: none;
 }
 
 [data-theme="dark"] .app-content {
