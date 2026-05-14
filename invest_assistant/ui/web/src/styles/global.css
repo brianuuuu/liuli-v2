@@ -91,19 +91,19 @@ body {
 }
 
 .app-sider .ant-menu-item {
-  height: 38px;
+  height: 36px;
   margin: 3px 0;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 6px;
   color: #26364f;
   font-weight: 500;
 }
 
 .app-sider .ant-menu-item-selected {
   color: #145cff;
-  border-color: #c9dbf8;
-  background: linear-gradient(180deg, #f1f7ff 0, #e8f1ff 100%);
-  box-shadow: inset 3px 0 0 var(--ll-accent);
+  border-color: #d6e5fb;
+  background: #edf5ff;
+  box-shadow: inset 2px 0 0 var(--ll-accent);
 }
 
 .top-status-bar {
@@ -125,19 +125,10 @@ body {
 }
 
 .top-status-bar .ant-select-selector,
-.top-status-bar .ant-input-affix-wrapper,
-.top-status-bar .ant-btn,
-.top-status-bar .ant-tag {
+.top-status-bar .ant-input-affix-wrapper {
   border-color: #dbe5f1;
 }
 
-.top-status-bar .ant-tag {
-  margin-inline-end: 0;
-  line-height: 22px;
-  background: var(--ll-panel-subtle);
-}
-
-.top-status-bar .ant-btn,
 .top-status-bar .ant-select-selector,
 .top-status-bar .ant-input-affix-wrapper {
   height: 26px;
@@ -147,6 +138,89 @@ body {
 
 .top-status-bar .ant-input-affix-wrapper input {
   font-size: 12px;
+}
+
+.search-shortcut {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid #e2eaf4;
+  border-radius: 4px;
+  color: #8a99ad;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid #dbe5f1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #26364f;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-ok i {
+  background: #10b981;
+}
+
+.status-warn i {
+  background: #f97316;
+}
+
+.toolbar-item,
+.toolbar-button,
+.toolbar-icon {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  gap: 6px;
+  color: #34435a;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.toolbar-button.ant-btn,
+.toolbar-icon.ant-btn {
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #34435a;
+  box-shadow: none;
+}
+
+.toolbar-button.ant-btn:hover,
+.toolbar-icon.ant-btn:hover {
+  background: #f2f6fb;
+  color: #145cff;
+}
+
+.toolbar-icon.ant-btn {
+  width: 26px;
+}
+
+.user-button .anticon {
+  color: #2563eb;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 18px;
+  background: #dbe5f1;
 }
 
 .app-content {
@@ -168,7 +242,22 @@ body {
 
 .module-tabs .ant-tabs-tab {
   padding: 8px 2px;
+  color: #2f4059;
   font-weight: 600;
+}
+
+.module-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 26px;
+}
+
+.module-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #2563eb;
+}
+
+.module-tabs .ant-tabs-ink-bar {
+  height: 2px;
+  border-radius: 999px;
+  background: #2563eb;
 }
 
 .page-header {
@@ -215,7 +304,14 @@ body {
 }
 
 .theme-select {
-  width: 112px;
+  width: 70px;
+}
+
+.theme-select .ant-select-selector {
+  padding-inline: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .metric-grid {
