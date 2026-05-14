@@ -1,6 +1,6 @@
 import type { EChartsOption } from "echarts";
 import { useCallback } from "react";
-import { listMarketTags, listRankings, listSourceItems, listTagCandidates } from "../../api/marketRadar";
+import { getMarketOverview, listMarketTags, listRankings, listSourceItems, listTagCandidates } from "../../api/marketRadar";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { RecordTable } from "../../components/common/RecordTable";
@@ -15,14 +15,12 @@ const basicColumns = [
 ];
 
 function OverviewSection() {
+  const overview = useAsyncData(useCallback(getMarketOverview, []), {});
   const rankings = useAsyncData(useCallback(() => listRankings("hotword"), []), []);
-  if (!rankings.loading && rankings.data.length === 0) {
-    return (
-      <WorkbenchCard title="热度榜概览">
-        <EmptyAction description="暂无热度数据，去控制台同步或运行市场雷达任务" />
-      </WorkbenchCard>
-    );
-  }
+  const sources = useAsyncData(useCallback(listSourceItems, []), []);
+  const tags = useAsyncData(useCallback(listMarketTags, []), []);
+  const overviewValue = (key: string) => Number(overview.data[key] ?? 0);
+  const hasRankingData = rankings.data.length > 0;
   const option: EChartsOption = {
     tooltip: {},
     grid: { left: 36, right: 16, top: 24, bottom: 28 },
@@ -30,7 +28,55 @@ function OverviewSection() {
     yAxis: { type: "value" },
     series: [{ type: "bar", data: rankings.data.slice(0, 8).map((item) => Number(item.score ?? item.heat ?? item.count ?? 0)) }]
   };
-  return <ChartCard title="热度榜概览" option={option} />;
+  return (
+    <>
+      <div className="metric-grid">
+        <div className="metric-panel">
+          <div className="metric-panel-label">市场信号</div>
+          <div className="metric-panel-value">{overviewValue("source_items") || sources.data.length}</div>
+          <div className="metric-panel-note">信息源入库</div>
+        </div>
+        <div className="metric-panel">
+          <div className="metric-panel-label">标签数量</div>
+          <div className="metric-panel-value">{overviewValue("tags") || tags.data.length}</div>
+          <div className="metric-panel-note">可跟踪主题</div>
+        </div>
+        <div className="metric-panel">
+          <div className="metric-panel-label">候选热点</div>
+          <div className="metric-panel-value">{rankings.data.length}</div>
+          <div className="metric-panel-note">等待观察</div>
+        </div>
+        <div className="metric-panel">
+          <div className="metric-panel-label">更新时间</div>
+          <div className="metric-panel-value">--</div>
+          <div className="metric-panel-note">等待任务同步</div>
+        </div>
+      </div>
+      <div className="market-overview-grid">
+        {hasRankingData ? (
+          <ChartCard title="市场热度趋势" option={option} height={320} />
+        ) : (
+          <WorkbenchCard title="市场热度趋势">
+            <EmptyAction description="暂无热度数据，去控制台同步或运行市场雷达任务" />
+          </WorkbenchCard>
+        )}
+        <WorkbenchCard title="热门主题">
+          {rankings.data.length ? (
+            <div className="compact-list">
+              {rankings.data.slice(0, 8).map((item, index) => (
+                <div className="compact-list-row" key={String(item.id ?? item.name ?? index)}>
+                  <span>{index + 1}. {String(item.name ?? item.keyword ?? item.tag_name ?? "未命名")}</span>
+                  <strong>{String(item.score ?? item.heat ?? item.count ?? "-")}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyAction description="暂无热门主题" />
+          )}
+        </WorkbenchCard>
+      </div>
+    </>
+  );
 }
 
 function RankingsSection() {

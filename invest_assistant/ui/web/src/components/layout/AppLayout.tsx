@@ -29,8 +29,13 @@ export function AppLayout() {
     <Layout className="app-shell">
       <Sider width={208} className="app-sider" theme="light">
         <div className="brand">
-          <Typography.Title level={4}>琉璃</Typography.Title>
-          <Typography.Text type="secondary">研究工作台</Typography.Text>
+          <div className="brand-mark" aria-hidden="true">
+            <span />
+          </div>
+          <div>
+            <Typography.Title level={4}>琉璃 Liuli</Typography.Title>
+            <Typography.Text type="secondary">洞察与决策平台</Typography.Text>
+          </div>
         </div>
         <Menu
           mode="inline"
