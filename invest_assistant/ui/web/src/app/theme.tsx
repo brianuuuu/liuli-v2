@@ -34,6 +34,10 @@ export function LiuliThemeProvider({ children }: { children: ReactNode }) {
 
   const resolvedMode = mode === "system" ? systemMode : mode;
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", resolvedMode);
+  }, [resolvedMode]);
+
   const value = useMemo(
     () => ({
       mode,
