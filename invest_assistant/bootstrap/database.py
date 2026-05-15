@@ -45,7 +45,11 @@ def create_all_tables() -> None:
     import invest_assistant.modules.basic.report_library.models  # noqa: F401
     import invest_assistant.modules.basic.stock_master.models  # noqa: F401
     import invest_assistant.modules.basic.system_config.models  # noqa: F401
+    import invest_assistant.modules.alert_center.models  # noqa: F401
+    import invest_assistant.modules.knowledge_base.models  # noqa: F401
     import invest_assistant.modules.market_radar.models  # noqa: F401
+    import invest_assistant.modules.portfolio.models  # noqa: F401
+    import invest_assistant.modules.stock_analysis.models  # noqa: F401
     import invest_assistant.modules.track_discovery.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
