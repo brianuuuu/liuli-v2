@@ -10,9 +10,9 @@ type PageHeaderProps = {
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="page-header">
-      <div>
+      <div className="page-title-block">
         <Typography.Title level={3}>{title}</Typography.Title>
-        {description ? <Typography.Text type="secondary">{description}</Typography.Text> : null}
+        {description ? <span className="page-context">{description}</span> : null}
       </div>
       {actions ? <Space>{actions}</Space> : null}
     </div>

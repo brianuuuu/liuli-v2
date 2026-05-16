@@ -29,7 +29,7 @@ export function KnowledgePage() {
 
   return (
     <>
-      <PageHeader title="知识库" description="沉淀经验，提炼 Skills，编排 Agent" />
+      <PageHeader title="知识库" description="笔记 / Skills / Agents" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.knowledge} onChange={setActiveTab} />
       {content()}
     </>

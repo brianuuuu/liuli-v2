@@ -41,7 +41,7 @@ export function TrackDiscoveryPage() {
 
   return (
     <>
-      <PageHeader title="赛道发现" description="判断方向是否值得长期跟踪" />
+      <PageHeader title="赛道发现" description="候选 / 证据 / 跟踪" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs["track-discovery"]} onChange={setActiveTab} />
       {content()}
     </>

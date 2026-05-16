@@ -38,7 +38,7 @@ export function AlertsPage() {
 
   return (
     <>
-      <PageHeader title="预警中心" description="跟踪价格、估值、事件、热度异动" actions={actions} />
+      <PageHeader title="预警中心" description="事件 / 规则 / 处理" actions={actions} />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.alerts} onChange={setActiveTab} />
       {activeTab === "rules" ? (
         <RecordTable loading={rules.loading} data={rules.data} columns={ruleColumns} emptyText="暂无预警规则" drawerTitle="规则详情" />
