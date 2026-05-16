@@ -399,7 +399,7 @@ body {
   border-radius: 6px;
   border: 1px solid var(--ll-border);
   background: var(--ll-panel-subtle);
-  color: #26364f;
+  color: var(--ll-text);
   font-size: 13px;
 }
 
