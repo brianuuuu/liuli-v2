@@ -430,11 +430,11 @@ body {
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
-  border-bottom-color: #edf2f8;
+  border-bottom-color: var(--ll-border-soft);
 }
 
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
-  background: #f7fbff;
+  background: var(--ll-panel-subtle);
 }
 
 .login-page {
