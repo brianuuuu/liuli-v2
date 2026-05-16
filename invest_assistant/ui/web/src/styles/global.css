@@ -102,7 +102,28 @@ body {
 }
 
 .ant-layout-sider-collapsed .ant-menu {
-  padding-inline: 7px;
+  padding-inline: 0 !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item {
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  margin-inline: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .anticon {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .ant-menu-title-content {
+  display: none !important;
 }
 
 .app-sider .ant-menu-item {
