@@ -17,6 +17,24 @@
   box-sizing: border-box;
 }
 
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ll-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ll-muted);
+}
+
 body {
   margin: 0;
   min-width: 960px;
@@ -29,7 +47,7 @@ body {
 }
 
 .app-shell {
-  min-height: calc(100vh - 14px);
+  height: calc(100vh - 14px);
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -84,7 +102,28 @@ body {
 }
 
 .ant-layout-sider-collapsed .ant-menu {
-  padding-inline: 7px;
+  padding-inline: 0 !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item {
+  width: 38px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  margin-inline: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .anticon {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .ant-menu-title-content {
+  display: none !important;
 }
 
 .app-sider .ant-menu-item {
@@ -245,7 +284,8 @@ body {
 }
 
 .app-content {
-  min-height: calc(100vh - 52px);
+  height: calc(100vh - 52px);
+  overflow-y: auto;
   padding: 14px 20px 24px;
   background: var(--ll-surface);
 }
@@ -399,7 +439,7 @@ body {
   border-radius: 6px;
   border: 1px solid var(--ll-border);
   background: var(--ll-panel-subtle);
-  color: #26364f;
+  color: var(--ll-text);
   font-size: 13px;
 }
 
@@ -430,11 +470,11 @@ body {
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
-  border-bottom-color: #edf2f8;
+  border-bottom-color: var(--ll-border-soft);
 }
 
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
-  background: #f7fbff;
+  background: var(--ll-panel-subtle);
 }
 
 .login-page {

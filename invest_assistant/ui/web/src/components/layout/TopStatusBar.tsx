@@ -8,8 +8,6 @@ export function TopStatusBar() {
   return (
     <div className="top-status-bar">
       <Space size={8} className="top-status-left">
-        <span className="status-chip status-ok"><i />API 在线</span>
-        <span className="status-chip status-warn"><i />任务 2 待同步</span>
         <Input
           size="small"
           className="global-search"
@@ -17,6 +15,7 @@ export function TopStatusBar() {
           placeholder="搜索股票/赛道/公告/知识库"
           suffix={<span className="search-shortcut">⌘ K</span>}
         />
+        <span className="status-chip status-warn"><i />任务 2 待同步</span>
       </Space>
       <Space size={6} className="top-status-right">
         <Button
