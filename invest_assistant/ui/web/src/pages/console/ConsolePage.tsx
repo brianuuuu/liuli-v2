@@ -8,7 +8,7 @@ export function ConsolePage() {
   const [activeTab, setActiveTab] = useState("status");
   return (
     <>
-      <PageHeader title="控制台" description="系统运营管理入口，不承载投资分析业务逻辑" />
+      <PageHeader title="控制台" description="任务 / 数据 / 配置" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.console} onChange={setActiveTab} />
       <ConsoleSections activeTab={activeTab} />
     </>

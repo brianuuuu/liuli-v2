@@ -14,7 +14,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="工作台总览" description="市场、任务、报告和系统状态的统一入口" />
+      <PageHeader title="工作台总览" description="市场 / 任务 / 报告 / 系统" />
       <Row gutter={[12, 12]}>
         <Col span={6}>
           <WorkbenchCard>

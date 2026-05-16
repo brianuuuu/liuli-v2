@@ -36,7 +36,7 @@ export function PortfolioPage() {
 
   return (
     <>
-      <PageHeader title="组合管理" description="管理持仓、权重和风险暴露" />
+      <PageHeader title="组合管理" description="持仓 / 权重 / 风险" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.portfolio} onChange={setActiveTab} />
       {content()}
     </>

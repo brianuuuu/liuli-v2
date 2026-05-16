@@ -8,7 +8,7 @@ export function MarketRadarPage() {
   const [activeTab, setActiveTab] = useState("overview");
   return (
     <>
-      <PageHeader title="市场雷达" description="发现市场正在关注什么" />
+      <PageHeader title="市场雷达" description="信号 / 热度 / 关系" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs["market-radar"]} onChange={setActiveTab} />
       <MarketRadarSections activeTab={activeTab} />
     </>

@@ -40,7 +40,7 @@ export function StockAnalysisPage() {
 
   return (
     <>
-      <PageHeader title="标的分析" description="找出能承接赛道逻辑的公司" />
+      <PageHeader title="标的分析" description="标的池 / 评分 / 报告" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs["stock-analysis"]} onChange={setActiveTab} />
       {content()}
     </>

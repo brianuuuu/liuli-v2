@@ -53,11 +53,20 @@ body {
   border-bottom: 1px solid var(--ll-border-soft);
 }
 
+.ant-layout-sider-collapsed .brand {
+  justify-content: center;
+  padding: 16px 0 12px;
+}
+
 .brand h4 {
   margin: 0;
   color: var(--ll-text);
   font-size: 19px;
   letter-spacing: 0;
+}
+
+.brand-text {
+  min-width: 0;
 }
 
 .brand-mark {
@@ -72,6 +81,10 @@ body {
   padding: 10px 9px;
   border-inline-end: 0 !important;
   background: transparent;
+}
+
+.ant-layout-sider-collapsed .ant-menu {
+  padding-inline: 7px;
 }
 
 .app-sider .ant-menu-item {
@@ -91,6 +104,27 @@ body {
   color: var(--ll-accent);
   background: var(--ll-accent-soft);
   font-weight: 600;
+}
+
+.sider-footer {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  left: 10px;
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.sider-footer .ant-btn {
+  width: 100%;
+  color: #607086;
+}
+
+.ant-layout-sider-collapsed .sider-footer .ant-btn {
+  width: 38px;
+  padding-inline: 0;
 }
 
 .top-status-bar {
@@ -249,15 +283,28 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding-top: 2px;
 }
 
 .page-header h3 {
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--ll-text);
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1.24;
+}
+
+.page-title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.page-context {
+  color: var(--ll-muted);
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .workbench-card {
