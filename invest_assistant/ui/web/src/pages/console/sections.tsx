@@ -90,7 +90,6 @@ type TagFormValues = {
   name: string;
   type: string;
   category?: string;
-  stock_id?: number;
   status: string;
 };
 
@@ -115,7 +114,6 @@ function TagsSection() {
       name: String(record.name ?? ""),
       type: String(record.type ?? "hotword"),
       category: record.category ? String(record.category) : undefined,
-      stock_id: record.stock_id ? Number(record.stock_id) : undefined,
       status: String(record.status ?? "active")
     });
     setOpen(true);
@@ -125,8 +123,7 @@ function TagsSection() {
     const values = await form.validateFields();
     const payload = {
       ...values,
-      category: values.category || null,
-      stock_id: values.stock_id || null
+      category: values.category || null
     };
     if (editing?.id) {
       await updateMarketTag(Number(editing.id), payload);
@@ -163,7 +160,7 @@ function TagsSection() {
               { value: "hotword", label: "热点词" }
             ]}
           />
-          <Button size="small" type="primary" onClick={openCreate}>新增标签</Button>
+          <Button size="small" type="primary" onClick={openCreate}>新增赛道/热点标签</Button>
         </Space>
       }
     >
@@ -182,9 +179,9 @@ function TagsSection() {
             width: 170,
             render: (_, record) => (
               <Space>
-                <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+                <Button size="small" disabled={record.type === "stock"} onClick={() => openEdit(record)}>编辑</Button>
                 <Popconfirm title="停用这个标签？" onConfirm={() => disable(record)}>
-                  <Button size="small" danger>停用</Button>
+                  <Button size="small" danger disabled={record.type === "stock"}>停用</Button>
                 </Popconfirm>
               </Space>
             )
@@ -205,7 +202,6 @@ function TagsSection() {
           <Form.Item name="type" label="标签类型" rules={[{ required: true, message: "请选择标签类型" }]}>
             <Select
               options={[
-                { value: "stock", label: "标的标签" },
                 { value: "track", label: "赛道标签" },
                 { value: "hotword", label: "热点词标签" }
               ]}
@@ -213,9 +209,6 @@ function TagsSection() {
           </Form.Item>
           <Form.Item name="category" label="分类">
             <Input placeholder="可选，如 AI、汽车、宏观" />
-          </Form.Item>
-          <Form.Item name="stock_id" label="关联股票 ID">
-            <Input type="number" placeholder="仅标的标签需要" />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]} />
