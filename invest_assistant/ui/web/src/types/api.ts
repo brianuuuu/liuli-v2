@@ -132,4 +132,67 @@ export type SystemConfig = {
   updated_at?: string | null;
 };
 
+export type MarketTag = {
+  id: number;
+  name: string;
+  type: "stock" | "track" | "hotword" | string;
+  category?: string | null;
+  stock_id?: number | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type SourceItem = {
+  id: number;
+  source_type: string;
+  source_name: string;
+  title: string;
+  content: string;
+  source_url?: string | null;
+  publish_time?: string | null;
+  created_at?: string | null;
+};
+
+export type TagHeat = {
+  id: number;
+  tag_id: number;
+  window_type: string;
+  stat_time: string;
+  trigger_count: number;
+  source_count: number;
+  heat_score: number;
+  avg_count: number;
+  change_ratio: number;
+  rank_no: number;
+  created_at?: string | null;
+  tag?: MarketTag | null;
+};
+
+export type TagCandidate = {
+  id: number;
+  name: string;
+  suggested_type: string;
+  category?: string | null;
+  source_item_id?: number | null;
+  confidence: number;
+  reason?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type MarketGraphEdge = {
+  stock_tag?: MarketTag | null;
+  related_tag?: MarketTag | null;
+  weight: number;
+  source_count: number;
+  latest_source_item_id?: number | null;
+};
+
+export type MarketGraph = {
+  nodes: MarketTag[];
+  edges: MarketGraphEdge[];
+};
+
 export type AnyRecord = Record<string, unknown>;
