@@ -1,5 +1,7 @@
-import type { JobConfig } from "../types/api";
+import type { JobConfig, JobRunLog, JobRunRequest } from "../types/api";
 import { apiClient } from "./client";
+
+export type JobConfigUpdate = Partial<Pick<JobConfig, "display_name" | "description" | "trigger_type" | "cron_expr" | "enabled" | "timeout_seconds" | "max_retries">>;
 
 export async function listJobs(): Promise<JobConfig[]> {
   const response = await apiClient.get<JobConfig[]>("/api/jobs");
@@ -11,12 +13,22 @@ export async function syncJobDefinitions(): Promise<{ synced: number }> {
   return response.data;
 }
 
-export async function runJob(jobName: string): Promise<unknown> {
-  const response = await apiClient.post(`/api/jobs/${encodeURIComponent(jobName)}/run`, {});
+export async function updateJob(jobName: string, payload: JobConfigUpdate): Promise<JobConfig> {
+  const response = await apiClient.put<JobConfig>(`/api/jobs/${encodeURIComponent(jobName)}`, payload);
   return response.data;
 }
 
-export async function listJobLogs(jobName: string): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>(`/api/jobs/${encodeURIComponent(jobName)}/logs`);
+export async function runJob(jobName: string, params: Record<string, unknown> = {}): Promise<JobRunRequest> {
+  const response = await apiClient.post<JobRunRequest>(`/api/jobs/${encodeURIComponent(jobName)}/run`, { params });
+  return response.data;
+}
+
+export async function listRunRequests(): Promise<JobRunRequest[]> {
+  const response = await apiClient.get<JobRunRequest[]>("/api/jobs/run-requests");
+  return response.data;
+}
+
+export async function listJobLogs(jobName: string): Promise<JobRunLog[]> {
+  const response = await apiClient.get<JobRunLog[]>(`/api/jobs/${encodeURIComponent(jobName)}/logs`);
   return response.data;
 }

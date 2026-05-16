@@ -16,11 +16,48 @@ export type JobConfig = {
   id: number;
   job_name: string;
   module_name: string;
+  display_name?: string;
   description?: string | null;
+  trigger_type?: string;
   enabled: boolean;
   cron_expr?: string | null;
   timeout_seconds?: number | null;
-  status?: string | null;
+  max_retries?: number | null;
+  last_run_at?: string | null;
+  last_status?: string | null;
+  next_run_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type JobRunRequest = {
+  id: number;
+  job_name: string;
+  params_json?: string | null;
+  status: string;
+  requested_by?: number | null;
+  requested_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_message?: string | null;
+};
+
+export type JobRunLog = {
+  id: number;
+  job_name: string;
+  module_name: string;
+  trigger_type: string;
+  status: string;
+  params_json?: string | null;
+  result_json?: string | null;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  fetched_count: number;
+  processed_count: number;
+  inserted_count: number;
+  updated_count: number;
+  error_message?: string | null;
 };
 
 export type Report = {
@@ -30,18 +67,34 @@ export type Report = {
   source_module: string;
   target_type?: string | null;
   target_id?: number | null;
+  summary?: string | null;
+  file_format?: string | null;
   file_path?: string | null;
+  generated_by?: string | null;
+  status?: string | null;
+  publish_time?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type Disclosure = {
   id: number;
   title: string;
+  stock_id?: number | null;
   stock_code?: string | null;
   stock_name?: string | null;
+  source?: string | null;
   disclosure_type: string;
   publish_date?: string | null;
+  publish_time?: string | null;
+  report_period?: string | null;
+  source_url?: string | null;
+  file_path?: string | null;
+  parsed_text_path?: string | null;
+  parsed_markdown_path?: string | null;
   parse_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type Stock = {
@@ -51,8 +104,32 @@ export type Stock = {
   name?: string | null;
   stock_name?: string | null;
   market?: string | null;
+  exchange?: string | null;
   industry?: string | null;
   status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockAlias = {
+  id: number;
+  stock_id: number;
+  alias: string;
+  alias_type?: string | null;
+  source?: string | null;
+  created_at?: string | null;
+};
+
+export type SystemConfig = {
+  id: number;
+  config_key: string;
+  config_value: string;
+  config_type: string;
+  module_name?: string | null;
+  description?: string | null;
+  enabled: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type AnyRecord = Record<string, unknown>;

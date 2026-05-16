@@ -36,7 +36,7 @@ export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, 
           onClick: () => drawer.show(record)
         })}
       />
-      <Drawer title={drawerTitle || "详情"} open={drawer.open} onClose={drawer.close} width={520}>
+      <Drawer title={drawerTitle || "详情"} open={drawer.open} onClose={drawer.close} size={520}>
         {drawer.record ? (
           <div className="detail-list">
             {Object.entries(drawer.record).map(([key, value]) => (
