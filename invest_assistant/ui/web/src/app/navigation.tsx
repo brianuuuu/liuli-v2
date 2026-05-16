@@ -70,6 +70,8 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   console: [
     { key: "status", label: "系统状态" },
     { key: "jobs", label: "任务中心" },
+    { key: "tags", label: "标签库" },
+    { key: "tag-candidates", label: "候选标签" },
     { key: "reports", label: "报告库" },
     { key: "disclosures", label: "公告财报库" },
     { key: "stocks", label: "股票基础库" },
