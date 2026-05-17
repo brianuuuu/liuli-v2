@@ -1,14 +1,14 @@
-import { Button, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tabs, Tag, message } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { Button, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Tabs, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
-import type { JobConfig, JobRunLog, JobRunRequest } from "../../../types/api";
+import type { JobConfig, JobRunLog } from "../../../types/api";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime, parseJsonObject } from "./shared";
-import { JobCard, jobStatusColor } from "./JobCard";
+import { JobCard } from "./JobCard";
+import { JobLogEventList, JobRequestEventList } from "./JobRunEventList";
 
 type JobFormValues = {
   display_name?: string;
@@ -135,25 +135,6 @@ export function JobsSection() {
     await refreshAll();
   }
 
-  const requestColumns: ColumnsType<JobRunRequest> = [
-    { title: "请求", dataIndex: "id", width: 80 },
-    { title: "任务", dataIndex: "job_name" },
-    { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag color={jobStatusColor(value)}>{value}</Tag> },
-    { title: "请求时间", dataIndex: "requested_at", width: 160, render: formatTime },
-    { title: "错误", dataIndex: "error_message", ellipsis: true, render: (value) => value || "-" }
-  ];
-
-  const logColumns: ColumnsType<JobRunLog> = [
-    { title: "日志", dataIndex: "id", width: 80 },
-    { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={jobStatusColor(value)}>{value}</Tag> },
-    { title: "开始", dataIndex: "started_at", width: 160, render: formatTime },
-    { title: "耗时", dataIndex: "duration_ms", width: 90, render: (value) => `${value} ms` },
-    { title: "处理", dataIndex: "processed_count", width: 80 },
-    { title: "新增", dataIndex: "inserted_count", width: 80 },
-    { title: "更新", dataIndex: "updated_count", width: 80 },
-    { title: "错误", dataIndex: "error_message", ellipsis: true, render: (value) => value || "-" }
-  ];
-
   return (
     <>
       <div className="job-center-layout">
@@ -240,12 +221,12 @@ export function JobsSection() {
                 {
                   key: "requests",
                   label: "运行请求",
-                  children: <Table rowKey="id" size="small" loading={requests.loading} dataSource={requestRows} columns={requestColumns} pagination={{ pageSize: 6 }} />
+                  children: <JobRequestEventList rows={requestRows} loading={requests.loading} />
                 },
                 {
                   key: "logs",
                   label: "执行日志",
-                  children: <Table rowKey="id" size="small" loading={logsLoading} dataSource={logs} columns={logColumns} pagination={{ pageSize: 6 }} />
+                  children: <JobLogEventList rows={logs} loading={logsLoading} />
                 }
               ]}
             />
