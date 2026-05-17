@@ -310,8 +310,15 @@ body {
 
 .module-tabs .ant-tabs-tab {
   padding: 8px 2px;
-  color: #2f4059;
   font-weight: 600;
+}
+
+.module-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  color: #2f4059;
+}
+
+.module-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn {
+  color: var(--ll-accent);
 }
 
 .module-tabs .ant-tabs-tab + .ant-tabs-tab {
@@ -319,13 +326,13 @@ body {
 }
 
 .module-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: #2563eb;
+  color: var(--ll-accent);
 }
 
 .module-tabs .ant-tabs-ink-bar {
   height: 2px;
   border-radius: 999px;
-  background: #2563eb;
+  background: var(--ll-accent);
 }
 
 .page-header {
@@ -543,7 +550,14 @@ body {
   border-color: var(--ll-accent);
 }
 
+[data-theme="dark"] .module-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  color: #9fb4cc;
+}
 
+[data-theme="dark"] .module-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn,
+[data-theme="dark"] .module-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--ll-accent);
+}
 
 [data-theme="dark"] .metric-panel {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
