@@ -195,4 +195,68 @@ export type MarketGraph = {
   edges: MarketGraphEdge[];
 };
 
+export type TrackThesis = {
+  id: number;
+  user_id?: number | null;
+  title: string;
+  core_thesis: string;
+  underlying_change?: string | null;
+  old_bottleneck?: string | null;
+  new_solution?: string | null;
+  value_chain_shift?: string | null;
+  time_horizon?: string | null;
+  confidence_level?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackCandidate = {
+  tag: MarketTag;
+  heat: {
+    window_type: string;
+    trigger_count: number;
+    source_count: number;
+    heat_score: number;
+    rank_no: number;
+  };
+};
+
+export type TrackValidationIndicator = {
+  id: number;
+  thesis_id: number;
+  name: string;
+  indicator_type?: string | null;
+  data_source?: string | null;
+  current_value?: string | null;
+  direction?: string | null;
+  validation_meaning?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackEvidence = {
+  id: number;
+  thesis_id: number;
+  source_item_id?: number | null;
+  evidence_direction: string;
+  evidence_strength: number;
+  summary?: string | null;
+  affected_segments?: string | null;
+  related_stock_ids?: string | null;
+  created_at?: string | null;
+};
+
+export type TrackRelatedStock = {
+  id: number;
+  thesis_id: number;
+  stock_id: number;
+  role?: string | null;
+  relevance_score: number;
+  evidence_count: number;
+  heat_score: number;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type AnyRecord = Record<string, unknown>;
