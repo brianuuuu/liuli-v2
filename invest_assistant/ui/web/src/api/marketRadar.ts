@@ -24,6 +24,14 @@ export type SourceItemPayload = {
   publish_time?: string | null;
 };
 
+export type MarketFlashSyncResult = {
+  success: boolean;
+  message: string;
+  fetched_count: number;
+  inserted_count: number;
+  skipped_count: number;
+};
+
 export type TagCandidatePayload = {
   name: string;
   suggested_type: string;
@@ -100,6 +108,11 @@ export async function listSourceItems(): Promise<SourceItem[]> {
 
 export async function createSourceItem(payload: SourceItemPayload): Promise<SourceItem> {
   const response = await apiClient.post<SourceItem>("/api/market-radar/source-items", payload);
+  return response.data;
+}
+
+export async function syncClsMarketFlashes(limit = 100): Promise<MarketFlashSyncResult> {
+  const response = await apiClient.post<MarketFlashSyncResult>("/api/market-radar/source-items/sync-cls", { limit });
   return response.data;
 }
 

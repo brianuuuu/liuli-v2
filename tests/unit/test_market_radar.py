@@ -136,6 +136,31 @@ def test_cls_market_flash_job_inserts_only_new_source_items(monkeypatch):
     assert sources.json()[0]["source_type"] == "news"
 
 
+def test_cls_market_flash_sync_endpoint_returns_insert_stats(monkeypatch):
+    reset_db()
+    rows = [
+        {"标题": "机器人快讯", "内容": "财联社电，机器人产业链出现新进展。", "发布日期": "2026-05-17", "发布时间": "10:30:00"},
+    ]
+    monkeypatch.setattr(market_radar_jobs, "_fetch_cls_rows", lambda limit: rows[:limit])
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    first = client.post("/api/market-radar/source-items/sync-cls", json={"limit": 100}, headers=headers)
+    second = client.post("/api/market-radar/source-items/sync-cls", json={"limit": 100}, headers=headers)
+
+    assert first.status_code == 200
+    assert first.json()["success"] is True
+    assert first.json()["inserted_count"] == 1
+    assert second.status_code == 200
+    assert second.json()["success"] is True
+    assert second.json()["inserted_count"] == 0
+    assert second.json()["skipped_count"] == 1
+
+    sources = client.get("/api/market-radar/source-items", headers=headers)
+    assert len(sources.json()) == 1
+    assert sources.json()[0]["title"] == "机器人快讯"
+
+
 def test_tag_candidate_approve_reject_and_merge():
     reset_db()
     client = TestClient(create_app())

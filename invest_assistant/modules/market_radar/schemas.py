@@ -43,6 +43,18 @@ class SourceItemRead(SourceItemCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MarketFlashSyncCreate(BaseModel):
+    limit: int = 100
+
+
+class MarketFlashSyncResult(BaseModel):
+    success: bool
+    message: str = ""
+    fetched_count: int = 0
+    inserted_count: int = 0
+    skipped_count: int = 0
+
+
 class SourceTagRead(BaseModel):
     id: int
     source_item_id: int

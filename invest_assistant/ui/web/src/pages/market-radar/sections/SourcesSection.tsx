@@ -1,7 +1,8 @@
+import { SyncOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Modal, Space, Table, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
-import { createSourceItem, listSourceItems } from "../../../api/marketRadar";
+import { createSourceItem, listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
@@ -22,6 +23,7 @@ export function SourcesSection() {
   const sources = useAsyncData(useCallback(listSourceItems, []), []);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [form] = Form.useForm<SourceFormValues>();
 
   function openCreate() {
@@ -41,6 +43,21 @@ export function SourcesSection() {
     await sources.refresh();
   }
 
+  async function syncCls() {
+    setSyncing(true);
+    try {
+      const result = await syncClsMarketFlashes(100);
+      if (!result.success) {
+        message.error(result.message || "同步财联社快讯失败");
+        return;
+      }
+      message.success(`新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条`);
+      await sources.refresh();
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const columns: ColumnsType<SourceItem> = [
     { title: "标题", dataIndex: "title", ellipsis: true },
     { title: "类型", dataIndex: "source_type", width: 90 },
@@ -56,6 +73,7 @@ export function SourcesSection() {
         toolbar={
           <>
             <div className="data-panel-toolbar-spacer" />
+            <Button size="small" icon={<SyncOutlined />} loading={syncing} onClick={syncCls}>同步财联社</Button>
             <Button size="small" type="primary" onClick={openCreate}>手动新增</Button>
           </>
         }
@@ -67,7 +85,7 @@ export function SourcesSection() {
           dataSource={sources.data}
           columns={columns}
           pagination={{ pageSize: 12, showSizeChanger: true }}
-          locale={{ emptyText: <EmptyAction description="暂无市场快讯，去控制台运行 market_radar.fetch_news 或手动新增" /> }}
+          locale={{ emptyText: <EmptyAction description="暂无市场快讯，可同步财联社或手动新增" /> }}
         />
       </DataPanel>
 
