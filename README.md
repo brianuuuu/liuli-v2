@@ -17,7 +17,7 @@
 - `market_radar`：市场雷达、标签、候选标签、热度、关系图、任务注册。
 - `track_discovery`：赛道发现、证据链、指标、关联标的。
 - `stock_analysis`：标的池、研究笔记、评分、对比、报告入口。
-- `alert_center`：预警规则、预警事件、处理流程。
+- `alert_center`：预警规则、预警事件、处理流程、市场热度规则评估任务。
 - `portfolio`：组合、持仓、复盘。
 - `knowledge_base`：笔记、Skills、Agents、反馈日志。
 - `console`：系统运营管理入口，不承载业务能力归属。
