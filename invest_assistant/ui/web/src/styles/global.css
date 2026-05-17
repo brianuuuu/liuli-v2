@@ -806,16 +806,7 @@ body {
 }
 
 .job-center-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 42%);
-  gap: 12px;
-  align-items: start;
-}
-
-.job-center-side {
-  position: sticky;
-  top: 0;
-  min-width: 0;
+  display: block;
 }
 
 .job-center-toolbar {
@@ -845,18 +836,8 @@ body {
 
 .job-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 10px;
-}
-
-@media (max-width: 1180px) {
-  .job-center-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .job-center-side {
-    position: static;
-  }
 }
 
 .job-card {

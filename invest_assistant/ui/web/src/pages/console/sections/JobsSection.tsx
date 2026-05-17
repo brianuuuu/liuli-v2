@@ -4,7 +4,6 @@ import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, upd
 import type { JobConfig, JobRunLog } from "../../../types/api";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime, parseJsonObject } from "./shared";
 import { JobCard } from "./JobCard";
@@ -29,7 +28,10 @@ export function JobsSection() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [enabledFilter, setEnabledFilter] = useState<string | undefined>();
   const [logs, setLogs] = useState<JobRunLog[]>([]);
+  const [allLogs, setAllLogs] = useState<JobRunLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false);
+  const [logDrawerMode, setLogDrawerMode] = useState<"single" | "all">("single");
   const [editOpen, setEditOpen] = useState(false);
   const [runOpen, setRunOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<Record<string, unknown> | null>(null);
@@ -37,8 +39,8 @@ export function JobsSection() {
   const [runForm] = Form.useForm<{ params: string }>();
 
   const requestRows = useMemo(
-    () => requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
-    [requests.data, selectedJob]
+    () => logDrawerMode === "all" ? requests.data : requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
+    [logDrawerMode, requests.data, selectedJob]
   );
 
   const moduleOptions = useMemo(() => {
@@ -78,6 +80,26 @@ export function JobsSection() {
   async function selectJob(record: JobConfig) {
     setSelectedJob(record);
     await loadLogs(record.job_name);
+  }
+
+  async function openJobLogs(record: JobConfig) {
+    setSelectedJob(record);
+    setLogDrawerMode("single");
+    setLogDrawerOpen(true);
+    await loadLogs(record.job_name);
+  }
+
+  async function openAllLogs() {
+    setLogDrawerMode("all");
+    setSelectedJob(null);
+    setLogDrawerOpen(true);
+    setLogsLoading(true);
+    try {
+      const result = await Promise.all(jobs.data.map((job) => listJobLogs(job.job_name)));
+      setAllLogs(result.flat().sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || ""))));
+    } finally {
+      setLogsLoading(false);
+    }
   }
 
   async function sync() {
@@ -188,6 +210,7 @@ export function JobsSection() {
               />
               <div className="data-panel-toolbar-spacer" />
               <Button size="small" onClick={sync}>同步任务定义</Button>
+              <Button size="small" onClick={openAllLogs}>查看所有日志</Button>
             </div>
           }
         >
@@ -204,7 +227,7 @@ export function JobsSection() {
                     onSelect={selectJob}
                     onRun={openRun}
                     onEdit={openEdit}
-                    onLogs={selectJob}
+                    onLogs={openJobLogs}
                     onDetail={(record) => setDetailRecord(record as unknown as Record<string, unknown>)}
                   />
                 ))}
@@ -212,26 +235,6 @@ export function JobsSection() {
             ) : null}
           </div>
         </DataPanel>
-
-        <aside className="job-center-side">
-          <WorkbenchCard title={selectedJob ? `运行记录：${selectedJob.display_name || selectedJob.job_name}` : "运行记录"}>
-            <Tabs
-              size="small"
-              items={[
-                {
-                  key: "requests",
-                  label: "运行请求",
-                  children: <JobRequestEventList rows={requestRows} loading={requests.loading} />
-                },
-                {
-                  key: "logs",
-                  label: "执行日志",
-                  children: <JobLogEventList rows={logs} loading={logsLoading} />
-                }
-              ]}
-            />
-          </WorkbenchCard>
-        </aside>
       </div>
 
       <Modal title="任务配置" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden>
@@ -274,6 +277,29 @@ export function JobsSection() {
 
       <Drawer title="任务详情" open={Boolean(detailRecord)} onClose={() => setDetailRecord(null)} size={540}>
         {detailRecord ? <DetailRows record={detailRecord} /> : null}
+      </Drawer>
+
+      <Drawer
+        title={logDrawerMode === "all" ? "所有任务日志" : `运行记录：${selectedJob?.display_name || selectedJob?.job_name || ""}`}
+        open={logDrawerOpen}
+        onClose={() => setLogDrawerOpen(false)}
+        size={720}
+      >
+        <Tabs
+          size="small"
+          items={[
+            {
+              key: "requests",
+              label: "运行请求",
+              children: <JobRequestEventList rows={requestRows} loading={requests.loading} />
+            },
+            {
+              key: "logs",
+              label: "执行日志",
+              children: <JobLogEventList rows={logDrawerMode === "all" ? allLogs : logs} loading={logsLoading} />
+            }
+          ]}
+        />
       </Drawer>
     </>
   );
