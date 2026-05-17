@@ -714,6 +714,13 @@ body {
   transform: translateX(-50%);
 }
 
+.flash-date-row > .flash-rail-line {
+  position: static;
+  align-self: stretch;
+  justify-self: center;
+  transform: none;
+}
+
 .flash-dot {
   position: absolute;
   top: 18px;
