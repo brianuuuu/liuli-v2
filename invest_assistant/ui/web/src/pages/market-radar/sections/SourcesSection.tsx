@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createSourceItem, listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { SourceItem } from "../../../types/api";
@@ -51,7 +52,14 @@ export function SourcesSection() {
 
   return (
     <>
-      <WorkbenchCard title="市场快讯" extra={<Button size="small" type="primary" onClick={openCreate}>手动新增</Button>}>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={openCreate}>手动新增</Button>
+          </>
+        }
+      >
         <Table
           rowKey="id"
           size="small"
@@ -61,7 +69,7 @@ export function SourcesSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无市场快讯，去控制台运行 market_radar.fetch_news 或手动新增" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="新增市场快讯" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={680}>
         <Form form={form} layout="vertical" preserve={false}>

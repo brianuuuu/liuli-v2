@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createStockPoolItem, listStockPool } from "../../../api/stockAnalysis";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockPoolItem } from "../../../types/api";
 import { formatTime, poolStatusOptions, StatusTag } from "./shared";
@@ -45,13 +45,13 @@ export function PoolSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="标的池"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select allowClear size="small" placeholder="状态" value={statusFilter} options={poolStatusOptions} style={{ width: 120 }} onChange={setStatusFilter} />
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>加入标的</Button>
-          </Space>
+          </>
         }
       >
         <Table
@@ -63,7 +63,7 @@ export function PoolSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无标的池数据" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="加入标的池" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>

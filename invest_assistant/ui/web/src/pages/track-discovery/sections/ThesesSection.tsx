@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { archiveTrackThesis, changeTrackStatus, createTrackThesis, listTrackTheses, updateTrackThesis } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackThesis } from "../../../types/api";
 import { formatTime, StatusTag, thesisStatusOptions } from "./shared";
@@ -111,13 +111,13 @@ export function ThesesSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="赛道列表"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select allowClear size="small" placeholder="状态" value={statusFilter} options={thesisStatusOptions} style={{ width: 120 }} onChange={setStatusFilter} />
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增赛道</Button>
-          </Space>
+          </>
         }
       >
         <Table
@@ -129,7 +129,7 @@ export function ThesesSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无已跟踪赛道" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={760}>
         <ThesisForm form={form} />

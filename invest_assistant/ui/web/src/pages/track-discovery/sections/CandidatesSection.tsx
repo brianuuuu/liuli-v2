@@ -3,7 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createTrackThesis, listTrackCandidates } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackCandidate } from "../../../types/api";
 import { candidateTitle, trackWindowOptions } from "./shared";
@@ -54,12 +54,12 @@ export function CandidatesSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="候选赛道"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select size="small" value={window} options={trackWindowOptions} style={{ width: 90 }} onChange={setWindow} />
-          </Space>
+            <div className="data-panel-toolbar-spacer" />
+          </>
         }
       >
         <Table
@@ -71,7 +71,7 @@ export function CandidatesSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无候选赛道，先运行市场雷达热度聚合任务" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="创建赛道跟踪" open={Boolean(selected)} onCancel={() => setSelected(null)} onOk={submit} destroyOnHidden width={760}>
         <ThesisForm form={form} />

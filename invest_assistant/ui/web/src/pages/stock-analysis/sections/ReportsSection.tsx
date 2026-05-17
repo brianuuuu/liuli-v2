@@ -2,13 +2,13 @@ import { Table } from "antd";
 import { useCallback } from "react";
 import { listStockReports } from "../../../api/stockAnalysis";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 
 export function ReportsSection() {
   const reports = useAsyncData(useCallback(listStockReports, []), []);
   return (
-    <WorkbenchCard title="分析报告">
+    <DataPanel>
       <Table
         rowKey={(record, index) => String(record.id ?? index)}
         size="small"
@@ -22,6 +22,6 @@ export function ReportsSection() {
         ]}
         locale={{ emptyText: <EmptyAction description="暂无标的分析报告" /> }}
       />
-    </WorkbenchCard>
+    </DataPanel>
   );
 }

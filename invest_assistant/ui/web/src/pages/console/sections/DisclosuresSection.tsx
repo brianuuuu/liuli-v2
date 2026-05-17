@@ -12,6 +12,7 @@ import {
   updateDisclosure
 } from "../../../api/disclosures";
 import type { Disclosure } from "../../../types/api";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime } from "./shared";
@@ -135,10 +136,9 @@ export function DisclosuresSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="公告财报库"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Input.Search
               size="small"
               allowClear
@@ -149,12 +149,13 @@ export function DisclosuresSection() {
               style={{ width: 190 }}
             />
             <Button size="small" onClick={fetchRemote}>拉取公告</Button>
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增记录</Button>
-          </Space>
+          </>
         }
       >
         <Table rowKey="id" size="small" loading={disclosures.loading} dataSource={disclosures.data} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title={editing ? "编辑公告财报" : "新增公告财报"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>
         <Form form={form} layout="vertical" preserve={false}>

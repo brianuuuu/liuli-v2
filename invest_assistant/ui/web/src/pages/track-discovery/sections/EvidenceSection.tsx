@@ -12,6 +12,7 @@ import {
   listTrackTheses
 } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockTrackTagBinding, TrackEvidence } from "../../../types/api";
@@ -103,12 +104,16 @@ export function EvidenceSection() {
 
   return (
     <Space direction="vertical" size={10} style={{ width: "100%" }}>
-      <WorkbenchCard
-        title="证据链"
-        extra={<Select showSearch size="small" placeholder="选择赛道" value={thesisId} options={thesisOptions} style={{ width: 260 }} onChange={setThesisId} />}
+      <DataPanel
+        toolbar={
+          <>
+            <Select showSearch size="small" placeholder="选择赛道" value={thesisId} options={thesisOptions} style={{ width: 260 }} onChange={setThesisId} />
+            <div className="data-panel-toolbar-spacer" />
+          </>
+        }
       >
         {thesisId ? (
-          <Space direction="vertical" size={10} style={{ width: "100%" }}>
+          <Space direction="vertical" size={10} style={{ width: "100%", padding: 16 }}>
             <Space size={10}>
               <Statistic title="证据" value={evidence.data.length} loading={evidence.loading} />
               <Statistic title="指标" value={indicators.data.length} loading={indicators.loading} />
@@ -127,7 +132,7 @@ export function EvidenceSection() {
         ) : (
           <EmptyAction description="请选择赛道后查看证据链" />
         )}
-      </WorkbenchCard>
+      </DataPanel>
 
       <WorkbenchCard title="新增证据">
         <Form form={form} layout="vertical" preserve={false} onFinish={submitEvidence}>
@@ -157,29 +162,35 @@ export function EvidenceSection() {
         </Form>
       </WorkbenchCard>
 
-      <WorkbenchCard
-        title="赛道标签关联标的"
-        extra={<Select showSearch size="small" placeholder="选择赛道标签" value={trackTagId} options={trackTagOptions} loading={trackTags.loading} style={{ width: 260 }} onChange={setTrackTagId} />}
+      <DataPanel
+        toolbar={
+          <>
+            <Select showSearch size="small" placeholder="选择赛道标签" value={trackTagId} options={trackTagOptions} loading={trackTags.loading} style={{ width: 260 }} onChange={setTrackTagId} />
+            <div className="data-panel-toolbar-spacer" />
+          </>
+        }
       >
         <Table rowKey="id" size="small" loading={reverseBindings.loading} dataSource={reverseBindings.data} columns={reverseColumns} pagination={{ pageSize: 8 }} />
-        <Form form={reverseForm} layout="vertical" preserve={false} style={{ marginTop: 12 }} onFinish={submitReverseBinding}>
-          <Space.Compact block>
-            <Form.Item name="stock_id" label="Stock ID" style={{ width: "34%" }} rules={[{ required: true, message: "请输入 Stock ID" }]}>
-              <InputNumber min={1} style={{ width: "100%" }} />
+        <WorkbenchCard title="新增关联">
+          <Form form={reverseForm} layout="vertical" preserve={false} onFinish={submitReverseBinding}>
+            <Space.Compact block>
+              <Form.Item name="stock_id" label="Stock ID" style={{ width: "34%" }} rules={[{ required: true, message: "请输入 Stock ID" }]}>
+                <InputNumber min={1} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="relation_type" label="关系类型" style={{ width: "33%" }}>
+                <Input placeholder="beneficiary / exposure" />
+              </Form.Item>
+              <Form.Item name="conviction" label="确信度" style={{ width: "33%" }}>
+                <InputNumber min={0} max={1} step={0.1} style={{ width: "100%" }} />
+              </Form.Item>
+            </Space.Compact>
+            <Form.Item name="reason" label="判断理由">
+              <Input.TextArea rows={3} />
             </Form.Item>
-            <Form.Item name="relation_type" label="关系类型" style={{ width: "33%" }}>
-              <Input placeholder="beneficiary / exposure" />
-            </Form.Item>
-            <Form.Item name="conviction" label="确信度" style={{ width: "33%" }}>
-              <InputNumber min={0} max={1} step={0.1} style={{ width: "100%" }} />
-            </Form.Item>
-          </Space.Compact>
-          <Form.Item name="reason" label="判断理由">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Button htmlType="submit" size="small" type="primary" disabled={!trackTagId}>关联标的</Button>
-        </Form>
-      </WorkbenchCard>
+            <Button htmlType="submit" size="small" type="primary" disabled={!trackTagId}>关联标的</Button>
+          </Form>
+        </WorkbenchCard>
+      </DataPanel>
     </Space>
   );
 }

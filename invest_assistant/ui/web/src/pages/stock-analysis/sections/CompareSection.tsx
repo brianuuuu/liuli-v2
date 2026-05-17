@@ -3,7 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createCompareGroup, listCompareGroups } from "../../../api/stockAnalysis";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockCompareGroup } from "../../../types/api";
 import { formatTime } from "./shared";
@@ -43,7 +43,14 @@ export function CompareSection() {
 
   return (
     <>
-      <WorkbenchCard title="对比组" extra={<Button size="small" type="primary" onClick={() => setOpen(true)}>新增对比组</Button>}>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={() => setOpen(true)}>新增对比组</Button>
+          </>
+        }
+      >
         <Table
           rowKey="id"
           size="small"
@@ -53,7 +60,7 @@ export function CompareSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无标的对比组" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="新增对比组" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>

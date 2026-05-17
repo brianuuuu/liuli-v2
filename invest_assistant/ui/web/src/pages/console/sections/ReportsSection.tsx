@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createReport, deleteReport, getReportContent, listReports, updateReport } from "../../../api/reports";
 import type { Report } from "../../../types/api";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime } from "./shared";
@@ -115,9 +116,16 @@ export function ReportsSection() {
 
   return (
     <>
-      <WorkbenchCard title="报告库" extra={<Button size="small" type="primary" onClick={openCreate}>新增报告</Button>}>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={openCreate}>新增报告</Button>
+          </>
+        }
+      >
         <Table rowKey="id" size="small" loading={reports.loading} dataSource={reports.data} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title={editing ? "编辑报告" : "新增报告"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>

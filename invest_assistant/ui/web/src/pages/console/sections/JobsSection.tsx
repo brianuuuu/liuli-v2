@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog, JobRunRequest } from "../../../types/api";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime, parseJsonObject } from "./shared";
@@ -156,7 +157,14 @@ export function JobsSection() {
 
   return (
     <>
-      <WorkbenchCard title="任务中心" extra={<Button size="small" onClick={sync}>同步任务定义</Button>}>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" onClick={sync}>同步任务定义</Button>
+          </>
+        }
+      >
         <Table
           rowKey="job_name"
           size="small"
@@ -166,7 +174,7 @@ export function JobsSection() {
           pagination={{ pageSize: 10, showSizeChanger: true }}
           onRow={(record) => ({ onDoubleClick: () => setDetailRecord(record as unknown as Record<string, unknown>) })}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <WorkbenchCard title={selectedJob ? `运行记录：${selectedJob.display_name || selectedJob.job_name}` : "运行记录"}>
         <Tabs

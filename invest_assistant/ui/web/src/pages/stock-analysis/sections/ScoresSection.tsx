@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { createStockScore, listStockPool, listStockScores } from "../../../api/stockAnalysis";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockScoreSnapshot } from "../../../types/api";
@@ -58,13 +59,17 @@ export function ScoresSection() {
 
   return (
     <Space direction="vertical" size={10} style={{ width: "100%" }}>
-      <WorkbenchCard
-        title="评分快照"
-        extra={<Select showSearch size="small" placeholder="选择标的" value={stockId} options={poolOptions} style={{ width: 220 }} onChange={setStockId} />}
+      <DataPanel
+        toolbar={
+          <>
+            <Select showSearch size="small" placeholder="选择标的" value={stockId} options={poolOptions} style={{ width: 220 }} onChange={setStockId} />
+            <div className="data-panel-toolbar-spacer" />
+          </>
+        }
       >
         {scores.data.length ? <ChartCard title="评分趋势" option={scoreTrendOption(scores.data)} height={260} /> : <EmptyAction description={stockId ? "暂无评分快照" : "请选择标的"} />}
         <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={columns} pagination={{ pageSize: 8 }} />
-      </WorkbenchCard>
+      </DataPanel>
 
       <WorkbenchCard title="新增评分">
         <Form form={form} layout="vertical" preserve={false} onFinish={submit}>

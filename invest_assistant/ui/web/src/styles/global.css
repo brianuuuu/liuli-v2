@@ -537,6 +537,27 @@ body {
   opacity: 0.88;
 }
 
+/* Toolbar controls: ghost-style search input */
+.data-panel-toolbar .ant-input-search .ant-input-affix-wrapper,
+.data-panel-toolbar .ant-input-search .ant-input-group-addon .ant-btn {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 13px;
+}
+
+.data-panel-toolbar .ant-input-search .ant-input-affix-wrapper:hover,
+.data-panel-toolbar .ant-input-search .ant-input-affix-wrapper:focus-within {
+  background: var(--ll-panel-subtle) !important;
+}
+
+/* Toolbar: subtle vertical divider between controls */
+.data-panel-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--ll-border);
+}
+
 /* Toolbar: push items to the right with spacer */
 .data-panel-toolbar-spacer {
   flex: 1;

@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createStockAlias, importStocks, listStockAliases, listStocks, searchStocks, updateStock } from "../../../api/stocks";
 import type { Stock, StockAlias } from "../../../types/api";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime } from "./shared";
@@ -147,10 +148,9 @@ export function StocksSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="股票基础库"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Input.Search
               size="small"
               allowClear
@@ -161,12 +161,13 @@ export function StocksSection() {
               style={{ width: 210 }}
             />
             <Button size="small" onClick={refresh}>重置</Button>
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={() => setImportOpen(true)}>导入股票</Button>
-          </Space>
+          </>
         }
       >
         <Table rowKey="id" size="small" loading={stocks.loading} dataSource={dataSource} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="编辑股票" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>
