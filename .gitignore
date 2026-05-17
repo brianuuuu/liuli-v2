@@ -10,6 +10,7 @@ dist/
 invest_assistant/ui/web/node_modules/
 invest_assistant/ui/web/dist/
 .playwright-mcp/
+.superpowers/
 liuli-*.png
 var/*
 !var/.gitkeep

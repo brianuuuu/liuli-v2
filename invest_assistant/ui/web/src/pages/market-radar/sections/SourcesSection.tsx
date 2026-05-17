@@ -1,8 +1,7 @@
-import { SyncOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Modal, Space, Table, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
-import { createSourceItem, listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
+import { createSourceItem, listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
@@ -23,7 +22,6 @@ export function SourcesSection() {
   const sources = useAsyncData(useCallback(listSourceItems, []), []);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const [form] = Form.useForm<SourceFormValues>();
 
   function openCreate() {
@@ -38,24 +36,9 @@ export function SourcesSection() {
       source_url: values.source_url || null,
       publish_time: values.publish_time || null
     });
-    message.success("市场快讯已新增");
+    message.success("数据源已新增");
     setOpen(false);
     await sources.refresh();
-  }
-
-  async function syncCls() {
-    setSyncing(true);
-    try {
-      const result = await syncClsMarketFlashes(100);
-      if (!result.success) {
-        message.error(result.message || "同步财联社快讯失败");
-        return;
-      }
-      message.success(`新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条`);
-      await sources.refresh();
-    } finally {
-      setSyncing(false);
-    }
   }
 
   const columns: ColumnsType<SourceItem> = [
@@ -73,7 +56,6 @@ export function SourcesSection() {
         toolbar={
           <>
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" icon={<SyncOutlined />} loading={syncing} onClick={syncCls}>同步财联社</Button>
             <Button size="small" type="primary" onClick={openCreate}>手动新增</Button>
           </>
         }
@@ -85,11 +67,11 @@ export function SourcesSection() {
           dataSource={sources.data}
           columns={columns}
           pagination={{ pageSize: 12, showSizeChanger: true }}
-          locale={{ emptyText: <EmptyAction description="暂无市场快讯，可同步财联社或手动新增" /> }}
+          locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步财联社" /> }}
         />
       </DataPanel>
 
-      <Modal title="新增市场快讯" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={680}>
+      <Modal title="新增数据源" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={680}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input />
@@ -114,9 +96,9 @@ export function SourcesSection() {
         </Form>
       </Modal>
 
-      <Drawer title="市场快讯详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
+      <Drawer title="数据源详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
         {detail ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Title level={5}>{detail.title}</Typography.Title>
             <Typography.Text type="secondary">{detail.source_type} / {detail.source_name} / {formatTime(detail.publish_time)}</Typography.Text>
             {detail.source_url ? <Typography.Link href={detail.source_url} target="_blank">{detail.source_url}</Typography.Link> : null}
