@@ -32,7 +32,7 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   "market-radar": [
     { key: "overview", label: "总览" },
     { key: "rankings", label: "热度榜" },
-    { key: "sources", label: "信息源" },
+    { key: "sources", label: "市场快讯" },
     { key: "tags", label: "标签" },
     { key: "candidates", label: "候选标签" },
     { key: "graph", label: "关系图" }

@@ -4,44 +4,69 @@ from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 
 
-def fetch_news_job(limit: int = 50, **kwargs) -> JobResult:
+def _fetch_cls_rows(limit: int) -> list[dict]:
     try:
         import akshare as ak
     except Exception as exc:
-        return JobResult(success=False, message=f"akshare is unavailable: {exc}")
+        raise RuntimeError(f"akshare is unavailable: {exc}") from exc
 
     try:
         df = ak.stock_info_global_cls(symbol="全部")
     except Exception as exc:
-        return JobResult(success=False, message=f"failed to fetch CLS news: {exc}")
+        raise RuntimeError(f"failed to fetch CLS news: {exc}") from exc
+
+    return [dict(row) for _, row in df.head(max(int(limit), 1)).iterrows()]
+
+
+def _normalize_cls_row(row: dict) -> SourceItemCreate | None:
+    published_date = str(row.get("发布日期") or "").strip()
+    published_time = str(row.get("发布时间") or "").strip()
+    title = str(row.get("标题") or "").strip()
+    content = str(row.get("内容") or title or "").strip()
+    if not content:
+        return None
+    return SourceItemCreate(
+        source_type="news",
+        source_name="财联社",
+        title=(title or content)[:120],
+        content=content,
+        source_url=None,
+        publish_time=f"{published_date}T{published_time}" if published_date and published_time else None,
+    )
+
+
+def fetch_news_job(limit: int = 50, **kwargs) -> JobResult:
+    try:
+        raw_rows = _fetch_cls_rows(max(int(limit), 1))
+    except Exception as exc:
+        return JobResult(success=False, message=str(exc))
 
     rows = []
-    for _, row in df.head(max(int(limit), 1)).iterrows():
-        published_date = str(row.get("发布日期") or "").strip()
-        published_time = str(row.get("发布时间") or "").strip()
-        content = str(row.get("内容") or row.get("标题") or "").strip()
-        if not content:
-            continue
-        rows.append(
-            SourceItemCreate(
-                source_type="news",
-                source_name="财联社",
-                title=content[:120],
-                content=content,
-                source_url=None,
-                publish_time=f"{published_date}T{published_time}" if published_date and published_time else None,
-            )
-        )
+    for row in raw_rows:
+        payload = _normalize_cls_row(row)
+        if payload is not None:
+            rows.append(payload)
 
     db = SessionLocal()
     try:
         inserted = 0
+        skipped = 0
         for payload in rows:
+            exists = service.find_duplicate_source_item(db, payload)
+            if exists is not None:
+                skipped += 1
+                continue
             service.create_source_item(db, payload)
             inserted += 1
     finally:
         db.close()
-    return JobResult(success=True, message=f"fetched {len(rows)} CLS news", fetched_count=len(rows), inserted_count=inserted)
+    return JobResult(
+        success=True,
+        message=f"fetched {len(rows)} CLS news",
+        fetched_count=len(rows),
+        inserted_count=inserted,
+        skipped_count=skipped,
+    )
 
 
 def extract_tags_job(**kwargs) -> JobResult:
