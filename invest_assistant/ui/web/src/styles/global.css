@@ -472,6 +472,77 @@ body {
   border-bottom: 1px solid var(--ll-border);
 }
 
+/* ── DataPanel: GitHub-style toolbar + table (separate containers) ── */
+.data-panel {
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.data-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 5px 10px;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+/* Toolbar controls: ghost-style selects */
+.data-panel-toolbar .ant-select .ant-select-selector {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-left: 6px !important;
+  color: var(--ll-muted);
+  font-size: 13px;
+}
+
+.data-panel-toolbar .ant-select:hover .ant-select-selector,
+.data-panel-toolbar .ant-select-focused .ant-select-selector {
+  background: var(--ll-panel-subtle) !important;
+  border-radius: 5px !important;
+}
+
+.data-panel-toolbar .ant-select .ant-select-selection-placeholder {
+  color: var(--ll-muted);
+}
+
+/* Toolbar controls: ghost-style buttons */
+.data-panel-toolbar .ant-btn {
+  border: 0;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.data-panel-toolbar .ant-btn-default {
+  background: transparent;
+  color: var(--ll-muted);
+}
+
+.data-panel-toolbar .ant-btn-default:hover {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-text);
+}
+
+.data-panel-toolbar .ant-btn-primary {
+  background: var(--ll-accent);
+  color: #ffffff;
+}
+
+.data-panel-toolbar .ant-btn-primary:hover {
+  opacity: 0.88;
+}
+
+/* Toolbar: push items to the right with spacer */
+.data-panel-toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Global table styles (standalone tables outside DataPanel) ── */
 .ant-table-wrapper .ant-table {
   border: 1px solid var(--ll-border);
   border-radius: 7px;
