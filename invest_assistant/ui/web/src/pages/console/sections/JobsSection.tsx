@@ -2,7 +2,7 @@ import { Button, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch,
 import { useCallback, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog } from "../../../types/api";
-import { DataPanel } from "../../../components/common/DataPanel";
+
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime, parseJsonObject } from "./shared";
@@ -160,81 +160,74 @@ export function JobsSection() {
   return (
     <>
       <div className="job-center-layout">
-        <DataPanel
-          toolbar={
-            <div className="job-center-toolbar">
-              <Input.Search
-                allowClear
-                size="small"
-                placeholder="搜索任务"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                className="job-center-search"
+        <div className="data-panel-toolbar job-center-toolbar">
+          <Input.Search
+            allowClear
+            size="small"
+            placeholder="搜索任务"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            className="job-center-search"
+          />
+          <Select
+            allowClear
+            size="small"
+            placeholder="模块"
+            value={moduleFilter}
+            options={moduleOptions}
+            onChange={setModuleFilter}
+            className="job-center-filter"
+          />
+          <Select
+            allowClear
+            size="small"
+            placeholder="状态"
+            value={statusFilter}
+            options={[
+              { value: "success", label: "success" },
+              { value: "completed", label: "completed" },
+              { value: "running", label: "running" },
+              { value: "failed", label: "failed" },
+              { value: "error", label: "error" },
+              { value: "未运行", label: "未运行" }
+            ]}
+            onChange={setStatusFilter}
+            className="job-center-filter"
+          />
+          <Select
+            allowClear
+            size="small"
+            placeholder="启用"
+            value={enabledFilter}
+            options={[
+              { value: "true", label: "启用" },
+              { value: "false", label: "停用" }
+            ]}
+            onChange={setEnabledFilter}
+            className="job-center-filter"
+          />
+          <div className="data-panel-toolbar-spacer" />
+          <Button size="small" onClick={sync}>同步任务定义</Button>
+          <Button size="small" onClick={openAllLogs}>查看所有日志</Button>
+        </div>
+        {jobs.loading ? <EmptyAction description="正在加载任务定义" /> : null}
+        {!jobs.loading && filteredJobs.length === 0 ? <EmptyAction description="暂无匹配任务" /> : null}
+        {!jobs.loading && filteredJobs.length > 0 ? (
+          <div className="job-card-grid">
+            {filteredJobs.map((job) => (
+              <JobCard
+                key={job.job_name}
+                job={job}
+                selected={selectedJob?.job_name === job.job_name}
+                onSelect={selectJob}
+                onRun={openRun}
+                onEdit={openEdit}
+                onLogs={openJobLogs}
+                onDetail={(record) => setDetailRecord(record as unknown as Record<string, unknown>)}
               />
-              <Select
-                allowClear
-                size="small"
-                placeholder="模块"
-                value={moduleFilter}
-                options={moduleOptions}
-                onChange={setModuleFilter}
-                className="job-center-filter"
-              />
-              <Select
-                allowClear
-                size="small"
-                placeholder="状态"
-                value={statusFilter}
-                options={[
-                  { value: "success", label: "success" },
-                  { value: "completed", label: "completed" },
-                  { value: "running", label: "running" },
-                  { value: "failed", label: "failed" },
-                  { value: "error", label: "error" },
-                  { value: "未运行", label: "未运行" }
-                ]}
-                onChange={setStatusFilter}
-                className="job-center-filter"
-              />
-              <Select
-                allowClear
-                size="small"
-                placeholder="启用"
-                value={enabledFilter}
-                options={[
-                  { value: "true", label: "启用" },
-                  { value: "false", label: "停用" }
-                ]}
-                onChange={setEnabledFilter}
-                className="job-center-filter"
-              />
-              <div className="data-panel-toolbar-spacer" />
-              <Button size="small" onClick={sync}>同步任务定义</Button>
-              <Button size="small" onClick={openAllLogs}>查看所有日志</Button>
-            </div>
-          }
-        >
-          <div className="job-card-grid-wrap">
-            {jobs.loading ? <EmptyAction description="正在加载任务定义" /> : null}
-            {!jobs.loading && filteredJobs.length === 0 ? <EmptyAction description="暂无匹配任务" /> : null}
-            {!jobs.loading && filteredJobs.length > 0 ? (
-              <div className="job-card-grid">
-                {filteredJobs.map((job) => (
-                  <JobCard
-                    key={job.job_name}
-                    job={job}
-                    selected={selectedJob?.job_name === job.job_name}
-                    onSelect={selectJob}
-                    onRun={openRun}
-                    onEdit={openEdit}
-                    onLogs={openJobLogs}
-                    onDetail={(record) => setDetailRecord(record as unknown as Record<string, unknown>)}
-                  />
-                ))}
-              </div>
-            ) : null}
+            ))}
           </div>
-        </DataPanel>
+        ) : null}
       </div>
 
       <Modal title="任务配置" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden>

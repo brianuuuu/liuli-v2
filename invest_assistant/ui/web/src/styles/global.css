@@ -806,7 +806,9 @@ body {
 }
 
 .job-center-layout {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .job-center-toolbar {
@@ -822,16 +824,6 @@ body {
 
 .job-center-filter {
   width: 150px;
-}
-
-.job-card-grid-wrap {
-  max-height: calc(100vh - 228px);
-  min-height: 260px;
-  overflow-y: auto;
-  padding: 12px;
-  border: 1px solid var(--ll-border);
-  border-radius: 7px;
-  background: var(--ll-panel);
 }
 
 .job-card-grid {
