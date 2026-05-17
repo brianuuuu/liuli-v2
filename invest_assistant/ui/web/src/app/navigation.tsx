@@ -31,12 +31,12 @@ export const primaryNavItems: NavItem[] = [
 export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   "market-radar": [
     { key: "overview", label: "总览" },
-    { key: "rankings", label: "热度榜" },
-    { key: "sources", label: "数据源" },
     { key: "flashes", label: "快讯" },
+    { key: "rankings", label: "热度榜" },
     { key: "tags", label: "标签" },
     { key: "candidates", label: "候选标签" },
-    { key: "graph", label: "关系图" }
+    { key: "graph", label: "关系图" },
+    { key: "sources", label: "数据源" }
   ],
   "track-discovery": [
     { key: "overview", label: "总览" },
