@@ -677,18 +677,21 @@ body {
 }
 
 .flash-date-row {
+  grid-template-columns: 1fr;
   min-height: 30px;
 }
 
 .flash-date-label {
   display: flex;
   align-items: center;
+  grid-column: 1 / -1;
   gap: 12px;
   color: var(--ll-muted);
   font-size: 12px;
   font-weight: 700;
 }
 
+.flash-date-label::before,
 .flash-date-label::after {
   content: "";
   flex: 1;
@@ -715,10 +718,7 @@ body {
 }
 
 .flash-date-row > .flash-rail-line {
-  position: static;
-  align-self: stretch;
-  justify-self: center;
-  transform: none;
+  display: none;
 }
 
 .flash-dot {
