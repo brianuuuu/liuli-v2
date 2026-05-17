@@ -259,4 +259,46 @@ export type TrackRelatedStock = {
   updated_at?: string | null;
 };
 
+export type StockPoolItem = {
+  id: number;
+  stock_id: number;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockResearchNote = {
+  id: number;
+  stock_id: number;
+  note_type: string;
+  title: string;
+  content: string;
+  related_track_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockScoreSnapshot = {
+  id: number;
+  stock_id: number;
+  score_date: string;
+  track_id?: number | null;
+  growth_score: number;
+  valuation_score: number;
+  moat_score: number;
+  risk_score: number;
+  total_score: number;
+  created_at?: string | null;
+};
+
+export type StockCompareGroup = {
+  id: number;
+  name: string;
+  track_id?: number | null;
+  stock_ids: string;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type AnyRecord = Record<string, unknown>;
