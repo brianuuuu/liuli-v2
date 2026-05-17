@@ -4,9 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog, JobRunRequest } from "../../../types/api";
 import { DataPanel } from "../../../components/common/DataPanel";
+import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime, parseJsonObject } from "./shared";
+import { JobCard, jobStatusColor } from "./JobCard";
 
 type JobFormValues = {
   display_name?: string;
@@ -18,17 +20,14 @@ type JobFormValues = {
   max_retries?: number;
 };
 
-function statusColor(status?: string | null) {
-  if (status === "success" || status === "completed") return "green";
-  if (status === "failed" || status === "error") return "red";
-  if (status === "running") return "blue";
-  return "default";
-}
-
 export function JobsSection() {
   const jobs = useAsyncData(useCallback(listJobs, []), []);
   const requests = useAsyncData(useCallback(listRunRequests, []), []);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [moduleFilter, setModuleFilter] = useState<string | undefined>();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [enabledFilter, setEnabledFilter] = useState<string | undefined>();
   const [logs, setLogs] = useState<JobRunLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -41,6 +40,26 @@ export function JobsSection() {
     () => requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
     [requests.data, selectedJob]
   );
+
+  const moduleOptions = useMemo(() => {
+    return Array.from(new Set(jobs.data.map((item) => item.module_name).filter(Boolean)))
+      .sort()
+      .map((moduleName) => ({ value: moduleName, label: moduleName }));
+  }, [jobs.data]);
+
+  const filteredJobs = useMemo(() => {
+    const query = keyword.trim().toLowerCase();
+    return jobs.data.filter((job) => {
+      const status = job.last_status || "未运行";
+      const text = `${job.display_name || ""}\n${job.job_name}\n${job.module_name}\n${job.description || ""}`.toLowerCase();
+      return (
+        (!query || text.includes(query)) &&
+        (!moduleFilter || job.module_name === moduleFilter) &&
+        (!statusFilter || status === statusFilter) &&
+        (!enabledFilter || String(job.enabled) === enabledFilter)
+      );
+    });
+  }, [enabledFilter, jobs.data, keyword, moduleFilter, statusFilter]);
 
   async function refreshAll() {
     await Promise.all([jobs.refresh(), requests.refresh()]);
@@ -116,37 +135,17 @@ export function JobsSection() {
     await refreshAll();
   }
 
-  const jobColumns: ColumnsType<JobConfig> = [
-    { title: "任务", dataIndex: "display_name", render: (value, record) => value || record.job_name },
-    { title: "模块", dataIndex: "module_name", width: 160 },
-    { title: "触发", dataIndex: "trigger_type", width: 90 },
-    { title: "启用", dataIndex: "enabled", width: 72, render: (value: boolean) => <Switch size="small" checked={value} disabled /> },
-    { title: "最近状态", dataIndex: "last_status", width: 100, render: (value) => <Tag color={statusColor(value)}>{value || "-"}</Tag> },
-    { title: "最近运行", dataIndex: "last_run_at", width: 150, render: formatTime },
-    {
-      title: "操作",
-      width: 220,
-      render: (_, record) => (
-        <Space>
-          <Button size="small" onClick={() => openRun(record)}>运行</Button>
-          <Button size="small" onClick={() => openEdit(record)}>配置</Button>
-          <Button size="small" onClick={() => selectJob(record)}>日志</Button>
-        </Space>
-      )
-    }
-  ];
-
   const requestColumns: ColumnsType<JobRunRequest> = [
     { title: "请求", dataIndex: "id", width: 80 },
     { title: "任务", dataIndex: "job_name" },
-    { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag color={statusColor(value)}>{value}</Tag> },
+    { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag color={jobStatusColor(value)}>{value}</Tag> },
     { title: "请求时间", dataIndex: "requested_at", width: 160, render: formatTime },
     { title: "错误", dataIndex: "error_message", ellipsis: true, render: (value) => value || "-" }
   ];
 
   const logColumns: ColumnsType<JobRunLog> = [
     { title: "日志", dataIndex: "id", width: 80 },
-    { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={statusColor(value)}>{value}</Tag> },
+    { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={jobStatusColor(value)}>{value}</Tag> },
     { title: "开始", dataIndex: "started_at", width: 160, render: formatTime },
     { title: "耗时", dataIndex: "duration_ms", width: 90, render: (value) => `${value} ms` },
     { title: "处理", dataIndex: "processed_count", width: 80 },
@@ -157,42 +156,102 @@ export function JobsSection() {
 
   return (
     <>
-      <DataPanel
-        toolbar={
-          <>
-            <div className="data-panel-toolbar-spacer" />
-            <Button size="small" onClick={sync}>同步任务定义</Button>
-          </>
-        }
-      >
-        <Table
-          rowKey="job_name"
-          size="small"
-          loading={jobs.loading}
-          dataSource={jobs.data}
-          columns={jobColumns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
-          onRow={(record) => ({ onDoubleClick: () => setDetailRecord(record as unknown as Record<string, unknown>) })}
-        />
-      </DataPanel>
+      <div className="job-center-layout">
+        <DataPanel
+          toolbar={
+            <div className="job-center-toolbar">
+              <Input.Search
+                allowClear
+                size="small"
+                placeholder="搜索任务"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                className="job-center-search"
+              />
+              <Select
+                allowClear
+                size="small"
+                placeholder="模块"
+                value={moduleFilter}
+                options={moduleOptions}
+                onChange={setModuleFilter}
+                className="job-center-filter"
+              />
+              <Select
+                allowClear
+                size="small"
+                placeholder="状态"
+                value={statusFilter}
+                options={[
+                  { value: "success", label: "success" },
+                  { value: "completed", label: "completed" },
+                  { value: "running", label: "running" },
+                  { value: "failed", label: "failed" },
+                  { value: "error", label: "error" },
+                  { value: "未运行", label: "未运行" }
+                ]}
+                onChange={setStatusFilter}
+                className="job-center-filter"
+              />
+              <Select
+                allowClear
+                size="small"
+                placeholder="启用"
+                value={enabledFilter}
+                options={[
+                  { value: "true", label: "启用" },
+                  { value: "false", label: "停用" }
+                ]}
+                onChange={setEnabledFilter}
+                className="job-center-filter"
+              />
+              <div className="data-panel-toolbar-spacer" />
+              <Button size="small" onClick={sync}>同步任务定义</Button>
+            </div>
+          }
+        >
+          <div className="job-card-grid-wrap">
+            {jobs.loading ? <EmptyAction description="正在加载任务定义" /> : null}
+            {!jobs.loading && filteredJobs.length === 0 ? <EmptyAction description="暂无匹配任务" /> : null}
+            {!jobs.loading && filteredJobs.length > 0 ? (
+              <div className="job-card-grid">
+                {filteredJobs.map((job) => (
+                  <JobCard
+                    key={job.job_name}
+                    job={job}
+                    selected={selectedJob?.job_name === job.job_name}
+                    onSelect={selectJob}
+                    onRun={openRun}
+                    onEdit={openEdit}
+                    onLogs={selectJob}
+                    onDetail={(record) => setDetailRecord(record as unknown as Record<string, unknown>)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </DataPanel>
 
-      <WorkbenchCard title={selectedJob ? `运行记录：${selectedJob.display_name || selectedJob.job_name}` : "运行记录"}>
-        <Tabs
-          size="small"
-          items={[
-            {
-              key: "requests",
-              label: "运行请求",
-              children: <Table rowKey="id" size="small" loading={requests.loading} dataSource={requestRows} columns={requestColumns} pagination={{ pageSize: 6 }} />
-            },
-            {
-              key: "logs",
-              label: "执行日志",
-              children: <Table rowKey="id" size="small" loading={logsLoading} dataSource={logs} columns={logColumns} pagination={{ pageSize: 6 }} />
-            }
-          ]}
-        />
-      </WorkbenchCard>
+        <aside className="job-center-side">
+          <WorkbenchCard title={selectedJob ? `运行记录：${selectedJob.display_name || selectedJob.job_name}` : "运行记录"}>
+            <Tabs
+              size="small"
+              items={[
+                {
+                  key: "requests",
+                  label: "运行请求",
+                  children: <Table rowKey="id" size="small" loading={requests.loading} dataSource={requestRows} columns={requestColumns} pagination={{ pageSize: 6 }} />
+                },
+                {
+                  key: "logs",
+                  label: "执行日志",
+                  children: <Table rowKey="id" size="small" loading={logsLoading} dataSource={logs} columns={logColumns} pagination={{ pageSize: 6 }} />
+                }
+              ]}
+            />
+          </WorkbenchCard>
+        </aside>
+      </div>
 
       <Modal title="任务配置" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden>
         <Form form={editForm} layout="vertical" preserve={false}>
