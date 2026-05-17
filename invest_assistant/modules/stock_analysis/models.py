@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from invest_assistant.bootstrap.database import Base
@@ -53,6 +53,21 @@ class StockCompareGroup(Base):
     track_id: Mapped[int | None] = mapped_column(ForeignKey("track_thesis.id"), nullable=True)
     stock_ids: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class StockTrackTagBinding(Base):
+    __tablename__ = "stock_track_tag_binding"
+    __table_args__ = (UniqueConstraint("stock_id", "track_tag_id", name="uq_stock_track_tag_binding"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    track_tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    relation_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conviction: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

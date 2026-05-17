@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem, StockUpdate
+from invest_assistant.modules.market_radar.models import Tag
 
 
 def import_stocks(db: Session, items: list[StockImportItem]) -> list[Stock]:
@@ -27,6 +28,7 @@ def import_stocks(db: Session, items: list[StockImportItem]) -> list[Stock]:
     db.commit()
     for stock in result:
         db.refresh(stock)
+        sync_stock_tag(db, stock)
     return result
 
 
@@ -54,6 +56,7 @@ def update_stock(db: Session, stock: Stock, payload: StockUpdate) -> Stock:
         setattr(stock, key, value)
     db.commit()
     db.refresh(stock)
+    sync_stock_tag(db, stock)
     return stock
 
 
@@ -67,3 +70,19 @@ def create_alias(db: Session, stock_id: int, alias: str, alias_type: str | None,
     db.commit()
     db.refresh(item)
     return item
+
+
+def sync_stock_tag(db: Session, stock: Stock) -> Tag:
+    tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock.id))
+    if tag is None:
+        tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.name == stock.stock_name))
+    if tag is None:
+        tag = Tag(name=stock.stock_name, type="stock", stock_id=stock.id, status=stock.status)
+        db.add(tag)
+    else:
+        tag.name = stock.stock_name
+        tag.stock_id = stock.id
+        tag.status = stock.status
+    db.commit()
+    db.refresh(tag)
+    return tag

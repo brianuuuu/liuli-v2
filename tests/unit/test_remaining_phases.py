@@ -35,6 +35,11 @@ def test_stock_analysis_core_flow():
     client = TestClient(create_app())
     headers = login_headers(client)
 
+    tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
+    assert tags.status_code == 200
+    assert tags.json()[0]["stock_id"] == stock_id
+    assert tags.json()[0]["name"] == "平安银行"
+
     note = client.post(
         f"/api/stock-analysis/stocks/{stock_id}/notes",
         json={"note_type": "research", "title": "核心逻辑", "content": "银行科技金融受益", "related_track_id": None},
@@ -66,6 +71,54 @@ def test_stock_analysis_core_flow():
         headers=headers,
     )
     assert group.status_code == 200
+
+
+def test_stock_track_tag_binding_forward_and_reverse_flow():
+    reset_db()
+    stock_id = seed_stock()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    tag = client.post(
+        "/api/market-radar/tags",
+        json={"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
+        headers=headers,
+    ).json()
+    second_tag = client.post(
+        "/api/market-radar/tags",
+        json={"name": "智能汽车", "type": "track", "category": "auto", "stock_id": None, "status": "active"},
+        headers=headers,
+    ).json()
+
+    binding = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
+        json={"track_tag_id": tag["id"], "relation_type": "beneficiary", "conviction": 0.8, "reason": "研究判断"},
+        headers=headers,
+    )
+    assert binding.status_code == 200
+    assert binding.json()["track_tag"]["name"] == "AI算力"
+
+    second_binding = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
+        json={"track_tag_id": second_tag["id"], "relation_type": "exposure", "conviction": 0.5},
+        headers=headers,
+    )
+    assert second_binding.status_code == 200
+
+    forward = client.get(f"/api/stock-analysis/stocks/{stock_id}/track-tags", headers=headers)
+    assert forward.status_code == 200
+    assert {item["track_tag"]["name"] for item in forward.json()} == {"AI算力", "智能汽车"}
+
+    reverse = client.get(f"/api/track-discovery/track-tags/{tag['id']}/stocks", headers=headers)
+    assert reverse.status_code == 200
+    assert reverse.json()[0]["stock_id"] == stock_id
+
+    reverse_create = client.post(
+        f"/api/track-discovery/track-tags/{tag['id']}/stocks",
+        json={"stock_id": stock_id, "relation_type": "beneficiary", "conviction": 0.9, "reason": "反向更新"},
+        headers=headers,
+    )
+    assert reverse_create.status_code == 200
+    assert reverse_create.json()["conviction"] == 0.9
 
 
 def test_alert_center_rule_event_flow():

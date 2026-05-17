@@ -1,14 +1,23 @@
-import { Button, Form, Input, InputNumber, Select, Space, Table, Typography, message } from "antd";
+import { Button, Form, Input, InputNumber, Popconfirm, Select, Space, Table, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { createStockNote, createStockScore, listStockNotes, listStockScores } from "../../api/stockAnalysis";
+import { listMarketTags } from "../../api/marketRadar";
+import {
+  bindStockTrackTag,
+  createStockNote,
+  createStockScore,
+  disableStockTrackTagBinding,
+  listStockNotes,
+  listStockScores,
+  listStockTrackTags
+} from "../../api/stockAnalysis";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import type { StockResearchNote, StockScoreSnapshot } from "../../types/api";
+import type { StockResearchNote, StockScoreSnapshot, StockTrackTagBinding } from "../../types/api";
 import { formatTime, scoreTrendOption } from "./sections/shared";
 
 type NoteFormValues = {
@@ -28,13 +37,23 @@ type ScoreFormValues = {
   total_score?: number;
 };
 
+type TrackBindingFormValues = {
+  track_tag_id: number;
+  relation_type?: string;
+  conviction?: number;
+  reason?: string;
+};
+
 export function StockDetailPage() {
   const { id } = useParams();
   const stockId = Number(id || 0);
   const notes = useAsyncData(useCallback(() => (stockId ? listStockNotes(stockId) : Promise.resolve([])), [stockId]), []);
   const scores = useAsyncData(useCallback(() => (stockId ? listStockScores(stockId) : Promise.resolve([])), [stockId]), []);
+  const trackTags = useAsyncData(useCallback(() => listMarketTags("track"), []), []);
+  const bindings = useAsyncData(useCallback(() => (stockId ? listStockTrackTags(stockId) : Promise.resolve([])), [stockId]), []);
   const [noteForm] = Form.useForm<NoteFormValues>();
   const [scoreForm] = Form.useForm<ScoreFormValues>();
+  const [bindingForm] = Form.useForm<TrackBindingFormValues>();
 
   async function submitNote() {
     const values = await noteForm.validateFields();
@@ -65,6 +84,26 @@ export function StockDetailPage() {
     await scores.refresh();
   }
 
+  async function submitBinding() {
+    const values = await bindingForm.validateFields();
+    await bindStockTrackTag(stockId, {
+      track_tag_id: values.track_tag_id,
+      relation_type: values.relation_type || null,
+      conviction: values.conviction || 0,
+      reason: values.reason || null,
+      status: "active"
+    });
+    message.success("赛道标签绑定已更新");
+    bindingForm.resetFields();
+    await bindings.refresh();
+  }
+
+  async function disableBinding(record: StockTrackTagBinding) {
+    await disableStockTrackTagBinding(record.id);
+    message.success("赛道标签绑定已停用");
+    await bindings.refresh();
+  }
+
   const noteColumns: ColumnsType<StockResearchNote> = [
     { title: "类型", dataIndex: "note_type", width: 110 },
     { title: "标题", dataIndex: "title" },
@@ -82,6 +121,25 @@ export function StockDetailPage() {
     { title: "创建", dataIndex: "created_at", render: formatTime }
   ];
 
+  const bindingColumns: ColumnsType<StockTrackTagBinding> = [
+    { title: "赛道标签", render: (_, record) => record.track_tag?.name || record.track_tag_id },
+    { title: "关系", dataIndex: "relation_type", width: 120, render: (value) => value || "-" },
+    { title: "确信度", dataIndex: "conviction", width: 90, render: (value) => Number(value || 0).toFixed(2) },
+    { title: "状态", dataIndex: "status", width: 90 },
+    { title: "原因", dataIndex: "reason", ellipsis: true, render: (value) => value || "-" },
+    {
+      title: "操作",
+      width: 90,
+      render: (_, record) => (
+        <Popconfirm title="停用这个赛道绑定？" onConfirm={() => disableBinding(record)}>
+          <Button size="small" danger disabled={record.status === "disabled"}>停用</Button>
+        </Popconfirm>
+      )
+    }
+  ];
+
+  const trackTagOptions = trackTags.data.map((tag) => ({ value: tag.id, label: tag.name }));
+
   if (!stockId) {
     return (
       <>
@@ -96,11 +154,33 @@ export function StockDetailPage() {
       <PageHeader title="标的详情" description={`Stock ID：${id || "-"}`} />
       <Space direction="vertical" size={10} style={{ width: "100%" }}>
         <WorkbenchCard title="基础信息" extra={<Link to="/stock-analysis">返回标的分析</Link>}>
-          <div className="detail-list">
-            <div className="detail-row"><Typography.Text type="secondary">Stock ID</Typography.Text><Typography.Text>{stockId}</Typography.Text></div>
-            <div className="detail-row"><Typography.Text type="secondary">研究笔记</Typography.Text><Typography.Text>{notes.data.length}</Typography.Text></div>
-            <div className="detail-row"><Typography.Text type="secondary">评分快照</Typography.Text><Typography.Text>{scores.data.length}</Typography.Text></div>
-          </div>
+            <div className="detail-list">
+              <div className="detail-row"><Typography.Text type="secondary">Stock ID</Typography.Text><Typography.Text>{stockId}</Typography.Text></div>
+              <div className="detail-row"><Typography.Text type="secondary">研究笔记</Typography.Text><Typography.Text>{notes.data.length}</Typography.Text></div>
+              <div className="detail-row"><Typography.Text type="secondary">评分快照</Typography.Text><Typography.Text>{scores.data.length}</Typography.Text></div>
+              <div className="detail-row"><Typography.Text type="secondary">赛道绑定</Typography.Text><Typography.Text>{bindings.data.filter((item) => item.status === "active").length}</Typography.Text></div>
+            </div>
+        </WorkbenchCard>
+
+        <WorkbenchCard title="赛道标签绑定">
+          <Table rowKey="id" size="small" loading={bindings.loading} dataSource={bindings.data} columns={bindingColumns} pagination={{ pageSize: 6 }} />
+          <Form form={bindingForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitBinding}>
+            <Space.Compact block>
+              <Form.Item name="track_tag_id" label="赛道标签" style={{ width: "34%" }} rules={[{ required: true, message: "请选择赛道标签" }]}>
+                <Select showSearch options={trackTagOptions} loading={trackTags.loading} />
+              </Form.Item>
+              <Form.Item name="relation_type" label="关系类型" style={{ width: "33%" }}>
+                <Input placeholder="beneficiary / exposure" />
+              </Form.Item>
+              <Form.Item name="conviction" label="确信度" style={{ width: "33%" }}>
+                <InputNumber min={0} max={1} step={0.1} style={{ width: "100%" }} />
+              </Form.Item>
+            </Space.Compact>
+            <Form.Item name="reason" label="判断理由">
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            <Button htmlType="submit" size="small" type="primary">绑定赛道标签</Button>
+          </Form>
         </WorkbenchCard>
 
         <WorkbenchCard title="评分快照">

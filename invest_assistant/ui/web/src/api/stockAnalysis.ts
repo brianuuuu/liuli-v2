@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreSnapshot } from "../types/api";
+import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreSnapshot, StockTrackTagBinding } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -28,6 +28,14 @@ export type CompareGroupPayload = {
   track_id?: number | null;
   stock_ids: string;
   description?: string | null;
+};
+
+export type StockTrackTagBindingPayload = {
+  track_tag_id: number;
+  relation_type?: string | null;
+  conviction?: number;
+  reason?: string | null;
+  status?: string;
 };
 
 export async function listStockPool(): Promise<StockPoolItem[]> {
@@ -77,5 +85,25 @@ export async function createCompareGroup(payload: CompareGroupPayload): Promise<
 
 export async function listStockReports(): Promise<Record<string, unknown>[]> {
   const response = await apiClient.get<Record<string, unknown>[]>("/api/stock-analysis/reports");
+  return response.data;
+}
+
+export async function listStockTrackTags(stockId: number): Promise<StockTrackTagBinding[]> {
+  const response = await apiClient.get<StockTrackTagBinding[]>(`/api/stock-analysis/stocks/${stockId}/track-tags`);
+  return response.data;
+}
+
+export async function bindStockTrackTag(stockId: number, payload: StockTrackTagBindingPayload): Promise<StockTrackTagBinding> {
+  const response = await apiClient.post<StockTrackTagBinding>(`/api/stock-analysis/stocks/${stockId}/track-tags`, payload);
+  return response.data;
+}
+
+export async function updateStockTrackTagBinding(bindingId: number, payload: Partial<StockTrackTagBindingPayload>): Promise<StockTrackTagBinding> {
+  const response = await apiClient.put<StockTrackTagBinding>(`/api/stock-analysis/track-tag-bindings/${bindingId}`, payload);
+  return response.data;
+}
+
+export async function disableStockTrackTagBinding(bindingId: number): Promise<StockTrackTagBinding> {
+  const response = await apiClient.delete<StockTrackTagBinding>(`/api/stock-analysis/track-tag-bindings/${bindingId}`);
   return response.data;
 }

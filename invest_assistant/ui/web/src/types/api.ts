@@ -301,4 +301,17 @@ export type StockCompareGroup = {
   updated_at?: string | null;
 };
 
+export type StockTrackTagBinding = {
+  id: number;
+  stock_id: number;
+  track_tag_id: number;
+  relation_type?: string | null;
+  conviction: number;
+  reason?: string | null;
+  status: string;
+  track_tag?: MarketTag | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type AnyRecord = Record<string, unknown>;

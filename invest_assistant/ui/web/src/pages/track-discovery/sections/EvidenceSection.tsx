@@ -1,11 +1,20 @@
 import { Button, Form, Input, InputNumber, Select, Space, Statistic, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { createTrackEvidence, listTrackEvidence, listTrackIndicators, listTrackRelatedStocks, listTrackTheses } from "../../../api/trackDiscovery";
+import { listMarketTags } from "../../../api/marketRadar";
+import {
+  bindStockFromTrackTag,
+  createTrackEvidence,
+  listStocksForTrackTag,
+  listTrackEvidence,
+  listTrackIndicators,
+  listTrackRelatedStocks,
+  listTrackTheses
+} from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { TrackEvidence } from "../../../types/api";
+import type { StockTrackTagBinding, TrackEvidence } from "../../../types/api";
 import { DirectionTag, formatTime } from "./shared";
 
 type EvidenceFormValues = {
@@ -17,15 +26,27 @@ type EvidenceFormValues = {
   related_stock_ids?: string;
 };
 
+type ReverseBindingFormValues = {
+  stock_id: number;
+  relation_type?: string;
+  conviction?: number;
+  reason?: string;
+};
+
 export function EvidenceSection() {
   const theses = useAsyncData(useCallback(listTrackTheses, []), []);
   const [thesisId, setThesisId] = useState<number | undefined>();
   const evidence = useAsyncData(useCallback(() => (thesisId ? listTrackEvidence(thesisId) : Promise.resolve([])), [thesisId]), []);
   const indicators = useAsyncData(useCallback(() => (thesisId ? listTrackIndicators(thesisId) : Promise.resolve([])), [thesisId]), []);
   const relatedStocks = useAsyncData(useCallback(() => (thesisId ? listTrackRelatedStocks(thesisId) : Promise.resolve([])), [thesisId]), []);
+  const trackTags = useAsyncData(useCallback(() => listMarketTags("track"), []), []);
+  const [trackTagId, setTrackTagId] = useState<number | undefined>();
+  const reverseBindings = useAsyncData(useCallback(() => (trackTagId ? listStocksForTrackTag(trackTagId) : Promise.resolve([])), [trackTagId]), []);
   const [form] = Form.useForm<EvidenceFormValues>();
+  const [reverseForm] = Form.useForm<ReverseBindingFormValues>();
 
   const thesisOptions = useMemo(() => theses.data.map((item) => ({ value: item.id, label: item.title })), [theses.data]);
+  const trackTagOptions = useMemo(() => trackTags.data.map((item) => ({ value: item.id, label: item.name })), [trackTags.data]);
 
   async function submitEvidence() {
     if (!thesisId) {
@@ -46,12 +67,38 @@ export function EvidenceSection() {
     await evidence.refresh();
   }
 
+  async function submitReverseBinding() {
+    if (!trackTagId) {
+      message.warning("请先选择赛道标签");
+      return;
+    }
+    const values = await reverseForm.validateFields();
+    await bindStockFromTrackTag(trackTagId, {
+      stock_id: values.stock_id,
+      relation_type: values.relation_type || null,
+      conviction: values.conviction || 0,
+      reason: values.reason || null,
+      status: "active"
+    });
+    message.success("关联标的已更新");
+    reverseForm.resetFields();
+    await reverseBindings.refresh();
+  }
+
   const columns: ColumnsType<TrackEvidence> = [
     { title: "方向", dataIndex: "evidence_direction", width: 100, render: (value) => <DirectionTag direction={value} /> },
     { title: "强度", dataIndex: "evidence_strength", width: 90, render: (value) => Number(value || 0).toFixed(2) },
     { title: "摘要", dataIndex: "summary", ellipsis: true, render: (value) => value || "-" },
     { title: "影响环节", dataIndex: "affected_segments", width: 160, render: (value) => value || "-" },
     { title: "创建", dataIndex: "created_at", width: 160, render: formatTime }
+  ];
+
+  const reverseColumns: ColumnsType<StockTrackTagBinding> = [
+    { title: "Stock ID", dataIndex: "stock_id", width: 100 },
+    { title: "关系", dataIndex: "relation_type", width: 120, render: (value) => value || "-" },
+    { title: "确信度", dataIndex: "conviction", width: 90, render: (value) => Number(value || 0).toFixed(2) },
+    { title: "状态", dataIndex: "status", width: 90 },
+    { title: "判断理由", dataIndex: "reason", ellipsis: true, render: (value) => value || "-" }
   ];
 
   return (
@@ -107,6 +154,30 @@ export function EvidenceSection() {
             </Form.Item>
           </Space.Compact>
           <Button htmlType="submit" size="small" type="primary" disabled={!thesisId}>新增证据</Button>
+        </Form>
+      </WorkbenchCard>
+
+      <WorkbenchCard
+        title="赛道标签关联标的"
+        extra={<Select showSearch size="small" placeholder="选择赛道标签" value={trackTagId} options={trackTagOptions} loading={trackTags.loading} style={{ width: 260 }} onChange={setTrackTagId} />}
+      >
+        <Table rowKey="id" size="small" loading={reverseBindings.loading} dataSource={reverseBindings.data} columns={reverseColumns} pagination={{ pageSize: 8 }} />
+        <Form form={reverseForm} layout="vertical" preserve={false} style={{ marginTop: 12 }} onFinish={submitReverseBinding}>
+          <Space.Compact block>
+            <Form.Item name="stock_id" label="Stock ID" style={{ width: "34%" }} rules={[{ required: true, message: "请输入 Stock ID" }]}>
+              <InputNumber min={1} style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="relation_type" label="关系类型" style={{ width: "33%" }}>
+              <Input placeholder="beneficiary / exposure" />
+            </Form.Item>
+            <Form.Item name="conviction" label="确信度" style={{ width: "33%" }}>
+              <InputNumber min={0} max={1} step={0.1} style={{ width: "100%" }} />
+            </Form.Item>
+          </Space.Compact>
+          <Form.Item name="reason" label="判断理由">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Button htmlType="submit" size="small" type="primary" disabled={!trackTagId}>关联标的</Button>
         </Form>
       </WorkbenchCard>
     </Space>

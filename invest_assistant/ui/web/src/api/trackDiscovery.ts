@@ -3,7 +3,8 @@ import type {
   TrackEvidence,
   TrackRelatedStock,
   TrackThesis,
-  TrackValidationIndicator
+  TrackValidationIndicator,
+  StockTrackTagBinding
 } from "../types/api";
 import { apiClient } from "./client";
 
@@ -43,6 +44,14 @@ export type TrackRelatedStockPayload = {
   relevance_score?: number;
   evidence_count?: number;
   heat_score?: number;
+  status?: string;
+};
+
+export type TrackTagStockBindingPayload = {
+  stock_id: number;
+  relation_type?: string | null;
+  conviction?: number;
+  reason?: string | null;
   status?: string;
 };
 
@@ -113,5 +122,15 @@ export async function listTrackCandidates(window = "24h"): Promise<TrackCandidat
   const response = await apiClient.get<TrackCandidate[]>("/api/track-discovery/candidates", {
     params: { window }
   });
+  return response.data;
+}
+
+export async function listStocksForTrackTag(tagId: number): Promise<StockTrackTagBinding[]> {
+  const response = await apiClient.get<StockTrackTagBinding[]>(`/api/track-discovery/track-tags/${tagId}/stocks`);
+  return response.data;
+}
+
+export async function bindStockFromTrackTag(tagId: number, payload: TrackTagStockBindingPayload): Promise<StockTrackTagBinding> {
+  const response = await apiClient.post<StockTrackTagBinding>(`/api/track-discovery/track-tags/${tagId}/stocks`, payload);
   return response.data;
 }
