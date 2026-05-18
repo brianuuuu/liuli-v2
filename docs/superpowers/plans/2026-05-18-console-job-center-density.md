@@ -27,7 +27,7 @@
   - Add summary strip styles.
   - Tune toolbar spacing and wrapping.
   - Reduce card min width, min height, padding, and internal gaps.
-  - Add status rail and coordinated action styles.
+  - Tune card sizing and coordinated action styles without adding a strong colored status rail.
   - Preserve dark-mode readability.
 
 ## Tasks
@@ -304,46 +304,22 @@ Update existing styles:
 ```css
 .job-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(286px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
 }
 
 .job-card {
-  position: relative;
   display: flex;
-  min-height: 138px;
+  min-height: 158px;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
   overflow: hidden;
-  padding: 9px 10px 9px 12px;
+  padding: 12px;
   border: 1px solid var(--ll-border);
   border-radius: 7px;
   background: var(--ll-panel);
   cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-}
-
-.job-card::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--ll-muted);
-  content: "";
-}
-
-.job-card.success::before {
-  background: #10b981;
-}
-
-.job-card.running::before {
-  background: var(--ll-accent);
-}
-
-.job-card.failed::before {
-  background: #dc2626;
 }
 ```
 
@@ -354,14 +330,14 @@ Update:
 ```css
 .job-card-desc {
   display: -webkit-box;
-  min-height: 19px;
+  min-height: 36px;
   margin: 0;
   overflow: hidden;
   color: #475569;
   font-size: 12px;
   line-height: 1.5;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
 }
 
 .job-card-meta {
@@ -386,7 +362,7 @@ Update:
 
 .job-card-actions {
   display: flex;
-  gap: 6px;
+  gap: 7px;
   margin-top: auto;
   padding-top: 1px;
 }
@@ -456,7 +432,7 @@ Expected:
 
 - Summary strip is visible.
 - Toolbar controls align in one strip.
-- Cards are shorter than before.
+- Cards are shorter than the original but remain comfortable, near a four-column layout on the screenshot-sized desktop viewport.
 - `运行`, `配置`, `日志`, and `更多` are visually coordinated.
 - `运行` is not a saturated blue primary block.
 

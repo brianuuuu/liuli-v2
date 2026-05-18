@@ -1,4 +1,4 @@
-import { Button, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Tabs, message } from "antd";
+import { Button, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Space, Switch, Tabs, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog } from "../../../types/api";
@@ -25,7 +25,7 @@ export function JobsSection() {
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [keyword, setKeyword] = useState("");
   const [moduleFilter, setModuleFilter] = useState<string | undefined>();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [enabledFilter, setEnabledFilter] = useState<string | undefined>();
   const [logs, setLogs] = useState<JobRunLog[]>([]);
   const [allLogs, setAllLogs] = useState<JobRunLog[]>([]);
@@ -49,15 +49,38 @@ export function JobsSection() {
       .map((moduleName) => ({ value: moduleName, label: moduleName }));
   }, [jobs.data]);
 
+  const jobSummary = useMemo(() => {
+    const failed = jobs.data.filter((job) => job.last_status === "failed" || job.last_status === "error").length;
+    const running = jobs.data.filter((job) => job.last_status === "running").length;
+    const enabled = jobs.data.filter((job) => job.enabled).length;
+    const lastRun = jobs.data
+      .map((job) => job.last_run_at)
+      .filter(Boolean)
+      .sort((a, b) => String(b).localeCompare(String(a)))[0];
+    return {
+      total: jobs.data.length,
+      enabled,
+      running,
+      failed,
+      lastRun: lastRun ? formatTime(lastRun) : "-"
+    };
+  }, [jobs.data]);
+
   const filteredJobs = useMemo(() => {
     const query = keyword.trim().toLowerCase();
     return jobs.data.filter((job) => {
       const status = job.last_status || "未运行";
       const text = `${job.display_name || ""}\n${job.job_name}\n${job.module_name}\n${job.description || ""}`.toLowerCase();
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "failed" && (status === "failed" || status === "error")) ||
+        (statusFilter === "running" && status === "running") ||
+        (statusFilter === "idle" && status === "未运行") ||
+        (statusFilter === "completed" && (status === "success" || status === "completed"));
       return (
         (!query || text.includes(query)) &&
         (!moduleFilter || job.module_name === moduleFilter) &&
-        (!statusFilter || status === statusFilter) &&
+        matchesStatus &&
         (!enabledFilter || String(job.enabled) === enabledFilter)
       );
     });
@@ -160,11 +183,33 @@ export function JobsSection() {
   return (
     <>
       <div className="job-center-layout">
+        <div className="job-summary-strip">
+          <div className="job-summary-item">
+            <span>全部任务</span>
+            <strong>{jobSummary.total}</strong>
+          </div>
+          <div className="job-summary-item">
+            <span>启用</span>
+            <strong>{jobSummary.enabled}</strong>
+          </div>
+          <div className="job-summary-item">
+            <span>运行中</span>
+            <strong>{jobSummary.running}</strong>
+          </div>
+          <div className="job-summary-item danger">
+            <span>异常</span>
+            <strong>{jobSummary.failed}</strong>
+          </div>
+          <div className="job-summary-item wide">
+            <span>最近运行</span>
+            <strong>{jobSummary.lastRun}</strong>
+          </div>
+        </div>
         <div className="data-panel-toolbar job-center-toolbar">
           <Input.Search
             allowClear
             size="small"
-            placeholder="搜索任务"
+            placeholder="搜索任务名 / 模块 / 描述"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             className="job-center-search"
@@ -178,21 +223,17 @@ export function JobsSection() {
             onChange={setModuleFilter}
             className="job-center-filter"
           />
-          <Select
-            allowClear
+          <Segmented
             size="small"
-            placeholder="状态"
             value={statusFilter}
             options={[
-              { value: "success", label: "success" },
-              { value: "completed", label: "completed" },
-              { value: "running", label: "running" },
-              { value: "failed", label: "failed" },
-              { value: "error", label: "error" },
-              { value: "未运行", label: "未运行" }
+              { value: "all", label: "全部" },
+              { value: "failed", label: "异常" },
+              { value: "running", label: "运行中" },
+              { value: "idle", label: "未运行" },
+              { value: "completed", label: "已完成" }
             ]}
-            onChange={setStatusFilter}
-            className="job-center-filter"
+            onChange={(value) => setStatusFilter(String(value))}
           />
           <Select
             allowClear

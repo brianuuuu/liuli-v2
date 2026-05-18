@@ -45,16 +45,16 @@ Top-to-bottom structure:
 3. Card grid
    - Keep responsive grid.
    - Reduce card minimum height.
-   - Use a slightly narrower minimum card width so four columns can fit comfortably on wide desktop when the content area allows it.
+   - Keep the card width large enough for comfortable reading; avoid over-compressing into too many columns.
    - Use thinner internal spacing.
-   - Use a left status rail or small status marker for quick scanning.
+   - Do not add a strong colored left rail; status should be carried by the existing badge and selected/hover states.
 
 Recommended sizing targets:
 
-- Grid minimum column width: about `280px` to `300px`, instead of the current `320px`.
-- Card minimum height: about `132px` to `148px`, instead of the current tall card treatment.
-- Card padding: about `9px` to `10px`.
-- Internal gap: about `6px` to `8px`.
+- Grid minimum column width: about `360px`, keeping the screenshot-sized desktop viewport near a comfortable four-column layout.
+- Card minimum height: about `155px` to `165px`, shorter than the original but not compressed into small tiles.
+- Card padding: about `12px`.
+- Internal gap: about `9px`.
 - Card radius: keep at `6px` to `7px`, consistent with the existing workbench style.
 
 ## Card Content
@@ -143,7 +143,7 @@ Out of scope:
 ## Acceptance Criteria
 
 - Task cards are visibly shorter than the current version.
-- On the screenshot-sized desktop viewport, the grid should fit more tasks per screen than the current version.
+- On the screenshot-sized desktop viewport, the grid should stay comfortable to scan and avoid the over-compressed six-column look.
 - Cards do not grow tall because of long descriptions, job names, module names, or action wrapping.
 - The toolbar reads as one coherent control strip instead of several equal-weight controls.
 - The page shows task health summary numbers above the card grid.
