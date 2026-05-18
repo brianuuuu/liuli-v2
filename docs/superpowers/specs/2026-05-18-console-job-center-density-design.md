@@ -21,6 +21,7 @@ Use a "task management console, leaning compact operations" layout:
 - Convert the toolbar into search + quick status filters + secondary filters + right-aligned actions.
 - Compress each card to focus on title, technical job name, status, module, trigger, last run, timeout, retry, and enabled state.
 - Keep running a job as a visible card action, but reduce its visual weight so the action group reads as one coordinated toolbar.
+- Optimize card size as a first-class goal: reduce height, avoid oversized blank areas, and keep the grid comfortable for repeated scanning.
 
 ## Layout
 
@@ -44,8 +45,17 @@ Top-to-bottom structure:
 3. Card grid
    - Keep responsive grid.
    - Reduce card minimum height.
+   - Use a slightly narrower minimum card width so four columns can fit comfortably on wide desktop when the content area allows it.
    - Use thinner internal spacing.
    - Use a left status rail or small status marker for quick scanning.
+
+Recommended sizing targets:
+
+- Grid minimum column width: about `280px` to `300px`, instead of the current `320px`.
+- Card minimum height: about `132px` to `148px`, instead of the current tall card treatment.
+- Card padding: about `9px` to `10px`.
+- Internal gap: about `6px` to `8px`.
+- Card radius: keep at `6px` to `7px`, consistent with the existing workbench style.
 
 ## Card Content
 
@@ -55,7 +65,7 @@ Each card shows:
 - `job_name` as a muted monospace line.
 - Status badge in the top-right.
 - Description clamped to one line.
-- One compact metadata row or two short rows:
+- One compact metadata row or two short rows, depending on available width:
   - module
   - trigger type
   - last run
@@ -64,6 +74,13 @@ Each card shows:
   - enabled state
 
 The card should avoid equal-weight label/value grids for every field. Labels can be muted; values should remain readable but not oversized.
+
+Card content priority:
+
+- Required in collapsed card: title, job name, status, module, last run, enabled state, actions.
+- Secondary fields can be shortened: trigger, timeout, retries.
+- Description should be one line and can be hidden when width is too narrow.
+- Long module names and job names must ellipsize without increasing card height.
 
 ## Actions
 
@@ -126,6 +143,8 @@ Out of scope:
 ## Acceptance Criteria
 
 - Task cards are visibly shorter than the current version.
+- On the screenshot-sized desktop viewport, the grid should fit more tasks per screen than the current version.
+- Cards do not grow tall because of long descriptions, job names, module names, or action wrapping.
 - The toolbar reads as one coherent control strip instead of several equal-weight controls.
 - The page shows task health summary numbers above the card grid.
 - `运行`, `配置`, `日志`, and `更多` appear as a visually coordinated action group with consistent size and spacing.
