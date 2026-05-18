@@ -1,0 +1,194 @@
+import { ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
+import { Button, Drawer, Input, Select, Space, Tag, Typography, message } from "antd";
+import { useCallback, useMemo, useState } from "react";
+import { listMarketTags, listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
+import { EmptyAction } from "../../../components/common/EmptyAction";
+import { useAsyncData } from "../../../hooks/useAsyncData";
+import type { MarketTag, SourceItem } from "../../../types/api";
+import { formatTime } from "./shared";
+
+const flashTypes = new Set(["news", "policy", "sentiment", "announcement", "financial"]);
+
+const sourceTypeOptions = [
+  { value: "news", label: "新闻" },
+  { value: "policy", label: "政策" },
+  { value: "sentiment", label: "舆情" },
+  { value: "announcement", label: "公告" },
+  { value: "financial", label: "财报" }
+];
+
+function isImportantFlash(item: SourceItem) {
+  const text = `${item.title}\n${item.content}`;
+  return /重要|重大|风口|电报解读|预增|预减|停牌|复牌|重组|并购|处罚|监管|芯片|半导体|AI|算力/.test(text);
+}
+
+function flashDate(item: SourceItem) {
+  return item.publish_time ? item.publish_time.slice(0, 10) : "未注明日期";
+}
+
+function flashText(item: SourceItem) {
+  return `${item.title}\n${item.content}`.toLowerCase();
+}
+
+function matchedTags(item: SourceItem, tags: MarketTag[]) {
+  const text = flashText(item);
+  return tags.filter((tag) => tag.status === "active" && tag.name && text.includes(tag.name.toLowerCase())).slice(0, 8);
+}
+
+function dotClass(item: SourceItem) {
+  if (isImportantFlash(item)) return "flash-dot important";
+  if (item.source_type === "announcement" || item.source_type === "financial") return "flash-dot filing";
+  return "flash-dot";
+}
+
+export function FlashSection() {
+  const sources = useAsyncData(useCallback(listSourceItems, []), []);
+  const tags = useAsyncData(useCallback(() => listMarketTags(), []), []);
+  const [keyword, setKeyword] = useState("");
+  const [sourceName, setSourceName] = useState<string | undefined>();
+  const [sourceType, setSourceType] = useState<string | undefined>();
+  const [importantOnly, setImportantOnly] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [detail, setDetail] = useState<SourceItem | null>(null);
+
+  const sourceOptions = useMemo(() => {
+    const names = Array.from(new Set(sources.data.map((item) => item.source_name).filter(Boolean))).sort();
+    return names.map((name) => ({ value: name, label: name }));
+  }, [sources.data]);
+
+  const rows = useMemo(() => {
+    const query = keyword.trim().toLowerCase();
+    return sources.data
+      .filter((item) => flashTypes.has(item.source_type))
+      .filter((item) => !sourceName || item.source_name === sourceName)
+      .filter((item) => !sourceType || item.source_type === sourceType)
+      .filter((item) => !importantOnly || isImportantFlash(item))
+      .filter((item) => !query || flashText(item).includes(query))
+      .sort((a, b) => String(b.publish_time || b.created_at || "").localeCompare(String(a.publish_time || a.created_at || "")));
+  }, [importantOnly, keyword, sourceName, sourceType, sources.data]);
+
+  const feedItems = useMemo(() => {
+    const result: Array<{ type: "date"; date: string; key: string } | { type: "flash"; item: SourceItem; key: string }> = [];
+    let lastDate = "";
+    rows.forEach((item) => {
+      const currentDate = flashDate(item);
+      if (currentDate !== lastDate) {
+        result.push({ type: "date", date: currentDate, key: `date-${currentDate}` });
+        lastDate = currentDate;
+      }
+      result.push({ type: "flash", item, key: `flash-${item.id}` });
+    });
+    return result;
+  }, [rows]);
+
+  async function syncCls() {
+    setSyncing(true);
+    try {
+      const result = await syncClsMarketFlashes(100);
+      if (!result.success) {
+        message.error(result.message || "同步财联社快讯失败");
+        return;
+      }
+      message.success(`新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条`);
+      await sources.refresh();
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  function resetFilters() {
+    setKeyword("");
+    setSourceName(undefined);
+    setSourceType(undefined);
+    setImportantOnly(false);
+  }
+
+  return (
+    <>
+      <div className="flash-layout">
+        <section className="flash-feed-panel">
+          <div className="flash-toolbar">
+            <div className="flash-toolbar-left">
+              <button className={!importantOnly ? "flash-segment active" : "flash-segment"} onClick={() => setImportantOnly(false)}>
+                全部
+              </button>
+              <button className={importantOnly ? "flash-segment active important" : "flash-segment"} onClick={() => setImportantOnly(true)}>
+                重要
+              </button>
+            </div>
+            <Space>
+              <Button size="small" icon={<SyncOutlined />} loading={syncing} onClick={syncCls}>同步财联社</Button>
+              <Button size="small" icon={<ReloadOutlined />} onClick={() => sources.refresh()}>刷新</Button>
+            </Space>
+          </div>
+
+          <div className="flash-scroll">
+            <div className="flash-feed">
+              {feedItems.map((entry) => {
+                if (entry.type === "date") {
+                  return (
+                    <div className="flash-date-row" key={entry.key}>
+                      <span className="flash-rail-line" />
+                      <div className="flash-date-label">{entry.date}</div>
+                    </div>
+                  );
+                }
+                const item = entry.item;
+                const itemTags = matchedTags(item, tags.data);
+                return (
+                  <article className="flash-row" key={entry.key}>
+                    <div className="flash-rail">
+                      <span className="flash-rail-line" />
+                      <span className={dotClass(item)} />
+                    </div>
+                    <button className="flash-line" onClick={() => setDetail(item)}>
+                      <div className="flash-line-head">
+                        <span className="flash-time">{formatTime(item.publish_time)}</span>
+                        <span>{item.source_name}</span>
+                        <span>{item.source_type}</span>
+                        {isImportantFlash(item) ? <Tag color="orange">重要</Tag> : null}
+                      </div>
+                      <div className="flash-title">{item.title}</div>
+                      <div className="flash-content">{item.content}</div>
+                      <div className="flash-tags">
+                        {itemTags.length ? itemTags.map((tag) => <Tag key={tag.id}>{tag.name}</Tag>) : <span>暂无命中标签</span>}
+                      </div>
+                    </button>
+                  </article>
+                );
+              })}
+              {!sources.loading && feedItems.length === 0 ? <EmptyAction description="暂无快讯，可同步财联社或调整筛选条件" /> : null}
+            </div>
+          </div>
+        </section>
+
+        <aside className="flash-filter-panel">
+          <Typography.Title level={5}>筛选</Typography.Title>
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              placeholder="搜索标题或正文"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+            <Select allowClear placeholder="来源" value={sourceName} options={sourceOptions} onChange={setSourceName} />
+            <Select allowClear placeholder="类型" value={sourceType} options={sourceTypeOptions} onChange={setSourceType} />
+            <Button block onClick={resetFilters}>重置筛选</Button>
+          </Space>
+        </aside>
+      </div>
+
+      <Drawer title="快讯详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
+        {detail ? (
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
+            <Typography.Title level={5}>{detail.title}</Typography.Title>
+            <Typography.Text type="secondary">{detail.source_name} / {detail.source_type} / {formatTime(detail.publish_time)}</Typography.Text>
+            {detail.source_url ? <Typography.Link href={detail.source_url} target="_blank">{detail.source_url}</Typography.Link> : null}
+            <Typography.Paragraph copyable style={{ whiteSpace: "pre-wrap" }}>{detail.content}</Typography.Paragraph>
+          </Space>
+        ) : null}
+      </Drawer>
+    </>
+  );
+}

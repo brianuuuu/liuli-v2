@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { createSourceItem, listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { SourceItem } from "../../../types/api";
@@ -24,7 +25,7 @@ export function SourcesSection() {
   const [form] = Form.useForm<SourceFormValues>();
 
   function openCreate() {
-    form.setFieldsValue({ source_type: "manual", source_name: "manual" });
+    form.setFieldsValue({ source_type: "news", source_name: "manual" });
     setOpen(true);
   }
 
@@ -35,14 +36,14 @@ export function SourcesSection() {
       source_url: values.source_url || null,
       publish_time: values.publish_time || null
     });
-    message.success("信息源已新增");
+    message.success("数据源已新增");
     setOpen(false);
     await sources.refresh();
   }
 
   const columns: ColumnsType<SourceItem> = [
     { title: "标题", dataIndex: "title", ellipsis: true },
-    { title: "来源类型", dataIndex: "source_type", width: 110 },
+    { title: "类型", dataIndex: "source_type", width: 90 },
     { title: "来源", dataIndex: "source_name", width: 130 },
     { title: "发布时间", dataIndex: "publish_time", width: 160, render: formatTime },
     { title: "入库时间", dataIndex: "created_at", width: 160, render: formatTime },
@@ -51,7 +52,14 @@ export function SourcesSection() {
 
   return (
     <>
-      <WorkbenchCard title="信息源" extra={<Button size="small" type="primary" onClick={openCreate}>新增信息源</Button>}>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={openCreate}>手动新增</Button>
+          </>
+        }
+      >
         <Table
           rowKey="id"
           size="small"
@@ -59,11 +67,11 @@ export function SourcesSection() {
           dataSource={sources.data}
           columns={columns}
           pagination={{ pageSize: 12, showSizeChanger: true }}
-          locale={{ emptyText: <EmptyAction description="暂无信息源，去控制台触发采集任务或手动新增" /> }}
+          locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步财联社" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
-      <Modal title="新增信息源" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={680}>
+      <Modal title="新增数据源" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={680}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input />
@@ -88,9 +96,9 @@ export function SourcesSection() {
         </Form>
       </Modal>
 
-      <Drawer title="信息源详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
+      <Drawer title="数据源详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
         {detail ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Title level={5}>{detail.title}</Typography.Title>
             <Typography.Text type="secondary">{detail.source_type} / {detail.source_name} / {formatTime(detail.publish_time)}</Typography.Text>
             {detail.source_url ? <Typography.Link href={detail.source_url} target="_blank">{detail.source_url}</Typography.Link> : null}

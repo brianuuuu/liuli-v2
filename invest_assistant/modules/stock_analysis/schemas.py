@@ -59,3 +59,35 @@ class StockCompareGroupRead(StockCompareGroupCreate):
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class StockTrackTagBindingCreate(BaseModel):
+    track_tag_id: int
+    relation_type: str | None = None
+    conviction: float = 0
+    reason: str | None = None
+    status: str = "active"
+
+
+class TrackTagStockBindingCreate(BaseModel):
+    stock_id: int
+    relation_type: str | None = None
+    conviction: float = 0
+    reason: str | None = None
+    status: str = "active"
+
+
+class StockTrackTagBindingUpdate(BaseModel):
+    relation_type: str | None = None
+    conviction: float | None = None
+    reason: str | None = None
+    status: str | None = None
+
+
+class StockTrackTagBindingRead(StockTrackTagBindingCreate):
+    id: int
+    stock_id: int
+    track_tag: dict | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)

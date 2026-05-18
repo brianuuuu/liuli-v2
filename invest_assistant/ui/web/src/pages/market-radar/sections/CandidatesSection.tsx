@@ -3,7 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { approveTagCandidate, createTagCandidate, listTagCandidates, mergeTagCandidate, rejectTagCandidate } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TagCandidate } from "../../../types/api";
@@ -82,10 +82,9 @@ export function CandidatesSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="候选标签"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select
               allowClear
               size="small"
@@ -100,8 +99,9 @@ export function CandidatesSection() {
                 { value: "rejected", label: "rejected" }
               ]}
             />
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增候选</Button>
-          </Space>
+          </>
         }
       >
         <Table
@@ -113,7 +113,7 @@ export function CandidatesSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无候选标签" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title="新增候选标签" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>
@@ -142,3 +142,4 @@ export function CandidatesSection() {
     </>
   );
 }
+

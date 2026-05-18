@@ -1,9 +1,10 @@
-import { Button, Drawer, Select, Space, Table } from "antd";
+import { Button, Drawer, Select, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { getTagTrend, listRankings, type RankingType, type RankingWindow } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TagHeat } from "../../../types/api";
@@ -41,13 +42,13 @@ export function RankingsSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="热度榜"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select size="small" value={type} options={rankingTypeOptions} style={{ width: 110 }} onChange={setType} />
             <Select size="small" value={window} options={windowOptions} style={{ width: 90 }} onChange={setWindow} />
-          </Space>
+            <div className="data-panel-toolbar-spacer" />
+          </>
         }
       >
         <Table
@@ -59,7 +60,7 @@ export function RankingsSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无热度榜数据" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Drawer title={selected ? `${tagName(selected)} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
         {trend.length ? (

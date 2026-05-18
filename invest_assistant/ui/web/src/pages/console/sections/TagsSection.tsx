@@ -10,7 +10,7 @@ import {
   rejectTagCandidate,
   updateMarketTag
 } from "../../../api/marketRadar";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 
 type TagFormValues = {
@@ -67,51 +67,54 @@ export function TagsSection() {
   }
 
   return (
-    <WorkbenchCard
-      title="标签库"
-      extra={
-        <Space>
-          <Select
-            allowClear
-            size="small"
-            placeholder="标签类型"
-            value={typeFilter}
-            style={{ width: 128 }}
-            onChange={setTypeFilter}
-            options={[
-              { value: "stock", label: "标的" },
-              { value: "track", label: "赛道" },
-              { value: "hotword", label: "热点词" }
-            ]}
-          />
-          <Button size="small" type="primary" onClick={openCreate}>新增赛道/热点标签</Button>
-        </Space>
-      }
-    >
-      <Table
-        rowKey="id"
-        size="small"
-        loading={tags.loading}
-        dataSource={filteredTags}
-        columns={[
-          { title: "名称", dataIndex: "name" },
-          { title: "类型", dataIndex: "type" },
-          { title: "分类", dataIndex: "category", render: (value) => value || "-" },
-          { title: "状态", dataIndex: "status" },
-          {
-            title: "操作",
-            width: 170,
-            render: (_, record) => (
-              <Space>
-                <Button size="small" disabled={record.type === "stock"} onClick={() => openEdit(record)}>编辑</Button>
-                <Popconfirm title="停用这个标签？" onConfirm={() => disable(record)}>
-                  <Button size="small" danger disabled={record.type === "stock"}>停用</Button>
-                </Popconfirm>
-              </Space>
-            )
-          }
-        ]}
-      />
+    <>
+      <DataPanel
+        toolbar={
+          <>
+            <Select
+              allowClear
+              size="small"
+              placeholder="标签类型"
+              value={typeFilter}
+              style={{ width: 128 }}
+              onChange={setTypeFilter}
+              options={[
+                { value: "stock", label: "标的" },
+                { value: "track", label: "赛道" },
+                { value: "hotword", label: "热点词" }
+              ]}
+            />
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={openCreate}>新增赛道/热点标签</Button>
+          </>
+        }
+      >
+        <Table
+          rowKey="id"
+          size="small"
+          loading={tags.loading}
+          dataSource={filteredTags}
+          columns={[
+            { title: "名称", dataIndex: "name" },
+            { title: "类型", dataIndex: "type" },
+            { title: "分类", dataIndex: "category", render: (value) => value || "-" },
+            { title: "状态", dataIndex: "status" },
+            {
+              title: "操作",
+              width: 170,
+              render: (_, record) => (
+                <Space>
+                  <Button size="small" disabled={record.type === "stock"} onClick={() => openEdit(record)}>编辑</Button>
+                  <Popconfirm title="停用这个标签？" onConfirm={() => disable(record)}>
+                    <Button size="small" danger disabled={record.type === "stock"}>停用</Button>
+                  </Popconfirm>
+                </Space>
+              )
+            }
+          ]}
+        />
+      </DataPanel>
+
       <Modal title={editing ? "编辑标签" : "新增标签"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="标签名称" rules={[{ required: true, message: "请输入标签名称" }]}>
@@ -128,7 +131,7 @@ export function TagsSection() {
           </Form.Item>
         </Form>
       </Modal>
-    </WorkbenchCard>
+    </>
   );
 }
 
@@ -144,7 +147,7 @@ export function TagCandidatesSection() {
   }
 
   return (
-    <WorkbenchCard title="候选标签">
+    <DataPanel>
       <Table
         rowKey="id"
         size="small"
@@ -174,6 +177,6 @@ export function TagCandidatesSection() {
           }
         ]}
       />
-    </WorkbenchCard>
+    </DataPanel>
   );
 }

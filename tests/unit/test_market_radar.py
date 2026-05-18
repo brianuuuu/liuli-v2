@@ -5,6 +5,7 @@ from invest_assistant.bootstrap.database import Base, SessionLocal, engine
 from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.market_radar import jobs as market_radar_jobs
 
 
 def reset_db():
@@ -101,6 +102,63 @@ def test_rule_extraction_heat_and_graph_jobs():
     graph = client.get("/api/market-radar/graphs/stock-track?window=24h", headers=headers)
     assert graph.status_code == 200
     assert graph.json()["edges"][0]["related_tag"]["name"] == "AI算力"
+
+
+def test_cls_market_flash_job_inserts_only_new_source_items(monkeypatch):
+    reset_db()
+    rows = [
+        {"标题": "AI算力快讯", "内容": "财联社电，AI算力产业链升温。", "发布日期": "2026-05-17", "发布时间": "09:30:00"},
+        {"标题": "低空经济快讯", "内容": "财联社电，低空经济政策持续推进。", "发布日期": "2026-05-17", "发布时间": "09:35:00"},
+    ]
+    monkeypatch.setattr(market_radar_jobs, "_fetch_cls_rows", lambda limit: rows[:limit])
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        first = execute_job(db, "market_radar.fetch_news", params={"limit": 2})
+        second = execute_job(db, "market_radar.fetch_news", params={"limit": 2})
+    finally:
+        db.close()
+
+    assert first.success is True
+    assert first.fetched_count == 2
+    assert first.inserted_count == 2
+    assert second.success is True
+    assert second.fetched_count == 2
+    assert second.inserted_count == 0
+    assert second.skipped_count == 2
+
+    sources = client.get("/api/market-radar/source-items", headers=headers)
+    assert sources.status_code == 200
+    assert len(sources.json()) == 2
+    assert sources.json()[0]["source_name"] == "财联社"
+    assert sources.json()[0]["source_type"] == "news"
+
+
+def test_cls_market_flash_sync_endpoint_returns_insert_stats(monkeypatch):
+    reset_db()
+    rows = [
+        {"标题": "机器人快讯", "内容": "财联社电，机器人产业链出现新进展。", "发布日期": "2026-05-17", "发布时间": "10:30:00"},
+    ]
+    monkeypatch.setattr(market_radar_jobs, "_fetch_cls_rows", lambda limit: rows[:limit])
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    first = client.post("/api/market-radar/source-items/sync-cls", json={"limit": 100}, headers=headers)
+    second = client.post("/api/market-radar/source-items/sync-cls", json={"limit": 100}, headers=headers)
+
+    assert first.status_code == 200
+    assert first.json()["success"] is True
+    assert first.json()["inserted_count"] == 1
+    assert second.status_code == 200
+    assert second.json()["success"] is True
+    assert second.json()["inserted_count"] == 0
+    assert second.json()["skipped_count"] == 1
+
+    sources = client.get("/api/market-radar/source-items", headers=headers)
+    assert len(sources.json()) == 1
+    assert sources.json()[0]["title"] == "机器人快讯"
 
 
 def test_tag_candidate_approve_reject_and_merge():

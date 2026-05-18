@@ -195,4 +195,123 @@ export type MarketGraph = {
   edges: MarketGraphEdge[];
 };
 
+export type TrackThesis = {
+  id: number;
+  user_id?: number | null;
+  title: string;
+  core_thesis: string;
+  underlying_change?: string | null;
+  old_bottleneck?: string | null;
+  new_solution?: string | null;
+  value_chain_shift?: string | null;
+  time_horizon?: string | null;
+  confidence_level?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackCandidate = {
+  tag: MarketTag;
+  heat: {
+    window_type: string;
+    trigger_count: number;
+    source_count: number;
+    heat_score: number;
+    rank_no: number;
+  };
+};
+
+export type TrackValidationIndicator = {
+  id: number;
+  thesis_id: number;
+  name: string;
+  indicator_type?: string | null;
+  data_source?: string | null;
+  current_value?: string | null;
+  direction?: string | null;
+  validation_meaning?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackEvidence = {
+  id: number;
+  thesis_id: number;
+  source_item_id?: number | null;
+  evidence_direction: string;
+  evidence_strength: number;
+  summary?: string | null;
+  affected_segments?: string | null;
+  related_stock_ids?: string | null;
+  created_at?: string | null;
+};
+
+export type TrackRelatedStock = {
+  id: number;
+  thesis_id: number;
+  stock_id: number;
+  role?: string | null;
+  relevance_score: number;
+  evidence_count: number;
+  heat_score: number;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockPoolItem = {
+  id: number;
+  stock_id: number;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockResearchNote = {
+  id: number;
+  stock_id: number;
+  note_type: string;
+  title: string;
+  content: string;
+  related_track_id?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockScoreSnapshot = {
+  id: number;
+  stock_id: number;
+  score_date: string;
+  track_id?: number | null;
+  growth_score: number;
+  valuation_score: number;
+  moat_score: number;
+  risk_score: number;
+  total_score: number;
+  created_at?: string | null;
+};
+
+export type StockCompareGroup = {
+  id: number;
+  name: string;
+  track_id?: number | null;
+  stock_ids: string;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockTrackTagBinding = {
+  id: number;
+  stock_id: number;
+  track_tag_id: number;
+  relation_type?: string | null;
+  conviction: number;
+  reason?: string | null;
+  status: string;
+  track_tag?: MarketTag | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type AnyRecord = Record<string, unknown>;

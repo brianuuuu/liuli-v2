@@ -17,6 +17,12 @@ from invest_assistant.modules.track_discovery.schemas import (
     TrackValidationIndicatorCreate,
     TrackValidationIndicatorRead,
 )
+from invest_assistant.modules.stock_analysis import service as stock_analysis_service
+from invest_assistant.modules.stock_analysis.schemas import (
+    StockTrackTagBindingCreate,
+    StockTrackTagBindingRead,
+    TrackTagStockBindingCreate,
+)
 
 router = APIRouter(prefix="/api/track-discovery", tags=["track_discovery"], dependencies=[Depends(get_current_user)])
 
@@ -106,3 +112,26 @@ def change_status(thesis_id: int, payload: TrackStatusChange, db: Session = Depe
 @router.get("/candidates")
 def candidates(window: str = "24h", db: Session = Depends(get_db)) -> list:
     return service.market_radar_candidates(db, window)
+
+
+@router.get("/track-tags/{tag_id}/stocks", response_model=list[StockTrackTagBindingRead])
+def list_stocks_for_track_tag(tag_id: int, db: Session = Depends(get_db)) -> list:
+    return stock_analysis_service.list_stocks_for_track_tag(db, tag_id)
+
+
+@router.post("/track-tags/{tag_id}/stocks", response_model=StockTrackTagBindingRead)
+def bind_stock_from_track_tag(tag_id: int, payload: TrackTagStockBindingCreate, db: Session = Depends(get_db)):
+    try:
+        return stock_analysis_service.bind_track_tag(
+            db,
+            payload.stock_id,
+            StockTrackTagBindingCreate(
+                track_tag_id=tag_id,
+                relation_type=payload.relation_type,
+                conviction=payload.conviction,
+                reason=payload.reason,
+                status=payload.status,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -34,3 +34,9 @@
 - Do not add `lightweight-charts` until K-line or intraday market charts are implemented.
 - Web theme defaults to light mode and must implement light, dark, and follow-system theme switching in the first Web version. Functional debugging and visual acceptance focus on the light theme first; dark mode can be refined later.
 - Future Web UI work must follow `docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md` for typography, colors, layout, lines, tables, buttons, light theme, and dark theme constraints.
+- Stock tags and stock-track tag bindings are different concepts:
+  - `stock` tags are system-derived from stock lifecycle and must not be manually maintained in the Console tag library.
+  - A stock can bind to multiple `track` tags as research judgment.
+  - The primary stock-to-track binding entry is Stock Analysis.
+  - Track Discovery provides the reverse maintenance entry by track tag.
+  - Console can view/manage tag definitions, but must not be the stock-track binding workflow owner.

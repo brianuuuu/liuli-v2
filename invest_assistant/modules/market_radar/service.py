@@ -66,11 +66,34 @@ def disable_tag(db: Session, tag: Tag) -> Tag:
 
 
 def create_source_item(db: Session, payload: SourceItemCreate) -> SourceItem:
+    existing = find_duplicate_source_item(db, payload)
+    if existing is not None:
+        return existing
     item = SourceItem(**payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
+
+
+def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> SourceItem | None:
+    if payload.publish_time is None:
+        return db.scalar(
+            select(SourceItem).where(
+                SourceItem.source_type == payload.source_type,
+                SourceItem.source_name == payload.source_name,
+                SourceItem.publish_time.is_(None),
+                SourceItem.title == payload.title,
+            )
+        )
+    return db.scalar(
+        select(SourceItem).where(
+            SourceItem.source_type == payload.source_type,
+            SourceItem.source_name == payload.source_name,
+            SourceItem.publish_time == payload.publish_time,
+            SourceItem.title == payload.title,
+        )
+    )
 
 
 def list_source_items(db: Session) -> list[SourceItem]:

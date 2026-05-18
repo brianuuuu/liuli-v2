@@ -1,9 +1,10 @@
-import { Button, Drawer, Select, Space, Table } from "antd";
+import { Button, Drawer, Select, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { getTagTrend, listMarketTags } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -45,10 +46,9 @@ export function TagsSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="标签"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select allowClear size="small" placeholder="类型" value={typeFilter} options={rankingTypeOptions} style={{ width: 120 }} onChange={setTypeFilter} />
             <Select
               allowClear
@@ -59,7 +59,8 @@ export function TagsSection() {
               onChange={setStatusFilter}
               options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]}
             />
-          </Space>
+            <div className="data-panel-toolbar-spacer" />
+          </>
         }
       >
         <Table
@@ -71,7 +72,7 @@ export function TagsSection() {
           pagination={{ pageSize: 12, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无标签" /> }}
         />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Drawer title={selected ? `${selected.name} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
         {trend.length ? (
@@ -85,3 +86,4 @@ export function TagsSection() {
     </>
   );
 }
+

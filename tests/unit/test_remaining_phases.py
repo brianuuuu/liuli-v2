@@ -2,9 +2,12 @@ from fastapi.testclient import TestClient
 
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.market_radar.models import TagHeatSnapshot
+from invest_assistant.shared.time_utils import utc_now
 
 
 def reset_db():
@@ -34,6 +37,11 @@ def test_stock_analysis_core_flow():
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
+
+    tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
+    assert tags.status_code == 200
+    assert tags.json()[0]["stock_id"] == stock_id
+    assert tags.json()[0]["name"] == "平安银行"
 
     note = client.post(
         f"/api/stock-analysis/stocks/{stock_id}/notes",
@@ -68,6 +76,54 @@ def test_stock_analysis_core_flow():
     assert group.status_code == 200
 
 
+def test_stock_track_tag_binding_forward_and_reverse_flow():
+    reset_db()
+    stock_id = seed_stock()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    tag = client.post(
+        "/api/market-radar/tags",
+        json={"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
+        headers=headers,
+    ).json()
+    second_tag = client.post(
+        "/api/market-radar/tags",
+        json={"name": "智能汽车", "type": "track", "category": "auto", "stock_id": None, "status": "active"},
+        headers=headers,
+    ).json()
+
+    binding = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
+        json={"track_tag_id": tag["id"], "relation_type": "beneficiary", "conviction": 0.8, "reason": "研究判断"},
+        headers=headers,
+    )
+    assert binding.status_code == 200
+    assert binding.json()["track_tag"]["name"] == "AI算力"
+
+    second_binding = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
+        json={"track_tag_id": second_tag["id"], "relation_type": "exposure", "conviction": 0.5},
+        headers=headers,
+    )
+    assert second_binding.status_code == 200
+
+    forward = client.get(f"/api/stock-analysis/stocks/{stock_id}/track-tags", headers=headers)
+    assert forward.status_code == 200
+    assert {item["track_tag"]["name"] for item in forward.json()} == {"AI算力", "智能汽车"}
+
+    reverse = client.get(f"/api/track-discovery/track-tags/{tag['id']}/stocks", headers=headers)
+    assert reverse.status_code == 200
+    assert reverse.json()[0]["stock_id"] == stock_id
+
+    reverse_create = client.post(
+        f"/api/track-discovery/track-tags/{tag['id']}/stocks",
+        json={"stock_id": stock_id, "relation_type": "beneficiary", "conviction": 0.9, "reason": "反向更新"},
+        headers=headers,
+    )
+    assert reverse_create.status_code == 200
+    assert reverse_create.json()["conviction"] == 0.9
+
+
 def test_alert_center_rule_event_flow():
     reset_db()
     client = TestClient(create_app())
@@ -87,6 +143,61 @@ def test_alert_center_rule_event_flow():
     handled = client.post(f"/api/alerts/events/{event.json()['id']}/handle", headers=headers)
     assert handled.status_code == 200
     assert handled.json()["status"] == "handled"
+
+
+def test_alert_center_heat_rule_job_creates_deduplicated_event():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    tag = client.post(
+        "/api/market-radar/tags",
+        json={"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
+        headers=headers,
+    ).json()
+    rule = client.post(
+        "/api/alerts/rules",
+        json={
+            "rule_type": "heat",
+            "target_type": "track",
+            "target_id": tag["id"],
+            "condition_json": "{\"window\":\"24h\",\"min_heat\":50,\"event_level\":\"warning\"}",
+            "enabled": True,
+        },
+        headers=headers,
+    ).json()
+
+    db = SessionLocal()
+    try:
+        db.add(
+            TagHeatSnapshot(
+                tag_id=tag["id"],
+                window_type="24h",
+                stat_time=utc_now(),
+                trigger_count=6,
+                source_count=3,
+                heat_score=78,
+                avg_count=2,
+                change_ratio=1.5,
+                rank_no=1,
+            )
+        )
+        db.commit()
+        first = execute_job(db, "alert_center.evaluate_rules")
+        second = execute_job(db, "alert_center.evaluate_rules")
+    finally:
+        db.close()
+
+    assert first.success is True
+    assert first.inserted_count == 1
+    assert second.success is True
+    assert second.inserted_count == 0
+
+    events = client.get("/api/alerts/events", headers=headers)
+    assert events.status_code == 200
+    assert len(events.json()) == 1
+    assert events.json()[0]["rule_id"] == rule["id"]
+    assert events.json()[0]["event_level"] == "warning"
+    assert "AI算力" in events.json()[0]["title"]
 
 
 def test_portfolio_flow():
