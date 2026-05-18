@@ -9,7 +9,7 @@ Improve the Console Job Center page without changing backend APIs or job data mo
 - The card grid shows useful fields, but each card is tall and visually heavy.
 - Per-card metadata is dense because every field has similar visual priority.
 - The toolbar is technically complete, but search, filters, and page actions are all presented with similar weight.
-- The primary `运行` button is too prominent on every card. It pulls attention away from status scanning and increases accidental-run risk.
+- The primary blue `运行` button is too prominent when placed beside `配置` and `日志`. The size and color weight do not feel coordinated as one action group.
 - The page lacks a compact status summary, so users must infer overall task health from individual cards.
 
 ## Design Direction
@@ -20,7 +20,7 @@ Use a "task management console, leaning compact operations" layout:
 - Add a lightweight summary strip above the toolbar.
 - Convert the toolbar into search + quick status filters + secondary filters + right-aligned actions.
 - Compress each card to focus on title, technical job name, status, module, trigger, last run, timeout, retry, and enabled state.
-- Treat running a job as a high-impact action, not as the dominant card affordance.
+- Keep running a job as a visible card action, but reduce its visual weight so the action group reads as one coordinated toolbar.
 
 ## Layout
 
@@ -67,20 +67,22 @@ The card should avoid equal-weight label/value grids for every field. Labels can
 
 ## Actions
 
-The card must not show a permanent primary `运行` button.
+The card can keep a permanent `运行` action, but it must not use the current heavy blue primary-button treatment.
 
 Action model:
 
-- Always-visible weak actions:
+- Always-visible coordinated actions:
+  - `运行`
   - `日志`
   - `配置`
   - `更多`
-- `运行` moves into `更多` or appears only when the card is hovered/selected.
-- If a task is failed/error, the card may show a lightweight `重试` text action, but it should not use a blue primary button.
+- `运行` should use a lower-weight treatment, such as a subtle accent outline, text button, or icon+text button with the same height as the other actions.
+- `配置`, `日志`, and `更多` should share the same control height, spacing, and border rhythm.
+- If a task is failed/error, the `运行` label may become `重试`, but it should still use the same coordinated action style.
 - Running a job still opens the existing run-parameter confirmation modal.
 - No bulk run action is added in this iteration.
 
-This keeps operational safety and makes status scanning the dominant visual task.
+This keeps the manual-run workflow discoverable while preventing one button from visually overpowering the card.
 
 ## Toolbar Behavior
 
@@ -101,7 +103,7 @@ Follow `docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md`:
 - 1px borders, small radii, restrained shadows.
 - No decorative gradients or large cards.
 - Use existing CSS variables for light/dark compatibility.
-- Primary blue is reserved for clear page-level or confirmed submit actions, not repeated per-card affordances.
+- Repeated per-card actions should use coordinated low-weight controls. Avoid one repeated action using a large saturated primary style while neighboring actions are plain buttons.
 
 ## Scope
 
@@ -126,7 +128,8 @@ Out of scope:
 - Task cards are visibly shorter than the current version.
 - The toolbar reads as one coherent control strip instead of several equal-weight controls.
 - The page shows task health summary numbers above the card grid.
-- `运行` is no longer a permanent blue button on every card.
+- `运行`, `配置`, `日志`, and `更多` appear as a visually coordinated action group with consistent size and spacing.
+- `运行` is no longer a heavy saturated blue primary button repeated on every card.
 - Existing run, edit, detail, single-job logs, all-job logs, refresh, and sync flows still work.
 - Dark mode remains readable.
 - `npm.cmd run build` passes.
