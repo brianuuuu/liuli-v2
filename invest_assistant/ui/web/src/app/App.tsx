@@ -35,7 +35,7 @@ export function App() {
           <Route index element={<DashboardPage />} />
           <Route path="market-radar" element={<MarketRadarPage />} />
           <Route path="track-discovery" element={<TrackDiscoveryPage />} />
-          <Route path="track-discovery/theses/:id" element={<TrackDetailPage />} />
+          <Route path="track-discovery/tracks/:id" element={<TrackDetailPage />} />
           <Route path="stock-analysis" element={<StockAnalysisPage />} />
           <Route path="stock-analysis/stocks/:id" element={<StockDetailPage />} />
           <Route path="alerts" element={<AlertsPage />} />

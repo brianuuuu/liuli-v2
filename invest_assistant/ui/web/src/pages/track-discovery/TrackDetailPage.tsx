@@ -7,11 +7,11 @@ import {
   createTrackEvidence,
   createTrackIndicator,
   createTrackRelatedStock,
-  getTrackThesis,
+  getTrack,
   listTrackEvidence,
   listTrackIndicators,
   listTrackRelatedStocks,
-  updateTrackThesis
+  updateTrack
 } from "../../api/trackDiscovery";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -19,7 +19,6 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { TrackEvidence, TrackRelatedStock, TrackValidationIndicator } from "../../types/api";
 import { DirectionTag, formatTime, StatusTag, thesisStatusOptions } from "./sections/shared";
-import { ThesisForm, type ThesisFormValues } from "./sections/ThesisForm";
 
 type IndicatorFormValues = {
   name: string;
@@ -48,69 +47,65 @@ type RelatedStockFormValues = {
   status?: string;
 };
 
+type TrackEditFormValues = {
+  name: string;
+  description?: string;
+  status: string;
+};
+
 export function TrackDetailPage() {
   const { id } = useParams();
-  const thesisId = Number(id || 0);
-  const thesis = useAsyncData(useCallback(() => getTrackThesis(thesisId), [thesisId]), null);
-  const indicators = useAsyncData(useCallback(() => (thesisId ? listTrackIndicators(thesisId) : Promise.resolve([])), [thesisId]), []);
-  const evidence = useAsyncData(useCallback(() => (thesisId ? listTrackEvidence(thesisId) : Promise.resolve([])), [thesisId]), []);
-  const relatedStocks = useAsyncData(useCallback(() => (thesisId ? listTrackRelatedStocks(thesisId) : Promise.resolve([])), [thesisId]), []);
+  const trackId = Number(id || 0);
+  const track = useAsyncData(useCallback(() => getTrack(trackId), [trackId]), null);
+  const indicators = useAsyncData(useCallback(() => (trackId ? listTrackIndicators(trackId) : Promise.resolve([])), [trackId]), []);
+  const evidence = useAsyncData(useCallback(() => (trackId ? listTrackEvidence(trackId) : Promise.resolve([])), [trackId]), []);
+  const relatedStocks = useAsyncData(useCallback(() => (trackId ? listTrackRelatedStocks(trackId) : Promise.resolve([])), [trackId]), []);
   const [editOpen, setEditOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [editForm] = Form.useForm<ThesisFormValues>();
+  const [editForm] = Form.useForm<TrackEditFormValues>();
   const [statusForm] = Form.useForm<{ new_status: string; reason?: string }>();
   const [indicatorForm] = Form.useForm<IndicatorFormValues>();
   const [evidenceForm] = Form.useForm<EvidenceFormValues>();
   const [stockForm] = Form.useForm<RelatedStockFormValues>();
 
   function openEdit() {
-    if (!thesis.data) return;
+    if (!track.data) return;
     editForm.setFieldsValue({
-      title: thesis.data.title,
-      core_thesis: thesis.data.core_thesis,
-      underlying_change: thesis.data.underlying_change || undefined,
-      old_bottleneck: thesis.data.old_bottleneck || undefined,
-      new_solution: thesis.data.new_solution || undefined,
-      value_chain_shift: thesis.data.value_chain_shift || undefined,
-      time_horizon: thesis.data.time_horizon || undefined,
-      confidence_level: thesis.data.confidence_level || undefined,
-      status: thesis.data.status
+      name: track.data.name,
+      description: track.data.description || undefined,
+      status: track.data.status
     });
     setEditOpen(true);
   }
 
   async function submitEdit() {
     const values = await editForm.validateFields();
-    await updateTrackThesis(thesisId, {
-      ...values,
-      underlying_change: values.underlying_change || null,
-      old_bottleneck: values.old_bottleneck || null,
-      new_solution: values.new_solution || null,
-      value_chain_shift: values.value_chain_shift || null,
-      time_horizon: values.time_horizon || null,
-      confidence_level: values.confidence_level || null
+    await updateTrack(trackId, {
+      name: values.name,
+      description: values.description || null,
+      status: values.status
     });
     message.success("赛道已更新");
     setEditOpen(false);
-    await thesis.refresh();
+    await track.refresh();
   }
 
   function openStatus() {
-    statusForm.setFieldsValue({ new_status: thesis.data?.status || "watching" });
+    statusForm.setFieldsValue({ new_status: track.data?.status || "candidate" });
     setStatusOpen(true);
   }
 
   async function submitStatus() {
     const values = await statusForm.validateFields();
-    await changeTrackStatus(thesisId, values.new_status, values.reason || null);
+    await changeTrackStatus(trackId, values.new_status, values.reason || null);
     message.success("状态已变更");
     setStatusOpen(false);
-    await thesis.refresh();
+    await track.refresh();
   }
 
   async function submitIndicator() {
     const values = await indicatorForm.validateFields();
-    await createTrackIndicator(thesisId, {
+    await createTrackIndicator(trackId, {
       name: values.name,
       indicator_type: values.indicator_type || null,
       data_source: values.data_source || null,
@@ -125,7 +120,7 @@ export function TrackDetailPage() {
 
   async function submitEvidence() {
     const values = await evidenceForm.validateFields();
-    await createTrackEvidence(thesisId, {
+    await createTrackEvidence(trackId, {
       source_item_id: values.source_item_id || null,
       evidence_direction: values.evidence_direction,
       evidence_strength: values.evidence_strength || 0,
@@ -140,7 +135,7 @@ export function TrackDetailPage() {
 
   async function submitRelatedStock() {
     const values = await stockForm.validateFields();
-    await createTrackRelatedStock(thesisId, {
+    await createTrackRelatedStock(trackId, {
       stock_id: values.stock_id,
       role: values.role || null,
       relevance_score: values.relevance_score || 0,
@@ -178,7 +173,7 @@ export function TrackDetailPage() {
     { title: "状态", dataIndex: "status", width: 100 }
   ];
 
-  if (!thesisId) {
+  if (!trackId) {
     return (
       <>
         <PageHeader title="赛道详情" description="无效 ID" />
@@ -192,35 +187,34 @@ export function TrackDetailPage() {
       <PageHeader title="赛道详情" description={`赛道 ID：${id || "-"}`} />
       <Space direction="vertical" size={10} style={{ width: "100%" }}>
         <WorkbenchCard
-          title={thesis.data?.title || "基础信息"}
+          title={track.data?.name || "基础信息"}
           extra={
             <Space>
               <Link to="/track-discovery">返回列表</Link>
-              <Button size="small" onClick={openEdit} disabled={!thesis.data}>编辑</Button>
-              <Button size="small" onClick={openStatus} disabled={!thesis.data}>状态</Button>
+              <Button size="small" onClick={openEdit} disabled={!track.data}>编辑</Button>
+              <Button size="small" onClick={openStatus} disabled={!track.data}>状态</Button>
             </Space>
           }
         >
-          {thesis.data ? (
+          {track.data ? (
             <Row gutter={[12, 12]}>
               <Col span={16}>
-                <Typography.Paragraph>{thesis.data.core_thesis}</Typography.Paragraph>
-                <Typography.Text type="secondary">底层变化</Typography.Text>
-                <Typography.Paragraph>{thesis.data.underlying_change || "-"}</Typography.Paragraph>
-                <Typography.Text type="secondary">价值链迁移</Typography.Text>
-                <Typography.Paragraph>{thesis.data.value_chain_shift || "-"}</Typography.Paragraph>
+                <Typography.Text type="secondary">赛道说明</Typography.Text>
+                <Typography.Paragraph>{track.data.description || "-"}</Typography.Paragraph>
+                <Typography.Text type="secondary">标签投影</Typography.Text>
+                <Typography.Paragraph>{track.data.tag ? `tag:${track.data.tag.id}` : "-"}</Typography.Paragraph>
               </Col>
               <Col span={8}>
                 <div className="detail-list">
-                  <div className="detail-row"><span>状态</span><StatusTag status={thesis.data.status} /></div>
-                  <div className="detail-row"><span>置信度</span><span>{thesis.data.confidence_level || "-"}</span></div>
-                  <div className="detail-row"><span>时间维度</span><span>{thesis.data.time_horizon || "-"}</span></div>
-                  <div className="detail-row"><span>更新时间</span><span>{formatTime(thesis.data.updated_at)}</span></div>
+                  <div className="detail-row"><span>状态</span><StatusTag status={track.data.status} /></div>
+                  <div className="detail-row"><span>Track ID</span><span>{track.data.id}</span></div>
+                  <div className="detail-row"><span>Tag ID</span><span>{track.data.tag?.id || "-"}</span></div>
+                  <div className="detail-row"><span>更新时间</span><span>{formatTime(track.data.updated_at)}</span></div>
                 </div>
               </Col>
             </Row>
           ) : (
-            <EmptyAction description={thesis.loading ? "加载中" : "赛道不存在"} />
+            <EmptyAction description={track.loading ? "加载中" : "赛道不存在"} />
           )}
         </WorkbenchCard>
 
@@ -267,7 +261,17 @@ export function TrackDetailPage() {
       </Space>
 
       <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden width={760}>
-        <ThesisForm form={editForm} />
+        <Form form={editForm} layout="vertical" preserve={false}>
+          <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="description" label="说明">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+            <Select options={thesisStatusOptions} />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <Modal title="变更状态" open={statusOpen} onCancel={() => setStatusOpen(false)} onOk={submitStatus} destroyOnHidden>

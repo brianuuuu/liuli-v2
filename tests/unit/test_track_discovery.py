@@ -146,6 +146,9 @@ def test_track_crud_children_and_status_history():
     assert status.status_code == 200
     assert status.json()["status"] == "validated"
 
+    assert client.get("/api/track-discovery/theses", headers=headers).status_code == 404
+    assert client.get("/api/track-discovery/candidates", headers=headers).status_code == 404
+
 
 def test_track_candidates_from_market_radar_heat_and_job():
     reset_db()
