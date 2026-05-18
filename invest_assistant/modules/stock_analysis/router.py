@@ -13,9 +13,9 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockResearchNoteRead,
     StockScoreSnapshotCreate,
     StockScoreSnapshotRead,
-    StockTrackTagBindingCreate,
-    StockTrackTagBindingRead,
-    StockTrackTagBindingUpdate,
+    StockTrackRelationCreate,
+    StockTrackRelationRead,
+    StockTrackRelationUpdate,
 )
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
@@ -34,6 +34,11 @@ def create_pool_item(payload: StockPoolCreate, db: Session = Depends(get_db)):
 @router.put("/pool/{pool_id}", response_model=StockPoolRead)
 def update_pool_item(pool_id: int, payload: StockPoolCreate, db: Session = Depends(get_db)):
     return service.create_pool_item(db, payload)
+
+
+@router.get("/candidates", response_model=list[StockPoolRead])
+def list_candidates(db: Session = Depends(get_db)) -> list:
+    return service.list_candidates(db)
 
 
 @router.get("/stocks/{stock_id}")
@@ -76,30 +81,30 @@ def reports() -> list:
     return []
 
 
-@router.get("/stocks/{stock_id}/track-tags", response_model=list[StockTrackTagBindingRead])
-def list_stock_track_tags(stock_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_track_tag_bindings(db, stock_id)
+@router.get("/stocks/{stock_id}/tracks", response_model=list[StockTrackRelationRead])
+def list_stock_tracks(stock_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_track_relations(db, stock_id)
 
 
-@router.post("/stocks/{stock_id}/track-tags", response_model=StockTrackTagBindingRead)
-def bind_stock_track_tag(stock_id: int, payload: StockTrackTagBindingCreate, db: Session = Depends(get_db)):
+@router.post("/stocks/{stock_id}/tracks", response_model=StockTrackRelationRead)
+def bind_stock_track(stock_id: int, payload: StockTrackRelationCreate, db: Session = Depends(get_db)):
     try:
-        return service.bind_track_tag(db, stock_id, payload)
+        return service.bind_track(db, stock_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.put("/track-tag-bindings/{binding_id}", response_model=StockTrackTagBindingRead)
-def update_stock_track_tag_binding(binding_id: int, payload: StockTrackTagBindingUpdate, db: Session = Depends(get_db)):
-    binding = service.update_track_tag_binding(db, binding_id, payload)
+@router.put("/track-relations/{relation_id}", response_model=StockTrackRelationRead)
+def update_stock_track_relation(relation_id: int, payload: StockTrackRelationUpdate, db: Session = Depends(get_db)):
+    binding = service.update_track_relation(db, relation_id, payload)
     if binding is None:
         raise HTTPException(status_code=404, detail="binding not found")
     return binding
 
 
-@router.delete("/track-tag-bindings/{binding_id}", response_model=StockTrackTagBindingRead)
-def disable_stock_track_tag_binding(binding_id: int, db: Session = Depends(get_db)):
-    binding = service.disable_track_tag_binding(db, binding_id)
+@router.delete("/track-relations/{relation_id}", response_model=StockTrackRelationRead)
+def disable_stock_track_relation(relation_id: int, db: Session = Depends(get_db)):
+    binding = service.disable_track_relation(db, relation_id)
     if binding is None:
         raise HTTPException(status_code=404, detail="binding not found")
     return binding

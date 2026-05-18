@@ -30,19 +30,11 @@ def seed_stock() -> int:
         db.close()
 
 
-def test_market_radar_tag_crud_and_source_item_flow():
+def test_market_radar_source_item_and_hotword_flow():
     reset_db()
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
-
-    stock_tag = client.post(
-        "/api/market-radar/tags",
-        json={"name": "平安银行", "type": "stock", "category": "bank", "stock_id": stock_id, "status": "active"},
-        headers=headers,
-    )
-    assert stock_tag.status_code == 200
-    assert stock_tag.json()["type"] == "stock"
 
     source = client.post(
         "/api/market-radar/source-items",
@@ -53,11 +45,28 @@ def test_market_radar_tag_crud_and_source_item_flow():
             "content": "AI算力 与 平安银行 同时被市场提及，降息预期升温。",
             "source_url": "https://example.com/news/1",
             "publish_time": "2026-05-13T09:00:00",
+            "related_type": "manual",
+            "related_id": None,
         },
         headers=headers,
     )
     assert source.status_code == 200
     assert source.json()["title"].startswith("AI算力")
+    assert source.json()["related_type"] == "manual"
+
+    stock_tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
+    assert stock_tags.status_code == 200
+    assert stock_tags.json()[0]["stock_id"] == stock_id
+    assert stock_tags.json()[0]["track_id"] is None
+
+    hotword = client.post(
+        "/api/market-radar/hotwords",
+        json={"name": "降息", "aliases": ["降准降息", "利率下行"], "status": "active"},
+        headers=headers,
+    )
+    assert hotword.status_code == 200
+    assert hotword.json()["tag"]["type"] == "hotword"
+    assert {item["alias"] for item in hotword.json()["aliases"]} == {"降准降息", "利率下行"}
 
 
 def test_rule_extraction_heat_and_graph_jobs():
@@ -65,12 +74,18 @@ def test_rule_extraction_heat_and_graph_jobs():
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
-    for tag in [
-        {"name": "平安银行", "type": "stock", "category": "bank", "stock_id": stock_id, "status": "active"},
-        {"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
-        {"name": "降息", "type": "hotword", "category": "macro", "stock_id": None, "status": "active"},
-    ]:
-        assert client.post("/api/market-radar/tags", json=tag, headers=headers).status_code == 200
+    track = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "AI算力", "description": "算力基础设施", "status": "active"},
+        headers=headers,
+    )
+    assert track.status_code == 200
+    hotword = client.post(
+        "/api/market-radar/hotwords",
+        json={"name": "降息", "aliases": [], "status": "active"},
+        headers=headers,
+    )
+    assert hotword.status_code == 200
     assert (
         client.post(
             "/api/market-radar/source-items",
@@ -79,9 +94,9 @@ def test_rule_extraction_heat_and_graph_jobs():
                 "source_name": "manual",
                 "title": "平安银行与AI算力",
                 "content": "平安银行 被 AI算力 和 降息 同时提及。",
-                "source_url": "https://example.com/news/2",
-                "publish_time": "2026-05-13T10:00:00",
-            },
+            "source_url": "https://example.com/news/2",
+            "publish_time": "2026-05-13T10:00:00",
+        },
             headers=headers,
         ).status_code
         == 200
@@ -182,8 +197,8 @@ def test_tag_candidate_approve_reject_and_merge():
         json={
             "name": "机器人",
             "suggested_type": "track",
-            "category": "technology",
             "source_item_id": source["id"],
+            "trigger_text": "机器人",
             "confidence": 0.8,
             "reason": "manual test",
             "status": "pending",
@@ -195,5 +210,5 @@ def test_tag_candidate_approve_reject_and_merge():
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
 
-    tags = client.get("/api/market-radar/tags", headers=headers)
+    tags = client.get("/api/market-radar/tags?type=track", headers=headers)
     assert any(item["name"] == "机器人" for item in tags.json())

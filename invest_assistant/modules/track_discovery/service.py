@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.models import Tag, TagHeatSnapshot
 from invest_assistant.modules.track_discovery.models import (
+    Track,
+    TrackAlias,
     TrackEvidence,
     TrackRelatedStock,
     TrackStatusHistory,
@@ -11,25 +13,90 @@ from invest_assistant.modules.track_discovery.models import (
     TrackValidationIndicator,
 )
 from invest_assistant.modules.track_discovery.schemas import (
+    TrackAliasCreate,
+    TrackCreate,
     TrackEvidenceCreate,
     TrackRelatedStockCreate,
     TrackStatusChange,
     TrackThesisCreate,
     TrackThesisUpdate,
+    TrackUpdate,
     TrackValidationIndicatorCreate,
 )
 
 
-def create_thesis(db: Session, payload: TrackThesisCreate, user_id: int | None) -> TrackThesis:
-    item = TrackThesis(**payload.model_dump(), user_id=user_id)
+def create_track(db: Session, payload: TrackCreate) -> dict:
+    existing = db.scalar(select(Track).where(Track.name == payload.name))
+    if existing is None:
+        track = Track(**payload.model_dump())
+        db.add(track)
+        db.flush()
+    else:
+        track = existing
+        for key, value in payload.model_dump().items():
+            setattr(track, key, value)
+    tag = _sync_track_tag(db, track)
+    db.commit()
+    db.refresh(track)
+    db.refresh(tag)
+    return _track_dict(track, tag)
+
+
+def list_tracks(db: Session, status: str | None = None) -> list[dict]:
+    stmt = select(Track).order_by(Track.updated_at.desc(), Track.id.desc())
+    if status:
+        stmt = stmt.where(Track.status == status)
+    tracks = list(db.scalars(stmt))
+    tags = _tags_by_track_id(db, [track.id for track in tracks])
+    return [_track_dict(track, tags.get(track.id)) for track in tracks]
+
+
+def get_track(db: Session, track_id: int) -> dict | None:
+    track = db.get(Track, track_id)
+    if track is None:
+        return None
+    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track.id))
+    return _track_dict(track, tag)
+
+
+def update_track(db: Session, track_id: int, payload: TrackUpdate) -> dict | None:
+    track = db.get(Track, track_id)
+    if track is None:
+        return None
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(track, key, value)
+    tag = _sync_track_tag(db, track)
+    db.commit()
+    db.refresh(track)
+    db.refresh(tag)
+    return _track_dict(track, tag)
+
+
+def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> TrackAlias:
+    item = TrackAlias(track_id=track_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_theses(db: Session) -> list[TrackThesis]:
-    return list(db.scalars(select(TrackThesis).order_by(TrackThesis.updated_at.desc(), TrackThesis.id.desc())))
+def list_aliases(db: Session, track_id: int) -> list[TrackAlias]:
+    return list(db.scalars(select(TrackAlias).where(TrackAlias.track_id == track_id).order_by(TrackAlias.alias.asc())))
+
+
+def create_thesis(db: Session, track_id: int, payload: TrackThesisCreate, user_id: int | None) -> TrackThesis:
+    item = TrackThesis(track_id=track_id, **payload.model_dump(), user_id=user_id)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def list_theses(db: Session, track_id: int | None = None) -> list[TrackThesis]:
+    stmt = select(TrackThesis).order_by(TrackThesis.updated_at.desc(), TrackThesis.id.desc())
+    if track_id is not None:
+        stmt = stmt.where(TrackThesis.track_id == track_id)
+    return list(db.scalars(stmt))
 
 
 def get_thesis(db: Session, thesis_id: int) -> TrackThesis | None:
@@ -51,40 +118,61 @@ def archive_thesis(db: Session, item: TrackThesis) -> TrackThesis:
     return item
 
 
-def add_indicator(db: Session, thesis_id: int, payload: TrackValidationIndicatorCreate) -> TrackValidationIndicator:
-    item = TrackValidationIndicator(thesis_id=thesis_id, **payload.model_dump())
+def add_indicator(db: Session, track_id: int, payload: TrackValidationIndicatorCreate, thesis_id: int | None = None) -> TrackValidationIndicator:
+    item = TrackValidationIndicator(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_indicators(db: Session, thesis_id: int) -> list[TrackValidationIndicator]:
-    return list(db.scalars(select(TrackValidationIndicator).where(TrackValidationIndicator.thesis_id == thesis_id)))
+def list_indicators(db: Session, track_id: int) -> list[TrackValidationIndicator]:
+    return list(db.scalars(select(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id)))
 
 
-def add_evidence(db: Session, thesis_id: int, payload: TrackEvidenceCreate) -> TrackEvidence:
-    item = TrackEvidence(thesis_id=thesis_id, **payload.model_dump())
+def add_evidence(db: Session, track_id: int, payload: TrackEvidenceCreate, thesis_id: int | None = None) -> TrackEvidence:
+    item = TrackEvidence(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_evidence(db: Session, thesis_id: int) -> list[TrackEvidence]:
-    return list(db.scalars(select(TrackEvidence).where(TrackEvidence.thesis_id == thesis_id).order_by(TrackEvidence.id.desc())))
+def list_evidence(db: Session, track_id: int) -> list[TrackEvidence]:
+    return list(db.scalars(select(TrackEvidence).where(TrackEvidence.track_id == track_id).order_by(TrackEvidence.id.desc())))
 
 
-def add_related_stock(db: Session, thesis_id: int, payload: TrackRelatedStockCreate) -> TrackRelatedStock:
-    item = TrackRelatedStock(thesis_id=thesis_id, **payload.model_dump())
+def add_related_stock(db: Session, track_id: int, payload: TrackRelatedStockCreate, thesis_id: int | None = None) -> TrackRelatedStock:
+    item = TrackRelatedStock(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_related_stocks(db: Session, thesis_id: int) -> list[TrackRelatedStock]:
-    return list(db.scalars(select(TrackRelatedStock).where(TrackRelatedStock.thesis_id == thesis_id)))
+def list_related_stocks(db: Session, track_id: int) -> list[TrackRelatedStock]:
+    return list(db.scalars(select(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id)))
+
+
+def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) -> dict | None:
+    track = db.get(Track, track_id)
+    if track is None:
+        return None
+    old_status = track.status
+    track.status = payload.new_status
+    db.add(
+        TrackStatusHistory(
+            track_id=track.id,
+            old_status=old_status,
+            new_status=payload.new_status,
+            reason=payload.reason,
+        )
+    )
+    tag = _sync_track_tag(db, track)
+    db.commit()
+    db.refresh(track)
+    db.refresh(tag)
+    return _track_dict(track, tag)
 
 
 def change_status(db: Session, thesis: TrackThesis, payload: TrackStatusChange) -> TrackThesis:
@@ -92,6 +180,7 @@ def change_status(db: Session, thesis: TrackThesis, payload: TrackStatusChange) 
     thesis.status = payload.new_status
     db.add(
         TrackStatusHistory(
+            track_id=thesis.track_id,
             thesis_id=thesis.id,
             old_status=old_status,
             new_status=payload.new_status,
@@ -138,10 +227,43 @@ def _tag_dict(tag: Tag) -> dict:
         "id": tag.id,
         "name": tag.name,
         "type": tag.type,
-        "category": tag.category,
         "stock_id": tag.stock_id,
+        "track_id": tag.track_id,
         "status": tag.status,
     }
+
+
+def _track_dict(track: Track, tag: Tag | None) -> dict:
+    return {
+        "id": track.id,
+        "name": track.name,
+        "description": track.description,
+        "status": track.status,
+        "created_at": track.created_at,
+        "updated_at": track.updated_at,
+        "tag": _tag_dict(tag) if tag is not None else None,
+    }
+
+
+def _tags_by_track_id(db: Session, track_ids: list[int]) -> dict[int, Tag]:
+    if not track_ids:
+        return {}
+    tags = db.scalars(select(Tag).where(Tag.type == "track", Tag.track_id.in_(track_ids)))
+    return {tag.track_id: tag for tag in tags if tag.track_id is not None}
+
+
+def _sync_track_tag(db: Session, track: Track) -> Tag:
+    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track.id))
+    if tag is None:
+        tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.name == track.name))
+    if tag is None:
+        tag = Tag(name=track.name, type="track", track_id=track.id, status=track.status)
+        db.add(tag)
+    else:
+        tag.name = track.name
+        tag.track_id = track.id
+        tag.status = track.status
+    return tag
 
 
 def _heat_dict(snapshot: TagHeatSnapshot) -> dict:

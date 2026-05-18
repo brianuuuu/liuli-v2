@@ -1,16 +1,42 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.shared.time_utils import utc_now
 
 
+class Track(Base):
+    __tablename__ = "track"
+    __table_args__ = (UniqueConstraint("name", name="uq_track_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class TrackAlias(Base):
+    __tablename__ = "track_alias"
+    __table_args__ = (UniqueConstraint("track_id", "alias", name="uq_track_alias_track_alias"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    alias: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class TrackThesis(Base):
     __tablename__ = "track_thesis"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     core_thesis: Mapped[str] = mapped_column(Text, nullable=False)
@@ -29,7 +55,8 @@ class TrackValidationIndicator(Base):
     __tablename__ = "track_validation_indicator"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    thesis_id: Mapped[int] = mapped_column(ForeignKey("track_thesis.id"), nullable=False, index=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    thesis_id: Mapped[int | None] = mapped_column(ForeignKey("track_thesis.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     indicator_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     data_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -43,7 +70,8 @@ class TrackEvidence(Base):
     __tablename__ = "track_evidence"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    thesis_id: Mapped[int] = mapped_column(ForeignKey("track_thesis.id"), nullable=False, index=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    thesis_id: Mapped[int | None] = mapped_column(ForeignKey("track_thesis.id"), nullable=True, index=True)
     source_item_id: Mapped[int | None] = mapped_column(ForeignKey("source_item.id"), nullable=True, index=True)
     evidence_direction: Mapped[str] = mapped_column(String(32), nullable=False)
     evidence_strength: Mapped[float] = mapped_column(Float, nullable=False, default=0)
@@ -57,7 +85,8 @@ class TrackRelatedStock(Base):
     __tablename__ = "track_related_stock"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    thesis_id: Mapped[int] = mapped_column(ForeignKey("track_thesis.id"), nullable=False, index=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    thesis_id: Mapped[int | None] = mapped_column(ForeignKey("track_thesis.id"), nullable=True, index=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
     role: Mapped[str | None] = mapped_column(String(128), nullable=True)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
@@ -72,7 +101,8 @@ class TrackStatusHistory(Base):
     __tablename__ = "track_status_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    thesis_id: Mapped[int] = mapped_column(ForeignKey("track_thesis.id"), nullable=False, index=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    thesis_id: Mapped[int | None] = mapped_column(ForeignKey("track_thesis.id"), nullable=True, index=True)
     old_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     new_status: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)

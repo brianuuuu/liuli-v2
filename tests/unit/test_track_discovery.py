@@ -6,7 +6,9 @@ from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCreate
-from invest_assistant.modules.market_radar.service import aggregate_heat, create_source_item, create_tag, extract_tags
+from invest_assistant.modules.market_radar.service import aggregate_heat, create_source_item, extract_tags
+from invest_assistant.modules.track_discovery.schemas import TrackCreate
+from invest_assistant.modules.track_discovery.service import create_track
 
 
 def reset_db():
@@ -22,7 +24,7 @@ def login_headers(client: TestClient) -> dict[str, str]:
 def seed_market_radar_track() -> int:
     db = SessionLocal()
     try:
-        tag = create_tag(db, TagCreate(name="AI算力", type="track", category="technology", status="active"))
+        track = create_track(db, TrackCreate(name="AI算力", description="算力基础设施", status="candidate"))
         create_source_item(
             db,
             SourceItemCreate(
@@ -35,7 +37,7 @@ def seed_market_radar_track() -> int:
         )
         extract_tags(db)
         aggregate_heat(db)
-        return tag.id
+        return track["id"]
     finally:
         db.close()
 
@@ -52,14 +54,31 @@ def seed_stock() -> int:
         db.close()
 
 
-def test_track_thesis_crud_children_and_status_history():
+def test_track_crud_children_and_status_history():
     reset_db()
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
 
-    created = client.post(
-        "/api/track-discovery/theses",
+    track = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "AI算力", "description": "算力基础设施", "status": "candidate"},
+        headers=headers,
+    )
+    assert track.status_code == 200
+    track_id = track.json()["id"]
+    assert track.json()["tag"]["type"] == "track"
+    assert track.json()["tag"]["track_id"] == track_id
+
+    alias = client.post(
+        f"/api/track-discovery/tracks/{track_id}/aliases",
+        json={"alias": "AI服务器", "source": "manual", "status": "active"},
+        headers=headers,
+    )
+    assert alias.status_code == 200
+
+    thesis = client.post(
+        f"/api/track-discovery/tracks/{track_id}/theses",
         json={
             "title": "AI算力长期景气",
             "core_thesis": "算力需求持续增长",
@@ -73,11 +92,12 @@ def test_track_thesis_crud_children_and_status_history():
         },
         headers=headers,
     )
-    assert created.status_code == 200
-    thesis_id = created.json()["id"]
+    assert thesis.status_code == 200
+    thesis_id = thesis.json()["id"]
+    assert thesis.json()["track_id"] == track_id
 
     indicator = client.post(
-        f"/api/track-discovery/theses/{thesis_id}/indicators",
+        f"/api/track-discovery/tracks/{track_id}/indicators",
         json={
             "name": "资本开支",
             "indicator_type": "capex",
@@ -91,7 +111,7 @@ def test_track_thesis_crud_children_and_status_history():
     assert indicator.status_code == 200
 
     evidence = client.post(
-        f"/api/track-discovery/theses/{thesis_id}/evidence",
+        f"/api/track-discovery/tracks/{track_id}/evidence",
         json={
             "source_item_id": None,
             "evidence_direction": "support",
@@ -105,7 +125,7 @@ def test_track_thesis_crud_children_and_status_history():
     assert evidence.status_code == 200
 
     related = client.post(
-        f"/api/track-discovery/theses/{thesis_id}/related-stocks",
+        f"/api/track-discovery/tracks/{track_id}/related-stocks",
         json={
             "stock_id": stock_id,
             "role": "受益标的",
@@ -119,7 +139,7 @@ def test_track_thesis_crud_children_and_status_history():
     assert related.status_code == 200
 
     status = client.post(
-        f"/api/track-discovery/theses/{thesis_id}/status",
+        f"/api/track-discovery/tracks/{track_id}/status",
         json={"new_status": "validated", "reason": "证据增强"},
         headers=headers,
     )
@@ -133,9 +153,9 @@ def test_track_candidates_from_market_radar_heat_and_job():
     client = TestClient(create_app())
     headers = login_headers(client)
 
-    candidates = client.get("/api/track-discovery/candidates", headers=headers)
+    candidates = client.get("/api/track-discovery/tracks?status=candidate", headers=headers)
     assert candidates.status_code == 200
-    assert candidates.json()[0]["tag"]["name"] == "AI算力"
+    assert candidates.json()[0]["name"] == "AI算力"
 
     db = SessionLocal()
     try:

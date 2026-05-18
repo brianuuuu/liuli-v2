@@ -20,7 +20,7 @@ export function CandidatesSection() {
     form.setFieldsValue({
       title: candidateTitle(record),
       core_thesis: `${candidateTitle(record)} 在 ${record.heat.window_type} 窗口热度排名 ${record.heat.rank_no}，需要进一步验证底层变化、产业链迁移和相关标的。`,
-      underlying_change: record.tag.category || undefined,
+      underlying_change: record.tag.name || undefined,
       confidence_level: "medium",
       time_horizon: "6-12M",
       status: "watching"
@@ -45,7 +45,7 @@ export function CandidatesSection() {
   const columns: ColumnsType<TrackCandidate> = [
     { title: "排名", dataIndex: ["heat", "rank_no"], width: 72 },
     { title: "候选赛道", render: (_, record) => candidateTitle(record) },
-    { title: "分类", dataIndex: ["tag", "category"], width: 130, render: (value) => value || "-" },
+    { title: "Tag ID", dataIndex: ["tag", "id"], width: 90 },
     { title: "热度", dataIndex: ["heat", "heat_score"], width: 100, render: (value) => Number(value || 0).toFixed(1) },
     { title: "触发", dataIndex: ["heat", "trigger_count"], width: 80 },
     { title: "来源", dataIndex: ["heat", "source_count"], width: 80 },

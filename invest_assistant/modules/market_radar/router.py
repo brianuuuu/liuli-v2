@@ -7,6 +7,10 @@ from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.schemas import (
     MarketFlashSyncCreate,
     MarketFlashSyncResult,
+    HotwordAliasCreate,
+    HotwordAliasRead,
+    HotwordCreate,
+    HotwordRead,
     SourceItemCreate,
     SourceItemRead,
     TagCandidateCreate,
@@ -66,6 +70,8 @@ def list_tags(type: str | None = None, db: Session = Depends(get_db)) -> list:
 
 @router.post("/tags", response_model=TagRead)
 def create_tag(payload: TagCreate, db: Session = Depends(get_db)):
+    if payload.type != "hotword":
+        raise HTTPException(status_code=400, detail="stock and track tags are system projections")
     return service.create_tag(db, payload)
 
 
@@ -96,6 +102,24 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
 @router.get("/tags/{tag_id}/trend")
 def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
     return service.tag_trend(db, tag_id)
+
+
+@router.post("/hotwords", response_model=HotwordRead)
+def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
+    return service.create_hotword(db, payload)
+
+
+@router.get("/hotwords/aliases", response_model=list[HotwordAliasRead])
+def list_hotword_aliases(db: Session = Depends(get_db)) -> list:
+    return service.list_hotword_aliases(db)
+
+
+@router.post("/hotwords/{tag_id}/aliases", response_model=HotwordAliasRead)
+def create_hotword_alias(tag_id: int, payload: HotwordAliasCreate, db: Session = Depends(get_db)):
+    try:
+        return service.create_hotword_alias(db, tag_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/tags/{tag_id}/sources")

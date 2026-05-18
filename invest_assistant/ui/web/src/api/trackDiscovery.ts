@@ -1,10 +1,11 @@
 import type {
   TrackCandidate,
+  Track,
   TrackEvidence,
   TrackRelatedStock,
   TrackThesis,
   TrackValidationIndicator,
-  StockTrackTagBinding
+  StockTrackRelation
 } from "../types/api";
 import { apiClient } from "./client";
 
@@ -17,6 +18,12 @@ export type TrackThesisPayload = {
   value_chain_shift?: string | null;
   time_horizon?: string | null;
   confidence_level?: string | null;
+  status?: string;
+};
+
+export type TrackPayload = {
+  name: string;
+  description?: string | null;
   status?: string;
 };
 
@@ -54,6 +61,18 @@ export type TrackTagStockBindingPayload = {
   reason?: string | null;
   status?: string;
 };
+
+export async function listTracks(status?: string): Promise<Track[]> {
+  const response = await apiClient.get<Track[]>("/api/track-discovery/tracks", {
+    params: status ? { status } : undefined
+  });
+  return response.data;
+}
+
+export async function createTrack(payload: TrackPayload): Promise<Track> {
+  const response = await apiClient.post<Track>("/api/track-discovery/tracks", payload);
+  return response.data;
+}
 
 export async function listTrackTheses(): Promise<TrackThesis[]> {
   const response = await apiClient.get<TrackThesis[]>("/api/track-discovery/theses");
@@ -125,12 +144,15 @@ export async function listTrackCandidates(window = "24h"): Promise<TrackCandidat
   return response.data;
 }
 
-export async function listStocksForTrackTag(tagId: number): Promise<StockTrackTagBinding[]> {
-  const response = await apiClient.get<StockTrackTagBinding[]>(`/api/track-discovery/track-tags/${tagId}/stocks`);
+export async function listStocksForTrack(trackId: number): Promise<StockTrackRelation[]> {
+  const response = await apiClient.get<StockTrackRelation[]>(`/api/track-discovery/tracks/${trackId}/stocks`);
   return response.data;
 }
 
-export async function bindStockFromTrackTag(tagId: number, payload: TrackTagStockBindingPayload): Promise<StockTrackTagBinding> {
-  const response = await apiClient.post<StockTrackTagBinding>(`/api/track-discovery/track-tags/${tagId}/stocks`, payload);
+export async function bindStockFromTrack(trackId: number, payload: TrackTagStockBindingPayload): Promise<StockTrackRelation> {
+  const response = await apiClient.post<StockTrackRelation>(`/api/track-discovery/tracks/${trackId}/stocks`, payload);
   return response.data;
 }
+
+export const listStocksForTrackTag = listStocksForTrack;
+export const bindStockFromTrackTag = bindStockFromTrack;
