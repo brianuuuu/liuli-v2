@@ -983,15 +983,24 @@ body {
 .job-config-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .job-config-form .ant-form-item {
-  margin-bottom: 12px;
+  margin-bottom: 9px;
+}
+
+.job-config-form .ant-form-item-label > label,
+.job-config-form .ant-select,
+.job-config-form .ant-input,
+.job-config-form .ant-input-number,
+.job-config-form .ant-segmented,
+.job-config-form .ant-checkbox-wrapper {
+  font-size: 13px;
 }
 
 .job-config-section {
-  padding-bottom: 2px;
+  padding-bottom: 1px;
   border-bottom: 1px solid var(--ll-border-soft);
 }
 
@@ -1000,7 +1009,7 @@ body {
 }
 
 .job-config-section-title {
-  margin-bottom: 10px;
+  margin-bottom: 7px;
   color: var(--ll-text);
   font-size: 13px;
   font-weight: 700;
@@ -1024,6 +1033,18 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.job-config-inline-field {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.job-config-inline-field span {
+  color: var(--ll-text);
+  font-size: 13px;
 }
 
 .job-config-hint {

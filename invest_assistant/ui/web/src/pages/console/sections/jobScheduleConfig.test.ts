@@ -31,7 +31,7 @@ if (getTimeFromCron("0 8 * * *") !== "08:00") {
   throw new Error("daily cron should expose HH:mm time");
 }
 
-const payload = buildJobConfigPayload({
+const valuesWithDefinitionFields = {
   display_name: "抓取市场新闻",
   description: "",
   enabled: true,
@@ -42,8 +42,14 @@ const payload = buildJobConfigPayload({
   allow_manual_run: false,
   timeout_seconds: 300,
   max_retries: 0
-});
+};
+
+const payload = buildJobConfigPayload(valuesWithDefinitionFields);
 
 if (payload.trigger_type !== "schedule" || payload.cron_expr !== "30 8 * * *") {
   throw new Error("daily schedule form should submit schedule trigger and cron");
+}
+
+if ("display_name" in payload || "description" in payload) {
+  throw new Error("job configuration should not submit display name or description");
 }

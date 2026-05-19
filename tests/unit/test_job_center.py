@@ -47,3 +47,29 @@ def test_list_jobs_exposes_params_schema_for_friendly_web_forms():
     assert response.status_code == 200
     assert response.json()
     assert "params_schema" in response.json()[0]
+
+
+def test_update_job_schedule_config_without_definition_fields():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+
+    response = client.put(
+        "/api/jobs/market_radar.fetch_news",
+        json={
+            "enabled": True,
+            "trigger_type": "both",
+            "cron_expr": "30 8 * * *",
+            "timeout_seconds": 120,
+            "max_retries": 1,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trigger_type"] == "both"
+    assert data["cron_expr"] == "30 8 * * *"
+    assert data["timeout_seconds"] == 120
+    assert data["max_retries"] == 1

@@ -4,8 +4,6 @@ export type JobExecutionMode = "manual" | "schedule";
 export type JobScheduleKind = "daily" | "interval" | "custom";
 
 export type JobScheduleFormValues = {
-  display_name?: string;
-  description?: string;
   enabled?: boolean;
   execution_mode?: JobExecutionMode;
   schedule_kind?: JobScheduleKind;
@@ -17,8 +15,6 @@ export type JobScheduleFormValues = {
 };
 
 export type JobSchedulePayload = {
-  display_name?: string;
-  description?: string | null;
   trigger_type?: string;
   cron_expr?: string | null;
   enabled?: boolean;
@@ -54,8 +50,6 @@ export function getFormValuesFromJob(job: JobConfig): JobScheduleFormValues {
   const triggerType = job.trigger_type || "manual";
   const hasSchedule = Boolean(job.cron_expr) || triggerType === "schedule" || triggerType === "cron" || triggerType === "both";
   return {
-    display_name: job.display_name,
-    description: job.description || undefined,
     enabled: job.enabled,
     execution_mode: hasSchedule ? "schedule" : "manual",
     schedule_kind: getScheduleKindFromCron(job.cron_expr),
@@ -83,8 +77,6 @@ export function buildJobConfigPayload(values: JobScheduleFormValues): JobSchedul
     ? values.allow_manual_run ? "both" : "schedule"
     : "manual";
   return {
-    display_name: values.display_name,
-    description: values.description || null,
     trigger_type: triggerType,
     cron_expr: cronExpr,
     enabled: values.enabled,

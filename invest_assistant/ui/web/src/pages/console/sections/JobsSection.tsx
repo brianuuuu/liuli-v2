@@ -337,7 +337,7 @@ export function JobsSection() {
         onOk={submitEdit}
         okText="保存"
         cancelText="取消"
-        width={680}
+        width={520}
         destroyOnHidden
       >
         <Form form={editForm} layout="vertical" preserve={false} className="job-config-form">
@@ -352,19 +352,10 @@ export function JobsSection() {
           </div>
 
           <div className="job-config-section">
-            <div className="job-config-section-title">基础信息</div>
-            <Form.Item name="display_name" label="显示名称" rules={[{ required: true, message: "请输入显示名称" }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="description" label="说明">
-              <Input.TextArea rows={2} />
-            </Form.Item>
-          </div>
-
-          <div className="job-config-section">
             <div className="job-config-section-title">执行方式</div>
-            <Form.Item name="execution_mode" label="执行方式">
-              <Select
+            <Form.Item name="execution_mode">
+              <Segmented
+                block
                 options={[
                   { value: "manual", label: "手动执行" },
                   { value: "schedule", label: "周期执行" }
@@ -430,12 +421,18 @@ export function JobsSection() {
           <div className="job-config-section">
             <div className="job-config-section-title">运行参数</div>
             <div className="job-config-two-col">
-              <Form.Item name="timeout_seconds" label="超时秒数">
-                <InputNumber min={1} style={{ width: "100%" }} />
-              </Form.Item>
-              <Form.Item name="max_retries" label="最大重试">
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
+              <label className="job-config-inline-field">
+                <span>超时秒数</span>
+                <Form.Item name="timeout_seconds" noStyle>
+                  <InputNumber min={1} style={{ width: "100%" }} />
+                </Form.Item>
+              </label>
+              <label className="job-config-inline-field">
+                <span>最大重试</span>
+                <Form.Item name="max_retries" noStyle>
+                  <InputNumber min={0} style={{ width: "100%" }} />
+                </Form.Item>
+              </label>
             </div>
           </div>
 
