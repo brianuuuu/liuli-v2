@@ -23,6 +23,7 @@ export type JobConfig = {
   cron_expr?: string | null;
   timeout_seconds?: number | null;
   max_retries?: number | null;
+  params_schema?: Record<string, unknown> | null;
   last_run_at?: string | null;
   last_status?: string | null;
   next_run_at?: string | null;

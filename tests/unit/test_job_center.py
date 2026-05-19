@@ -34,3 +34,16 @@ def test_manual_run_writes_pending_request():
     assert response.status_code == 200
     assert response.json()["job_name"] == "stock_master.sync_stock_basic"
     assert response.json()["status"] == "pending"
+
+
+def test_list_jobs_exposes_params_schema_for_friendly_web_forms():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+
+    response = client.get("/api/jobs", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()
+    assert "params_schema" in response.json()[0]

@@ -15,6 +15,7 @@ class JobConfigRead(BaseModel):
     enabled: bool
     timeout_seconds: int
     max_retries: int
+    params_schema: dict[str, Any] | None = None
     last_run_at: datetime | None = None
     last_status: str | None = None
     next_run_at: datetime | None = None
