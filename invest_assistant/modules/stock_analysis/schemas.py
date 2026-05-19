@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict
 class StockPoolCreate(BaseModel):
     stock_id: int
     status: str = "watching"
+    source: str = "manual"
+    reason: str | None = None
 
 
 class StockPoolRead(StockPoolCreate):
@@ -61,15 +63,15 @@ class StockCompareGroupRead(StockCompareGroupCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class StockTrackTagBindingCreate(BaseModel):
-    track_tag_id: int
+class StockTrackRelationCreate(BaseModel):
+    track_id: int
     relation_type: str | None = None
     conviction: float = 0
     reason: str | None = None
     status: str = "active"
 
 
-class TrackTagStockBindingCreate(BaseModel):
+class TrackStockRelationCreate(BaseModel):
     stock_id: int
     relation_type: str | None = None
     conviction: float = 0
@@ -77,17 +79,23 @@ class TrackTagStockBindingCreate(BaseModel):
     status: str = "active"
 
 
-class StockTrackTagBindingUpdate(BaseModel):
+class StockTrackRelationUpdate(BaseModel):
     relation_type: str | None = None
     conviction: float | None = None
     reason: str | None = None
     status: str | None = None
 
 
-class StockTrackTagBindingRead(StockTrackTagBindingCreate):
+class StockTrackRelationRead(StockTrackRelationCreate):
     id: int
     stock_id: int
-    track_tag: dict | None = None
+    track: dict | None = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+StockTrackTagBindingCreate = StockTrackRelationCreate
+TrackTagStockBindingCreate = TrackStockRelationCreate
+StockTrackTagBindingUpdate = StockTrackRelationUpdate
+StockTrackTagBindingRead = StockTrackRelationRead

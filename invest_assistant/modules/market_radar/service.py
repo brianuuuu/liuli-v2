@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.models import (
+    HotwordAlias,
     SourceItem,
     SourceTag,
     Tag,
@@ -13,7 +14,7 @@ from invest_assistant.modules.market_radar.models import (
     TagEdgeSnapshot,
     TagHeatSnapshot,
 )
-from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCandidateCreate, TagCreate, TagUpdate
+from invest_assistant.modules.market_radar.schemas import HotwordAliasCreate, HotwordCreate, SourceItemCreate, TagCandidateCreate, TagCreate, TagUpdate
 from invest_assistant.shared.time_utils import utc_now
 
 WINDOWS = {
@@ -44,6 +45,42 @@ def create_tag(db: Session, payload: TagCreate) -> Tag:
     db.commit()
     db.refresh(tag)
     return tag
+
+
+def create_projected_tag(db: Session, payload: TagCreate) -> Tag:
+    return create_tag(db, payload)
+
+
+def create_hotword(db: Session, payload: HotwordCreate) -> dict:
+    tag = create_tag(db, TagCreate(name=payload.name, type="hotword", status=payload.status))
+    for alias in payload.aliases:
+        create_hotword_alias(db, tag.id, HotwordAliasCreate(alias=alias))
+    return {"tag": tag, "aliases": list_hotword_aliases(db, tag.id)}
+
+
+def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) -> HotwordAlias:
+    tag = db.get(Tag, tag_id)
+    if tag is None or tag.type != "hotword":
+        raise ValueError("hotword tag not found")
+    existing = db.scalar(select(HotwordAlias).where(HotwordAlias.tag_id == tag_id, HotwordAlias.alias == payload.alias))
+    if existing is not None:
+        for key, value in payload.model_dump().items():
+            setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    item = HotwordAlias(tag_id=tag_id, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def list_hotword_aliases(db: Session, tag_id: int | None = None) -> list[HotwordAlias]:
+    stmt = select(HotwordAlias).order_by(HotwordAlias.alias.asc())
+    if tag_id is not None:
+        stmt = stmt.where(HotwordAlias.tag_id == tag_id)
+    return list(db.scalars(stmt))
 
 
 def get_tag(db: Session, tag_id: int) -> Tag | None:
@@ -109,7 +146,7 @@ def _source_text(item: SourceItem) -> str:
 
 
 def extract_tags(db: Session) -> JobResult:
-    tags = list(db.scalars(select(Tag).where(Tag.status == "active")))
+    tags = list(db.scalars(select(Tag).where(Tag.status != "disabled")))
     items = list(db.scalars(select(SourceItem).order_by(SourceItem.id.asc())))
     inserted = 0
     for item in items:
@@ -292,15 +329,18 @@ def get_candidate(db: Session, candidate_id: int) -> TagCandidate | None:
 
 
 def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
-    create_tag(
-        db,
-        TagCreate(
-            name=candidate.name,
-            type=candidate.suggested_type,
-            category=candidate.category,
-            status="active",
-        ),
-    )
+    if candidate.suggested_type == "hotword":
+        tag = create_tag(db, TagCreate(name=candidate.name, type="hotword", status="active"))
+        candidate.target_tag_id = tag.id
+    elif candidate.suggested_type == "track":
+        from invest_assistant.modules.track_discovery.schemas import TrackCreate
+        from invest_assistant.modules.track_discovery.service import create_track
+
+        track = create_track(db, TrackCreate(name=candidate.name, status="candidate"))
+        candidate.target_tag_id = track["tag"]["id"] if track.get("tag") else None
+    else:
+        tag = create_tag(db, TagCreate(name=candidate.name, type=candidate.suggested_type, status="active"))
+        candidate.target_tag_id = tag.id
     candidate.status = "approved"
     db.commit()
     db.refresh(candidate)
@@ -342,8 +382,8 @@ def _tag_dict(tag: Tag) -> dict:
         "id": tag.id,
         "name": tag.name,
         "type": tag.type,
-        "category": tag.category,
         "stock_id": tag.stock_id,
+        "track_id": tag.track_id,
         "status": tag.status,
         "created_at": tag.created_at,
         "updated_at": tag.updated_at,

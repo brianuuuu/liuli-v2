@@ -8,7 +8,7 @@ import { ReportsSection } from "./sections/ReportsSection";
 import { StatusSection } from "./sections/StatusSection";
 import { StocksSection } from "./sections/StocksSection";
 import { SystemConfigSection } from "./sections/SystemConfigSection";
-import { TagCandidatesSection, TagsSection } from "./sections/TagsSection";
+import { TagsSection } from "./sections/TagsSection";
 
 const logColumns = [
   { title: "名称", dataIndex: "name" },
@@ -33,8 +33,8 @@ function AiLogsSection() {
 export function ConsoleSections({ activeTab }: { activeTab: string }) {
   if (activeTab === "status") return <StatusSection />;
   if (activeTab === "jobs") return <JobsSection />;
+  if (activeTab === "data-sources") return <StatusSection />;
   if (activeTab === "tags") return <TagsSection />;
-  if (activeTab === "tag-candidates") return <TagCandidatesSection />;
   if (activeTab === "reports") return <ReportsSection />;
   if (activeTab === "disclosures") return <DisclosuresSection />;
   if (activeTab === "stocks") return <StocksSection />;

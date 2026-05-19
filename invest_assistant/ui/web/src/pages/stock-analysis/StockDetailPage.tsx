@@ -2,15 +2,15 @@ import { Button, Form, Input, InputNumber, Popconfirm, Select, Space, Table, Typ
 import type { ColumnsType } from "antd/es/table";
 import { useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { listMarketTags } from "../../api/marketRadar";
+import { listTracks } from "../../api/trackDiscovery";
 import {
-  bindStockTrackTag,
+  bindStockTrackRelation,
   createStockNote,
   createStockScore,
-  disableStockTrackTagBinding,
+  disableStockTrackRelation,
   listStockNotes,
   listStockScores,
-  listStockTrackTags
+  listStockTrackRelations
 } from "../../api/stockAnalysis";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { EmptyAction } from "../../components/common/EmptyAction";
@@ -38,7 +38,7 @@ type ScoreFormValues = {
 };
 
 type TrackBindingFormValues = {
-  track_tag_id: number;
+  track_id: number;
   relation_type?: string;
   conviction?: number;
   reason?: string;
@@ -49,8 +49,8 @@ export function StockDetailPage() {
   const stockId = Number(id || 0);
   const notes = useAsyncData(useCallback(() => (stockId ? listStockNotes(stockId) : Promise.resolve([])), [stockId]), []);
   const scores = useAsyncData(useCallback(() => (stockId ? listStockScores(stockId) : Promise.resolve([])), [stockId]), []);
-  const trackTags = useAsyncData(useCallback(() => listMarketTags("track"), []), []);
-  const bindings = useAsyncData(useCallback(() => (stockId ? listStockTrackTags(stockId) : Promise.resolve([])), [stockId]), []);
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
+  const bindings = useAsyncData(useCallback(() => (stockId ? listStockTrackRelations(stockId) : Promise.resolve([])), [stockId]), []);
   const [noteForm] = Form.useForm<NoteFormValues>();
   const [scoreForm] = Form.useForm<ScoreFormValues>();
   const [bindingForm] = Form.useForm<TrackBindingFormValues>();
@@ -86,21 +86,21 @@ export function StockDetailPage() {
 
   async function submitBinding() {
     const values = await bindingForm.validateFields();
-    await bindStockTrackTag(stockId, {
-      track_tag_id: values.track_tag_id,
+    await bindStockTrackRelation(stockId, {
+      track_id: values.track_id,
       relation_type: values.relation_type || null,
       conviction: values.conviction || 0,
       reason: values.reason || null,
       status: "active"
     });
-    message.success("赛道标签绑定已更新");
+    message.success("赛道关系已更新");
     bindingForm.resetFields();
     await bindings.refresh();
   }
 
   async function disableBinding(record: StockTrackTagBinding) {
-    await disableStockTrackTagBinding(record.id);
-    message.success("赛道标签绑定已停用");
+    await disableStockTrackRelation(record.id);
+    message.success("赛道关系已停用");
     await bindings.refresh();
   }
 
@@ -122,7 +122,7 @@ export function StockDetailPage() {
   ];
 
   const bindingColumns: ColumnsType<StockTrackTagBinding> = [
-    { title: "赛道标签", render: (_, record) => record.track_tag?.name || record.track_tag_id },
+    { title: "赛道", render: (_, record) => record.track?.name || record.track_id },
     { title: "关系", dataIndex: "relation_type", width: 120, render: (value) => value || "-" },
     { title: "确信度", dataIndex: "conviction", width: 90, render: (value) => Number(value || 0).toFixed(2) },
     { title: "状态", dataIndex: "status", width: 90 },
@@ -138,7 +138,7 @@ export function StockDetailPage() {
     }
   ];
 
-  const trackTagOptions = trackTags.data.map((tag) => ({ value: tag.id, label: tag.name }));
+  const trackOptions = tracks.data.map((track) => ({ value: track.id, label: track.name }));
 
   if (!stockId) {
     return (
@@ -162,12 +162,12 @@ export function StockDetailPage() {
             </div>
         </WorkbenchCard>
 
-        <WorkbenchCard title="赛道标签绑定">
+        <WorkbenchCard title="赛道关系">
           <Table rowKey="id" size="small" loading={bindings.loading} dataSource={bindings.data} columns={bindingColumns} pagination={{ pageSize: 6 }} />
           <Form form={bindingForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitBinding}>
             <Space.Compact block>
-              <Form.Item name="track_tag_id" label="赛道标签" style={{ width: "34%" }} rules={[{ required: true, message: "请选择赛道标签" }]}>
-                <Select showSearch options={trackTagOptions} loading={trackTags.loading} />
+              <Form.Item name="track_id" label="赛道" style={{ width: "34%" }} rules={[{ required: true, message: "请选择赛道" }]}>
+                <Select showSearch options={trackOptions} loading={tracks.loading} />
               </Form.Item>
               <Form.Item name="relation_type" label="关系类型" style={{ width: "33%" }}>
                 <Input placeholder="beneficiary / exposure" />
@@ -179,7 +179,7 @@ export function StockDetailPage() {
             <Form.Item name="reason" label="判断理由">
               <Input.TextArea rows={3} />
             </Form.Item>
-            <Button htmlType="submit" size="small" type="primary">绑定赛道标签</Button>
+            <Button htmlType="submit" size="small" type="primary">绑定赛道</Button>
           </Form>
         </WorkbenchCard>
 

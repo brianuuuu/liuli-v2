@@ -1,4 +1,4 @@
-import type { MarketGraph, MarketTag, SourceItem, TagCandidate, TagHeat } from "../types/api";
+import type { Hotword, MarketGraph, MarketTag, SourceItem, TagCandidate, TagHeat } from "../types/api";
 import { apiClient } from "./client";
 
 export type MarketOverview = {
@@ -10,8 +10,8 @@ export type MarketOverview = {
 export type MarketTagPayload = {
   name: string;
   type: string;
-  category?: string | null;
   stock_id?: number | null;
+  track_id?: number | null;
   status?: string;
 };
 
@@ -22,6 +22,8 @@ export type SourceItemPayload = {
   content: string;
   source_url?: string | null;
   publish_time?: string | null;
+  related_type?: string | null;
+  related_id?: number | null;
 };
 
 export type MarketFlashSyncResult = {
@@ -35,10 +37,17 @@ export type MarketFlashSyncResult = {
 export type TagCandidatePayload = {
   name: string;
   suggested_type: string;
-  category?: string | null;
   source_item_id?: number | null;
+  trigger_text?: string | null;
   confidence?: number;
   reason?: string | null;
+  target_tag_id?: number | null;
+  status?: string;
+};
+
+export type HotwordPayload = {
+  name: string;
+  aliases?: string[];
   status?: string;
 };
 
@@ -57,7 +66,20 @@ export async function listMarketTags(type?: string): Promise<MarketTag[]> {
 }
 
 export async function createMarketTag(payload: MarketTagPayload): Promise<MarketTag> {
+  if (payload.type === "hotword") {
+    const response = await apiClient.post<Hotword>("/api/market-radar/hotwords", {
+      name: payload.name,
+      aliases: [],
+      status: payload.status || "active"
+    });
+    return response.data.tag;
+  }
   const response = await apiClient.post<MarketTag>("/api/market-radar/tags", payload);
+  return response.data;
+}
+
+export async function createHotword(payload: HotwordPayload): Promise<Hotword> {
+  const response = await apiClient.post<Hotword>("/api/market-radar/hotwords", payload);
   return response.data;
 }
 

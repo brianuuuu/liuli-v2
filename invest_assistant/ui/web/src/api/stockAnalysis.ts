@@ -1,9 +1,11 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreSnapshot, StockTrackTagBinding } from "../types/api";
+import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreSnapshot, StockTrackRelation } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
   stock_id: number;
   status?: string;
+  source?: string;
+  reason?: string | null;
 };
 
 export type StockNotePayload = {
@@ -30,8 +32,8 @@ export type CompareGroupPayload = {
   description?: string | null;
 };
 
-export type StockTrackTagBindingPayload = {
-  track_tag_id: number;
+export type StockTrackRelationPayload = {
+  track_id: number;
   relation_type?: string | null;
   conviction?: number;
   reason?: string | null;
@@ -50,6 +52,11 @@ export async function createStockPoolItem(payload: StockPoolPayload): Promise<St
 
 export async function updateStockPoolItem(poolId: number, payload: StockPoolPayload): Promise<StockPoolItem> {
   const response = await apiClient.put<StockPoolItem>(`/api/stock-analysis/pool/${poolId}`, payload);
+  return response.data;
+}
+
+export async function listStockCandidates(): Promise<StockPoolItem[]> {
+  const response = await apiClient.get<StockPoolItem[]>("/api/stock-analysis/candidates");
   return response.data;
 }
 
@@ -88,22 +95,22 @@ export async function listStockReports(): Promise<Record<string, unknown>[]> {
   return response.data;
 }
 
-export async function listStockTrackTags(stockId: number): Promise<StockTrackTagBinding[]> {
-  const response = await apiClient.get<StockTrackTagBinding[]>(`/api/stock-analysis/stocks/${stockId}/track-tags`);
+export async function listStockTrackRelations(stockId: number): Promise<StockTrackRelation[]> {
+  const response = await apiClient.get<StockTrackRelation[]>(`/api/stock-analysis/stocks/${stockId}/tracks`);
   return response.data;
 }
 
-export async function bindStockTrackTag(stockId: number, payload: StockTrackTagBindingPayload): Promise<StockTrackTagBinding> {
-  const response = await apiClient.post<StockTrackTagBinding>(`/api/stock-analysis/stocks/${stockId}/track-tags`, payload);
+export async function bindStockTrackRelation(stockId: number, payload: StockTrackRelationPayload): Promise<StockTrackRelation> {
+  const response = await apiClient.post<StockTrackRelation>(`/api/stock-analysis/stocks/${stockId}/tracks`, payload);
   return response.data;
 }
 
-export async function updateStockTrackTagBinding(bindingId: number, payload: Partial<StockTrackTagBindingPayload>): Promise<StockTrackTagBinding> {
-  const response = await apiClient.put<StockTrackTagBinding>(`/api/stock-analysis/track-tag-bindings/${bindingId}`, payload);
+export async function updateStockTrackRelation(relationId: number, payload: Partial<StockTrackRelationPayload>): Promise<StockTrackRelation> {
+  const response = await apiClient.put<StockTrackRelation>(`/api/stock-analysis/track-relations/${relationId}`, payload);
   return response.data;
 }
 
-export async function disableStockTrackTagBinding(bindingId: number): Promise<StockTrackTagBinding> {
-  const response = await apiClient.delete<StockTrackTagBinding>(`/api/stock-analysis/track-tag-bindings/${bindingId}`);
+export async function disableStockTrackRelation(relationId: number): Promise<StockTrackRelation> {
+  const response = await apiClient.delete<StockTrackRelation>(`/api/stock-analysis/track-relations/${relationId}`);
   return response.data;
 }

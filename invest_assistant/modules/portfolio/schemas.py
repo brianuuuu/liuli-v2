@@ -16,10 +16,34 @@ class PortfolioRead(PortfolioCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PortfolioGroupCreate(BaseModel):
+    name: str
+    group_type: str = "custom"
+    target_weight: float | None = None
+    max_stock_count: int | None = None
+    sort_order: int = 0
+    note: str | None = None
+    status: str = "active"
+
+
+class PortfolioGroupRead(PortfolioGroupCreate):
+    id: int
+    portfolio_id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PortfolioPositionCreate(BaseModel):
+    group_id: int | None = None
     stock_id: int
     quantity: float
     cost_price: float
+    current_price: float | None = None
+    market_value: float | None = None
+    target_weight: float | None = None
+    note: str | None = None
+    status: str = "active"
 
 
 class PortfolioPositionRead(PortfolioPositionCreate):

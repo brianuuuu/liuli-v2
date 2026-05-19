@@ -76,48 +76,48 @@ def test_stock_analysis_core_flow():
     assert group.status_code == 200
 
 
-def test_stock_track_tag_binding_forward_and_reverse_flow():
+def test_stock_track_relation_forward_and_reverse_flow():
     reset_db()
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
-    tag = client.post(
-        "/api/market-radar/tags",
-        json={"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
+    track = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "AI算力", "description": "算力基础设施", "status": "active"},
         headers=headers,
     ).json()
-    second_tag = client.post(
-        "/api/market-radar/tags",
-        json={"name": "智能汽车", "type": "track", "category": "auto", "stock_id": None, "status": "active"},
+    second_track = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "智能汽车", "description": "汽车智能化", "status": "active"},
         headers=headers,
     ).json()
 
-    binding = client.post(
-        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
-        json={"track_tag_id": tag["id"], "relation_type": "beneficiary", "conviction": 0.8, "reason": "研究判断"},
+    relation = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/tracks",
+        json={"track_id": track["id"], "relation_type": "core", "conviction": 0.8, "reason": "研究判断"},
         headers=headers,
     )
-    assert binding.status_code == 200
-    assert binding.json()["track_tag"]["name"] == "AI算力"
+    assert relation.status_code == 200
+    assert relation.json()["track"]["name"] == "AI算力"
 
-    second_binding = client.post(
-        f"/api/stock-analysis/stocks/{stock_id}/track-tags",
-        json={"track_tag_id": second_tag["id"], "relation_type": "exposure", "conviction": 0.5},
+    second_relation = client.post(
+        f"/api/stock-analysis/stocks/{stock_id}/tracks",
+        json={"track_id": second_track["id"], "relation_type": "related", "conviction": 0.5},
         headers=headers,
     )
-    assert second_binding.status_code == 200
+    assert second_relation.status_code == 200
 
-    forward = client.get(f"/api/stock-analysis/stocks/{stock_id}/track-tags", headers=headers)
+    forward = client.get(f"/api/stock-analysis/stocks/{stock_id}/tracks", headers=headers)
     assert forward.status_code == 200
-    assert {item["track_tag"]["name"] for item in forward.json()} == {"AI算力", "智能汽车"}
+    assert {item["track"]["name"] for item in forward.json()} == {"AI算力", "智能汽车"}
 
-    reverse = client.get(f"/api/track-discovery/track-tags/{tag['id']}/stocks", headers=headers)
+    reverse = client.get(f"/api/track-discovery/tracks/{track['id']}/stocks", headers=headers)
     assert reverse.status_code == 200
     assert reverse.json()[0]["stock_id"] == stock_id
 
     reverse_create = client.post(
-        f"/api/track-discovery/track-tags/{tag['id']}/stocks",
-        json={"stock_id": stock_id, "relation_type": "beneficiary", "conviction": 0.9, "reason": "反向更新"},
+        f"/api/track-discovery/tracks/{track['id']}/stocks",
+        json={"stock_id": stock_id, "relation_type": "core", "conviction": 0.9, "reason": "反向更新"},
         headers=headers,
     )
     assert reverse_create.status_code == 200
@@ -149,11 +149,12 @@ def test_alert_center_heat_rule_job_creates_deduplicated_event():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
-    tag = client.post(
-        "/api/market-radar/tags",
-        json={"name": "AI算力", "type": "track", "category": "technology", "stock_id": None, "status": "active"},
+    track = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "AI算力", "description": "算力基础设施", "status": "active"},
         headers=headers,
     ).json()
+    tag = track["tag"]
     rule = client.post(
         "/api/alerts/rules",
         json={
@@ -207,12 +208,19 @@ def test_portfolio_flow():
     headers = login_headers(client)
     portfolio = client.post("/api/portfolios", json={"name": "主组合", "base_currency": "CNY"}, headers=headers)
     assert portfolio.status_code == 200
+    group = client.post(
+        f"/api/portfolios/{portfolio.json()['id']}/groups",
+        json={"name": "核心仓", "group_type": "core", "target_weight": 0.6, "max_stock_count": 10, "sort_order": 1, "note": "主仓位", "status": "active"},
+        headers=headers,
+    )
+    assert group.status_code == 200
     position = client.post(
         f"/api/portfolios/{portfolio.json()['id']}/positions",
-        json={"stock_id": stock_id, "quantity": 100, "cost_price": 10.5},
+        json={"group_id": group.json()["id"], "stock_id": stock_id, "quantity": 100, "cost_price": 10.5, "current_price": 11, "target_weight": 0.2, "note": "实盘持仓", "status": "active"},
         headers=headers,
     )
     assert position.status_code == 200
+    assert position.json()["group_id"] == group.json()["id"]
     review = client.post(
         f"/api/portfolios/{portfolio.json()['id']}/review",
         json={"title": "周复盘", "content": "仓位稳定", "risk_summary": "低"},

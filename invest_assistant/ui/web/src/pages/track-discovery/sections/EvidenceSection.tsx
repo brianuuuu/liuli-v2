@@ -1,15 +1,14 @@
 import { Button, Form, Input, InputNumber, Select, Space, Statistic, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { listMarketTags } from "../../../api/marketRadar";
 import {
-  bindStockFromTrackTag,
+  bindStockFromTrack,
   createTrackEvidence,
-  listStocksForTrackTag,
+  listStocksForTrack,
   listTrackEvidence,
   listTrackIndicators,
   listTrackRelatedStocks,
-  listTrackTheses
+  listTracks
 } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -35,27 +34,24 @@ type ReverseBindingFormValues = {
 };
 
 export function EvidenceSection() {
-  const theses = useAsyncData(useCallback(listTrackTheses, []), []);
-  const [thesisId, setThesisId] = useState<number | undefined>();
-  const evidence = useAsyncData(useCallback(() => (thesisId ? listTrackEvidence(thesisId) : Promise.resolve([])), [thesisId]), []);
-  const indicators = useAsyncData(useCallback(() => (thesisId ? listTrackIndicators(thesisId) : Promise.resolve([])), [thesisId]), []);
-  const relatedStocks = useAsyncData(useCallback(() => (thesisId ? listTrackRelatedStocks(thesisId) : Promise.resolve([])), [thesisId]), []);
-  const trackTags = useAsyncData(useCallback(() => listMarketTags("track"), []), []);
-  const [trackTagId, setTrackTagId] = useState<number | undefined>();
-  const reverseBindings = useAsyncData(useCallback(() => (trackTagId ? listStocksForTrackTag(trackTagId) : Promise.resolve([])), [trackTagId]), []);
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
+  const [trackId, setTrackId] = useState<number | undefined>();
+  const evidence = useAsyncData(useCallback(() => (trackId ? listTrackEvidence(trackId) : Promise.resolve([])), [trackId]), []);
+  const indicators = useAsyncData(useCallback(() => (trackId ? listTrackIndicators(trackId) : Promise.resolve([])), [trackId]), []);
+  const relatedStocks = useAsyncData(useCallback(() => (trackId ? listTrackRelatedStocks(trackId) : Promise.resolve([])), [trackId]), []);
+  const reverseBindings = useAsyncData(useCallback(() => (trackId ? listStocksForTrack(trackId) : Promise.resolve([])), [trackId]), []);
   const [form] = Form.useForm<EvidenceFormValues>();
   const [reverseForm] = Form.useForm<ReverseBindingFormValues>();
 
-  const thesisOptions = useMemo(() => theses.data.map((item) => ({ value: item.id, label: item.title })), [theses.data]);
-  const trackTagOptions = useMemo(() => trackTags.data.map((item) => ({ value: item.id, label: item.name })), [trackTags.data]);
+  const trackOptions = useMemo(() => tracks.data.map((item) => ({ value: item.id, label: item.name })), [tracks.data]);
 
   async function submitEvidence() {
-    if (!thesisId) {
+    if (!trackId) {
       message.warning("请先选择赛道");
       return;
     }
     const values = await form.validateFields();
-    await createTrackEvidence(thesisId, {
+    await createTrackEvidence(trackId, {
       source_item_id: values.source_item_id || null,
       evidence_direction: values.evidence_direction,
       evidence_strength: values.evidence_strength || 0,
@@ -69,12 +65,12 @@ export function EvidenceSection() {
   }
 
   async function submitReverseBinding() {
-    if (!trackTagId) {
-      message.warning("请先选择赛道标签");
+    if (!trackId) {
+      message.warning("请先选择赛道");
       return;
     }
     const values = await reverseForm.validateFields();
-    await bindStockFromTrackTag(trackTagId, {
+    await bindStockFromTrack(trackId, {
       stock_id: values.stock_id,
       relation_type: values.relation_type || null,
       conviction: values.conviction || 0,
@@ -107,12 +103,12 @@ export function EvidenceSection() {
       <DataPanel
         toolbar={
           <>
-            <Select showSearch size="small" placeholder="选择赛道" value={thesisId} options={thesisOptions} style={{ width: 260 }} onChange={setThesisId} />
+            <Select showSearch size="small" placeholder="选择赛道" value={trackId} options={trackOptions} loading={tracks.loading} style={{ width: 260 }} onChange={setTrackId} />
             <div className="data-panel-toolbar-spacer" />
           </>
         }
       >
-        {thesisId ? (
+        {trackId ? (
           <Space direction="vertical" size={10} style={{ width: "100%", padding: 16 }}>
             <Space size={10}>
               <Statistic title="证据" value={evidence.data.length} loading={evidence.loading} />
@@ -158,14 +154,14 @@ export function EvidenceSection() {
               <Input placeholder="逗号分隔" />
             </Form.Item>
           </Space.Compact>
-          <Button htmlType="submit" size="small" type="primary" disabled={!thesisId}>新增证据</Button>
+          <Button htmlType="submit" size="small" type="primary" disabled={!trackId}>新增证据</Button>
         </Form>
       </WorkbenchCard>
 
       <DataPanel
         toolbar={
           <>
-            <Select showSearch size="small" placeholder="选择赛道标签" value={trackTagId} options={trackTagOptions} loading={trackTags.loading} style={{ width: 260 }} onChange={setTrackTagId} />
+            <Select showSearch size="small" placeholder="选择赛道" value={trackId} options={trackOptions} loading={tracks.loading} style={{ width: 260 }} onChange={setTrackId} />
             <div className="data-panel-toolbar-spacer" />
           </>
         }
@@ -187,7 +183,7 @@ export function EvidenceSection() {
             <Form.Item name="reason" label="判断理由">
               <Input.TextArea rows={3} />
             </Form.Item>
-            <Button htmlType="submit" size="small" type="primary" disabled={!trackTagId}>关联标的</Button>
+            <Button htmlType="submit" size="small" type="primary" disabled={!trackId}>关联标的</Button>
           </Form>
         </WorkbenchCard>
       </DataPanel>

@@ -12,7 +12,7 @@ import { formatTime, rankingTypeOptions, TagTypeTag } from "./shared";
 type CandidateFormValues = {
   name: string;
   suggested_type: string;
-  category?: string;
+  trigger_text?: string;
   source_item_id?: number;
   confidence?: number;
   reason?: string;
@@ -38,7 +38,7 @@ export function CandidatesSection() {
     const values = await form.validateFields();
     await createTagCandidate({
       ...values,
-      category: values.category || null,
+      trigger_text: values.trigger_text || null,
       source_item_id: values.source_item_id || null,
       reason: values.reason || null,
       status: "pending"
@@ -59,7 +59,7 @@ export function CandidatesSection() {
   const columns: ColumnsType<TagCandidate> = [
     { title: "名称", dataIndex: "name" },
     { title: "建议类型", dataIndex: "suggested_type", width: 110, render: (value) => <TagTypeTag type={value} /> },
-    { title: "分类", dataIndex: "category", width: 120, render: (value) => value || "-" },
+    { title: "触发词", dataIndex: "trigger_text", width: 120, render: (value) => value || "-" },
     { title: "置信度", dataIndex: "confidence", width: 90, render: (value) => Number(value || 0).toFixed(2) },
     { title: "状态", dataIndex: "status", width: 100, render: (value) => <StatusTag status={value} /> },
     { title: "原因", dataIndex: "reason", ellipsis: true },
@@ -123,7 +123,7 @@ export function CandidatesSection() {
           <Form.Item name="suggested_type" label="建议类型" rules={[{ required: true, message: "请选择建议类型" }]}>
             <Select options={rankingTypeOptions.filter((item) => item.value !== "stock")} />
           </Form.Item>
-          <Form.Item name="category" label="分类">
+          <Form.Item name="trigger_text" label="触发词">
             <Input />
           </Form.Item>
           <Space.Compact block>

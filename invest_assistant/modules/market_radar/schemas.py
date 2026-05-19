@@ -6,16 +6,16 @@ from pydantic import BaseModel, ConfigDict
 class TagCreate(BaseModel):
     name: str
     type: str
-    category: str | None = None
     stock_id: int | None = None
+    track_id: int | None = None
     status: str = "active"
 
 
 class TagUpdate(BaseModel):
     name: str | None = None
     type: str | None = None
-    category: str | None = None
     stock_id: int | None = None
+    track_id: int | None = None
     status: str | None = None
 
 
@@ -34,6 +34,8 @@ class SourceItemCreate(BaseModel):
     content: str
     source_url: str | None = None
     publish_time: datetime | None = None
+    related_type: str | None = None
+    related_id: int | None = None
 
 
 class SourceItemRead(SourceItemCreate):
@@ -88,10 +90,11 @@ class TagHeatRead(BaseModel):
 class TagCandidateCreate(BaseModel):
     name: str
     suggested_type: str
-    category: str | None = None
     source_item_id: int | None = None
+    trigger_text: str | None = None
     confidence: float = 0
     reason: str | None = None
+    target_tag_id: int | None = None
     status: str = "pending"
 
 
@@ -101,3 +104,29 @@ class TagCandidateRead(TagCandidateCreate):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class HotwordAliasCreate(BaseModel):
+    alias: str
+    source: str = "manual"
+    status: str = "active"
+
+
+class HotwordAliasRead(HotwordAliasCreate):
+    id: int
+    tag_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HotwordCreate(BaseModel):
+    name: str
+    aliases: list[str] = []
+    status: str = "active"
+
+
+class HotwordRead(BaseModel):
+    tag: TagRead
+    aliases: list[HotwordAliasRead]

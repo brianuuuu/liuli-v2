@@ -6,16 +6,16 @@ from invest_assistant.modules.stock_analysis.models import (
     StockPoolItem,
     StockResearchNote,
     StockScoreSnapshot,
-    StockTrackTagBinding,
+    StockTrackRelation,
 )
-from invest_assistant.modules.market_radar.models import Tag
+from invest_assistant.modules.track_discovery.models import Track
 from invest_assistant.modules.stock_analysis.schemas import (
     StockCompareGroupCreate,
     StockPoolCreate,
     StockResearchNoteCreate,
     StockScoreSnapshotCreate,
-    StockTrackTagBindingCreate,
-    StockTrackTagBindingUpdate,
+    StockTrackRelationCreate,
+    StockTrackRelationUpdate,
 )
 
 
@@ -23,6 +23,8 @@ def create_pool_item(db: Session, payload: StockPoolCreate) -> StockPoolItem:
     existing = db.scalar(select(StockPoolItem).where(StockPoolItem.stock_id == payload.stock_id))
     if existing:
         existing.status = payload.status
+        existing.source = payload.source
+        existing.reason = payload.reason
         db.commit()
         db.refresh(existing)
         return existing
@@ -35,6 +37,10 @@ def create_pool_item(db: Session, payload: StockPoolCreate) -> StockPoolItem:
 
 def list_pool(db: Session) -> list[StockPoolItem]:
     return list(db.scalars(select(StockPoolItem).order_by(StockPoolItem.updated_at.desc())))
+
+
+def list_candidates(db: Session) -> list[StockPoolItem]:
+    return list(db.scalars(select(StockPoolItem).where(StockPoolItem.status == "candidate").order_by(StockPoolItem.updated_at.desc())))
 
 
 def create_note(db: Session, stock_id: int, payload: StockResearchNoteCreate) -> StockResearchNote:
@@ -73,91 +79,89 @@ def list_compare_groups(db: Session) -> list[StockCompareGroup]:
     return list(db.scalars(select(StockCompareGroup).order_by(StockCompareGroup.id.desc())))
 
 
-def list_track_tag_bindings(db: Session, stock_id: int) -> list[dict]:
+def list_track_relations(db: Session, stock_id: int) -> list[dict]:
     rows = db.execute(
-        select(StockTrackTagBinding, Tag)
-        .join(Tag, Tag.id == StockTrackTagBinding.track_tag_id)
-        .where(StockTrackTagBinding.stock_id == stock_id)
-        .order_by(StockTrackTagBinding.updated_at.desc(), StockTrackTagBinding.id.desc())
+        select(StockTrackRelation, Track)
+        .join(Track, Track.id == StockTrackRelation.track_id)
+        .where(StockTrackRelation.stock_id == stock_id)
+        .order_by(StockTrackRelation.updated_at.desc(), StockTrackRelation.id.desc())
     ).all()
-    return [_binding_dict(binding, tag) for binding, tag in rows]
+    return [_relation_dict(relation, track) for relation, track in rows]
 
 
-def list_stocks_for_track_tag(db: Session, track_tag_id: int) -> list[dict]:
+def list_stocks_for_track(db: Session, track_id: int) -> list[dict]:
     rows = db.execute(
-        select(StockTrackTagBinding, Tag)
-        .join(Tag, Tag.id == StockTrackTagBinding.track_tag_id)
-        .where(StockTrackTagBinding.track_tag_id == track_tag_id)
-        .order_by(StockTrackTagBinding.updated_at.desc(), StockTrackTagBinding.id.desc())
+        select(StockTrackRelation, Track)
+        .join(Track, Track.id == StockTrackRelation.track_id)
+        .where(StockTrackRelation.track_id == track_id)
+        .order_by(StockTrackRelation.updated_at.desc(), StockTrackRelation.id.desc())
     ).all()
-    return [_binding_dict(binding, tag) for binding, tag in rows]
+    return [_relation_dict(relation, track) for relation, track in rows]
 
 
-def bind_track_tag(db: Session, stock_id: int, payload: StockTrackTagBindingCreate) -> dict:
-    tag = db.get(Tag, payload.track_tag_id)
-    if tag is None or tag.type != "track":
-        raise ValueError("track tag not found")
-    binding = db.scalar(
-        select(StockTrackTagBinding).where(
-            StockTrackTagBinding.stock_id == stock_id,
-            StockTrackTagBinding.track_tag_id == payload.track_tag_id,
+def bind_track(db: Session, stock_id: int, payload: StockTrackRelationCreate) -> dict:
+    track = db.get(Track, payload.track_id)
+    if track is None:
+        raise ValueError("track not found")
+    relation = db.scalar(
+        select(StockTrackRelation).where(
+            StockTrackRelation.stock_id == stock_id,
+            StockTrackRelation.track_id == payload.track_id,
         )
     )
-    if binding is None:
-        binding = StockTrackTagBinding(stock_id=stock_id, **payload.model_dump())
-        db.add(binding)
+    if relation is None:
+        relation = StockTrackRelation(stock_id=stock_id, **payload.model_dump())
+        db.add(relation)
     else:
         for key, value in payload.model_dump().items():
-            setattr(binding, key, value)
+            setattr(relation, key, value)
     db.commit()
-    db.refresh(binding)
-    return _binding_dict(binding, tag)
+    db.refresh(relation)
+    return _relation_dict(relation, track)
 
 
-def update_track_tag_binding(db: Session, binding_id: int, payload: StockTrackTagBindingUpdate) -> dict | None:
-    binding = db.get(StockTrackTagBinding, binding_id)
-    if binding is None:
+def update_track_relation(db: Session, relation_id: int, payload: StockTrackRelationUpdate) -> dict | None:
+    relation = db.get(StockTrackRelation, relation_id)
+    if relation is None:
         return None
     for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(binding, key, value)
+        setattr(relation, key, value)
     db.commit()
-    db.refresh(binding)
-    tag = db.get(Tag, binding.track_tag_id)
-    return _binding_dict(binding, tag)
+    db.refresh(relation)
+    track = db.get(Track, relation.track_id)
+    return _relation_dict(relation, track)
 
 
-def disable_track_tag_binding(db: Session, binding_id: int) -> dict | None:
-    binding = db.get(StockTrackTagBinding, binding_id)
-    if binding is None:
+def disable_track_relation(db: Session, relation_id: int) -> dict | None:
+    relation = db.get(StockTrackRelation, relation_id)
+    if relation is None:
         return None
-    binding.status = "disabled"
+    relation.status = "disabled"
     db.commit()
-    db.refresh(binding)
-    tag = db.get(Tag, binding.track_tag_id)
-    return _binding_dict(binding, tag)
+    db.refresh(relation)
+    track = db.get(Track, relation.track_id)
+    return _relation_dict(relation, track)
 
 
-def _binding_dict(binding: StockTrackTagBinding, tag: Tag | None) -> dict:
+def _relation_dict(relation: StockTrackRelation, track: Track | None) -> dict:
     return {
-        "id": binding.id,
-        "stock_id": binding.stock_id,
-        "track_tag_id": binding.track_tag_id,
-        "relation_type": binding.relation_type,
-        "conviction": binding.conviction,
-        "reason": binding.reason,
-        "status": binding.status,
-        "created_at": binding.created_at,
-        "updated_at": binding.updated_at,
-        "track_tag": _tag_dict(tag) if tag is not None else None,
+        "id": relation.id,
+        "stock_id": relation.stock_id,
+        "track_id": relation.track_id,
+        "relation_type": relation.relation_type,
+        "conviction": relation.conviction,
+        "reason": relation.reason,
+        "status": relation.status,
+        "created_at": relation.created_at,
+        "updated_at": relation.updated_at,
+        "track": _track_dict(track) if track is not None else None,
     }
 
 
-def _tag_dict(tag: Tag) -> dict:
+def _track_dict(track: Track) -> dict:
     return {
-        "id": tag.id,
-        "name": tag.name,
-        "type": tag.type,
-        "category": tag.category,
-        "stock_id": tag.stock_id,
-        "status": tag.status,
+        "id": track.id,
+        "name": track.name,
+        "description": track.description,
+        "status": track.status,
     }

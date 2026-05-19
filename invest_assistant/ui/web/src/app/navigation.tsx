@@ -30,53 +30,52 @@ export const primaryNavItems: NavItem[] = [
 
 export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   "market-radar": [
-    { key: "overview", label: "总览" },
-    { key: "flashes", label: "快讯" },
-    { key: "rankings", label: "热度榜" },
-    { key: "tags", label: "标签" },
+    { key: "overview", label: "市场总览" },
+    { key: "flashes", label: "信息流" },
+    { key: "rankings", label: "标签热度" },
     { key: "candidates", label: "候选标签" },
-    { key: "graph", label: "关系图" },
-    { key: "sources", label: "数据源" }
+    { key: "hotwords", label: "热点词" },
+    { key: "graph", label: "关系图谱" }
   ],
   "track-discovery": [
-    { key: "overview", label: "总览" },
-    { key: "candidates", label: "候选赛道" },
-    { key: "theses", label: "赛道列表" },
-    { key: "evidence", label: "证据链" }
+    { key: "overview", label: "赛道总览" },
+    { key: "tracks", label: "赛道库" },
+    { key: "evidence", label: "赛道证据" },
+    { key: "compare", label: "赛道对比" }
   ],
   "stock-analysis": [
-    { key: "overview", label: "总览" },
+    { key: "overview", label: "标的总览" },
     { key: "pool", label: "标的池" },
-    { key: "scores", label: "评分" },
-    { key: "reports", label: "分析报告" },
-    { key: "compare", label: "对比" }
+    { key: "scores", label: "标的事件" },
+    { key: "compare", label: "标的对比" }
   ],
   alerts: [
-    { key: "events", label: "事件" },
-    { key: "rules", label: "规则" },
-    { key: "handled", label: "处理记录" }
+    { key: "events", label: "预警事件" },
+    { key: "rules", label: "预警规则" },
+    { key: "handled", label: "预警复盘" }
   ],
   portfolio: [
-    { key: "portfolios", label: "组合" },
-    { key: "positions", label: "持仓" },
-    { key: "risk", label: "风险暴露" },
-    { key: "review", label: "复盘" }
+    { key: "portfolios", label: "组合总览" },
+    { key: "positions", label: "实盘持仓" },
+    { key: "risk", label: "调仓记录" },
+    { key: "review", label: "组合复盘" }
   ],
   knowledge: [
-    { key: "notes", label: "笔记" },
+    { key: "notes", label: "知识笔记" },
+    { key: "review", label: "复盘沉淀" },
+    { key: "principles", label: "分析准则" },
     { key: "skills", label: "Skills" },
     { key: "agents", label: "Agents" },
-    { key: "feedback", label: "反馈日志" }
+    { key: "feedback", label: "反哺记录" }
   ],
   console: [
     { key: "status", label: "系统状态" },
     { key: "jobs", label: "任务中心" },
-    { key: "tags", label: "标签库" },
-    { key: "tag-candidates", label: "候选标签" },
-    { key: "reports", label: "报告库" },
-    { key: "disclosures", label: "公告财报库" },
+    { key: "data-sources", label: "数据源" },
     { key: "stocks", label: "股票基础库" },
+    { key: "tags", label: "标签索引" },
+    { key: "disclosures", label: "公告财报库" },
     { key: "config", label: "系统配置" },
-    { key: "ai-logs", label: "AI 日志" }
+    { key: "ai-logs", label: "AI 审计日志" }
   ]
 };

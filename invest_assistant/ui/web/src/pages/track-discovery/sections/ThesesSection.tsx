@@ -2,45 +2,44 @@ import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message }
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { archiveTrackThesis, changeTrackStatus, createTrackThesis, listTrackTheses, updateTrackThesis } from "../../../api/trackDiscovery";
+import { changeTrackStatus, createTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { TrackThesis } from "../../../types/api";
+import type { Track } from "../../../types/api";
 import { formatTime, StatusTag, thesisStatusOptions } from "./shared";
-import { ThesisForm, type ThesisFormValues } from "./ThesisForm";
+
+type TrackFormValues = {
+  name: string;
+  description?: string;
+  status: string;
+};
 
 export function ThesesSection() {
-  const theses = useAsyncData(useCallback(listTrackTheses, []), []);
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [editing, setEditing] = useState<TrackThesis | null>(null);
+  const [editing, setEditing] = useState<Track | null>(null);
   const [open, setOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState<TrackThesis | null>(null);
-  const [form] = Form.useForm<ThesisFormValues>();
+  const [statusOpen, setStatusOpen] = useState<Track | null>(null);
+  const [form] = Form.useForm<TrackFormValues>();
   const [statusForm] = Form.useForm<{ new_status: string; reason?: string }>();
 
   const rows = useMemo(
-    () => theses.data.filter((item) => !statusFilter || item.status === statusFilter),
-    [theses.data, statusFilter]
+    () => tracks.data.filter((item) => !statusFilter || item.status === statusFilter),
+    [tracks.data, statusFilter]
   );
 
   function openCreate() {
     setEditing(null);
-    form.setFieldsValue({ status: "watching", confidence_level: "medium" });
+    form.setFieldsValue({ status: "candidate" });
     setOpen(true);
   }
 
-  function openEdit(record: TrackThesis) {
+  function openEdit(record: Track) {
     setEditing(record);
     form.setFieldsValue({
-      title: record.title,
-      core_thesis: record.core_thesis,
-      underlying_change: record.underlying_change || undefined,
-      old_bottleneck: record.old_bottleneck || undefined,
-      new_solution: record.new_solution || undefined,
-      value_chain_shift: record.value_chain_shift || undefined,
-      time_horizon: record.time_horizon || undefined,
-      confidence_level: record.confidence_level || undefined,
+      name: record.name,
+      description: record.description || undefined,
       status: record.status
     });
     setOpen(true);
@@ -49,26 +48,22 @@ export function ThesesSection() {
   async function submit() {
     const values = await form.validateFields();
     const payload = {
-      ...values,
-      underlying_change: values.underlying_change || null,
-      old_bottleneck: values.old_bottleneck || null,
-      new_solution: values.new_solution || null,
-      value_chain_shift: values.value_chain_shift || null,
-      time_horizon: values.time_horizon || null,
-      confidence_level: values.confidence_level || null
+      name: values.name,
+      description: values.description || null,
+      status: values.status
     };
     if (editing) {
-      await updateTrackThesis(editing.id, payload);
+      await updateTrack(editing.id, payload);
       message.success("赛道已更新");
     } else {
-      await createTrackThesis(payload);
+      await createTrack(payload);
       message.success("赛道已创建");
     }
     setOpen(false);
-    await theses.refresh();
+    await tracks.refresh();
   }
 
-  function openStatus(record: TrackThesis) {
+  function openStatus(record: Track) {
     setStatusOpen(record);
     statusForm.setFieldsValue({ new_status: record.status });
   }
@@ -79,20 +74,20 @@ export function ThesesSection() {
     await changeTrackStatus(statusOpen.id, values.new_status, values.reason || null);
     message.success("状态已变更");
     setStatusOpen(null);
-    await theses.refresh();
+    await tracks.refresh();
   }
 
-  async function archive(record: TrackThesis) {
-    await archiveTrackThesis(record.id);
+  async function archive(record: Track) {
+    await changeTrackStatus(record.id, "archived", "archive from web");
     message.success("赛道已归档");
-    await theses.refresh();
+    await tracks.refresh();
   }
 
-  const columns: ColumnsType<TrackThesis> = [
-    { title: "赛道", dataIndex: "title", render: (value, record) => <Link to={`/track-discovery/theses/${record.id}`}>{value}</Link> },
+  const columns: ColumnsType<Track> = [
+    { title: "赛道", dataIndex: "name", render: (value, record) => <Link to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
-    { title: "置信度", dataIndex: "confidence_level", width: 100, render: (value) => value || "-" },
-    { title: "时间维度", dataIndex: "time_horizon", width: 100, render: (value) => value || "-" },
+    { title: "说明", dataIndex: "description", ellipsis: true, render: (value) => value || "-" },
+    { title: "Tag ID", dataIndex: ["tag", "id"], width: 90, render: (value) => value || "-" },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
     {
       title: "操作",
@@ -123,7 +118,7 @@ export function ThesesSection() {
         <Table
           rowKey="id"
           size="small"
-          loading={theses.loading}
+          loading={tracks.loading}
           dataSource={rows}
           columns={columns}
           pagination={{ pageSize: 12, showSizeChanger: true }}
@@ -132,7 +127,17 @@ export function ThesesSection() {
       </DataPanel>
 
       <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={760}>
-        <ThesisForm form={form} />
+        <Form form={form} layout="vertical" preserve={false}>
+          <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="description" label="说明">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+            <Select options={thesisStatusOptions} />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <Modal title="变更状态" open={Boolean(statusOpen)} onCancel={() => setStatusOpen(null)} onOk={submitStatus} destroyOnHidden>

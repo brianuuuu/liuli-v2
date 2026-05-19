@@ -37,9 +37,9 @@ export function TagsSection() {
   const columns: ColumnsType<MarketTag> = [
     { title: "名称", dataIndex: "name" },
     { title: "类型", dataIndex: "type", width: 110, render: (value) => <TagTypeTag type={value} /> },
-    { title: "分类", dataIndex: "category", width: 130, render: (value) => value || "-" },
     { title: "状态", dataIndex: "status", width: 100, render: (value) => <StatusTag status={value} /> },
     { title: "Stock ID", dataIndex: "stock_id", width: 90, render: (value) => value || "-" },
+    { title: "Track ID", dataIndex: "track_id", width: 90, render: (value) => value || "-" },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
     { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
   ];
@@ -57,7 +57,7 @@ export function TagsSection() {
               value={statusFilter}
               style={{ width: 110 }}
               onChange={setStatusFilter}
-              options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]}
+              options={[{ value: "active", label: "active" }, { value: "candidate", label: "candidate" }, { value: "disabled", label: "disabled" }]}
             />
             <div className="data-panel-toolbar-spacer" />
           </>

@@ -7,6 +7,8 @@ from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.modules.portfolio import service
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCreate,
+    PortfolioGroupCreate,
+    PortfolioGroupRead,
     PortfolioPositionCreate,
     PortfolioPositionRead,
     PortfolioRead,
@@ -47,6 +49,26 @@ def update_portfolio(portfolio_id: int, payload: PortfolioCreate, db: Session = 
     return item
 
 
+@router.get("/{portfolio_id}/groups", response_model=list[PortfolioGroupRead])
+def list_groups(portfolio_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_groups(db, portfolio_id)
+
+
+@router.post("/{portfolio_id}/groups", response_model=PortfolioGroupRead)
+def create_group(portfolio_id: int, payload: PortfolioGroupCreate, db: Session = Depends(get_db)):
+    if service.get_portfolio(db, portfolio_id) is None:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    return service.create_group(db, portfolio_id, payload)
+
+
+@router.put("/{portfolio_id}/groups/{group_id}", response_model=PortfolioGroupRead)
+def update_group(portfolio_id: int, group_id: int, payload: PortfolioGroupCreate, db: Session = Depends(get_db)):
+    group = service.update_group(db, group_id, payload)
+    if group is None:
+        raise HTTPException(status_code=404, detail="group not found")
+    return group
+
+
 @router.get("/{portfolio_id}/positions", response_model=list[PortfolioPositionRead])
 def list_positions(portfolio_id: int, db: Session = Depends(get_db)) -> list:
     return service.list_positions(db, portfolio_id)
@@ -62,9 +84,10 @@ def update_position(portfolio_id: int, position_id: int, payload: PortfolioPosit
     position = db.get(service.PortfolioPosition, position_id)
     if position is None:
         raise HTTPException(status_code=404, detail="position not found")
-    position.stock_id = payload.stock_id
-    position.quantity = payload.quantity
-    position.cost_price = payload.cost_price
+    for key, value in payload.model_dump().items():
+        setattr(position, key, value)
+    if position.market_value is None and position.current_price is not None:
+        position.market_value = position.quantity * position.current_price
     db.commit()
     db.refresh(position)
     return position

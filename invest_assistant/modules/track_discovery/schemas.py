@@ -3,6 +3,42 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class TrackCreate(BaseModel):
+    name: str
+    description: str | None = None
+    status: str = "candidate"
+
+
+class TrackUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+
+class TrackRead(TrackCreate):
+    id: int
+    tag: dict | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrackAliasCreate(BaseModel):
+    alias: str
+    source: str = "manual"
+    status: str = "active"
+
+
+class TrackAliasRead(TrackAliasCreate):
+    id: int
+    track_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TrackThesisCreate(BaseModel):
     title: str
     core_thesis: str
@@ -29,6 +65,7 @@ class TrackThesisUpdate(BaseModel):
 
 class TrackThesisRead(TrackThesisCreate):
     id: int
+    track_id: int
     user_id: int | None = None
     created_at: datetime
     updated_at: datetime
@@ -47,7 +84,8 @@ class TrackValidationIndicatorCreate(BaseModel):
 
 class TrackValidationIndicatorRead(TrackValidationIndicatorCreate):
     id: int
-    thesis_id: int
+    track_id: int
+    thesis_id: int | None = None
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -64,7 +102,8 @@ class TrackEvidenceCreate(BaseModel):
 
 class TrackEvidenceRead(TrackEvidenceCreate):
     id: int
-    thesis_id: int
+    track_id: int
+    thesis_id: int | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -81,7 +120,8 @@ class TrackRelatedStockCreate(BaseModel):
 
 class TrackRelatedStockRead(TrackRelatedStockCreate):
     id: int
-    thesis_id: int
+    track_id: int
+    thesis_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -95,7 +135,8 @@ class TrackStatusChange(BaseModel):
 
 class TrackStatusHistoryRead(BaseModel):
     id: int
-    thesis_id: int
+    track_id: int
+    thesis_id: int | None = None
     old_status: str | None = None
     new_status: str
     reason: str | None = None

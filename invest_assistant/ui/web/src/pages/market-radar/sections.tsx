@@ -12,7 +12,7 @@ export function MarketRadarSections({ activeTab }: { activeTab: string }) {
   if (activeTab === "rankings") return <RankingsSection />;
   if (activeTab === "sources") return <SourcesSection />;
   if (activeTab === "flashes") return <FlashSection />;
-  if (activeTab === "tags") return <TagsSection />;
+  if (activeTab === "tags" || activeTab === "hotwords") return <TagsSection />;
   if (activeTab === "candidates") return <CandidatesSection />;
   if (activeTab === "graph") return <GraphSection />;
   return <WorkbenchCard>未知页面</WorkbenchCard>;

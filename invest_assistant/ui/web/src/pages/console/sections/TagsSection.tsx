@@ -16,7 +16,6 @@ import { useAsyncData } from "../../../hooks/useAsyncData";
 type TagFormValues = {
   name: string;
   type: string;
-  category?: string;
   status: string;
 };
 
@@ -40,7 +39,6 @@ export function TagsSection() {
     form.setFieldsValue({
       name: String(record.name ?? ""),
       type: String(record.type ?? "hotword"),
-      category: record.category ? String(record.category) : undefined,
       status: String(record.status ?? "active")
     });
     setOpen(true);
@@ -48,7 +46,7 @@ export function TagsSection() {
 
   async function submit() {
     const values = await form.validateFields();
-    const payload = { ...values, category: values.category || null };
+    const payload = values;
     if (editing?.id) {
       await updateMarketTag(Number(editing.id), payload);
       message.success("标签已更新");
@@ -85,7 +83,7 @@ export function TagsSection() {
               ]}
             />
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" type="primary" onClick={openCreate}>新增赛道/热点标签</Button>
+            <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
           </>
         }
       >
@@ -97,7 +95,7 @@ export function TagsSection() {
           columns={[
             { title: "名称", dataIndex: "name" },
             { title: "类型", dataIndex: "type" },
-            { title: "分类", dataIndex: "category", render: (value) => value || "-" },
+            { title: "绑定实体", render: (_, record) => record.stock_id ? `stock:${record.stock_id}` : record.track_id ? `track:${record.track_id}` : "-" },
             { title: "状态", dataIndex: "status" },
             {
               title: "操作",
@@ -121,10 +119,7 @@ export function TagsSection() {
             <Input />
           </Form.Item>
           <Form.Item name="type" label="标签类型" rules={[{ required: true, message: "请选择标签类型" }]}>
-            <Select options={[{ value: "track", label: "赛道标签" }, { value: "hotword", label: "热点词标签" }]} />
-          </Form.Item>
-          <Form.Item name="category" label="分类">
-            <Input placeholder="可选，如 AI、汽车、宏观" />
+            <Select options={[{ value: "hotword", label: "热点词标签" }]} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]} />
@@ -156,7 +151,7 @@ export function TagCandidatesSection() {
         columns={[
           { title: "名称", dataIndex: "name" },
           { title: "建议类型", dataIndex: "suggested_type" },
-          { title: "分类", dataIndex: "category", render: (value) => value || "-" },
+          { title: "触发词", dataIndex: "trigger_text", render: (value) => value || "-" },
           { title: "置信度", dataIndex: "confidence" },
           { title: "状态", dataIndex: "status" },
           { title: "原因", dataIndex: "reason", ellipsis: true },

@@ -136,8 +136,8 @@ export type MarketTag = {
   id: number;
   name: string;
   type: "stock" | "track" | "hotword" | string;
-  category?: string | null;
   stock_id?: number | null;
+  track_id?: number | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
@@ -151,6 +151,8 @@ export type SourceItem = {
   content: string;
   source_url?: string | null;
   publish_time?: string | null;
+  related_type?: string | null;
+  related_id?: number | null;
   created_at?: string | null;
 };
 
@@ -173,10 +175,46 @@ export type TagCandidate = {
   id: number;
   name: string;
   suggested_type: string;
-  category?: string | null;
   source_item_id?: number | null;
+  trigger_text?: string | null;
   confidence: number;
   reason?: string | null;
+  target_tag_id?: number | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type HotwordAlias = {
+  id: number;
+  tag_id: number;
+  alias: string;
+  source: string;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type Hotword = {
+  tag: MarketTag;
+  aliases: HotwordAlias[];
+};
+
+export type Track = {
+  id: number;
+  name: string;
+  description?: string | null;
+  status: string;
+  tag?: MarketTag | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackAlias = {
+  id: number;
+  track_id: number;
+  alias: string;
+  source: string;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
@@ -197,6 +235,7 @@ export type MarketGraph = {
 
 export type TrackThesis = {
   id: number;
+  track_id: number;
   user_id?: number | null;
   title: string;
   core_thesis: string;
@@ -224,7 +263,8 @@ export type TrackCandidate = {
 
 export type TrackValidationIndicator = {
   id: number;
-  thesis_id: number;
+  track_id: number;
+  thesis_id?: number | null;
   name: string;
   indicator_type?: string | null;
   data_source?: string | null;
@@ -236,7 +276,8 @@ export type TrackValidationIndicator = {
 
 export type TrackEvidence = {
   id: number;
-  thesis_id: number;
+  track_id: number;
+  thesis_id?: number | null;
   source_item_id?: number | null;
   evidence_direction: string;
   evidence_strength: number;
@@ -248,7 +289,8 @@ export type TrackEvidence = {
 
 export type TrackRelatedStock = {
   id: number;
-  thesis_id: number;
+  track_id: number;
+  thesis_id?: number | null;
   stock_id: number;
   role?: string | null;
   relevance_score: number;
@@ -263,6 +305,8 @@ export type StockPoolItem = {
   id: number;
   stock_id: number;
   status: string;
+  source?: string | null;
+  reason?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -301,15 +345,31 @@ export type StockCompareGroup = {
   updated_at?: string | null;
 };
 
-export type StockTrackTagBinding = {
+export type StockTrackRelation = {
   id: number;
   stock_id: number;
-  track_tag_id: number;
+  track_id: number;
   relation_type?: string | null;
   conviction: number;
   reason?: string | null;
   status: string;
-  track_tag?: MarketTag | null;
+  track?: Track | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockTrackTagBinding = StockTrackRelation;
+
+export type PortfolioGroup = {
+  id: number;
+  portfolio_id: number;
+  name: string;
+  group_type: string;
+  target_weight?: number | null;
+  max_stock_count?: number | null;
+  sort_order: number;
+  note?: string | null;
+  status: string;
   created_at?: string | null;
   updated_at?: string | null;
 };
