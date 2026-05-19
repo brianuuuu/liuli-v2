@@ -100,7 +100,7 @@ export function buildJobConfigPayload(values: JobScheduleFormValues): JobSchedul
     schedule_kind: values.schedule_kind || "daily",
     run_time: values.run_time || "08:00",
     cron_expr: cronExpr,
-    allow_manual_run: values.allow_manual_run === true,
+    allow_manual_run: true,
     timeout_seconds: values.timeout_seconds || 300,
     max_retries: values.max_retries || 0
   };

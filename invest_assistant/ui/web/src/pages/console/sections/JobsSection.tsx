@@ -419,7 +419,7 @@ export function JobsSection() {
                   </Form.Item>
                 ) : null}
                 {scheduleKind === "interval" ? (
-                  <Form.Item name="cron_expr" label="固定间隔">
+                  <Form.Item name="cron_expr" label="间隔时间">
                     <Segmented
                       size="small"
                       options={[
@@ -439,9 +439,6 @@ export function JobsSection() {
                     <Input placeholder="例如 0 8 * * *" />
                   </Form.Item>
                 ) : null}
-                <Form.Item name="allow_manual_run" label="允许手动执行" valuePropName="checked">
-                  <Switch checkedChildren="允许" unCheckedChildren="禁止" />
-                </Form.Item>
               </>
             ) : null}
           </div>
