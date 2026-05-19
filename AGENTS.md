@@ -2,7 +2,7 @@
 
 ## Project Constraints
 
-- The system architecture must follow `docs/liuli_system_spec_v6.md` as the single source of truth.
+- The system architecture must follow `docs/liuli_system_spec_v20.md` as the single source of truth.
 - Do not reuse the old project's directory structure, module boundaries, table structure, or architecture design.
 - The `old/` directory is only a functional reference for implementation details such as data fetching, API calls, parsing logic, historical scripts, prompts, and sample data.
 - If old implementation details conflict with the new spec, the new spec wins.
@@ -13,7 +13,7 @@
 ## Web And Mobile Constraints
 
 - Web and Android must not change their technology stack without explicit user approval.
-- Backend technology choices must strictly follow `docs/liuli_system_spec_v6.md`.
+- Backend technology choices must strictly follow `docs/liuli_system_spec_v20.md`.
 - Web primary navigation is six business modules plus the Console operation panel:
   - Market Radar: `invest_assistant/modules/market_radar`
   - Track Discovery: `invest_assistant/modules/track_discovery`
