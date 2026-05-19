@@ -18,11 +18,8 @@ export type JobConfig = {
   module_name: string;
   display_name?: string;
   description?: string | null;
-  trigger_type?: string;
-  enabled: boolean;
-  cron_expr?: string | null;
-  timeout_seconds?: number | null;
-  max_retries?: number | null;
+  config_json: Record<string, unknown>;
+  ext_json: Record<string, unknown>;
   params_schema?: Record<string, unknown> | null;
   last_run_at?: string | null;
   last_status?: string | null;

@@ -58,18 +58,93 @@ def test_update_job_schedule_config_without_definition_fields():
     response = client.put(
         "/api/jobs/market_radar.fetch_news",
         json={
-            "enabled": True,
-            "trigger_type": "both",
-            "cron_expr": "30 8 * * *",
-            "timeout_seconds": 120,
-            "max_retries": 1,
+            "config_json": {
+                "enabled": True,
+                "execution_mode": "schedule",
+                "schedule_kind": "daily",
+                "run_time": "08:30",
+                "cron_expr": "30 8 * * *",
+                "allow_manual_run": True,
+                "timeout_seconds": 120,
+                "max_retries": 1,
+            }
         },
         headers=headers,
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["trigger_type"] == "both"
-    assert data["cron_expr"] == "30 8 * * *"
-    assert data["timeout_seconds"] == 120
-    assert data["max_retries"] == 1
+    assert data["config_json"]["enabled"] is True
+    assert data["config_json"]["execution_mode"] == "schedule"
+    assert data["config_json"]["cron_expr"] == "30 8 * * *"
+    assert data["config_json"]["timeout_seconds"] == 120
+    assert data["config_json"]["max_retries"] == 1
+    assert "enabled" not in data
+    assert "trigger_type" not in data
+    assert "cron_expr" not in data
+    assert "timeout_seconds" not in data
+    assert "max_retries" not in data
+
+
+def test_sync_definitions_keeps_user_runtime_config():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+    client.put(
+        "/api/jobs/market_radar.fetch_news",
+        json={
+            "config_json": {
+                "enabled": False,
+                "execution_mode": "manual",
+                "schedule_kind": "daily",
+                "run_time": "08:00",
+                "cron_expr": None,
+                "allow_manual_run": True,
+                "timeout_seconds": 99,
+                "max_retries": 3,
+            }
+        },
+        headers=headers,
+    )
+
+    sync_response = client.post("/api/jobs/sync-definitions", headers=headers)
+    response = client.get("/api/jobs/market_radar.fetch_news", headers=headers)
+
+    assert sync_response.status_code == 200
+    assert response.status_code == 200
+    data = response.json()
+    assert data["config_json"]["enabled"] is False
+    assert data["config_json"]["execution_mode"] == "manual"
+    assert data["config_json"]["cron_expr"] is None
+    assert data["config_json"]["timeout_seconds"] == 99
+    assert data["config_json"]["max_retries"] == 3
+
+
+def test_job_config_json_is_source_for_configuration_form():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+
+    payload = {
+        "config_json": {
+            "enabled": False,
+            "execution_mode": "manual",
+            "schedule_kind": "daily",
+            "run_time": "08:00",
+            "cron_expr": None,
+            "allow_manual_run": True,
+            "timeout_seconds": 77,
+            "max_retries": 2,
+        }
+    }
+    update_response = client.put("/api/jobs/market_radar.fetch_news", json=payload, headers=headers)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+    get_response = client.get("/api/jobs/market_radar.fetch_news", headers=headers)
+
+    assert update_response.status_code == 200
+    assert get_response.status_code == 200
+    data = get_response.json()
+    assert data["config_json"] == payload["config_json"]
+    assert data["ext_json"] == {}

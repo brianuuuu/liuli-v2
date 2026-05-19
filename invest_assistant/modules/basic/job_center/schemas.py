@@ -10,11 +10,8 @@ class JobConfigRead(BaseModel):
     module_name: str
     display_name: str
     description: str
-    trigger_type: str
-    cron_expr: str | None = None
-    enabled: bool
-    timeout_seconds: int
-    max_retries: int
+    config_json: dict[str, Any]
+    ext_json: dict[str, Any]
     params_schema: dict[str, Any] | None = None
     last_run_at: datetime | None = None
     last_status: str | None = None
@@ -26,13 +23,8 @@ class JobConfigRead(BaseModel):
 
 
 class JobConfigUpdate(BaseModel):
-    display_name: str | None = None
-    description: str | None = None
-    trigger_type: str | None = None
-    cron_expr: str | None = None
-    enabled: bool | None = None
-    timeout_seconds: int | None = None
-    max_retries: int | None = None
+    config_json: dict[str, Any] | None = None
+    ext_json: dict[str, Any] | None = None
 
 
 class JobRunCreate(BaseModel):

@@ -1,6 +1,7 @@
 import { Button, Dropdown, Tag } from "antd";
 import type { MenuProps } from "antd";
 import type { JobConfig } from "../../../types/api";
+import { getJobConfigEnabled, getJobConfigTriggerLabel } from "./jobScheduleConfig";
 import { formatTime } from "./shared";
 
 export function jobStatusColor(status?: string | null) {
@@ -35,6 +36,8 @@ export function JobCard({
   onDetail: (job: JobConfig) => void;
 }) {
   const title = job.display_name || job.job_name;
+  const enabled = getJobConfigEnabled(job);
+  const triggerLabel = getJobConfigTriggerLabel(job);
   const moreItems: MenuProps["items"] = [
     { key: "detail", label: "详情" }
   ];
@@ -54,8 +57,8 @@ export function JobCard({
       <div className="job-card-meta">
         <span>模块 <strong>{job.module_name}</strong></span>
         <span>最近 <strong>{formatTime(job.last_run_at)}</strong></span>
-        <span>触发 <strong>{job.trigger_type || "manual"}</strong></span>
-        <span>启用 <strong>{job.enabled ? "是" : "否"}</strong></span>
+        <span>触发 <strong>{triggerLabel}</strong></span>
+        <span>启用 <strong>{enabled ? "是" : "否"}</strong></span>
       </div>
 
       <div className="job-card-actions" onClick={(event) => event.stopPropagation()}>

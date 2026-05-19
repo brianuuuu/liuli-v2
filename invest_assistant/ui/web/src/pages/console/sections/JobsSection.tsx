@@ -1,5 +1,5 @@
 import { Button, Checkbox, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Switch, Tabs, message } from "antd";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog } from "../../../types/api";
 
@@ -10,6 +10,8 @@ import { JobCard } from "./JobCard";
 import { JobLogEventList, JobRequestEventList } from "./JobRunEventList";
 import {
   buildJobConfigPayload,
+  getJobConfigEnabled,
+  getDefaultJobScheduleValues,
   getFormValuesFromJob,
   getIntervalCronValue,
   type JobScheduleFormValues
@@ -45,6 +47,20 @@ export function JobsSection() {
   const [editForm] = Form.useForm<JobScheduleFormValues>();
   const executionMode = Form.useWatch("execution_mode", editForm);
   const scheduleKind = Form.useWatch("schedule_kind", editForm);
+  const editInitialValues = useMemo(
+    () => selectedJob ? getFormValuesFromJob(selectedJob) : getDefaultJobScheduleValues(),
+    [selectedJob]
+  );
+  const editFormKey = useMemo(
+    () => `${selectedJob?.job_name || "job-config"}:${JSON.stringify(selectedJob?.config_json || {})}`,
+    [selectedJob]
+  );
+
+  useEffect(() => {
+    if (!editOpen || !selectedJob) return;
+    editForm.resetFields();
+    editForm.setFieldsValue(editInitialValues);
+  }, [editForm, editInitialValues, editOpen, selectedJob]);
 
   const requestRows = useMemo(
     () => logDrawerMode === "all" ? requests.data : requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
@@ -60,7 +76,7 @@ export function JobsSection() {
   const jobSummary = useMemo(() => {
     const failed = jobs.data.filter((job) => job.last_status === "failed" || job.last_status === "error").length;
     const running = jobs.data.filter((job) => job.last_status === "running").length;
-    const enabled = jobs.data.filter((job) => job.enabled).length;
+    const enabled = jobs.data.filter(getJobConfigEnabled).length;
     const lastRun = jobs.data
       .map((job) => job.last_run_at)
       .filter(Boolean)
@@ -89,7 +105,7 @@ export function JobsSection() {
         (!query || text.includes(query)) &&
         (!moduleFilter || job.module_name === moduleFilter) &&
         matchesStatus &&
-        (!enabledFilter || String(job.enabled) === enabledFilter)
+        (!enabledFilter || String(getJobConfigEnabled(job)) === enabledFilter)
       );
     });
   }, [enabledFilter, jobs.data, keyword, moduleFilter, statusFilter]);
@@ -141,7 +157,6 @@ export function JobsSection() {
 
   function openEdit(record: JobConfig) {
     setSelectedJob(record);
-    editForm.setFieldsValue(getFormValuesFromJob(record));
     setEditOpen(true);
   }
 
@@ -340,11 +355,24 @@ export function JobsSection() {
         width={520}
         destroyOnHidden
       >
-        <Form form={editForm} layout="vertical" preserve={false} className="job-config-form">
+        <Form
+          key={editFormKey}
+          form={editForm}
+          initialValues={editInitialValues}
+          layout="vertical"
+          preserve={false}
+          className="job-config-form"
+        >
           <div className="job-config-section">
             <div className="job-config-section-title">任务状态</div>
             <div className="job-config-status-row">
-              <Form.Item name="enabled" valuePropName="checked" noStyle>
+              <Form.Item
+                name="enabled"
+                valuePropName="checked"
+                getValueProps={(value) => ({ checked: value === true })}
+                normalize={(value) => value === true}
+                noStyle
+              >
                 <Switch checkedChildren="启用" unCheckedChildren="停用" />
               </Form.Item>
               <span>{selectedJob?.module_name}</span>

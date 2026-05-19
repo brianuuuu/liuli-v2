@@ -10,13 +10,25 @@ const dailyJob = getFormValuesFromJob({
   job_name: "market_radar.fetch_news",
   module_name: "market_radar",
   display_name: "抓取市场新闻",
-  enabled: true,
-  trigger_type: "both",
-  cron_expr: "0 8 * * *"
+  config_json: {
+    enabled: true,
+    execution_mode: "schedule",
+    schedule_kind: "daily",
+    run_time: "08:00",
+    cron_expr: "0 8 * * *",
+    allow_manual_run: true,
+    timeout_seconds: 300,
+    max_retries: 0
+  },
+  ext_json: {}
 });
 
 if (dailyJob.execution_mode !== "schedule") {
   throw new Error("scheduled jobs should open in schedule mode");
+}
+
+if (dailyJob.enabled !== true) {
+  throw new Error("enabled jobs should open with enabled switch on");
 }
 
 if (dailyJob.allow_manual_run !== true) {
@@ -46,8 +58,8 @@ const valuesWithDefinitionFields = {
 
 const payload = buildJobConfigPayload(valuesWithDefinitionFields);
 
-if (payload.trigger_type !== "schedule" || payload.cron_expr !== "30 8 * * *") {
-  throw new Error("daily schedule form should submit schedule trigger and cron");
+if (payload.config_json.cron_expr !== "30 8 * * *" || payload.config_json.execution_mode !== "schedule") {
+  throw new Error("job configuration should submit normalized config_json");
 }
 
 if ("display_name" in payload || "description" in payload) {

@@ -15,11 +15,7 @@ export type JobScheduleFormValues = {
 };
 
 export type JobSchedulePayload = {
-  trigger_type?: string;
-  cron_expr?: string | null;
-  enabled?: boolean;
-  timeout_seconds?: number;
-  max_retries?: number;
+  config_json: Record<string, unknown>;
 };
 
 const DAILY_CRON_PATTERN = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/;
@@ -47,18 +43,43 @@ export function getIntervalCronValue(cronExpr?: string | null): string {
 }
 
 export function getFormValuesFromJob(job: JobConfig): JobScheduleFormValues {
-  const triggerType = job.trigger_type || "manual";
-  const hasSchedule = Boolean(job.cron_expr) || triggerType === "schedule" || triggerType === "cron" || triggerType === "both";
+  if (job.config_json) {
+    const config = job.config_json;
+    return {
+      enabled: config.enabled === true,
+      execution_mode: config.execution_mode === "schedule" ? "schedule" : "manual",
+      schedule_kind: config.schedule_kind === "interval" || config.schedule_kind === "custom" ? config.schedule_kind : "daily",
+      run_time: typeof config.run_time === "string" ? config.run_time : "08:00",
+      cron_expr: typeof config.cron_expr === "string" ? config.cron_expr : undefined,
+      allow_manual_run: config.allow_manual_run === true,
+      timeout_seconds: typeof config.timeout_seconds === "number" ? config.timeout_seconds : 300,
+      max_retries: typeof config.max_retries === "number" ? config.max_retries : 0
+    };
+  }
+  return getDefaultJobScheduleValues();
+}
+
+export function getDefaultJobScheduleValues(): JobScheduleFormValues {
   return {
-    enabled: job.enabled,
-    execution_mode: hasSchedule ? "schedule" : "manual",
-    schedule_kind: getScheduleKindFromCron(job.cron_expr),
-    run_time: getTimeFromCron(job.cron_expr),
-    cron_expr: job.cron_expr || undefined,
-    allow_manual_run: triggerType === "manual" || triggerType === "both",
-    timeout_seconds: job.timeout_seconds || 300,
-    max_retries: job.max_retries || 0
+    enabled: true,
+    execution_mode: "manual",
+    schedule_kind: "daily",
+    run_time: "08:00",
+    cron_expr: undefined,
+    allow_manual_run: true,
+    timeout_seconds: 300,
+    max_retries: 0
   };
+}
+
+export function getJobConfigEnabled(job: JobConfig): boolean {
+  return getFormValuesFromJob(job).enabled === true;
+}
+
+export function getJobConfigTriggerLabel(job: JobConfig): string {
+  const values = getFormValuesFromJob(job);
+  if (values.execution_mode !== "schedule") return "manual";
+  return values.allow_manual_run ? "both" : "schedule";
 }
 
 export function buildCronExpr(values: JobScheduleFormValues): string | null {
@@ -73,14 +94,17 @@ export function buildCronExpr(values: JobScheduleFormValues): string | null {
 
 export function buildJobConfigPayload(values: JobScheduleFormValues): JobSchedulePayload {
   const cronExpr = buildCronExpr(values);
-  const triggerType = values.execution_mode === "schedule"
-    ? values.allow_manual_run ? "both" : "schedule"
-    : "manual";
-  return {
-    trigger_type: triggerType,
+  const configJson = {
+    enabled: values.enabled === true,
+    execution_mode: values.execution_mode || "manual",
+    schedule_kind: values.schedule_kind || "daily",
+    run_time: values.run_time || "08:00",
     cron_expr: cronExpr,
-    enabled: values.enabled,
-    timeout_seconds: values.timeout_seconds,
-    max_retries: values.max_retries
+    allow_manual_run: values.allow_manual_run === true,
+    timeout_seconds: values.timeout_seconds || 300,
+    max_retries: values.max_retries || 0
+  };
+  return {
+    config_json: configJson
   };
 }
