@@ -837,8 +837,10 @@ body {
 .job-summary-item strong {
   overflow: hidden;
   color: var(--ll-text);
-  font-size: 17px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
