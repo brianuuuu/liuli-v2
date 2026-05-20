@@ -531,6 +531,11 @@ body {
 .data-panel-toolbar .ant-btn-primary {
   background: var(--ll-accent);
   color: #ffffff;
+  border-color: var(--ll-accent);
+}
+
+[data-theme="dark"] .data-panel-toolbar .ant-btn-primary {
+  color: #0d1117;
 }
 
 .data-panel-toolbar .ant-btn-primary:hover {
