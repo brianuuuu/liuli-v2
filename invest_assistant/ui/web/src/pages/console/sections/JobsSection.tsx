@@ -1,3 +1,4 @@
+import { SearchOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Switch, Tabs, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
@@ -31,9 +32,8 @@ export function JobsSection() {
   const requests = useAsyncData(useCallback(listRunRequests, []), []);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [keyword, setKeyword] = useState("");
-  const [moduleFilter, setModuleFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [enabledFilter, setEnabledFilter] = useState<string | undefined>();
+  const [enabledFilter, setEnabledFilter] = useState<string>("true");
   const [logs, setLogs] = useState<JobRunLog[]>([]);
   const [allLogs, setAllLogs] = useState<JobRunLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -67,12 +67,6 @@ export function JobsSection() {
     [logDrawerMode, requests.data, selectedJob]
   );
 
-  const moduleOptions = useMemo(() => {
-    return Array.from(new Set(jobs.data.map((item) => item.module_name).filter(Boolean)))
-      .sort()
-      .map((moduleName) => ({ value: moduleName, label: moduleName }));
-  }, [jobs.data]);
-
   const jobSummary = useMemo(() => {
     const failed = jobs.data.filter((job) => job.last_status === "failed" || job.last_status === "error").length;
     const running = jobs.data.filter((job) => job.last_status === "running").length;
@@ -103,12 +97,11 @@ export function JobsSection() {
         (statusFilter === "completed" && (status === "success" || status === "completed"));
       return (
         (!query || text.includes(query)) &&
-        (!moduleFilter || job.module_name === moduleFilter) &&
         matchesStatus &&
-        (!enabledFilter || String(getJobConfigEnabled(job)) === enabledFilter)
+        (enabledFilter === "all" || String(getJobConfigEnabled(job)) === enabledFilter)
       );
     });
-  }, [enabledFilter, jobs.data, keyword, moduleFilter, statusFilter]);
+  }, [enabledFilter, jobs.data, keyword, statusFilter]);
 
   async function refreshAll() {
     await Promise.all([jobs.refresh(), requests.refresh()]);
@@ -280,23 +273,6 @@ export function JobsSection() {
           </div>
         </div>
         <div className="data-panel-toolbar job-center-toolbar">
-          <Input.Search
-            allowClear
-            size="small"
-            placeholder="搜索任务名 / 模块 / 描述"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            className="job-center-search"
-          />
-          <Select
-            allowClear
-            size="small"
-            placeholder="模块"
-            value={moduleFilter}
-            options={moduleOptions}
-            onChange={setModuleFilter}
-            className="job-center-filter"
-          />
           <Segmented
             size="small"
             value={statusFilter}
@@ -309,12 +285,20 @@ export function JobsSection() {
             ]}
             onChange={(value) => setStatusFilter(String(value))}
           />
-          <Select
+          <Input
             allowClear
             size="small"
-            placeholder="启用"
+            prefix={<SearchOutlined />}
+            placeholder="搜索任务名 / 描述"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            className="job-center-search"
+          />
+          <Select
+            size="small"
             value={enabledFilter}
             options={[
+              { value: "all", label: "全部" },
               { value: "true", label: "启用" },
               { value: "false", label: "停用" }
             ]}
