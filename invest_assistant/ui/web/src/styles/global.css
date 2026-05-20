@@ -713,7 +713,7 @@ body {
   bottom: 0;
   left: 50%;
   width: 1px;
-  background: var(--ll-border);
+  background: var(--ll-border-soft);
   transform: translateX(-50%);
 }
 
@@ -723,22 +723,26 @@ body {
 
 .flash-dot {
   position: absolute;
-  top: 18px;
+  top: 16px;
   left: 50%;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ll-accent);
+  border: 1.5px solid var(--ll-accent);
+  background: var(--ll-panel);
+  box-sizing: border-box;
   box-shadow: 0 0 0 3px var(--ll-panel);
   transform: translate(-50%, -50%);
 }
 
 .flash-dot.important {
-  background: #f97316;
+  border-color: #f97316;
+  background: var(--ll-panel);
 }
 
 .flash-dot.filing {
-  background: #10b981;
+  border-color: #10b981;
+  background: var(--ll-panel);
 }
 
 .flash-line {
@@ -764,6 +768,7 @@ body {
   min-width: 0;
   color: var(--ll-muted);
   font-size: 12px;
+  line-height: 16px;
   white-space: nowrap;
 }
 
