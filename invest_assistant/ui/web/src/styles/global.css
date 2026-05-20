@@ -528,13 +528,15 @@ body {
   color: var(--ll-text);
 }
 
-.data-panel-toolbar .ant-btn-primary {
+.data-panel-toolbar .ant-btn-primary,
+.workbench-card .ant-card-extra .ant-btn-primary {
   background: var(--ll-accent);
   color: #ffffff;
   border-color: var(--ll-accent);
 }
 
-[data-theme="dark"] .data-panel-toolbar .ant-btn-primary {
+[data-theme="dark"] .data-panel-toolbar .ant-btn-primary,
+[data-theme="dark"] .workbench-card .ant-card-extra .ant-btn-primary {
   color: #0d1117;
 }
 
