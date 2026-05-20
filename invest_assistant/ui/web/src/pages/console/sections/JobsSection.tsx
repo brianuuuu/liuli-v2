@@ -85,7 +85,7 @@ export function JobsSection() {
 
   const filteredJobs = useMemo(() => {
     const query = keyword.trim().toLowerCase();
-    return jobs.data.filter((job) => {
+    const result = jobs.data.filter((job) => {
       const status = job.last_status || "未运行";
       const text = `${job.display_name || ""}\n${job.job_name}\n${job.module_name}\n${job.description || ""}`.toLowerCase();
       const matchesStatus =
@@ -99,6 +99,14 @@ export function JobsSection() {
         matchesStatus &&
         (enabledFilter === "all" || String(getJobConfigEnabled(job)) === enabledFilter)
       );
+    });
+    return result.sort((a, b) => {
+      const timeA = a.last_run_at || "";
+      const timeB = b.last_run_at || "";
+      if (timeA !== timeB) {
+        return timeB.localeCompare(timeA);
+      }
+      return a.job_name.localeCompare(b.job_name);
     });
   }, [enabledFilter, jobs.data, keyword, statusFilter]);
 
