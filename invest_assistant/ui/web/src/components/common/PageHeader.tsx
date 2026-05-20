@@ -12,7 +12,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
     <div className="page-header">
       <div className="page-title-block">
         <Typography.Title level={3}>{title}</Typography.Title>
-        {description ? <span className="page-context">{description}</span> : null}
+        {description ? <span className="page-context">{description.replaceAll("/", "·")}</span> : null}
       </div>
       {actions ? <Space>{actions}</Space> : null}
     </div>
