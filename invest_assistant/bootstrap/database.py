@@ -53,3 +53,7 @@ def create_all_tables() -> None:
     import invest_assistant.modules.track_discovery.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    from invest_assistant.modules.basic.job_center.models import ensure_job_center_schema
+
+    ensure_job_center_schema(engine)

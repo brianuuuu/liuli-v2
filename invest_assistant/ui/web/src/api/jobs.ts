@@ -1,7 +1,7 @@
 import type { JobConfig, JobRunLog, JobRunRequest } from "../types/api";
 import { apiClient } from "./client";
 
-export type JobConfigUpdate = Partial<Pick<JobConfig, "display_name" | "description" | "trigger_type" | "cron_expr" | "enabled" | "timeout_seconds" | "max_retries">>;
+export type JobConfigUpdate = Partial<Pick<JobConfig, "config_json" | "ext_json">>;
 
 export async function listJobs(): Promise<JobConfig[]> {
   const response = await apiClient.get<JobConfig[]>("/api/jobs");

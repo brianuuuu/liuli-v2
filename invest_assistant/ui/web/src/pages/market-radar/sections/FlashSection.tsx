@@ -179,15 +179,80 @@ export function FlashSection() {
         </aside>
       </div>
 
-      <Drawer title="快讯详情" open={Boolean(detail)} onClose={() => setDetail(null)} size={720}>
-        {detail ? (
-          <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-            <Typography.Title level={5}>{detail.title}</Typography.Title>
-            <Typography.Text type="secondary">{detail.source_name} / {detail.source_type} / {formatTime(detail.publish_time)}</Typography.Text>
-            {detail.source_url ? <Typography.Link href={detail.source_url} target="_blank">{detail.source_url}</Typography.Link> : null}
-            <Typography.Paragraph copyable style={{ whiteSpace: "pre-wrap" }}>{detail.content}</Typography.Paragraph>
-          </Space>
-        ) : null}
+      <Drawer
+        title="快讯详情"
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        width={580}
+      >
+        {detail ? (() => {
+          const content = detail.content || "";
+          const match = content.match(/^【(.*?)】(.*)$/s);
+          const lead = match ? match[1] : null;
+          const body = match ? match[2].trim() : content;
+
+          const sourceTypeNames: Record<string, string> = {
+            news: "新闻",
+            policy: "政策",
+            sentiment: "舆情",
+            announcement: "公告",
+            financial: "财报"
+          };
+
+          return (
+            <div className="flash-detail-container">
+              <h2 className="flash-detail-title">{detail.title}</h2>
+              
+              <div className="flash-detail-meta">
+                <span className="flash-detail-meta-item" style={{ fontWeight: 600, color: 'var(--ll-accent)' }}>
+                  {detail.source_name}
+                </span>
+                <span className="flash-detail-meta-divider">|</span>
+                <span className="flash-detail-meta-item">
+                  <Tag size="small" style={{ margin: 0, fontSize: '11px', height: '18px', lineHeight: '16px' }}>
+                    {sourceTypeNames[detail.source_type] || detail.source_type}
+                  </Tag>
+                </span>
+                <span className="flash-detail-meta-divider">|</span>
+                <span className="flash-detail-meta-item">
+                  {formatTime(detail.publish_time)}
+                </span>
+              </div>
+
+              {lead ? (
+                <div className="flash-detail-lead">
+                  {lead}
+                </div>
+              ) : null}
+
+              <div className="flash-detail-body">
+                {body}
+              </div>
+
+              <div className="flash-detail-actions">
+                <Button 
+                  size="small"
+                  onClick={() => {
+                    navigator.clipboard.writeText(content);
+                    message.success("已复制正文");
+                  }}
+                >
+                  复制原文
+                </Button>
+                {detail.source_url ? (
+                  <Button 
+                    size="small" 
+                    type="primary" 
+                    href={detail.source_url} 
+                    target="_blank"
+                  >
+                    查看外部链接
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })() : null}
       </Drawer>
     </>
   );

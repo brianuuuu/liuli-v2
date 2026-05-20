@@ -35,7 +35,7 @@ export function AppLayout() {
 
   return (
     <Layout className="app-shell">
-      <Sider width={208} collapsedWidth={66} collapsed={collapsed} className="app-sider" theme="light">
+      <Sider width={208} collapsedWidth={56} collapsed={collapsed} className="app-sider" theme="light">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
             <img src="/favicon.svg" alt="logo" style={{ width: '100%', height: '100%' }} />
