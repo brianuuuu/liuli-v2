@@ -170,6 +170,11 @@ body {
   color: #607086;
 }
 
+.ant-layout-sider-collapsed .sider-footer {
+  left: 0;
+  right: 0;
+}
+
 .ant-layout-sider-collapsed .sider-footer .ant-btn {
   width: 38px;
   padding-inline: 0;
