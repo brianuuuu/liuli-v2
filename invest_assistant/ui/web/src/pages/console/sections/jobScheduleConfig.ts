@@ -8,6 +8,7 @@ export type JobScheduleFormValues = {
   execution_mode?: JobExecutionMode;
   schedule_kind?: JobScheduleKind;
   run_time?: string;
+  interval_minutes?: number;
   cron_expr?: string;
   allow_manual_run?: boolean;
   timeout_seconds?: number;
@@ -42,15 +43,24 @@ export function getIntervalCronValue(cronExpr?: string | null): string {
   return INTERVAL_CRON_PATTERN.test(cronExpr || "") ? String(cronExpr) : "*/30 * * * *";
 }
 
+export function getIntervalMinutesFromCron(cronExpr?: string | null): number {
+  const match = cronExpr?.match(INTERVAL_CRON_PATTERN);
+  if (!match) return 30;
+  const minutes = Number(match[1]);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 30;
+}
+
 export function getFormValuesFromJob(job: JobConfig): JobScheduleFormValues {
   if (job.config_json) {
     const config = job.config_json;
+    const cronExpr = typeof config.cron_expr === "string" ? config.cron_expr : undefined;
     return {
       enabled: config.enabled === true,
       execution_mode: config.execution_mode === "schedule" ? "schedule" : "manual",
       schedule_kind: config.schedule_kind === "interval" || config.schedule_kind === "custom" ? config.schedule_kind : "daily",
       run_time: typeof config.run_time === "string" ? config.run_time : "08:00",
-      cron_expr: typeof config.cron_expr === "string" ? config.cron_expr : undefined,
+      interval_minutes: getIntervalMinutesFromCron(cronExpr),
+      cron_expr: cronExpr,
       allow_manual_run: config.allow_manual_run === true,
       timeout_seconds: typeof config.timeout_seconds === "number" ? config.timeout_seconds : 300,
       max_retries: typeof config.max_retries === "number" ? config.max_retries : 0
@@ -65,6 +75,7 @@ export function getDefaultJobScheduleValues(): JobScheduleFormValues {
     execution_mode: "manual",
     schedule_kind: "daily",
     run_time: "08:00",
+    interval_minutes: 30,
     cron_expr: undefined,
     allow_manual_run: true,
     timeout_seconds: 300,
@@ -88,7 +99,10 @@ export function buildCronExpr(values: JobScheduleFormValues): string | null {
     const [hour = "08", minute = "00"] = (values.run_time || "08:00").split(":");
     return `${Number(minute)} ${Number(hour)} * * *`;
   }
-  if (values.schedule_kind === "interval") return values.cron_expr || "*/30 * * * *";
+  if (values.schedule_kind === "interval") {
+    const minutes = Number(values.interval_minutes);
+    return `*/${Number.isFinite(minutes) && minutes > 0 ? Math.floor(minutes) : 30} * * * *`;
+  }
   return values.cron_expr || null;
 }
 

@@ -14,7 +14,6 @@ import {
   getJobConfigEnabled,
   getDefaultJobScheduleValues,
   getFormValuesFromJob,
-  getIntervalCronValue,
   type JobScheduleFormValues
 } from "./jobScheduleConfig";
 
@@ -359,7 +358,6 @@ export function JobsSection() {
               >
                 <Switch checkedChildren="启用" unCheckedChildren="停用" />
               </Form.Item>
-              <span>{selectedJob?.module_name}</span>
             </div>
           </div>
 
@@ -376,7 +374,7 @@ export function JobsSection() {
                   if (value === "manual") {
                     editForm.setFieldsValue({ allow_manual_run: true, cron_expr: undefined });
                   } else {
-                    editForm.setFieldsValue({ schedule_kind: "daily", run_time: "08:00" });
+                    editForm.setFieldsValue({ schedule_kind: "daily", run_time: "08:00", interval_minutes: 30 });
                   }
                 }}
               />
@@ -393,7 +391,7 @@ export function JobsSection() {
                     ]}
                     onChange={(value) => {
                       if (value === "daily") editForm.setFieldValue("run_time", "08:00");
-                      if (value === "interval") editForm.setFieldValue("cron_expr", getIntervalCronValue(editForm.getFieldValue("cron_expr")));
+                      if (value === "interval") editForm.setFieldValue("interval_minutes", editForm.getFieldValue("interval_minutes") || 30);
                     }}
                   />
                 </Form.Item>
@@ -403,16 +401,12 @@ export function JobsSection() {
                   </Form.Item>
                 ) : null}
                 {scheduleKind === "interval" ? (
-                  <Form.Item name="cron_expr" label="间隔时间">
-                    <Segmented
-                      size="small"
-                      options={[
-                        { value: "*/5 * * * *", label: "每 5 分钟" },
-                        { value: "*/30 * * * *", label: "每 30 分钟" },
-                        { value: "0 * * * *", label: "每小时" }
-                      ]}
-                    />
-                  </Form.Item>
+                  <label className="job-config-inline-field job-config-interval-field">
+                    <span>间隔时间</span>
+                    <Form.Item name="interval_minutes" noStyle rules={[{ required: true, message: "请输入间隔分钟数" }]}>
+                      <InputNumber min={1} precision={0} addonAfter="分钟" style={{ width: "100%" }} />
+                    </Form.Item>
+                  </label>
                 ) : null}
                 {scheduleKind === "custom" ? (
                   <Form.Item
