@@ -101,6 +101,8 @@ export type Stock = {
   stock_code?: string | null;
   name?: string | null;
   stock_name?: string | null;
+  name_pinyin?: string | null;
+  name_abbr?: string | null;
   market?: string | null;
   exchange?: string | null;
   industry?: string | null;

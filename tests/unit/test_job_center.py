@@ -1,12 +1,15 @@
 import os
+import sys
 import tempfile
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 test_db_path = Path(tempfile.gettempdir()) / "liuli_test_job_center.sqlite3"
 os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path.as_posix()}"
 
 from fastapi.testclient import TestClient
+import pandas as pd
 
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
@@ -48,8 +51,13 @@ def test_manual_run_writes_pending_request():
     assert response.json()["status"] == "pending"
 
 
-def test_worker_consumes_pending_manual_run_request():
+def test_worker_consumes_pending_manual_run_request(monkeypatch):
     reset_db()
+    monkeypatch.setitem(
+        sys.modules,
+        "akshare",
+        SimpleNamespace(stock_info_a_code_name=lambda: pd.DataFrame([{"code": "000001", "name": "平安银行"}])),
+    )
     client = TestClient(create_app())
     headers = login_headers(client)
     client.post("/api/jobs/sync-definitions", headers=headers)
