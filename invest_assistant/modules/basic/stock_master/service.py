@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem, StockUpdate
 from invest_assistant.modules.market_radar.models import Tag
+import invest_assistant.modules.track_discovery.models  # noqa: F401
 
 
 @dataclass

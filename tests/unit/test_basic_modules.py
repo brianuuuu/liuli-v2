@@ -15,6 +15,7 @@ from invest_assistant.bootstrap.database import Base, SessionLocal, engine
 from invest_assistant.modules.basic.stock_master.jobs import sync_stock_basic_job
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.stock_master.service import build_a_stock_item
+from invest_assistant.modules.basic.system_config.models import SystemConfig
 from invest_assistant.modules.market_radar.models import Tag
 
 
@@ -77,14 +78,25 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     finally:
         db.close()
 
-    first_df = pd.DataFrame(
+    first_tushare_df = pd.DataFrame(
         [
-            {"code": "000001", "name": "平安银行"},
-            {"code": "600519", "name": "贵州茅台"},
-            {"code": "430047", "name": "诺思兰德"},
+            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"},
+            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
         ]
     )
-    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: first_df))
+    tushare_pro = SimpleNamespace(stock_basic=lambda **kwargs: first_tushare_df)
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: tushare_pro),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "akshare",
+        SimpleNamespace(stock_info_a_code_name=lambda: (_ for _ in ()).throw(AssertionError("AkShare fallback should not be called"))),
+    )
 
     result = sync_stock_basic_job()
 
@@ -92,7 +104,16 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     assert result.fetched_count == 3
     assert result.inserted_count == 3
     assert result.updated_count == 0
-    assert result.extra == {"total": 3, "inserted": 3, "updated": 0, "disabled": 1, "sse": 1, "szse": 1, "bj": 1}
+    assert result.extra == {
+        "total": 3,
+        "inserted": 3,
+        "updated": 0,
+        "disabled": 1,
+        "sse": 1,
+        "szse": 1,
+        "bj": 1,
+        "source": "tushare",
+    }
 
     db = SessionLocal()
     try:
@@ -112,14 +133,14 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     finally:
         db.close()
 
-    second_df = pd.DataFrame(
+    second_tushare_df = pd.DataFrame(
         [
-            {"code": "000001", "name": "平安银行A"},
-            {"code": "600519", "name": "贵州茅台"},
-            {"code": "430047", "name": "诺思兰德"},
+            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行A"},
+            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
         ]
     )
-    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: second_df))
+    tushare_pro.stock_basic = lambda **kwargs: second_tushare_df
 
     result = sync_stock_basic_job()
 
@@ -137,6 +158,68 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
         db.close()
 
 
+def test_sync_stock_basic_job_falls_back_to_akshare_when_tushare_fails(monkeypatch):
+    reset_db()
+    fallback_df = pd.DataFrame([{"code": "000001", "name": "平安银行"}])
+
+    def fail_tushare(**kwargs):
+        raise RuntimeError("tushare unavailable")
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=fail_tushare)),
+    )
+    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: fallback_df))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.extra["source"] == "akshare"
+    assert result.fetched_count == 1
+
+    db = SessionLocal()
+    try:
+        stock = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
+        assert stock.stock_name == "平安银行"
+    finally:
+        db.close()
+
+
+def test_sync_stock_basic_job_reads_tushare_token_from_system_config(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add(
+            SystemConfig(
+                config_key="tushare-token",
+                config_value="system-config-token",
+                config_type="string",
+                enabled=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    captured = {}
+    tushare_df = pd.DataFrame([{"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"}])
+
+    def pro_api(token=None):
+        captured["token"] = token
+        return SimpleNamespace(stock_basic=lambda **kwargs: tushare_df)
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token=""))
+    monkeypatch.setitem(sys.modules, "tushare", SimpleNamespace(set_token=lambda token: None, pro_api=pro_api))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.extra["source"] == "tushare"
+    assert captured["token"] == "system-config-token"
+
+
 def test_sync_stock_basic_job_failure_does_not_modify_existing_stocks(monkeypatch):
     reset_db()
     db = SessionLocal()
@@ -149,6 +232,12 @@ def test_sync_stock_basic_job_failure_does_not_modify_existing_stocks(monkeypatc
     def fail_fetch():
         raise RuntimeError("upstream unavailable")
 
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: fail_fetch())),
+    )
     monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=fail_fetch))
 
     result = sync_stock_basic_job()
@@ -175,6 +264,15 @@ def test_sync_stock_basic_job_empty_source_does_not_modify_existing_stocks(monke
     finally:
         db.close()
 
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(
+            set_token=lambda token: None,
+            pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: pd.DataFrame(columns=["ts_code", "symbol", "name"])),
+        ),
+    )
     monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: pd.DataFrame(columns=["code", "name"])))
 
     result = sync_stock_basic_job()

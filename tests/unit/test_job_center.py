@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import json
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,9 +14,13 @@ import pandas as pd
 
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunLog, JobRunRequest
+from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.job_center.service import sync_job_definitions
 from invest_assistant.modules.basic.job_center.scheduler import build_job_scheduler
+from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
+from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.job_center.worker import recover_stale_running_requests, run_once, sync_scheduled_jobs
 from invest_assistant.shared.time_utils import utc_now
 
@@ -53,6 +58,7 @@ def test_manual_run_writes_pending_request():
 
 def test_worker_consumes_pending_manual_run_request(monkeypatch):
     reset_db()
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token=""))
     monkeypatch.setitem(
         sys.modules,
         "akshare",
@@ -76,7 +82,40 @@ def test_worker_consumes_pending_manual_run_request(monkeypatch):
         assert request.finished_at is not None
         assert len(logs) == 1
         assert logs[0].trigger_type == "manual"
+        assert logs[0].fetched_count == 1
+        assert logs[0].inserted_count == 1
+        result = json.loads(logs[0].result_json)
+        assert result["extra"]["source"] == "akshare"
+        assert db.query(Stock).count() == 1
     finally:
+        db.close()
+
+
+def test_stock_sync_zero_count_success_is_recorded_as_failed(monkeypatch):
+    reset_db()
+
+    original_definition = JOB_REGISTRY["stock_master.sync_stock_basic"]
+    JOB_REGISTRY["stock_master.sync_stock_basic"] = JobDefinition(
+        job_name="stock_master.sync_stock_basic",
+        module_name="stock_master",
+        display_name="同步股票基础库",
+        description="legacy placeholder",
+        handler=lambda **kwargs: JobResult(success=True, message="stock sync is not implemented in phase 1"),
+        trigger_type="manual",
+    )
+    db = SessionLocal()
+    try:
+        result = execute_job(db, "stock_master.sync_stock_basic", {}, "manual")
+
+        assert result.success is False
+        assert "0 stocks" in result.message
+        log = db.query(JobRunLog).filter(JobRunLog.job_name == "stock_master.sync_stock_basic").one()
+        assert log.status == "failed"
+        assert log.fetched_count == 0
+        assert log.inserted_count == 0
+        assert db.query(Stock).count() == 0
+    finally:
+        JOB_REGISTRY["stock_master.sync_stock_basic"] = original_definition
         db.close()
 
 
