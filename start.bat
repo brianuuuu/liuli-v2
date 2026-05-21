@@ -32,11 +32,13 @@ if not exist "%WEB_DIR%\node_modules" (
 )
 
 start "Liuli API :8000" /D "%ROOT%" cmd /k python -m uvicorn invest_assistant.main:app --host 127.0.0.1 --port 8000
+start "Liuli Worker" /D "%ROOT%" cmd /k python -m invest_assistant.worker
 start "Liuli Web :5173" /D "%WEB_DIR%" cmd /k npm.cmd run dev -- --host 127.0.0.1 --port 5173
 
 echo.
 echo Liuli is starting:
 echo   API: http://127.0.0.1:8000/api/health
+echo   Worker: python -m invest_assistant.worker
 echo   Web: http://127.0.0.1:5173
 echo.
 echo Use stop.bat to stop processes listening on ports 8000 and 5173.

@@ -255,6 +255,10 @@ body {
   background: #f97316;
 }
 
+.status-danger i {
+  background: #ef4444;
+}
+
 .toolbar-item,
 .toolbar-button,
 .toolbar-icon {
