@@ -587,10 +587,10 @@ body {
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th {
-  background: var(--ll-panel-subtle);
+  background: var(--ll-panel);
   border-bottom-color: var(--ll-border);
-  color: var(--ll-muted);
-  font-weight: 600;
+  color: var(--ll-text);
+  font-weight: 700;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {

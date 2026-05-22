@@ -3,7 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { createSystemConfig, listSystemConfigs, updateSystemConfig } from "../../../api/systemConfig";
 import type { SystemConfig } from "../../../types/api";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
+import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { formatTime } from "./shared";
 
@@ -83,17 +83,17 @@ export function SystemConfigSection() {
 
   return (
     <>
-      <WorkbenchCard
-        title="系统配置"
-        extra={
-          <Space>
+      <DataPanel
+        toolbar={
+          <>
             <Select allowClear size="small" placeholder="模块" value={moduleFilter} options={modules} style={{ width: 160 }} onChange={setModuleFilter} />
+            <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增配置</Button>
-          </Space>
+          </>
         }
       >
         <Table rowKey="id" size="small" loading={configs.loading} dataSource={rows} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
-      </WorkbenchCard>
+      </DataPanel>
 
       <Modal title={editing ? "编辑配置" : "新增配置"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical" preserve={false}>
