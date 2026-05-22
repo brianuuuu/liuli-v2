@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
 from invest_assistant.bootstrap.database import Base
@@ -12,8 +13,11 @@ class Stock(Base):
     __table_args__ = (UniqueConstraint("stock_code", "exchange", name="uq_stock_code_exchange"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     stock_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     stock_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    name_pinyin: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    name_abbr: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     market: Mapped[str | None] = mapped_column(String(64), nullable=True)
     exchange: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
@@ -32,3 +36,18 @@ class StockAlias(Base):
     alias_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+def ensure_stock_master_schema(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(stock)")).all()}
+        additions = {
+            "symbol": "ALTER TABLE stock ADD COLUMN symbol VARCHAR(32)",
+            "name_pinyin": "ALTER TABLE stock ADD COLUMN name_pinyin VARCHAR(256)",
+            "name_abbr": "ALTER TABLE stock ADD COLUMN name_abbr VARCHAR(64)",
+        }
+        for column, statement in additions.items():
+            if column not in columns:
+                conn.execute(text(statement))

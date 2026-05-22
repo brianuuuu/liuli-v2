@@ -9,8 +9,11 @@ import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime } from "./shared";
 
 type StockFormValues = {
+  symbol?: string;
   stock_code: string;
   stock_name: string;
+  name_pinyin?: string;
+  name_abbr?: string;
   market?: string;
   exchange?: string;
   status?: string;
@@ -73,6 +76,9 @@ export function StocksSection() {
     form.setFieldsValue({
       stock_code: record.stock_code || record.symbol || "",
       stock_name: record.stock_name || record.name || "",
+      symbol: record.symbol || undefined,
+      name_pinyin: record.name_pinyin || undefined,
+      name_abbr: record.name_abbr || undefined,
       market: record.market || undefined,
       exchange: record.exchange || undefined,
       status: record.status || "active"
@@ -129,6 +135,7 @@ export function StocksSection() {
 
   const columns: ColumnsType<Stock> = [
     { title: "代码", dataIndex: "stock_code", width: 120, render: (value, record) => value || record.symbol || "-" },
+    { title: "统一代码", dataIndex: "symbol", width: 120, render: (value) => value || "-" },
     { title: "名称", dataIndex: "stock_name", render: (value, record) => value || record.name || "-" },
     { title: "市场", dataIndex: "market", width: 100, render: (value) => value || "-" },
     { title: "交易所", dataIndex: "exchange", width: 100, render: (value) => value || "-" },
@@ -154,7 +161,7 @@ export function StocksSection() {
             <Input.Search
               size="small"
               allowClear
-              placeholder="代码 / 名称"
+              placeholder="代码 / 名称 / 拼音"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               onSearch={doSearch}
@@ -177,6 +184,17 @@ export function StocksSection() {
           <Form.Item name="stock_name" label="股票名称" rules={[{ required: true, message: "请输入股票名称" }]}>
             <Input />
           </Form.Item>
+          <Form.Item name="symbol" label="统一代码">
+            <Input placeholder="例如 000001.SZ" />
+          </Form.Item>
+          <Space.Compact block>
+            <Form.Item name="name_pinyin" label="名称全拼" style={{ width: "50%" }}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="name_abbr" label="拼音缩写" style={{ width: "50%" }}>
+              <Input />
+            </Form.Item>
+          </Space.Compact>
           <Space.Compact block>
             <Form.Item name="market" label="市场" style={{ width: "50%" }}>
               <Input />

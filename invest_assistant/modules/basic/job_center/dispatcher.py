@@ -19,6 +19,21 @@ def _normalize_result(raw) -> JobResult:
     return JobResult(success=True, message=str(raw))
 
 
+def _validate_job_result(job_name: str, result: JobResult) -> JobResult:
+    if job_name == "stock_master.sync_stock_basic" and result.success and result.fetched_count <= 0:
+        return JobResult(
+            success=False,
+            message="stock sync returned success with 0 stocks fetched",
+            fetched_count=result.fetched_count,
+            processed_count=result.processed_count,
+            inserted_count=result.inserted_count,
+            updated_count=result.updated_count,
+            skipped_count=result.skipped_count,
+            extra=result.extra,
+        )
+    return result
+
+
 def execute_job(db: Session, job_name: str, params: dict | None = None, trigger_type: str = "manual") -> JobResult:
     definition = JOB_REGISTRY[job_name]
     params = params or {}
@@ -26,7 +41,7 @@ def execute_job(db: Session, job_name: str, params: dict | None = None, trigger_
     start = perf_counter()
     error_message = None
     try:
-        result = _normalize_result(definition.handler(**params))
+        result = _validate_job_result(job_name, _normalize_result(definition.handler(**params)))
     except Exception as exc:
         result = JobResult(success=False, message=str(exc))
         error_message = str(exc)

@@ -1,7 +1,22 @@
+import os
+import sys
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+import pandas as pd
 from fastapi.testclient import TestClient
 
+test_db_path = Path(tempfile.gettempdir()) / "liuli_test_basic_modules.sqlite3"
+os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path.as_posix()}"
+
 from invest_assistant.bootstrap.app import create_app
-from invest_assistant.bootstrap.database import Base, engine
+from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.stock_master.jobs import sync_stock_basic_job
+from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.basic.stock_master.service import build_a_stock_item
+from invest_assistant.modules.basic.system_config.models import SystemConfig
+from invest_assistant.modules.market_radar.models import Tag
 
 
 def reset_db():
@@ -24,9 +39,254 @@ def test_stock_import_and_search():
         headers=headers,
     )
     assert response.status_code == 200
+    assert response.json()[0]["symbol"] == "000001.SZ"
+    assert response.json()[0]["name_abbr"] == "payh"
     search = client.get("/api/stocks/search?keyword=平安", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"
+    search = client.get("/api/stocks/search?keyword=payh", headers=headers)
+    assert search.status_code == 200
+    assert search.json()[0]["stock_name"] == "平安银行"
+
+
+def test_build_a_stock_item_adds_symbol_market_and_pinyin():
+    item = build_a_stock_item("300750", "宁德时代")
+
+    assert item is not None
+    assert item.stock_code == "300750"
+    assert item.symbol == "300750.SZ"
+    assert item.exchange == "SZSE"
+    assert item.market == "GEM"
+    assert item.name_pinyin == "ningdeshidai"
+    assert item.name_abbr == "ndsd"
+
+
+def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        stale = Stock(
+            symbol="600000.SH",
+            stock_code="600000",
+            stock_name="浦发银行",
+            market="MAIN",
+            exchange="SSE",
+            status="active",
+        )
+        db.add(stale)
+        db.commit()
+    finally:
+        db.close()
+
+    first_tushare_df = pd.DataFrame(
+        [
+            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"},
+            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
+        ]
+    )
+    tushare_pro = SimpleNamespace(stock_basic=lambda **kwargs: first_tushare_df)
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: tushare_pro),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "akshare",
+        SimpleNamespace(stock_info_a_code_name=lambda: (_ for _ in ()).throw(AssertionError("AkShare fallback should not be called"))),
+    )
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.fetched_count == 3
+    assert result.inserted_count == 3
+    assert result.updated_count == 0
+    assert result.extra == {
+        "total": 3,
+        "inserted": 3,
+        "updated": 0,
+        "disabled": 1,
+        "sse": 1,
+        "szse": 1,
+        "bj": 1,
+        "source": "tushare",
+    }
+
+    db = SessionLocal()
+    try:
+        ping_an = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
+        assert ping_an.symbol == "000001.SZ"
+        assert ping_an.market == "MAIN"
+        assert ping_an.name_pinyin == "pinganyinhang"
+        assert ping_an.name_abbr == "payh"
+        assert ping_an.status == "active"
+
+        stale = db.query(Stock).filter(Stock.stock_code == "600000").one()
+        assert stale.status == "disabled"
+
+        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
+        assert tag.name == "平安银行"
+        assert tag.status == "active"
+    finally:
+        db.close()
+
+    second_tushare_df = pd.DataFrame(
+        [
+            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行A"},
+            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
+        ]
+    )
+    tushare_pro.stock_basic = lambda **kwargs: second_tushare_df
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.inserted_count == 0
+    assert result.updated_count == 3
+
+    db = SessionLocal()
+    try:
+        ping_an = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
+        assert ping_an.stock_name == "平安银行A"
+        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
+        assert tag.name == "平安银行A"
+    finally:
+        db.close()
+
+
+def test_sync_stock_basic_job_falls_back_to_akshare_when_tushare_fails(monkeypatch):
+    reset_db()
+    fallback_df = pd.DataFrame([{"code": "000001", "name": "平安银行"}])
+
+    def fail_tushare(**kwargs):
+        raise RuntimeError("tushare unavailable")
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=fail_tushare)),
+    )
+    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: fallback_df))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.extra["source"] == "akshare"
+    assert result.fetched_count == 1
+
+    db = SessionLocal()
+    try:
+        stock = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
+        assert stock.stock_name == "平安银行"
+    finally:
+        db.close()
+
+
+def test_sync_stock_basic_job_reads_tushare_token_from_system_config(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add(
+            SystemConfig(
+                config_key="tushare-token",
+                config_value="system-config-token",
+                config_type="string",
+                enabled=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    captured = {}
+    tushare_df = pd.DataFrame([{"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"}])
+
+    def pro_api(token=None):
+        captured["token"] = token
+        return SimpleNamespace(stock_basic=lambda **kwargs: tushare_df)
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token=""))
+    monkeypatch.setitem(sys.modules, "tushare", SimpleNamespace(set_token=lambda token: None, pro_api=pro_api))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is True
+    assert result.extra["source"] == "tushare"
+    assert captured["token"] == "system-config-token"
+
+
+def test_sync_stock_basic_job_failure_does_not_modify_existing_stocks(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add(Stock(symbol="000001.SZ", stock_code="000001", stock_name="平安银行", market="MAIN", exchange="SZSE"))
+        db.commit()
+    finally:
+        db.close()
+
+    def fail_fetch():
+        raise RuntimeError("upstream unavailable")
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: fail_fetch())),
+    )
+    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=fail_fetch))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is False
+    assert "upstream unavailable" in result.message
+
+    db = SessionLocal()
+    try:
+        stocks = db.query(Stock).all()
+        assert len(stocks) == 1
+        assert stocks[0].stock_name == "平安银行"
+        assert stocks[0].status == "active"
+    finally:
+        db.close()
+
+
+def test_sync_stock_basic_job_empty_source_does_not_modify_existing_stocks(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add(Stock(symbol="000001.SZ", stock_code="000001", stock_name="平安银行", market="MAIN", exchange="SZSE"))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
+    monkeypatch.setitem(
+        sys.modules,
+        "tushare",
+        SimpleNamespace(
+            set_token=lambda token: None,
+            pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: pd.DataFrame(columns=["ts_code", "symbol", "name"])),
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: pd.DataFrame(columns=["code", "name"])))
+
+    result = sync_stock_basic_job()
+
+    assert result.success is False
+    assert "empty" in result.message
+
+    db = SessionLocal()
+    try:
+        stocks = db.query(Stock).all()
+        assert len(stocks) == 1
+        assert stocks[0].status == "active"
+    finally:
+        db.close()
 
 
 def test_system_config_crud():

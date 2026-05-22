@@ -1,8 +1,28 @@
+import os
+import sys
+import tempfile
+import json
+from datetime import timedelta
+from pathlib import Path
+from types import SimpleNamespace
+
+test_db_path = Path(tempfile.gettempdir()) / "liuli_test_job_center.sqlite3"
+os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path.as_posix()}"
+
 from fastapi.testclient import TestClient
+import pandas as pd
 
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.job_center.dispatcher import execute_job
+from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunLog, JobRunRequest
+from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.job_center.service import sync_job_definitions
+from invest_assistant.modules.basic.job_center.scheduler import build_job_scheduler
+from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
+from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.basic.job_center.worker import recover_stale_running_requests, run_once, sync_scheduled_jobs
+from invest_assistant.shared.time_utils import utc_now
 
 
 def reset_db():
@@ -34,6 +54,157 @@ def test_manual_run_writes_pending_request():
     assert response.status_code == 200
     assert response.json()["job_name"] == "stock_master.sync_stock_basic"
     assert response.json()["status"] == "pending"
+
+
+def test_worker_consumes_pending_manual_run_request(monkeypatch):
+    reset_db()
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token=""))
+    monkeypatch.setitem(
+        sys.modules,
+        "akshare",
+        SimpleNamespace(stock_info_a_code_name=lambda: pd.DataFrame([{"code": "000001", "name": "平安银行"}])),
+    )
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post("/api/jobs/sync-definitions", headers=headers)
+    response = client.post("/api/jobs/stock_master.sync_stock_basic/run", json={"params": {}}, headers=headers)
+
+    assert response.status_code == 200
+    assert run_once() is True
+
+    db = SessionLocal()
+    try:
+        request = db.get(JobRunRequest, response.json()["id"])
+        logs = db.query(JobRunLog).filter(JobRunLog.job_name == "stock_master.sync_stock_basic").all()
+        assert request is not None
+        assert request.status == "success"
+        assert request.started_at is not None
+        assert request.finished_at is not None
+        assert len(logs) == 1
+        assert logs[0].trigger_type == "manual"
+        assert logs[0].fetched_count == 1
+        assert logs[0].inserted_count == 1
+        result = json.loads(logs[0].result_json)
+        assert result["extra"]["source"] == "akshare"
+        assert db.query(Stock).count() == 1
+    finally:
+        db.close()
+
+
+def test_stock_sync_zero_count_success_is_recorded_as_failed(monkeypatch):
+    reset_db()
+
+    original_definition = JOB_REGISTRY["stock_master.sync_stock_basic"]
+    JOB_REGISTRY["stock_master.sync_stock_basic"] = JobDefinition(
+        job_name="stock_master.sync_stock_basic",
+        module_name="stock_master",
+        display_name="同步股票基础库",
+        description="legacy placeholder",
+        handler=lambda **kwargs: JobResult(success=True, message="stock sync is not implemented in phase 1"),
+        trigger_type="manual",
+    )
+    db = SessionLocal()
+    try:
+        result = execute_job(db, "stock_master.sync_stock_basic", {}, "manual")
+
+        assert result.success is False
+        assert "0 stocks" in result.message
+        log = db.query(JobRunLog).filter(JobRunLog.job_name == "stock_master.sync_stock_basic").one()
+        assert log.status == "failed"
+        assert log.fetched_count == 0
+        assert log.inserted_count == 0
+        assert db.query(Stock).count() == 0
+    finally:
+        JOB_REGISTRY["stock_master.sync_stock_basic"] = original_definition
+        db.close()
+
+
+def test_worker_recovers_stale_running_request():
+    reset_db()
+    db = SessionLocal()
+    try:
+        sync_job_definitions(db)
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config.config_json = {**config.config_json, "timeout_seconds": 1}
+        request = JobRunRequest(
+            job_name="market_radar.fetch_news",
+            params_json="{}",
+            status="running",
+            started_at=utc_now() - timedelta(seconds=10),
+        )
+        db.add(request)
+        db.commit()
+
+        assert recover_stale_running_requests(db) == 1
+        db.refresh(request)
+        assert request.status == "failed"
+        assert request.finished_at is not None
+        assert request.error_message == "worker interrupted or timed out after 1 seconds"
+    finally:
+        db.close()
+
+
+def test_worker_registers_and_removes_enabled_schedule_jobs():
+    reset_db()
+    db = SessionLocal()
+    scheduler = build_job_scheduler()
+    try:
+        sync_job_definitions(db)
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config.config_json = {
+            "enabled": True,
+            "execution_mode": "schedule",
+            "schedule_kind": "interval",
+            "run_time": "08:00",
+            "cron_expr": "*/5 * * * *",
+            "allow_manual_run": True,
+            "timeout_seconds": 120,
+            "max_retries": 1,
+        }
+        db.commit()
+
+        sync_scheduled_jobs(scheduler, db)
+        scheduled = scheduler.get_job("job-center:market_radar.fetch_news")
+        assert scheduled is not None
+        assert scheduled.name == "*/5 * * * *"
+
+        config.config_json = {**config.config_json, "enabled": False}
+        db.commit()
+        sync_scheduled_jobs(scheduler, db)
+        assert scheduler.get_job("job-center:market_radar.fetch_news") is None
+    finally:
+        db.close()
+
+
+def test_worker_replaces_schedule_job_when_cron_changes():
+    reset_db()
+    db = SessionLocal()
+    scheduler = build_job_scheduler()
+    try:
+        sync_job_definitions(db)
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config.config_json = {
+            "enabled": True,
+            "execution_mode": "schedule",
+            "schedule_kind": "interval",
+            "run_time": "08:00",
+            "cron_expr": "*/5 * * * *",
+            "allow_manual_run": True,
+            "timeout_seconds": 120,
+            "max_retries": 1,
+        }
+        db.commit()
+        sync_scheduled_jobs(scheduler, db)
+
+        config.config_json = {**config.config_json, "cron_expr": "*/10 * * * *"}
+        db.commit()
+        sync_scheduled_jobs(scheduler, db)
+
+        scheduled = scheduler.get_job("job-center:market_radar.fetch_news")
+        assert scheduled is not None
+        assert scheduled.name == "*/10 * * * *"
+    finally:
+        db.close()
 
 
 def test_list_jobs_exposes_params_schema_for_friendly_web_forms():
