@@ -1,8 +1,7 @@
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   approveTagCandidate,
-  createMarketTag,
   disableMarketTag,
   listMarketTags,
   listTagCandidates,
@@ -28,33 +27,31 @@ export function TagsSection() {
 
   const filteredTags = typeFilter ? tags.data.filter((tag) => tag.type === typeFilter) : tags.data;
 
-  function openCreate() {
-    setEditing(null);
-    form.setFieldsValue({ type: "hotword", status: "active" });
-    setOpen(true);
-  }
+  useEffect(() => {
+    if (!open || !editing) return;
+    form.resetFields();
+    form.setFieldsValue({
+      name: String(editing.name ?? ""),
+      type: String(editing.type ?? "hotword"),
+      status: String(editing.status ?? "active")
+    });
+  }, [editing, form, open]);
 
   function openEdit(record: Record<string, unknown>) {
     setEditing(record);
-    form.setFieldsValue({
-      name: String(record.name ?? ""),
-      type: String(record.type ?? "hotword"),
-      status: String(record.status ?? "active")
-    });
     setOpen(true);
   }
 
   async function submit() {
+    if (!editing?.id) return;
     const values = await form.validateFields();
-    const payload = values;
-    if (editing?.id) {
-      await updateMarketTag(Number(editing.id), payload);
-      message.success("标签已更新");
-    } else {
-      await createMarketTag(payload);
-      message.success("标签已新增");
-    }
+    await updateMarketTag(Number(editing.id), {
+      name: values.name,
+      status: values.status
+    });
+    message.success("标签已更新");
     setOpen(false);
+    setEditing(null);
     await tags.refresh();
   }
 
@@ -83,7 +80,6 @@ export function TagsSection() {
               ]}
             />
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
           </>
         }
       >
@@ -113,13 +109,17 @@ export function TagsSection() {
         />
       </DataPanel>
 
-      <Modal title={editing ? "编辑标签" : "新增标签"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
+      <Modal title="编辑标签" open={open} onCancel={() => { setOpen(false); setEditing(null); }} onOk={submit} destroyOnHidden forceRender>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="标签名称" rules={[{ required: true, message: "请输入标签名称" }]}>
             <Input />
           </Form.Item>
           <Form.Item name="type" label="标签类型" rules={[{ required: true, message: "请选择标签类型" }]}>
-            <Select options={[{ value: "hotword", label: "热点词标签" }]} />
+            <Select disabled options={[
+              { value: "stock", label: "标的" },
+              { value: "track", label: "赛道" },
+              { value: "hotword", label: "热点词" }
+            ]} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]} />

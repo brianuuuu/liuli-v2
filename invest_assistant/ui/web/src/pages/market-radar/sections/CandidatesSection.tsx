@@ -18,6 +18,18 @@ type CandidateFormValues = {
   reason?: string;
 };
 
+const candidateStatusOptions = [
+  { value: "pending", label: "待审核" },
+  { value: "approved", label: "已通过" },
+  { value: "merged", label: "已合并" },
+  { value: "rejected", label: "已拒绝" }
+];
+
+function CandidateStatusTag({ status }: { status?: string }) {
+  const label = candidateStatusOptions.find((item) => item.value === status)?.label || status || "-";
+  return <StatusTag status={status} label={label} />;
+}
+
 export function CandidatesSection() {
   const candidates = useAsyncData(useCallback(listTagCandidates, []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("pending");
@@ -61,7 +73,7 @@ export function CandidatesSection() {
     { title: "建议类型", dataIndex: "suggested_type", width: 110, render: (value) => <TagTypeTag type={value} /> },
     { title: "触发词", dataIndex: "trigger_text", width: 120, render: (value) => value || "-" },
     { title: "置信度", dataIndex: "confidence", width: 90, render: (value) => Number(value || 0).toFixed(2) },
-    { title: "状态", dataIndex: "status", width: 100, render: (value) => <StatusTag status={value} /> },
+    { title: "状态", dataIndex: "status", width: 100, render: (value) => <CandidateStatusTag status={value} /> },
     { title: "原因", dataIndex: "reason", ellipsis: true },
     { title: "创建", dataIndex: "created_at", width: 160, render: formatTime },
     {
@@ -92,12 +104,7 @@ export function CandidatesSection() {
               value={statusFilter}
               style={{ width: 120 }}
               onChange={setStatusFilter}
-              options={[
-                { value: "pending", label: "pending" },
-                { value: "approved", label: "approved" },
-                { value: "merged", label: "merged" },
-                { value: "rejected", label: "rejected" }
-              ]}
+              options={candidateStatusOptions}
             />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增候选</Button>

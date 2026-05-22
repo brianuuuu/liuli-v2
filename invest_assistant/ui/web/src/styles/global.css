@@ -627,6 +627,12 @@ body {
   color: var(--ll-text);
 }
 
+.flash-filter-panel .ant-input-affix-wrapper,
+.flash-filter-panel .ant-select,
+.flash-filter-panel .ant-btn {
+  width: 100%;
+}
+
 .flash-toolbar {
   display: flex;
   align-items: center;
