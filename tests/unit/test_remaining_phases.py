@@ -6,6 +6,7 @@ from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar.models import TagHeatSnapshot
 from invest_assistant.shared.time_utils import utc_now
 
@@ -40,8 +41,7 @@ def test_stock_analysis_core_flow():
 
     tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
     assert tags.status_code == 200
-    assert tags.json()[0]["stock_id"] == stock_id
-    assert tags.json()[0]["name"] == "平安银行"
+    assert tags.json() == []
 
     note = client.post(
         f"/api/stock-analysis/stocks/{stock_id}/notes",
@@ -67,6 +67,10 @@ def test_stock_analysis_core_flow():
 
     pool = client.post("/api/stock-analysis/pool", json={"stock_id": stock_id, "status": "watching"}, headers=headers)
     assert pool.status_code == 200
+    tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
+    assert tags.status_code == 200
+    assert tags.json()[0]["stock_id"] == stock_id
+    assert tags.json()[0]["name"] == "平安银行"
 
     group = client.post(
         "/api/stock-analysis/compare-groups",
@@ -221,6 +225,11 @@ def test_portfolio_flow():
     )
     assert position.status_code == 200
     assert position.json()["group_id"] == group.json()["id"]
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
     review = client.post(
         f"/api/portfolios/{portfolio.json()['id']}/review",
         json={"title": "周复盘", "content": "仓位稳定", "risk_summary": "低"},

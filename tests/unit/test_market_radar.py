@@ -5,6 +5,7 @@ from invest_assistant.bootstrap.database import Base, SessionLocal, engine
 from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar import jobs as market_radar_jobs
 
 
@@ -32,7 +33,7 @@ def seed_stock() -> int:
 
 def test_market_radar_source_item_and_hotword_flow():
     reset_db()
-    stock_id = seed_stock()
+    seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
 
@@ -56,17 +57,25 @@ def test_market_radar_source_item_and_hotword_flow():
 
     stock_tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
     assert stock_tags.status_code == 200
-    assert stock_tags.json()[0]["stock_id"] == stock_id
-    assert stock_tags.json()[0]["track_id"] is None
+    assert stock_tags.json() == []
 
-    hotword = client.post(
-        "/api/market-radar/hotwords",
-        json={"name": "降息", "aliases": ["降准降息", "利率下行"], "status": "active"},
+    candidate = client.post(
+        "/api/market-radar/tag-candidates",
+        json={
+            "name": "降息",
+            "suggested_type": "hotword",
+            "source_item_id": source.json()["id"],
+            "trigger_text": "降息",
+            "confidence": 0.9,
+            "reason": "manual test",
+            "status": "pending",
+        },
         headers=headers,
-    )
-    assert hotword.status_code == 200
-    assert hotword.json()["tag"]["type"] == "hotword"
-    assert {item["alias"] for item in hotword.json()["aliases"]} == {"降准降息", "利率下行"}
+    ).json()
+    approved = client.post(f"/api/market-radar/tag-candidates/{candidate['id']}/approve", headers=headers)
+    assert approved.status_code == 200
+    hotword_tags = client.get("/api/market-radar/tags?type=hotword", headers=headers)
+    assert any(item["name"] == "降息" for item in hotword_tags.json())
 
 
 def test_rule_extraction_heat_and_graph_jobs():
@@ -74,18 +83,24 @@ def test_rule_extraction_heat_and_graph_jobs():
     stock_id = seed_stock()
     client = TestClient(create_app())
     headers = login_headers(client)
+    assert client.post("/api/stock-analysis/pool", json={"stock_id": stock_id, "status": "watching"}, headers=headers).status_code == 200
     track = client.post(
         "/api/track-discovery/tracks",
         json={"name": "AI算力", "description": "算力基础设施", "status": "active"},
         headers=headers,
     )
     assert track.status_code == 200
-    hotword = client.post(
-        "/api/market-radar/hotwords",
-        json={"name": "降息", "aliases": [], "status": "active"},
+    source_for_candidate = client.post(
+        "/api/market-radar/source-items",
+        json={"source_type": "news", "source_name": "manual", "title": "候选词", "content": "降息", "publish_time": "2026-05-13T09:00:00"},
         headers=headers,
-    )
-    assert hotword.status_code == 200
+    ).json()
+    candidate = client.post(
+        "/api/market-radar/tag-candidates",
+        json={"name": "降息", "suggested_type": "hotword", "source_item_id": source_for_candidate["id"], "trigger_text": "降息", "confidence": 0.8},
+        headers=headers,
+    ).json()
+    assert client.post(f"/api/market-radar/tag-candidates/{candidate['id']}/approve", headers=headers).status_code == 200
     assert (
         client.post(
             "/api/market-radar/source-items",
@@ -212,3 +227,22 @@ def test_tag_candidate_approve_reject_and_merge():
 
     tags = client.get("/api/market-radar/tags?type=track", headers=headers)
     assert any(item["name"] == "机器人" for item in tags.json())
+
+
+def test_direct_hotword_creation_is_not_allowed():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    response = client.post(
+        "/api/market-radar/hotwords",
+        json={"name": "普通市场词", "aliases": [], "status": "active"},
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "hotword").count() == 0
+    finally:
+        db.close()

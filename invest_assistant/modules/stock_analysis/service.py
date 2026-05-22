@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.stock_analysis.models import (
     StockCompareGroup,
     StockPoolItem,
@@ -27,11 +28,13 @@ def create_pool_item(db: Session, payload: StockPoolCreate) -> StockPoolItem:
         existing.reason = payload.reason
         db.commit()
         db.refresh(existing)
+        ensure_stock_tag(db, existing.stock_id)
         return existing
     item = StockPoolItem(**payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
+    ensure_stock_tag(db, item.stock_id)
     return item
 
 

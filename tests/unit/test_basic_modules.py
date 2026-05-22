@@ -45,6 +45,11 @@ def test_stock_import_and_search():
     search = client.get("/api/stocks/search?keyword=平安", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
 
 
 def test_stock_list_exposes_and_replaces_aliases():
@@ -71,6 +76,17 @@ def test_stock_list_exposes_and_replaces_aliases():
     search = client.get("/api/stocks/search?keyword=payh", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"
+    edit = client.put(
+        f"/api/stocks/{stock['id']}",
+        json={"stock_name": "平安银行A", "status": "active"},
+        headers=headers,
+    )
+    assert edit.status_code == 200
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
 
 
 def test_build_a_stock_item_adds_symbol_market_and_pinyin():
@@ -85,7 +101,7 @@ def test_build_a_stock_item_adds_symbol_market_and_pinyin():
     assert item.name_abbr == "ndsd"
 
 
-def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch):
+def test_sync_stock_basic_job_upserts_and_does_not_create_stock_tags(monkeypatch):
     reset_db()
     db = SessionLocal()
     try:
@@ -142,9 +158,7 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
         stale = db.query(Stock).filter(Stock.stock_code == "600000").one()
         assert stale.status == "disabled"
 
-        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
-        assert tag.name == "平安银行"
-        assert tag.status == "active"
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
     finally:
         db.close()
 
@@ -165,8 +179,7 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     try:
         ping_an = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
         assert ping_an.stock_name == "平安银行A"
-        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
-        assert tag.name == "平安银行A"
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
     finally:
         db.close()
 

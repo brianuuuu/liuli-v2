@@ -339,8 +339,7 @@ def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
         track = create_track(db, TrackCreate(name=candidate.name, status="candidate"))
         candidate.target_tag_id = track["tag"]["id"] if track.get("tag") else None
     else:
-        tag = create_tag(db, TagCreate(name=candidate.name, type=candidate.suggested_type, status="active"))
-        candidate.target_tag_id = tag.id
+        candidate.target_tag_id = None
     candidate.status = "approved"
     db.commit()
     db.refresh(candidate)

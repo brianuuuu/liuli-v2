@@ -118,7 +118,6 @@ def import_stocks(db: Session, items: list[StockImportItem]) -> list[Stock]:
     db.commit()
     for stock in result:
         db.refresh(stock)
-        sync_stock_tag(db, stock)
     return result
 
 
@@ -133,7 +132,6 @@ def sync_a_stock_basics(db: Session, items: list[StockImportItem]) -> StockSyncR
     seen_keys = set(normalized_by_key.keys())
     inserted = 0
     updated = 0
-    result_stocks: list[Stock] = []
 
     for item in normalized_items:
         stock = db.scalar(select(Stock).where(Stock.stock_code == item.stock_code, Stock.exchange == item.exchange))
@@ -144,7 +142,6 @@ def sync_a_stock_basics(db: Session, items: list[StockImportItem]) -> StockSyncR
         else:
             updated += 1
         _apply_stock_item(stock, item, "active")
-        result_stocks.append(stock)
 
     disabled = 0
     existing_a_stocks = list(db.scalars(select(Stock).where(Stock.exchange.in_(["SSE", "SZSE", "BJ"]))))
@@ -153,11 +150,7 @@ def sync_a_stock_basics(db: Session, items: list[StockImportItem]) -> StockSyncR
             continue
         stock.status = "disabled"
         disabled += 1
-        result_stocks.append(stock)
 
-    db.flush()
-    for stock in result_stocks:
-        sync_stock_tag(db, stock, commit=False)
     db.commit()
     return StockSyncResult(
         total=len(normalized_items),
@@ -228,7 +221,6 @@ def update_stock(db: Session, stock: Stock, payload: StockUpdate) -> Stock:
         setattr(stock, key, value)
     db.commit()
     db.refresh(stock)
-    sync_stock_tag(db, stock)
     return stock
 
 
@@ -267,7 +259,10 @@ def replace_aliases(db: Session, stock_id: int, aliases: list[dict]) -> list[Sto
     return result
 
 
-def sync_stock_tag(db: Session, stock: Stock, commit: bool = True) -> Tag:
+def ensure_stock_tag(db: Session, stock_id: int, commit: bool = True) -> Tag:
+    stock = db.get(Stock, stock_id)
+    if stock is None:
+        raise ValueError("stock not found")
     tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock.id))
     if tag is None:
         tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.name == stock.stock_name))

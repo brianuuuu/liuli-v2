@@ -70,9 +70,7 @@ def list_tags(type: str | None = None, db: Session = Depends(get_db)) -> list:
 
 @router.post("/tags", response_model=TagRead)
 def create_tag(payload: TagCreate, db: Session = Depends(get_db)):
-    if payload.type != "hotword":
-        raise HTTPException(status_code=400, detail="stock and track tags are system projections")
-    return service.create_tag(db, payload)
+    raise HTTPException(status_code=400, detail="tags are system projections; approve candidates to create hotwords")
 
 
 @router.get("/tags/{tag_id}", response_model=TagRead)
@@ -106,7 +104,7 @@ def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
 
 @router.post("/hotwords", response_model=HotwordRead)
 def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
-    return service.create_hotword(db, payload)
+    raise HTTPException(status_code=400, detail="approve a hotword candidate to create hotword tags")
 
 
 @router.get("/hotwords/aliases", response_model=list[HotwordAliasRead])
