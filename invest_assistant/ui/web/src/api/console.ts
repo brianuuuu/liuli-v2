@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { DataSourceStatus } from "../types/api";
 
 export type SystemStatus = {
   api: string;
@@ -15,8 +16,8 @@ export async function getDashboard(): Promise<Record<string, string>> {
   return response.data;
 }
 
-export async function getDataSources(): Promise<Record<string, string>[]> {
-  const response = await apiClient.get<Record<string, string>[]>("/api/console/data-sources");
+export async function getDataSources(): Promise<DataSourceStatus[]> {
+  const response = await apiClient.get<DataSourceStatus[]>("/api/console/data-sources");
   return response.data;
 }
 

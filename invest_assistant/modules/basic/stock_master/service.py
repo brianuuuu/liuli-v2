@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
@@ -170,8 +170,30 @@ def sync_a_stock_basics(db: Session, items: list[StockImportItem]) -> StockSyncR
     )
 
 
+def stock_to_dict(db: Session, stock: Stock) -> dict:
+    aliases = list_aliases(db, stock.id)
+    return {
+        "id": stock.id,
+        "symbol": stock.symbol,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "name_pinyin": stock.name_pinyin,
+        "name_abbr": stock.name_abbr,
+        "market": stock.market,
+        "exchange": stock.exchange,
+        "status": stock.status,
+        "created_at": stock.created_at,
+        "updated_at": stock.updated_at,
+        "aliases": aliases,
+    }
+
+
 def list_stocks(db: Session, limit: int = 100, offset: int = 0) -> list[Stock]:
     return list(db.scalars(select(Stock).order_by(Stock.id.desc()).limit(limit).offset(offset)))
+
+
+def list_stock_records(db: Session, limit: int = 100, offset: int = 0) -> list[dict]:
+    return [stock_to_dict(db, stock) for stock in list_stocks(db, limit=limit, offset=offset)]
 
 
 def get_stock(db: Session, stock_id: int) -> Stock | None:
@@ -197,6 +219,10 @@ def search_stocks(db: Session, keyword: str) -> list[Stock]:
     )
 
 
+def search_stock_records(db: Session, keyword: str) -> list[dict]:
+    return [stock_to_dict(db, stock) for stock in search_stocks(db, keyword)]
+
+
 def update_stock(db: Session, stock: Stock, payload: StockUpdate) -> Stock:
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(stock, key, value)
@@ -216,6 +242,29 @@ def create_alias(db: Session, stock_id: int, alias: str, alias_type: str | None,
     db.commit()
     db.refresh(item)
     return item
+
+
+def replace_aliases(db: Session, stock_id: int, aliases: list[dict]) -> list[StockAlias]:
+    db.execute(delete(StockAlias).where(StockAlias.stock_id == stock_id))
+    result = []
+    seen = set()
+    for raw_alias in aliases:
+        alias = str(raw_alias.get("alias") or "").strip()
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        item = StockAlias(
+            stock_id=stock_id,
+            alias=alias,
+            alias_type=raw_alias.get("alias_type"),
+            source=raw_alias.get("source"),
+        )
+        db.add(item)
+        result.append(item)
+    db.commit()
+    for item in result:
+        db.refresh(item)
+    return result
 
 
 def sync_stock_tag(db: Session, stock: Stock, commit: bool = True) -> Tag:

@@ -109,6 +109,17 @@ export type Stock = {
   status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  aliases?: StockAlias[];
+};
+
+export type DataSourceStatus = {
+  key: string;
+  name: string;
+  module: string;
+  provider: string;
+  record_count: number;
+  status?: string | null;
+  last_sync_at?: string | null;
 };
 
 export type StockAlias = {

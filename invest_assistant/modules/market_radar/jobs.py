@@ -2,20 +2,11 @@ from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
+from invest_assistant.services.akshare.client import fetch_cls_news_rows
 
 
 def _fetch_cls_rows(limit: int) -> list[dict]:
-    try:
-        import akshare as ak
-    except Exception as exc:
-        raise RuntimeError(f"akshare is unavailable: {exc}") from exc
-
-    try:
-        df = ak.stock_info_global_cls(symbol="全部")
-    except Exception as exc:
-        raise RuntimeError(f"failed to fetch CLS news: {exc}") from exc
-
-    return [dict(row) for _, row in df.head(max(int(limit), 1)).iterrows()]
+    return fetch_cls_news_rows(limit)
 
 
 def _normalize_cls_row(row: dict) -> SourceItemCreate | None:

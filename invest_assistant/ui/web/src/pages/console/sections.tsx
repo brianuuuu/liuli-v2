@@ -3,6 +3,7 @@ import { getAiLogs } from "../../api/console";
 import { RecordTable } from "../../components/common/RecordTable";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { DisclosuresSection } from "./sections/DisclosuresSection";
+import { DataSourcesSection } from "./sections/DataSourcesSection";
 import { JobsSection } from "./sections/JobsSection";
 import { ReportsSection } from "./sections/ReportsSection";
 import { StatusSection } from "./sections/StatusSection";
@@ -33,7 +34,7 @@ function AiLogsSection() {
 export function ConsoleSections({ activeTab }: { activeTab: string }) {
   if (activeTab === "status") return <StatusSection />;
   if (activeTab === "jobs") return <JobsSection />;
-  if (activeTab === "data-sources") return <StatusSection />;
+  if (activeTab === "data-sources") return <DataSourcesSection />;
   if (activeTab === "tags") return <TagsSection />;
   if (activeTab === "reports") return <ReportsSection />;
   if (activeTab === "disclosures") return <DisclosuresSection />;
