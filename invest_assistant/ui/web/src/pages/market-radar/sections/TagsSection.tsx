@@ -1,7 +1,7 @@
-import { Button, Drawer, Form, Input, Modal, Select, Table, message } from "antd";
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { createHotword, getTagTrend, listMarketTags } from "../../../api/marketRadar";
+import { createHotword, disableMarketTag, getTagTrend, listMarketTags } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -37,7 +37,7 @@ function parseAliases(value?: string) {
 
 export function TagsSection() {
   const tags = useAsyncData(useCallback(() => listMarketTags("hotword"), []), []);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
   const [selected, setSelected] = useState<MarketTag | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
@@ -77,11 +77,28 @@ export function TagsSection() {
     }
   }
 
+  async function disableHotword(record: MarketTag) {
+    await disableMarketTag(record.id);
+    message.success("热点词已停用");
+    await tags.refresh();
+  }
+
   const columns: ColumnsType<MarketTag> = [
     { title: "名称", dataIndex: "name" },
     { title: "状态", dataIndex: "status", width: 100, render: (value) => <HotwordStatusTag status={value} /> },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
-    { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
+    {
+      title: "操作",
+      width: 150,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => showTrend(record)}>查看</Button>
+          <Popconfirm title="删除这个热点词？" onConfirm={() => disableHotword(record)}>
+            <Button size="small" danger disabled={record.status === "disabled"}>删除</Button>
+          </Popconfirm>
+        </Space>
+      )
+    }
   ];
 
   return (

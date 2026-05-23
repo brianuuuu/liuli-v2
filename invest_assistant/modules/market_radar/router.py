@@ -104,7 +104,7 @@ def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
 
 @router.post("/hotwords", response_model=HotwordRead)
 def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
-    raise HTTPException(status_code=400, detail="approve a hotword candidate to create hotword tags")
+    return service.create_hotword(db, payload)
 
 
 @router.get("/hotwords/aliases", response_model=list[HotwordAliasRead])

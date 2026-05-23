@@ -229,20 +229,25 @@ def test_tag_candidate_approve_reject_and_merge():
     assert any(item["name"] == "机器人" for item in tags.json())
 
 
-def test_direct_hotword_creation_is_not_allowed():
+def test_direct_hotword_creation_creates_tag_and_aliases():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
 
     response = client.post(
         "/api/market-radar/hotwords",
-        json={"name": "普通市场词", "aliases": [], "status": "active"},
+        json={"name": "普通市场词", "aliases": ["市场词", "普通词"], "status": "active"},
         headers=headers,
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tag"]["name"] == "普通市场词"
+    assert payload["tag"]["type"] == "hotword"
+    assert payload["tag"]["status"] == "active"
+    assert {item["alias"] for item in payload["aliases"]} == {"市场词", "普通词"}
     db = SessionLocal()
     try:
-        assert db.query(Tag).filter(Tag.type == "hotword").count() == 0
+        assert db.query(Tag).filter(Tag.type == "hotword").count() == 1
     finally:
         db.close()
