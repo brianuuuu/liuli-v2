@@ -1,6 +1,6 @@
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { changeTrackStatus, createTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -23,25 +23,34 @@ export function ThesesSection() {
   const [statusOpen, setStatusOpen] = useState<Track | null>(null);
   const [form] = Form.useForm<TrackFormValues>();
   const [statusForm] = Form.useForm<{ new_status: string; reason?: string }>();
+  const statusButtons = [{ value: undefined, label: "全部" }, ...thesisStatusOptions];
 
   const rows = useMemo(
     () => tracks.data.filter((item) => !statusFilter || item.status === statusFilter),
     [tracks.data, statusFilter]
   );
 
+  useEffect(() => {
+    if (!open) return;
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue({
+        name: editing.name,
+        description: editing.description || undefined,
+        status: editing.status
+      });
+    } else {
+      form.setFieldsValue({ status: "candidate" });
+    }
+  }, [editing, form, open]);
+
   function openCreate() {
     setEditing(null);
-    form.setFieldsValue({ status: "candidate" });
     setOpen(true);
   }
 
   function openEdit(record: Track) {
     setEditing(record);
-    form.setFieldsValue({
-      name: record.name,
-      description: record.description || undefined,
-      status: record.status
-    });
     setOpen(true);
   }
 
@@ -109,7 +118,18 @@ export function ThesesSection() {
       <DataPanel
         toolbar={
           <>
-            <Select allowClear size="small" placeholder="状态" value={statusFilter} options={thesisStatusOptions} style={{ width: 120 }} onChange={setStatusFilter} />
+            <Space size={4} className="toolbar-status-buttons">
+              {statusButtons.map((item) => (
+                <Button
+                  key={item.value || "all"}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增赛道</Button>
           </>
@@ -126,7 +146,7 @@ export function ThesesSection() {
         />
       </DataPanel>
 
-      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={760}>
+      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => { setOpen(false); setEditing(null); }} onOk={submit} destroyOnHidden forceRender width={760}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />

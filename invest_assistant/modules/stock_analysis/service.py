@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.stock_analysis.models import (
     StockCompareGroup,
@@ -8,6 +9,7 @@ from invest_assistant.modules.stock_analysis.models import (
     StockResearchNote,
     StockScoreSnapshot,
     StockTrackRelation,
+    StockValuationSnapshot,
 )
 from invest_assistant.modules.track_discovery.models import Track
 from invest_assistant.modules.stock_analysis.schemas import (
@@ -20,30 +22,112 @@ from invest_assistant.modules.stock_analysis.schemas import (
 )
 
 
-def create_pool_item(db: Session, payload: StockPoolCreate) -> StockPoolItem:
+def create_pool_item(db: Session, payload: StockPoolCreate) -> dict:
     existing = db.scalar(select(StockPoolItem).where(StockPoolItem.stock_id == payload.stock_id))
     if existing:
         existing.status = payload.status
         existing.source = payload.source
         existing.reason = payload.reason
+        _sync_stock_track_relations(db, existing.stock_id, payload.track_ids)
         db.commit()
         db.refresh(existing)
         ensure_stock_tag(db, existing.stock_id)
-        return existing
-    item = StockPoolItem(**payload.model_dump())
+        return _pool_item_dict(db, existing)
+    item = StockPoolItem(**payload.model_dump(exclude={"track_ids"}))
     db.add(item)
+    _sync_stock_track_relations(db, item.stock_id, payload.track_ids)
     db.commit()
     db.refresh(item)
     ensure_stock_tag(db, item.stock_id)
-    return item
+    return _pool_item_dict(db, item)
 
 
-def list_pool(db: Session) -> list[StockPoolItem]:
-    return list(db.scalars(select(StockPoolItem).order_by(StockPoolItem.updated_at.desc())))
+def update_pool_item(db: Session, pool_id: int, payload: StockPoolCreate) -> dict | None:
+    item = db.get(StockPoolItem, pool_id)
+    if item is None:
+        return None
+    item.status = payload.status
+    item.source = payload.source
+    item.reason = payload.reason
+    _sync_stock_track_relations(db, item.stock_id, payload.track_ids)
+    db.commit()
+    db.refresh(item)
+    ensure_stock_tag(db, item.stock_id)
+    return _pool_item_dict(db, item)
 
 
-def list_candidates(db: Session) -> list[StockPoolItem]:
-    return list(db.scalars(select(StockPoolItem).where(StockPoolItem.status == "candidate").order_by(StockPoolItem.updated_at.desc())))
+def list_pool(db: Session) -> list[dict]:
+    rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .order_by(StockPoolItem.updated_at.desc())
+    ).all()
+    return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
+
+
+def list_candidates(db: Session) -> list[dict]:
+    rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .where(StockPoolItem.status == "candidate")
+        .order_by(StockPoolItem.updated_at.desc())
+    ).all()
+    return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
+
+
+def _pool_item_dict(db: Session, item: StockPoolItem) -> dict:
+    stock = db.get(Stock, item.stock_id)
+    return _pool_item_dict_from_stock(db, item, stock)
+
+
+def _pool_item_dict_from_stock(db: Session, item: StockPoolItem, stock: Stock | None) -> dict:
+    tracks = _active_track_summaries_for_stock(db, item.stock_id)
+    return {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "status": item.status,
+        "source": item.source,
+        "reason": item.reason,
+        "track_ids": [track["id"] for track in tracks],
+        "tracks": tracks,
+        "symbol": stock.symbol if stock else None,
+        "stock_code": stock.stock_code if stock else None,
+        "stock_name": stock.stock_name if stock else None,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def _active_track_summaries_for_stock(db: Session, stock_id: int) -> list[dict]:
+    rows = db.execute(
+        select(Track)
+        .join(StockTrackRelation, StockTrackRelation.track_id == Track.id)
+        .where(StockTrackRelation.stock_id == stock_id, StockTrackRelation.status == "active")
+        .order_by(Track.name)
+    ).scalars()
+    return [_track_dict(track) for track in rows]
+
+
+def _sync_stock_track_relations(db: Session, stock_id: int, track_ids: list[int]) -> None:
+    selected_ids = set(dict.fromkeys(track_ids))
+    if selected_ids:
+        valid_ids = set(
+            db.scalars(select(Track.id).where(Track.id.in_(selected_ids), Track.status != "archived")).all()
+        )
+        missing_ids = selected_ids - valid_ids
+        if missing_ids:
+            raise ValueError("track not found or archived")
+    relations = list(db.scalars(select(StockTrackRelation).where(StockTrackRelation.stock_id == stock_id)))
+    relation_by_track = {relation.track_id: relation for relation in relations}
+    for track_id, relation in relation_by_track.items():
+        if relation.status == "active" and track_id not in selected_ids:
+            relation.status = "disabled"
+    for track_id in selected_ids:
+        relation = relation_by_track.get(track_id)
+        if relation is None:
+            db.add(StockTrackRelation(stock_id=stock_id, track_id=track_id, status="active"))
+        else:
+            relation.status = "active"
 
 
 def create_note(db: Session, stock_id: int, payload: StockResearchNoteCreate) -> StockResearchNote:
@@ -68,6 +152,128 @@ def create_score(db: Session, stock_id: int, payload: StockScoreSnapshotCreate) 
 
 def list_scores(db: Session, stock_id: int) -> list[StockScoreSnapshot]:
     return list(db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.stock_id == stock_id).order_by(StockScoreSnapshot.score_date.desc())))
+
+
+def list_score_comparison(db: Session) -> list[dict]:
+    rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .order_by(StockPoolItem.updated_at.desc())
+    ).all()
+    return [_score_comparison_dict(db, item, stock) for item, stock in rows]
+
+
+def _score_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> dict:
+    score = db.scalar(
+        select(StockScoreSnapshot)
+        .where(StockScoreSnapshot.stock_id == item.stock_id)
+        .order_by(StockScoreSnapshot.score_date.desc(), StockScoreSnapshot.id.desc())
+        .limit(1)
+    )
+    row = {
+        "stock_id": item.stock_id,
+        "symbol": stock.symbol,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "tracks": _active_track_summaries_for_stock(db, item.stock_id),
+        "score_id": None,
+        "score_date": None,
+        "track_id": None,
+        "growth_score": None,
+        "valuation_score": None,
+        "moat_score": None,
+        "risk_score": None,
+        "total_score": None,
+        "created_at": None,
+    }
+    if score is None:
+        return row
+    row.update(
+        {
+            "score_id": score.id,
+            "score_date": score.score_date,
+            "track_id": score.track_id,
+            "growth_score": score.growth_score,
+            "valuation_score": score.valuation_score,
+            "moat_score": score.moat_score,
+            "risk_score": score.risk_score,
+            "total_score": score.total_score,
+            "created_at": score.created_at,
+        }
+    )
+    return row
+
+
+def list_valuation_comparison(db: Session) -> list[dict]:
+    rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .order_by(StockPoolItem.updated_at.desc())
+    ).all()
+    return [_valuation_comparison_dict(db, item, stock) for item, stock in rows]
+
+
+def _valuation_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> dict:
+    valuation = db.scalar(
+        select(StockValuationSnapshot)
+        .where(StockValuationSnapshot.stock_id == item.stock_id)
+        .order_by(StockValuationSnapshot.analysis_date.desc(), StockValuationSnapshot.id.desc())
+        .limit(1)
+    )
+    row = {
+        "stock_id": item.stock_id,
+        "symbol": stock.symbol,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "tracks": _active_track_summaries_for_stock(db, item.stock_id),
+        "valuation_id": None,
+        "company": None,
+        "company_code": None,
+        "report_period": None,
+        "report_release_date": None,
+        "current_market_value": None,
+        "financial_performance_json": None,
+        "trend_reference_json": None,
+        "guidance_check_json": None,
+        "quarter_performance": None,
+        "quarter_main_reason": None,
+        "profit_model_json": None,
+        "fcf_model_json": None,
+        "revenue_model_json": None,
+        "primary_model": None,
+        "expected_market_value_3y": None,
+        "expectation_gap_rate": None,
+        "analysis_date": None,
+        "researcher": None,
+        "created_at": None,
+    }
+    if valuation is None:
+        return row
+    row.update(
+        {
+            "valuation_id": valuation.id,
+            "company": valuation.company,
+            "company_code": valuation.company_code,
+            "report_period": valuation.report_period,
+            "report_release_date": valuation.report_release_date,
+            "current_market_value": valuation.current_market_value,
+            "financial_performance_json": valuation.financial_performance_json,
+            "trend_reference_json": valuation.trend_reference_json,
+            "guidance_check_json": valuation.guidance_check_json,
+            "quarter_performance": valuation.quarter_performance,
+            "quarter_main_reason": valuation.quarter_main_reason,
+            "profit_model_json": valuation.profit_model_json,
+            "fcf_model_json": valuation.fcf_model_json,
+            "revenue_model_json": valuation.revenue_model_json,
+            "primary_model": valuation.primary_model,
+            "expected_market_value_3y": valuation.expected_market_value_3y,
+            "expectation_gap_rate": valuation.expectation_gap_rate,
+            "analysis_date": valuation.analysis_date,
+            "researcher": valuation.researcher,
+            "created_at": valuation.created_at,
+        }
+    )
+    return row
 
 
 def create_compare_group(db: Session, payload: StockCompareGroupCreate) -> StockCompareGroup:
@@ -165,6 +371,5 @@ def _track_dict(track: Track) -> dict:
     return {
         "id": track.id,
         "name": track.name,
-        "description": track.description,
         "status": track.status,
     }

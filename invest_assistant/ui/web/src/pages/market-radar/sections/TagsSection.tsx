@@ -17,6 +17,17 @@ type HotwordFormValues = {
   status: string;
 };
 
+const hotwordStatusOptions = [
+  { value: "active", label: "启用" },
+  { value: "candidate", label: "候选" },
+  { value: "disabled", label: "停用" }
+];
+
+function HotwordStatusTag({ status }: { status?: string }) {
+  const label = hotwordStatusOptions.find((item) => item.value === status)?.label || status || "-";
+  return <StatusTag status={status} label={label} />;
+}
+
 function parseAliases(value?: string) {
   return (value || "")
     .split(/[\n,，、]/)
@@ -68,7 +79,7 @@ export function TagsSection() {
 
   const columns: ColumnsType<MarketTag> = [
     { title: "名称", dataIndex: "name" },
-    { title: "状态", dataIndex: "status", width: 100, render: (value) => <StatusTag status={value} /> },
+    { title: "状态", dataIndex: "status", width: 100, render: (value) => <HotwordStatusTag status={value} /> },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
     { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
   ];
@@ -85,7 +96,7 @@ export function TagsSection() {
               value={statusFilter}
               style={{ width: 110 }}
               onChange={setStatusFilter}
-              options={[{ value: "active", label: "active" }, { value: "candidate", label: "candidate" }, { value: "disabled", label: "disabled" }]}
+              options={hotwordStatusOptions}
             />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
@@ -112,7 +123,7 @@ export function TagsSection() {
             <Input.TextArea rows={3} placeholder="多个别名用逗号或换行分隔" />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
-            <Select options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]} />
+            <Select options={hotwordStatusOptions.filter((item) => item.value !== "candidate")} />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,6 +1,6 @@
 import { Button, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   changeTrackStatus,
@@ -68,13 +68,18 @@ export function TrackDetailPage() {
   const [evidenceForm] = Form.useForm<EvidenceFormValues>();
   const [stockForm] = Form.useForm<RelatedStockFormValues>();
 
-  function openEdit() {
-    if (!track.data) return;
+  useEffect(() => {
+    if (!editOpen || !track.data) return;
+    editForm.resetFields();
     editForm.setFieldsValue({
       name: track.data.name,
       description: track.data.description || undefined,
       status: track.data.status
     });
+  }, [editForm, editOpen, track.data]);
+
+  function openEdit() {
+    if (!track.data) return;
     setEditOpen(true);
   }
 
@@ -260,7 +265,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
       </Space>
 
-      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden width={760}>
+      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden forceRender width={760}>
         <Form form={editForm} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />

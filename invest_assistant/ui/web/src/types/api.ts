@@ -315,6 +315,11 @@ export type TrackRelatedStock = {
 export type StockPoolItem = {
   id: number;
   stock_id: number;
+  symbol?: string | null;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  track_ids?: number[];
+  tracks?: Pick<Track, "id" | "name" | "status">[];
   status: string;
   source?: string | null;
   reason?: string | null;
@@ -343,6 +348,51 @@ export type StockScoreSnapshot = {
   moat_score: number;
   risk_score: number;
   total_score: number;
+  created_at?: string | null;
+};
+
+export type StockScoreComparisonItem = {
+  stock_id: number;
+  symbol?: string | null;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  score_id?: number | null;
+  score_date?: string | null;
+  track_id?: number | null;
+  growth_score?: number | null;
+  valuation_score?: number | null;
+  moat_score?: number | null;
+  risk_score?: number | null;
+  total_score?: number | null;
+  created_at?: string | null;
+};
+
+export type StockValuationComparisonItem = {
+  stock_id: number;
+  symbol?: string | null;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  valuation_id?: number | null;
+  company?: string | null;
+  company_code?: string | null;
+  report_period?: string | null;
+  report_release_date?: string | null;
+  current_market_value?: number | null;
+  financial_performance_json?: string | null;
+  trend_reference_json?: string | null;
+  guidance_check_json?: string | null;
+  quarter_performance?: string | null;
+  quarter_main_reason?: string | null;
+  profit_model_json?: string | null;
+  fcf_model_json?: string | null;
+  revenue_model_json?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
   created_at?: string | null;
 };
 

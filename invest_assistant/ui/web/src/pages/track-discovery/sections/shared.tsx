@@ -10,10 +10,9 @@ export const trackWindowOptions = [
 
 export const thesisStatusOptions = [
   { value: "candidate", label: "候选" },
-  { value: "watching", label: "观察中" },
-  { value: "validated", label: "已验证" },
-  { value: "rejected", label: "已拒绝" },
-  { value: "archived", label: "已归档" }
+  { value: "active", label: "跟踪中" },
+  { value: "paused", label: "暂停观察" },
+  { value: "archived", label: "归档" }
 ];
 
 export const confidenceOptions = [
@@ -28,7 +27,7 @@ export function formatTime(value?: string | null) {
 }
 
 export function StatusTag({ status }: { status?: string | null }) {
-  const color = status === "validated" ? "green" : status === "rejected" ? "red" : status === "archived" ? "default" : "blue";
+  const color = status === "active" ? "green" : status === "paused" ? "gold" : status === "archived" ? "default" : "blue";
   const label = thesisStatusOptions.find((item) => item.value === status)?.label || status || "未知";
   return <Tag color={color}>{label}</Tag>;
 }

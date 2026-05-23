@@ -579,6 +579,31 @@ body {
   flex: 1;
 }
 
+.toolbar-status-buttons {
+  flex-wrap: wrap;
+}
+
+.data-panel-toolbar .toolbar-filter-button {
+  min-width: 46px;
+  padding-inline: 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ll-muted);
+}
+
+.data-panel-toolbar .toolbar-filter-button:hover {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-text);
+}
+
+.data-panel-toolbar .toolbar-filter-button.active,
+.data-panel-toolbar .toolbar-filter-button.active:hover {
+  border-color: var(--ll-border-soft);
+  background: var(--ll-accent-soft);
+  color: var(--ll-accent);
+}
+
 /* ── Global table styles (standalone tables outside DataPanel) ── */
 .ant-table-wrapper .ant-table {
   border: 1px solid var(--ll-border);
@@ -599,6 +624,80 @@ body {
 
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
   background: var(--ll-panel-subtle);
+}
+
+.stock-pool-target-link {
+  display: grid;
+  gap: 2px;
+  color: var(--ll-text);
+}
+
+.stock-pool-target-link:hover .stock-pool-target-name {
+  color: var(--ll-accent);
+}
+
+.stock-pool-target-name {
+  font-weight: 600;
+}
+
+.stock-pool-target-meta {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-compare-track-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stock-compare-track-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+  color: var(--ll-text);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.stock-compare-track-button:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: var(--ll-panel-subtle);
+}
+
+.stock-compare-track-button.active {
+  border-color: var(--ll-accent);
+  background: var(--ll-accent-soft);
+  box-shadow: 0 0 0 2px rgba(5, 122, 255, 0.06);
+}
+
+.stock-compare-track-name {
+  max-width: 62%;
+  overflow: hidden;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--ll-accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-compare-track-count {
+  padding: 2px 8px;
+  border: 1px solid var(--ll-border);
+  border-radius: 999px;
+  background: var(--ll-panel-subtle);
+  color: var(--ll-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .flash-layout {

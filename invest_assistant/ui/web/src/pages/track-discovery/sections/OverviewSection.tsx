@@ -16,10 +16,10 @@ export function OverviewSection() {
         <WorkbenchCard><Statistic title="赛道总数" value={tracks.data.length} loading={tracks.loading} /></WorkbenchCard>
       </Col>
       <Col span={6}>
-        <WorkbenchCard><Statistic title="候选赛道" value={candidate} loading={tracks.loading} /></WorkbenchCard>
+        <WorkbenchCard><Statistic title="候选" value={candidate} loading={tracks.loading} /></WorkbenchCard>
       </Col>
       <Col span={6}>
-        <WorkbenchCard><Statistic title="活跃赛道" value={active} loading={tracks.loading} /></WorkbenchCard>
+        <WorkbenchCard><Statistic title="跟踪中" value={active} loading={tracks.loading} /></WorkbenchCard>
       </Col>
       <Col span={6}>
         <WorkbenchCard><Statistic title="归档赛道" value={archived} loading={tracks.loading} /></WorkbenchCard>

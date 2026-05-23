@@ -11,11 +11,13 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockPoolRead,
     StockResearchNoteCreate,
     StockResearchNoteRead,
+    StockScoreComparisonRead,
     StockScoreSnapshotCreate,
     StockScoreSnapshotRead,
     StockTrackRelationCreate,
     StockTrackRelationRead,
     StockTrackRelationUpdate,
+    StockValuationComparisonRead,
 )
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
@@ -28,12 +30,21 @@ def list_pool(db: Session = Depends(get_db)) -> list:
 
 @router.post("/pool", response_model=StockPoolRead)
 def create_pool_item(payload: StockPoolCreate, db: Session = Depends(get_db)):
-    return service.create_pool_item(db, payload)
+    try:
+        return service.create_pool_item(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/pool/{pool_id}", response_model=StockPoolRead)
 def update_pool_item(pool_id: int, payload: StockPoolCreate, db: Session = Depends(get_db)):
-    return service.create_pool_item(db, payload)
+    try:
+        item = service.update_pool_item(db, pool_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if item is None:
+        raise HTTPException(status_code=404, detail="pool item not found")
+    return item
 
 
 @router.get("/candidates", response_model=list[StockPoolRead])
@@ -64,6 +75,16 @@ def list_scores(stock_id: int, db: Session = Depends(get_db)) -> list:
 @router.post("/stocks/{stock_id}/scores", response_model=StockScoreSnapshotRead)
 def create_score(stock_id: int, payload: StockScoreSnapshotCreate, db: Session = Depends(get_db)):
     return service.create_score(db, stock_id, payload)
+
+
+@router.get("/score-comparison", response_model=list[StockScoreComparisonRead])
+def list_score_comparison(db: Session = Depends(get_db)) -> list:
+    return service.list_score_comparison(db)
+
+
+@router.get("/valuation-comparison", response_model=list[StockValuationComparisonRead])
+def list_valuation_comparison(db: Session = Depends(get_db)) -> list:
+    return service.list_valuation_comparison(db)
 
 
 @router.get("/compare-groups", response_model=list[StockCompareGroupRead])
