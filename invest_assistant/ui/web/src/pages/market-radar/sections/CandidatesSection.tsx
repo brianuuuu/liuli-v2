@@ -1,7 +1,15 @@
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { approveTagCandidate, createTagCandidate, listMarketTags, listTagCandidates, mergeTagCandidate, rejectTagCandidate } from "../../../api/marketRadar";
+import {
+  approveTagCandidate,
+  createTagCandidate,
+  listMarketTags,
+  listTagCandidates,
+  mergeTagCandidate,
+  promoteTagCandidateToTrack,
+  rejectTagCandidate
+} from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { StatusTag } from "../../../components/common/StatusTag";
@@ -75,6 +83,12 @@ export function CandidatesSection() {
     await candidates.refresh();
   }
 
+  async function promoteToTrack(record: TagCandidate) {
+    await promoteTagCandidateToTrack(record.id);
+    message.success("候选已转为赛道");
+    await candidates.refresh();
+  }
+
   async function handleAction(action: "approve" | "reject" | "merge", record: TagCandidate) {
     const id = record.id;
     if (action === "approve") await approveTagCandidate(id);
@@ -125,6 +139,7 @@ export function CandidatesSection() {
         return (
           <Space>
             <Button size="small" disabled={disabled} onClick={() => handleAction("approve", record)}>通过</Button>
+            <Button size="small" disabled={disabled} onClick={() => promoteToTrack(record)}>转赛道</Button>
             <Button size="small" disabled={disabled} onClick={() => handleAction("merge", record)}>合并</Button>
             <Button size="small" danger disabled={disabled} onClick={() => handleAction("reject", record)}>拒绝</Button>
           </Space>

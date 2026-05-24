@@ -162,6 +162,17 @@ def approve_candidate(candidate_id: int, db: Session = Depends(get_db)):
     return service.approve_candidate(db, candidate)
 
 
+@router.post("/tag-candidates/{candidate_id}/promote-track", response_model=TagCandidateRead)
+def promote_candidate_to_track(candidate_id: int, db: Session = Depends(get_db)):
+    candidate = service.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    try:
+        return service.promote_candidate_to_track(db, candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/tag-candidates/{candidate_id}/reject", response_model=TagCandidateRead)
 def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)

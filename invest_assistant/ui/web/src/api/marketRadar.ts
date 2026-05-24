@@ -116,6 +116,11 @@ export async function approveTagCandidate(candidateId: number): Promise<TagCandi
   return response.data;
 }
 
+export async function promoteTagCandidateToTrack(candidateId: number): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/promote-track`);
+  return response.data;
+}
+
 export async function rejectTagCandidate(candidateId: number): Promise<TagCandidate> {
   const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/reject`);
   return response.data;

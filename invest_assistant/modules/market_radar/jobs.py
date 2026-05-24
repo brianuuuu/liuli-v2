@@ -7,11 +7,13 @@ from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
+from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB_NAME
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCandidateCreate
+from invest_assistant.modules.track_discovery.models import Track, TrackAlias
 from invest_assistant.services.akshare.client import fetch_cls_news_rows
 from invest_assistant.services.deepseek import client as deepseek_client
 from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
@@ -163,14 +165,34 @@ def _today_news_payload(db, target_date: date, max_items: int) -> list[dict]:
 
 
 def _normalized_existing_hotword_names(db) -> set[str]:
-    names = {
+    tag_names = {
         str(name).strip().casefold()
-        for name in db.scalars(select(Tag.name).where(Tag.type == "hotword", Tag.status != "disabled"))
+        for name in db.scalars(select(Tag.name).where(Tag.type.in_(["hotword", "track"]), Tag.status != "disabled"))
         if str(name).strip()
     }
-    aliases = {
+    track_names = {
+        str(name).strip().casefold()
+        for name in db.scalars(select(Track.name).where(Track.status != "disabled"))
+        if str(name).strip()
+    }
+    stock_names = {
+        str(name).strip().casefold()
+        for name in db.scalars(select(Stock.stock_name).where(Stock.status != "disabled"))
+        if str(name).strip()
+    }
+    hotword_aliases = {
         str(alias).strip().casefold()
         for alias in db.scalars(select(HotwordAlias.alias).where(HotwordAlias.status != "disabled"))
+        if str(alias).strip()
+    }
+    track_aliases = {
+        str(alias).strip().casefold()
+        for alias in db.scalars(select(TrackAlias.alias).where(TrackAlias.status != "disabled"))
+        if str(alias).strip()
+    }
+    stock_aliases = {
+        str(alias).strip().casefold()
+        for alias in db.scalars(select(StockAlias.alias))
         if str(alias).strip()
     }
     candidates = {
@@ -178,12 +200,11 @@ def _normalized_existing_hotword_names(db) -> set[str]:
         for name in db.scalars(
             select(TagCandidate.name).where(
                 TagCandidate.suggested_type == "hotword",
-                TagCandidate.status.in_(("pending", "approved", "merged")),
             )
         )
         if str(name).strip()
     }
-    return names | aliases | candidates
+    return tag_names | track_names | stock_names | hotword_aliases | track_aliases | stock_aliases | candidates
 
 
 def _existing_hotword_merge_options(db) -> list[dict]:

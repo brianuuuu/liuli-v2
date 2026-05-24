@@ -7,9 +7,11 @@ from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
 from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
 from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
 from invest_assistant.modules.market_radar import jobs as market_radar_jobs
+from invest_assistant.modules.track_discovery.models import Track, TrackAlias
 from invest_assistant.shared.time_utils import utc_now
 
 
@@ -263,6 +265,90 @@ def test_tag_candidate_approve_reject_and_merge():
 
     tags = client.get("/api/market-radar/tags?type=track", headers=headers)
     assert any(item["name"] == "机器人" for item in tags.json())
+
+
+def test_tag_candidate_promote_track_creates_track_from_hotword_candidate():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    candidate = client.post(
+        "/api/market-radar/tag-candidates",
+        json={"name": "商业航天", "suggested_type": "hotword", "trigger_text": "商业航天", "status": "pending"},
+        headers=headers,
+    ).json()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate['id']}/promote-track", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "approved"
+    assert payload["suggested_type"] == "hotword"
+    assert payload["target_tag_id"] is not None
+    db = SessionLocal()
+    try:
+        track = db.query(Track).filter(Track.name == "商业航天").one()
+        track_tag = db.query(Tag).filter(Tag.type == "track", Tag.track_id == track.id).one()
+        assert track.status == "candidate"
+        assert track_tag.id == payload["target_tag_id"]
+        assert db.query(Tag).filter(Tag.type == "hotword", Tag.name == "商业航天").count() == 0
+    finally:
+        db.close()
+
+
+def test_tag_candidate_promote_track_rejects_duplicate_track_name_without_updating_candidate():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        db.add(Track(name="商业航天", status="active"))
+        db.add(TagCandidate(name="商业航天", suggested_type="hotword", trigger_text="商业航天", status="pending"))
+        db.commit()
+        candidate = db.query(TagCandidate).filter(TagCandidate.name == "商业航天").one()
+        candidate_id = candidate.id
+    finally:
+        db.close()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/promote-track", headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "track name already exists"
+    db = SessionLocal()
+    try:
+        candidate = db.get(TagCandidate, candidate_id)
+        assert candidate.status == "pending"
+        assert candidate.target_tag_id is None
+        assert db.query(Track).filter(Track.name == "商业航天").count() == 1
+    finally:
+        db.close()
+
+
+def test_tag_candidate_promote_track_rejects_non_pending_candidate():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        candidate = TagCandidate(name="商业航天", suggested_type="hotword", trigger_text="商业航天", status="rejected")
+        db.add(candidate)
+        db.commit()
+        candidate_id = candidate.id
+    finally:
+        db.close()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/promote-track", headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "candidate is not pending"
+    db = SessionLocal()
+    try:
+        assert db.get(TagCandidate, candidate_id).status == "rejected"
+        assert db.query(Track).filter(Track.name == "商业航天").count() == 0
+    finally:
+        db.close()
 
 
 def test_tag_candidate_merge_uses_suggested_target_and_creates_hotword_alias():
@@ -558,6 +644,48 @@ def test_deepseek_daily_hotword_job_ignores_low_similarity_merge_suggestions(mon
     assert candidate.merge_reason is None
 
 
+def test_deepseek_daily_hotword_job_skips_existing_rejected_candidate(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        seed_deepseek_hotword_prompt(db)
+        seed_deepseek_merge_prompt(db)
+        db.add(TagCandidate(name="重庆洪涝", suggested_type="hotword", trigger_text="重庆洪涝", status="rejected"))
+        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="重庆洪涝和商业航天", publish_time=utc_now()))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.extract_hotwords",
+        lambda news, prompt, model: {
+            "hotwords": [
+                {"name": "重庆洪涝", "score": 6, "reason": "重复候选。"},
+                {"name": "商业航天", "score": 7, "reason": "产业热度升温。"},
+            ],
+            "usage": {},
+        },
+    )
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.suggest_hotword_merges",
+        lambda candidates, existing_hotwords, prompt, model: {"suggestions": [], "usage": {}},
+    )
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    db = SessionLocal()
+    try:
+        candidates = db.query(TagCandidate).order_by(TagCandidate.name.asc(), TagCandidate.id.asc()).all()
+    finally:
+        db.close()
+
+    assert result.success is True
+    assert result.inserted_count == 1
+    assert result.skipped_count == 1
+    assert result.message == "created 1 hotword candidates"
+    assert [(candidate.name, candidate.status) for candidate in candidates] == [("商业航天", "pending"), ("重庆洪涝", "rejected")]
+
+
 def test_deepseek_merge_suggestion_failure_does_not_fail_hotword_job(monkeypatch):
     reset_db()
     db = SessionLocal()
@@ -603,13 +731,28 @@ def test_deepseek_daily_hotword_job_filters_existing_tags_aliases_and_candidates
     db = SessionLocal()
     try:
         existing = Tag(name="AI算力", type="hotword", status="active")
+        track_tag = Tag(name="存储", type="track", status="active")
         alias_tag = Tag(name="机器人", type="hotword", status="active")
-        db.add_all([existing, alias_tag])
+        db.add_all([existing, track_tag, alias_tag])
         db.flush()
+        track = Track(name="存储", status="active")
+        stock = Stock(stock_code="000001", stock_name="平安银行", market="A股", exchange="SZSE", status="active")
+        db.add_all([track, stock])
+        db.flush()
+        db.add(TrackAlias(track_id=track.id, alias="HBM", source="manual", status="active"))
+        db.add(StockAlias(stock_id=stock.id, alias="平银", alias_type="short_name", source="manual"))
         seed_deepseek_hotword_prompt(db)
         db.add(HotwordAlias(tag_id=alias_tag.id, alias="人形机器人", source="manual", status="active"))
         db.add(TagCandidate(name="低空经济", suggested_type="hotword", trigger_text="低空经济", status="pending"))
-        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="AI算力 人形机器人 低空经济", publish_time=utc_now()))
+        db.add(
+            SourceItem(
+                source_type="news",
+                source_name="财联社",
+                title="今日新闻",
+                content="AI算力 存储 HBM 平安银行 平银 人形机器人 低空经济",
+                publish_time=utc_now(),
+            )
+        )
         db.commit()
     finally:
         db.close()
@@ -619,6 +762,10 @@ def test_deepseek_daily_hotword_job_filters_existing_tags_aliases_and_candidates
         lambda news, prompt, model: {
             "hotwords": [
                 {"name": "AI算力", "score": 9, "reason": "已有正式标签。"},
+                {"name": "存储", "score": 9, "reason": "已有赛道标签。"},
+                {"name": "HBM", "score": 9, "reason": "已有赛道别名。"},
+                {"name": "平安银行", "score": 9, "reason": "已有标的。"},
+                {"name": "平银", "score": 9, "reason": "已有标的别名。"},
                 {"name": "人形机器人", "score": 8, "reason": "已有别名。"},
                 {"name": "低空经济", "score": 7, "reason": "已有候选。"},
             ],

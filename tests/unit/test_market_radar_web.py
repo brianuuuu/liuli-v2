@@ -100,3 +100,13 @@ def test_candidate_merge_ui_supports_deepseek_suggestions_and_manual_target():
     assert "mergeTagCandidate(candidateId: number, targetTagId?: number" in api
     assert "suggested_target_tag_id?: number | null" in types
     assert "merge_similarity?: number | null" in types
+
+
+def test_candidate_ui_exposes_promote_track_action():
+    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
+
+    assert "promoteTagCandidateToTrack" in section
+    assert "转赛道" in section
+    assert "候选已转为赛道" in section
+    assert "promote-track" in api

@@ -445,6 +445,27 @@ def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
+def promote_candidate_to_track(db: Session, candidate: TagCandidate) -> TagCandidate:
+    if candidate.status != "pending":
+        raise ValueError("candidate is not pending")
+
+    from invest_assistant.modules.track_discovery.models import Track
+    from invest_assistant.modules.track_discovery.schemas import TrackCreate
+    from invest_assistant.modules.track_discovery.service import create_track
+
+    name = candidate.name.strip()
+    existing = db.scalar(select(Track).where(func.lower(Track.name) == name.lower()))
+    if existing is not None:
+        raise ValueError("track name already exists")
+
+    track = create_track(db, TrackCreate(name=name, status="candidate"))
+    candidate.target_tag_id = track["tag"]["id"] if track.get("tag") else None
+    candidate.status = "approved"
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 def reject_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     candidate.status = "rejected"
     db.commit()
