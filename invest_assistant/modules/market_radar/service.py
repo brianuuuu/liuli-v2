@@ -473,6 +473,15 @@ def reject_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
+def restore_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+    if candidate.status != "rejected":
+        raise ValueError("candidate is not rejected")
+    candidate.status = "pending"
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None) -> TagCandidate:
     resolved_target_id = target_tag_id or candidate.suggested_target_tag_id
     if resolved_target_id is None:

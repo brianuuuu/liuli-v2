@@ -110,3 +110,17 @@ def test_candidate_ui_exposes_promote_track_action():
     assert "转赛道" in section
     assert "候选已转为赛道" in section
     assert "promote-track" in api
+
+
+def test_candidate_ui_uses_status_specific_actions():
+    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
+
+    assert 'title: "操作"' in section
+    assert 'if (!statusFilter) return "-";' in section
+    assert 'record.status === "approved" || record.status === "merged"' in section
+    assert 'statusFilter === "rejected"' in section
+    assert "恢复" in section
+    assert "候选已恢复待审核" in section
+    assert "restoreTagCandidate" in section
+    assert "restore" in api

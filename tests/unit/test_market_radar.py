@@ -351,6 +351,56 @@ def test_tag_candidate_promote_track_rejects_non_pending_candidate():
         db.close()
 
 
+def test_tag_candidate_restore_rejected_candidate_to_pending():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        candidate = TagCandidate(name="商业航天", suggested_type="hotword", trigger_text="商业航天", status="rejected")
+        db.add(candidate)
+        db.commit()
+        candidate_id = candidate.id
+    finally:
+        db.close()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/restore", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    db = SessionLocal()
+    try:
+        assert db.get(TagCandidate, candidate_id).status == "pending"
+    finally:
+        db.close()
+
+
+def test_tag_candidate_restore_rejects_non_rejected_candidate():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        candidate = TagCandidate(name="商业航天", suggested_type="hotword", trigger_text="商业航天", status="pending")
+        db.add(candidate)
+        db.commit()
+        candidate_id = candidate.id
+    finally:
+        db.close()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/restore", headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "candidate is not rejected"
+    db = SessionLocal()
+    try:
+        assert db.get(TagCandidate, candidate_id).status == "pending"
+    finally:
+        db.close()
+
+
 def test_tag_candidate_merge_uses_suggested_target_and_creates_hotword_alias():
     reset_db()
     client = TestClient(create_app())

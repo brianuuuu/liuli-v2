@@ -1,4 +1,4 @@
-import { Button, Drawer, Select, Table } from "antd";
+import { Button, Drawer, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import { getTagTrend, listRankings, type RankingType, type RankingWindow } from "../../../api/marketRadar";
@@ -45,8 +45,31 @@ export function RankingsSection() {
       <DataPanel
         toolbar={
           <>
-            <Select size="small" value={type} options={rankingTypeOptions} style={{ width: 110 }} onChange={setType} />
-            <Select size="small" value={window} options={windowOptions} style={{ width: 90 }} onChange={setWindow} />
+            <Space size={4} className="toolbar-status-buttons">
+              {rankingTypeOptions.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={type === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setType(item.value as RankingType)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
+            <div className="data-panel-toolbar-divider" />
+            <Space size={4} className="toolbar-status-buttons">
+              {windowOptions.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={window === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setWindow(item.value as RankingWindow)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
             <div className="data-panel-toolbar-spacer" />
           </>
         }

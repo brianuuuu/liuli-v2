@@ -48,6 +48,7 @@ export function TagsSection() {
     () => tags.data.filter((item) => !statusFilter || item.status === statusFilter),
     [tags.data, statusFilter]
   );
+  const statusButtons = [{ value: undefined, label: "全部" }, ...hotwordStatusOptions];
 
   function openCreate() {
     form.setFieldsValue({ status: "active" });
@@ -106,15 +107,18 @@ export function TagsSection() {
       <DataPanel
         toolbar={
           <>
-            <Select
-              allowClear
-              size="small"
-              placeholder="状态"
-              value={statusFilter}
-              style={{ width: 110 }}
-              onChange={setStatusFilter}
-              options={hotwordStatusOptions}
-            />
+            <Space size={4} className="toolbar-status-buttons">
+              {statusButtons.map((item) => (
+                <Button
+                  key={item.value || "all"}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
           </>

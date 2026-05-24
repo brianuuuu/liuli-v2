@@ -181,6 +181,17 @@ def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
     return service.reject_candidate(db, candidate)
 
 
+@router.post("/tag-candidates/{candidate_id}/restore", response_model=TagCandidateRead)
+def restore_candidate(candidate_id: int, db: Session = Depends(get_db)):
+    candidate = service.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    try:
+        return service.restore_candidate(db, candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/tag-candidates/{candidate_id}/merge", response_model=TagCandidateRead)
 def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)

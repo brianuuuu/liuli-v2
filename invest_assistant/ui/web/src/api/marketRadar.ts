@@ -126,6 +126,11 @@ export async function rejectTagCandidate(candidateId: number): Promise<TagCandid
   return response.data;
 }
 
+export async function restoreTagCandidate(candidateId: number): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/restore`);
+  return response.data;
+}
+
 export async function mergeTagCandidate(candidateId: number, targetTagId?: number): Promise<TagCandidate> {
   const response = await apiClient.post<TagCandidate>(
     `/api/market-radar/tag-candidates/${candidateId}/merge`,
