@@ -1,4 +1,4 @@
-import { Button, Input, Segmented, Table } from "antd";
+import { Button, Input, Segmented, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -8,6 +8,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockScoreComparisonItem, StockValuationComparisonItem, Track } from "../../../types/api";
+import { poolStatusOptions } from "./shared";
 
 export function CompareSection() {
   const comparison = useAsyncData(useCallback(listStockScoreComparison, []), []);
@@ -15,6 +16,7 @@ export function CompareSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [activeTab, setActiveTab] = useState("score");
   const [trackFilter, setTrackFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [searchText, setSearchText] = useState("");
 
   const visibleTracks = useMemo(
@@ -23,6 +25,23 @@ export function CompareSection() {
   );
 
   const activeSourceRows = activeTab === "score" ? comparison.data : valuation.data;
+
+  const statusButtons = useMemo(() => {
+    const counts = activeSourceRows.reduce((acc, item) => {
+      if (item.status) {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    return [
+      { value: undefined, label: `全部 (${activeSourceRows.length})` },
+      ...poolStatusOptions.map((opt) => ({
+        value: opt.value,
+        label: `${opt.label} (${counts[opt.value] || 0})`
+      }))
+    ];
+  }, [activeSourceRows]);
   const activeTrackCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const item of activeSourceRows) {
@@ -33,11 +52,23 @@ export function CompareSection() {
     return counts;
   }, [activeSourceRows]);
 
+  const trackSelectOptions = useMemo(() => {
+    return visibleTracks.map((track) => ({
+      label: `${track.name} (${activeTrackCounts.get(track.id) || 0})`,
+      value: `track:${track.id}`
+    }));
+  }, [visibleTracks, activeTrackCounts]);
+
   const selectedTrackName = useMemo(() => {
     if (!trackFilter.startsWith("track:")) return null;
     const trackId = Number(trackFilter.slice("track:".length));
     return visibleTracks.find((track) => track.id === trackId)?.name || null;
   }, [trackFilter, visibleTracks]);
+
+  function matchesStatus(item: StockScoreComparisonItem | StockValuationComparisonItem) {
+    if (!statusFilter) return true;
+    return item.status === statusFilter;
+  }
 
   function matchesTrackFilter(item: StockScoreComparisonItem | StockValuationComparisonItem) {
     if (trackFilter === "all") return true;
@@ -56,12 +87,12 @@ export function CompareSection() {
   }
 
   const scoreRows = useMemo(
-    () => comparison.data.filter((item) => matchesTrackFilter(item) && matchesSearch(item)),
-    [comparison.data, searchText, trackFilter]
+    () => comparison.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item) && matchesSearch(item)),
+    [comparison.data, statusFilter, trackFilter, searchText]
   );
   const valuationRows = useMemo(
-    () => valuation.data.filter((item) => matchesTrackFilter(item) && matchesSearch(item)),
-    [valuation.data, searchText, trackFilter]
+    () => valuation.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item) && matchesSearch(item)),
+    [valuation.data, statusFilter, trackFilter, searchText]
   );
 
   function formatScore(value?: number | null) {
@@ -109,24 +140,7 @@ export function CompareSection() {
     );
   }
 
-  function selectTrackFilter(nextFilter: string) {
-    setTrackFilter((current) => current === nextFilter && nextFilter.startsWith("track:") ? "all" : nextFilter);
-  }
 
-  function renderTrackFilterButton(value: string, label: string, count?: number) {
-    const active = trackFilter === value;
-    return (
-      <button
-        key={value}
-        type="button"
-        className={active ? "stock-compare-track-pill active" : "stock-compare-track-pill"}
-        onClick={() => selectTrackFilter(value)}
-      >
-        <span>{label}</span>
-        {count !== undefined ? <span className="stock-compare-track-pill-count">{count}</span> : null}
-      </button>
-    );
-  }
 
   function emptyDescription(sourceCount: number) {
     if (!sourceCount) return "暂无标的池数据，先在标的池加入标的";
@@ -136,7 +150,7 @@ export function CompareSection() {
   }
 
   const currentSourceCount = activeTab === "score" ? comparison.data.length : valuation.data.length;
-  const hasFilters = trackFilter !== "all" || Boolean(searchText.trim());
+  const hasFilters = trackFilter !== "all" || Boolean(searchText.trim()) || statusFilter !== undefined;
 
   const scoreColumns: ColumnsType<StockScoreComparisonItem> = [
     {
@@ -179,35 +193,61 @@ export function CompareSection() {
     <DataPanel
       toolbar={
         <>
-          <Segmented
-            size="small"
-            value={activeTab}
-            options={[
-              { label: "评分", value: "score" },
-              { label: "估值", value: "valuation" }
-            ]}
-            onChange={(value) => setActiveTab(String(value))}
-          />
+          <Space size={4} className="toolbar-tab-buttons">
+            <Button
+              size="small"
+              className={activeTab === "score" ? "toolbar-filter-button active" : "toolbar-filter-button"}
+              onClick={() => setActiveTab("score")}
+            >
+              评分
+            </Button>
+            <Button
+              size="small"
+              className={activeTab === "valuation" ? "toolbar-filter-button active" : "toolbar-filter-button"}
+              onClick={() => setActiveTab("valuation")}
+            >
+              估值
+            </Button>
+          </Space>
           <div className="data-panel-toolbar-divider" />
+          <Space size={4} className="toolbar-status-buttons">
+            {statusButtons.map((item) => (
+              <Button
+                key={item.value || "all"}
+                size="small"
+                className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                onClick={() => setStatusFilter(item.value)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Space>
+          <div className="data-panel-toolbar-divider" />
+          {trackSelectOptions.length > 0 && (
+            <>
+              <Segmented
+                size="small"
+                value={trackFilter}
+                options={trackSelectOptions}
+                onChange={(value) => setTrackFilter(String(value))}
+              />
+              <div className="data-panel-toolbar-divider" />
+            </>
+          )}
           <Input.Search
             allowClear
             size="small"
             placeholder="搜索名称 / 代码"
             value={searchText}
-            style={{ width: 220 }}
+            style={{ width: 180 }}
             onChange={(event) => setSearchText(event.target.value)}
           />
-          {hasFilters ? <Button size="small" onClick={() => { setTrackFilter("all"); setSearchText(""); }}>清空</Button> : null}
+          {hasFilters ? <Button size="small" onClick={() => { setTrackFilter("all"); setSearchText(""); setStatusFilter(undefined); }}>清空</Button> : null}
           <div className="data-panel-toolbar-spacer" />
           <span className="stock-compare-context">{selectedTrackName ? `当前赛道：${selectedTrackName}` : "横向比较"}</span>
         </>
       }
     >
-      <div className="stock-compare-track-bar" aria-label="赛道筛选">
-        {renderTrackFilterButton("all", "全部", currentSourceCount)}
-        {renderTrackFilterButton("with-stock", "有绑定", activeSourceRows.filter((item) => item.tracks?.length).length)}
-        {visibleTracks.map((track) => renderTrackFilterButton(`track:${track.id}`, track.name, activeTrackCounts.get(track.id) || 0))}
-      </div>
       {activeTab === "score" ? (
         <Table
           rowKey="stock_id"

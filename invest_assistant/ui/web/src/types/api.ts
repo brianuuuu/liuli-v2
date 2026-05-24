@@ -371,6 +371,7 @@ export type StockScoreComparisonItem = {
   symbol?: string | null;
   stock_code?: string | null;
   stock_name?: string | null;
+  status?: string;
   tracks?: Pick<Track, "id" | "name" | "status">[];
   score_id?: number | null;
   score_date?: string | null;
@@ -388,6 +389,7 @@ export type StockValuationComparisonItem = {
   symbol?: string | null;
   stock_code?: string | null;
   stock_name?: string | null;
+  status?: string;
   tracks?: Pick<Track, "id" | "name" | "status">[];
   valuation_id?: number | null;
   company?: string | null;
