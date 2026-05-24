@@ -369,7 +369,10 @@ def test_create_app_seeds_default_deepseek_hotword_prompt_once():
         assert prompt.response_format == "json_object"
         assert prompt.status == "active"
         assert "只返回合法JSON" in prompt.system_prompt
-        assert "从以下今日新闻中抽取新闻热词" in prompt.user_prompt
+        assert "可作为系统标签长期复用" in prompt.system_prompt
+        assert "专有名词或实体名词" in prompt.user_prompt
+        assert "不要返回新闻短句" in prompt.user_prompt
+        assert "没有合格名词就跳过" in prompt.user_prompt
 
         prompt.title = "用户自定义标题"
         db.commit()
