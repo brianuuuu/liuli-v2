@@ -39,7 +39,7 @@ export function DashboardPage() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="任务定义" value={jobs.data.length} loading={jobs.loading} />
+            <Statistic title="启用周期任务" value={jobs.data.filter((job: any) => job.config_json?.enabled === true && job.config_json?.execution_mode === "schedule").length} loading={jobs.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>
@@ -75,7 +75,7 @@ export function DashboardPage() {
               columns={[
                 { title: "任务", dataIndex: "job_name" },
                 { title: "模块", dataIndex: "module_name" },
-                { title: "启用", dataIndex: "enabled", width: 70, render: (value: boolean) => (value ? "是" : "否") },
+                { title: "启用", dataIndex: "config_json", width: 70, render: (config: any) => (config?.enabled === true ? "是" : "否") },
                 { title: "最近运行", width: 160, render: (_, record: any) => formatTime(record.last_run_at || record.updated_at) }
               ]}
             />
