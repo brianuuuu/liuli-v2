@@ -5,6 +5,7 @@ import { listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar"
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { SourceItem } from "../../../types/api";
+import { filterFlashRows } from "./flashFilters";
 import { formatTime } from "./shared";
 
 const flashTypes = new Set(["news", "policy", "sentiment", "announcement", "financial"]);
@@ -42,6 +43,7 @@ export function FlashSection() {
   const [sourceName, setSourceName] = useState<string | undefined>();
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [importantOnly, setImportantOnly] = useState(false);
+  const [activeTagId, setActiveTagId] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
 
@@ -52,14 +54,16 @@ export function FlashSection() {
 
   const rows = useMemo(() => {
     const query = keyword.trim().toLowerCase();
-    return sources.data
+    const filteredRows = sources.data
       .filter((item) => flashTypes.has(item.source_type))
       .filter((item) => !sourceName || item.source_name === sourceName)
       .filter((item) => !sourceType || item.source_type === sourceType)
       .filter((item) => !importantOnly || isImportantFlash(item))
       .filter((item) => !query || flashText(item).includes(query))
       .sort((a, b) => String(b.publish_time || b.created_at || "").localeCompare(String(a.publish_time || a.created_at || "")));
-  }, [importantOnly, keyword, sourceName, sourceType, sources.data]);
+
+    return filterFlashRows(filteredRows, { activeTagId });
+  }, [activeTagId, importantOnly, keyword, sourceName, sourceType, sources.data]);
 
   const feedItems = useMemo(() => {
     const result: Array<{ type: "date"; date: string; key: string } | { type: "flash"; item: SourceItem; key: string }> = [];
@@ -95,6 +99,11 @@ export function FlashSection() {
     setSourceName(undefined);
     setSourceType(undefined);
     setImportantOnly(false);
+    setActiveTagId(null);
+  }
+
+  function toggleTagFilter(tagId: number) {
+    setActiveTagId((current) => (current === tagId ? null : tagId));
   }
 
   return (
@@ -145,7 +154,26 @@ export function FlashSection() {
                       <div className="flash-title">{item.title}</div>
                       <div className="flash-content">{item.content}</div>
                       <div className="flash-tags">
-                        {itemTags.length ? itemTags.map((tag) => <Tag key={tag.id}>{tag.name}</Tag>) : <span>暂无命中标签</span>}
+                        {itemTags.length ? itemTags.map((tag) => (
+                          <Tag
+                            className={activeTagId === tag.id ? "flash-tag active" : "flash-tag"}
+                            key={tag.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleTagFilter(tag.id);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              toggleTagFilter(tag.id);
+                            }}
+                          >
+                            {tag.name}
+                          </Tag>
+                        )) : <span>暂无命中标签</span>}
                       </div>
                     </button>
                   </article>

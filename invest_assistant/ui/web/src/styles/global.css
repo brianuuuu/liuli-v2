@@ -943,11 +943,35 @@ body {
 .flash-tags {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   min-height: 22px;
   margin-top: 7px;
   color: var(--ll-muted);
   font-size: 12px;
+}
+
+.flash-tags .flash-tag {
+  margin: 0;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  line-height: 18px;
+}
+
+.flash-tags .flash-tag:hover,
+.flash-tags .flash-tag:focus-visible {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.flash-tags .flash-tag.active {
+  border-color: #60a5fa;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .job-center-layout {
