@@ -427,7 +427,17 @@ def get_candidate(db: Session, candidate_id: int) -> TagCandidate | None:
     return db.get(TagCandidate, candidate_id)
 
 
-def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def _update_candidate_name(candidate: TagCandidate, name: str | None) -> None:
+    if name is None:
+        return
+    normalized = name.strip()
+    if not normalized:
+        raise ValueError("candidate name is required")
+    candidate.name = normalized
+
+
+def approve_candidate(db: Session, candidate: TagCandidate, name: str | None = None) -> TagCandidate:
+    _update_candidate_name(candidate, name)
     if candidate.suggested_type == "hotword":
         tag = create_tag(db, TagCreate(name=candidate.name, type="hotword", status="active"))
         candidate.target_tag_id = tag.id
@@ -482,7 +492,8 @@ def restore_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
-def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None) -> TagCandidate:
+def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None, name: str | None = None) -> TagCandidate:
+    _update_candidate_name(candidate, name)
     resolved_target_id = target_tag_id or candidate.suggested_target_tag_id
     if resolved_target_id is None:
         raise ValueError("target hotword tag is required")

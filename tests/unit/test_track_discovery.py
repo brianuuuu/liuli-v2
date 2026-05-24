@@ -7,8 +7,10 @@ from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCreate
 from invest_assistant.modules.market_radar.service import aggregate_heat, create_source_item, extract_tags
+from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.track_discovery.schemas import TrackCreate
 from invest_assistant.modules.track_discovery.service import create_track
+from invest_assistant.modules.track_discovery.models import Track
 
 
 def reset_db():
@@ -165,5 +167,54 @@ def test_track_candidates_from_market_radar_heat_and_job():
         result = execute_job(db, "track_discovery.generate_candidates", {})
         assert result.success is True
         assert result.processed_count >= 1
+    finally:
+        db.close()
+
+
+def test_candidate_track_can_be_physically_deleted():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    response = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "商业航天", "description": "候选赛道", "status": "candidate"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    track_id = response.json()["id"]
+    tag_id = response.json()["tag"]["id"]
+
+    deleted = client.delete(f"/api/track-discovery/tracks/{track_id}", headers=headers)
+
+    assert deleted.status_code == 204
+    db = SessionLocal()
+    try:
+        assert db.get(Track, track_id) is None
+        assert db.get(Tag, tag_id) is None
+    finally:
+        db.close()
+
+
+def test_non_candidate_track_cannot_be_physically_deleted():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    response = client.post(
+        "/api/track-discovery/tracks",
+        json={"name": "AI算力", "description": "正式赛道", "status": "active"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    track_id = response.json()["id"]
+
+    deleted = client.delete(f"/api/track-discovery/tracks/{track_id}", headers=headers)
+
+    assert deleted.status_code == 400
+    assert deleted.json()["detail"] == "only candidate tracks can be deleted"
+    db = SessionLocal()
+    try:
+        assert db.get(Track, track_id) is not None
     finally:
         db.close()

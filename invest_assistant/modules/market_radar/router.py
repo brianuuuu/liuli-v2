@@ -14,6 +14,7 @@ from invest_assistant.modules.market_radar.schemas import (
     SourceItemCreate,
     SourceItemRead,
     TagCandidateCreate,
+    TagCandidateApprove,
     TagCandidateMerge,
     TagCandidateRead,
     TagCreate,
@@ -155,11 +156,14 @@ def create_candidate(payload: TagCandidateCreate, db: Session = Depends(get_db))
 
 
 @router.post("/tag-candidates/{candidate_id}/approve", response_model=TagCandidateRead)
-def approve_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def approve_candidate(candidate_id: int, payload: TagCandidateApprove | None = None, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
-    return service.approve_candidate(db, candidate)
+    try:
+        return service.approve_candidate(db, candidate, payload.name if payload is not None else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/tag-candidates/{candidate_id}/promote-track", response_model=TagCandidateRead)
@@ -198,6 +202,11 @@ def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None,
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
     try:
-        return service.merge_candidate(db, candidate, payload.target_tag_id if payload is not None else None)
+        return service.merge_candidate(
+            db,
+            candidate,
+            payload.target_tag_id if payload is not None else None,
+            payload.name if payload is not None else None,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

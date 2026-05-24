@@ -259,12 +259,17 @@ def test_tag_candidate_approve_reject_and_merge():
         headers=headers,
     ).json()
 
-    approved = client.post(f"/api/market-radar/tag-candidates/{candidate['id']}/approve", headers=headers)
+    approved = client.post(
+        f"/api/market-radar/tag-candidates/{candidate['id']}/approve",
+        json={"name": "机器人赛道"},
+        headers=headers,
+    )
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
+    assert approved.json()["name"] == "机器人赛道"
 
     tags = client.get("/api/market-radar/tags?type=track", headers=headers)
-    assert any(item["name"] == "机器人" for item in tags.json())
+    assert any(item["name"] == "机器人赛道" for item in tags.json())
 
 
 def test_tag_candidate_promote_track_creates_track_from_hotword_candidate():
@@ -428,7 +433,11 @@ def test_tag_candidate_merge_uses_suggested_target_and_creates_hotword_alias():
     finally:
         db.close()
 
-    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/merge", headers=headers)
+    response = client.post(
+        f"/api/market-radar/tag-candidates/{candidate_id}/merge",
+        json={"name": "具身智能机器人"},
+        headers=headers,
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -438,13 +447,14 @@ def test_tag_candidate_merge_uses_suggested_target_and_creates_hotword_alias():
     assert payload["merge_similarity"] == 0.91
     db = SessionLocal()
     try:
-        alias = db.query(HotwordAlias).filter(HotwordAlias.tag_id == target_id, HotwordAlias.alias == "人形机器人").one()
+        alias = db.query(HotwordAlias).filter(HotwordAlias.tag_id == target_id, HotwordAlias.alias == "具身智能机器人").one()
         candidate = db.get(TagCandidate, candidate_id)
     finally:
         db.close()
     assert alias.source == "ai_suggested"
     assert alias.status == "active"
     assert candidate.status == "merged"
+    assert candidate.name == "具身智能机器人"
 
 
 def test_tag_candidate_merge_can_use_manual_target_and_reuses_duplicate_alias():

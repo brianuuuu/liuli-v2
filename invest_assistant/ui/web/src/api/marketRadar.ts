@@ -111,8 +111,11 @@ export async function createTagCandidate(payload: TagCandidatePayload): Promise<
   return response.data;
 }
 
-export async function approveTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/approve`);
+export async function approveTagCandidate(candidateId: number, name?: string): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(
+    `/api/market-radar/tag-candidates/${candidateId}/approve`,
+    name ? { name } : undefined
+  );
   return response.data;
 }
 
@@ -131,10 +134,10 @@ export async function restoreTagCandidate(candidateId: number): Promise<TagCandi
   return response.data;
 }
 
-export async function mergeTagCandidate(candidateId: number, targetTagId?: number): Promise<TagCandidate> {
+export async function mergeTagCandidate(candidateId: number, targetTagId?: number, name?: string): Promise<TagCandidate> {
   const response = await apiClient.post<TagCandidate>(
     `/api/market-radar/tag-candidates/${candidateId}/merge`,
-    targetTagId ? { target_tag_id: targetTagId } : undefined
+    targetTagId || name ? { target_tag_id: targetTagId, name } : undefined
   );
   return response.data;
 }

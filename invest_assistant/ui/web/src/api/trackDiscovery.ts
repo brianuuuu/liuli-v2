@@ -83,6 +83,10 @@ export async function updateTrack(trackId: number, payload: Partial<TrackPayload
   return response.data;
 }
 
+export async function deleteTrack(trackId: number): Promise<void> {
+  await apiClient.delete(`/api/track-discovery/tracks/${trackId}`);
+}
+
 export async function changeTrackStatus(trackId: number, newStatus: string, reason?: string | null): Promise<Track> {
   const response = await apiClient.post<Track>(`/api/track-discovery/tracks/${trackId}/status`, {
     new_status: newStatus,

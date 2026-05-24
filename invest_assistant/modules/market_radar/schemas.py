@@ -104,6 +104,11 @@ class TagCandidateCreate(BaseModel):
 
 class TagCandidateMerge(BaseModel):
     target_tag_id: int | None = None
+    name: str | None = None
+
+
+class TagCandidateApprove(BaseModel):
+    name: str | None = None
 
 
 class TagCandidateRead(TagCandidateCreate):

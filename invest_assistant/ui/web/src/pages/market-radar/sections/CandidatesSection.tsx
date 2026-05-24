@@ -44,7 +44,10 @@ export function CandidatesSection() {
   const hotwords = useAsyncData(useCallback(() => listMarketTags("hotword"), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("pending");
   const [open, setOpen] = useState(false);
+  const [approveCandidate, setApproveCandidate] = useState<TagCandidate | null>(null);
+  const [approveName, setApproveName] = useState("");
   const [mergeCandidate, setMergeCandidate] = useState<TagCandidate | null>(null);
+  const [mergeName, setMergeName] = useState("");
   const [mergeTargetId, setMergeTargetId] = useState<number | undefined>();
   const [form] = Form.useForm<CandidateFormValues>();
 
@@ -77,10 +80,31 @@ export function CandidatesSection() {
     await candidates.refresh();
   }
 
-  async function mergeWithTarget(candidate: TagCandidate, targetTagId?: number) {
-    await mergeTagCandidate(candidate.id, targetTagId);
+  function openApprove(record: TagCandidate) {
+    setApproveCandidate(record);
+    setApproveName(record.name);
+  }
+
+  async function submitApprove() {
+    if (!approveCandidate) return;
+    await approveTagCandidate(approveCandidate.id, approveName.trim());
+    message.success("候选标签已处理");
+    setApproveCandidate(null);
+    setApproveName("");
+    await candidates.refresh();
+  }
+
+  function openMerge(record: TagCandidate) {
+    setMergeCandidate(record);
+    setMergeName(record.name);
+    setMergeTargetId(record.suggested_target_tag_id || undefined);
+  }
+
+  async function mergeWithTarget(candidate: TagCandidate, targetTagId?: number, name?: string) {
+    await mergeTagCandidate(candidate.id, targetTagId, name?.trim());
     message.success("候选标签已处理");
     setMergeCandidate(null);
+    setMergeName("");
     setMergeTargetId(undefined);
     await candidates.refresh();
   }
@@ -99,22 +123,13 @@ export function CandidatesSection() {
 
   async function handleAction(action: "approve" | "reject" | "merge", record: TagCandidate) {
     const id = record.id;
-    if (action === "approve") await approveTagCandidate(id);
+    if (action === "approve") {
+      openApprove(record);
+      return;
+    }
     if (action === "reject") await rejectTagCandidate(id);
     if (action === "merge") {
-      if (record.suggested_target_tag_id) {
-        const targetName = hotwordNameById.get(record.suggested_target_tag_id) || `#${record.suggested_target_tag_id}`;
-        Modal.confirm({
-          title: "合并候选标签",
-          content: `将“${record.name}”合并到“${targetName}”？`,
-          okText: "合并",
-          cancelText: "取消",
-          onOk: () => mergeWithTarget(record, record.suggested_target_tag_id || undefined)
-        });
-        return;
-      }
-      setMergeCandidate(record);
-      setMergeTargetId(undefined);
+      openMerge(record);
       return;
     }
     message.success("候选标签已处理");
@@ -222,23 +237,44 @@ export function CandidatesSection() {
         </Form>
       </Modal>
       <Modal
-        title="选择合并目标"
-        open={Boolean(mergeCandidate)}
-        onCancel={() => setMergeCandidate(null)}
-        onOk={() => mergeCandidate && mergeWithTarget(mergeCandidate, mergeTargetId)}
-        okButtonProps={{ disabled: !mergeTargetId }}
+        title="通过候选标签"
+        open={Boolean(approveCandidate)}
+        onCancel={() => { setApproveCandidate(null); setApproveName(""); }}
+        onOk={submitApprove}
+        okButtonProps={{ disabled: !approveName.trim() }}
         destroyOnHidden
       >
-        <Select
-          showSearch
-          placeholder="选择已有热点词"
-          value={mergeTargetId}
-          onChange={setMergeTargetId}
-          loading={hotwords.loading}
-          style={{ width: "100%" }}
-          options={hotwords.data.map((item) => ({ value: item.id, label: item.name }))}
-          optionFilterProp="label"
-        />
+        <Form layout="vertical">
+          <Form.Item label="名称" required>
+            <Input value={approveName} onChange={(event) => setApproveName(event.target.value)} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="合并候选标签"
+        open={Boolean(mergeCandidate)}
+        onCancel={() => { setMergeCandidate(null); setMergeName(""); setMergeTargetId(undefined); }}
+        onOk={() => mergeCandidate && mergeWithTarget(mergeCandidate, mergeTargetId, mergeName)}
+        okButtonProps={{ disabled: !mergeTargetId || !mergeName.trim() }}
+        destroyOnHidden
+      >
+        <Form layout="vertical">
+          <Form.Item label="名称" required>
+            <Input value={mergeName} onChange={(event) => setMergeName(event.target.value)} />
+          </Form.Item>
+          <Form.Item label="合并目标" required>
+            <Select
+              showSearch
+              placeholder="选择已有热点词"
+              value={mergeTargetId}
+              onChange={setMergeTargetId}
+              loading={hotwords.loading}
+              style={{ width: "100%" }}
+              options={hotwords.data.map((item) => ({ value: item.id, label: item.name }))}
+              optionFilterProp="label"
+            />
+          </Form.Item>
+        </Form>
       </Modal>
     </>
   );

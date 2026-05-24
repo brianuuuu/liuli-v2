@@ -2,7 +2,7 @@ import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message }
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { changeTrackStatus, createTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
+import { changeTrackStatus, createTrack, deleteTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -92,6 +92,17 @@ export function ThesesSection() {
     await tracks.refresh();
   }
 
+  async function remove(record: Track) {
+    try {
+      await deleteTrack(record.id);
+      message.success("候选赛道已删除");
+      await tracks.refresh();
+    } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      message.error(detail || "候选赛道删除失败");
+    }
+  }
+
   const columns: ColumnsType<Track> = [
     { title: "赛道", dataIndex: "name", render: (value, record) => <Link to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
@@ -105,9 +116,15 @@ export function ThesesSection() {
         <Space>
           <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
           <Button size="small" onClick={() => openStatus(record)}>状态</Button>
-          <Popconfirm title="归档这个赛道？" onConfirm={() => archive(record)}>
-            <Button size="small" danger disabled={record.status === "archived"}>归档</Button>
-          </Popconfirm>
+          {record.status === "candidate" ? (
+            <Popconfirm title="物理删除这个候选赛道？" okText="删除" cancelText="取消" onConfirm={() => remove(record)}>
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
+          ) : (
+            <Popconfirm title="归档这个赛道？" okText="归档" cancelText="取消" onConfirm={() => archive(record)}>
+              <Button size="small" danger disabled={record.status === "archived"}>归档</Button>
+            </Popconfirm>
+          )}
         </Space>
       )
     }

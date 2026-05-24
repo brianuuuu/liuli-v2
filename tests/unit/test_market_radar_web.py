@@ -95,11 +95,37 @@ def test_candidate_merge_ui_supports_deepseek_suggestions_and_manual_target():
     assert "merge_similarity" in section
     assert "merge_reason" in section
     assert "mergeTargetId" in section
+    assert "mergeName" in section
+    assert "合并候选标签" in section
+    assert 'label="名称"' in section
     assert "listMarketTags(\"hotword\")" in section
     assert "target_tag_id" in api
-    assert "mergeTagCandidate(candidateId: number, targetTagId?: number" in api
+    assert "mergeTagCandidate(candidateId: number, targetTagId?: number, name?: string" in api
     assert "suggested_target_tag_id?: number | null" in types
     assert "merge_similarity?: number | null" in types
+
+
+def test_candidate_approve_ui_edits_name_before_submit():
+    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
+
+    assert "approveCandidate" in section
+    assert "approveName" in section
+    assert "通过候选标签" in section
+    assert "submitApprove" in section
+    assert "approveTagCandidate(approveCandidate.id, approveName.trim())" in section
+    assert "approveTagCandidate(candidateId: number, name?: string" in api
+
+
+def test_track_candidate_ui_exposes_physical_delete():
+    section = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/ThesesSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/trackDiscovery.ts").read_text(encoding="utf-8")
+
+    assert "deleteTrack" in section
+    assert 'record.status === "candidate"' in section
+    assert "物理删除这个候选赛道？" in section
+    assert "候选赛道已删除" in section
+    assert "export async function deleteTrack" in api
 
 
 def test_candidate_ui_exposes_promote_track_action():
