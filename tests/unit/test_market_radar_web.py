@@ -43,3 +43,16 @@ def test_system_config_section_supports_delete_and_typed_value_editor():
     assert "valueType === \"boolean\"" in source
     assert "valueType === \"json\"" in source
     assert "export async function deleteSystemConfig" in api_source
+
+
+def test_system_config_editor_is_compact():
+    source = Path("invest_assistant/ui/web/src/pages/console/sections/SystemConfigSection.tsx").read_text(encoding="utf-8")
+
+    assert "Space.Compact" not in source
+    assert "preserve={false}" not in source
+    assert "useEffect" in source
+    assert "configValueForEditor" in source
+    assert "width={560}" in source
+    assert "rows={5}" in source
+    assert "rows={2}" in source
+    assert "compactConfigMetaStyle" in source
