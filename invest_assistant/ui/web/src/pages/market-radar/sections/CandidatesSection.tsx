@@ -158,7 +158,7 @@ export function CandidatesSection() {
           loading={candidates.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无候选标签" /> }}
         />
       </DataPanel>

@@ -224,7 +224,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="验证指标">
-          <Table rowKey="id" size="small" loading={indicators.loading} dataSource={indicators.data} columns={indicatorColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={indicators.loading} dataSource={indicators.data} columns={indicatorColumns} pagination={{ pageSize: 10 }} />
           <Form form={indicatorForm} layout="inline" style={{ marginTop: 12 }} onFinish={submitIndicator}>
             <Form.Item name="name" rules={[{ required: true, message: "请输入指标名" }]}><Input placeholder="指标" /></Form.Item>
             <Form.Item name="indicator_type"><Input placeholder="类型" /></Form.Item>
@@ -235,7 +235,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="证据链">
-          <Table rowKey="id" size="small" loading={evidence.loading} dataSource={evidence.data} columns={evidenceColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={evidence.loading} dataSource={evidence.data} columns={evidenceColumns} pagination={{ pageSize: 10 }} />
           <Form form={evidenceForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitEvidence}>
             <Space.Compact block>
               <Form.Item name="evidence_direction" label="方向" style={{ width: "34%" }} rules={[{ required: true }]}>
@@ -254,7 +254,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="关联标的">
-          <Table rowKey="id" size="small" loading={relatedStocks.loading} dataSource={relatedStocks.data} columns={stockColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={relatedStocks.loading} dataSource={relatedStocks.data} columns={stockColumns} pagination={{ pageSize: 10 }} />
           <Form form={stockForm} layout="inline" style={{ marginTop: 12 }} onFinish={submitRelatedStock}>
             <Form.Item name="stock_id" rules={[{ required: true, message: "请输入 Stock ID" }]}><InputNumber min={1} placeholder="Stock ID" /></Form.Item>
             <Form.Item name="role"><Input placeholder="角色" /></Form.Item>

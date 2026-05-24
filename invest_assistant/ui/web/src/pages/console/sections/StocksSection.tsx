@@ -164,7 +164,7 @@ export function StocksSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={stocks.loading} dataSource={dataSource} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={stocks.loading} dataSource={dataSource} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
       </DataPanel>
 
       <Modal title="编辑股票" open={editOpen} onCancel={() => { setEditOpen(false); setEditing(null); }} onOk={submitEdit} destroyOnHidden forceRender>

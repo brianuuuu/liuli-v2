@@ -68,7 +68,7 @@ export function ScoresSection() {
         }
       >
         {scores.data.length ? <ChartCard title="评分趋势" option={scoreTrendOption(scores.data)} height={260} /> : <EmptyAction description={stockId ? "暂无评分快照" : "请选择标的"} />}
-        <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={columns} pagination={{ pageSize: 8 }} />
+        <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={columns} pagination={{ pageSize: 10 }} />
       </DataPanel>
 
       <WorkbenchCard title="新增评分">

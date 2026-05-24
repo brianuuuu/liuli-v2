@@ -126,7 +126,7 @@ export function TagsSection() {
           loading={tags.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无标签" /> }}
         />
       </DataPanel>

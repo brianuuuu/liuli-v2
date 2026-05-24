@@ -163,7 +163,7 @@ export function StockDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="赛道关系">
-          <Table rowKey="id" size="small" loading={bindings.loading} dataSource={bindings.data} columns={bindingColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={bindings.loading} dataSource={bindings.data} columns={bindingColumns} pagination={{ pageSize: 10 }} />
           <Form form={bindingForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitBinding}>
             <Space.Compact block>
               <Form.Item name="track_id" label="赛道" style={{ width: "34%" }} rules={[{ required: true, message: "请选择赛道" }]}>
@@ -185,7 +185,7 @@ export function StockDetailPage() {
 
         <WorkbenchCard title="评分快照">
           {scores.data.length ? <ChartCard title="评分趋势" option={scoreTrendOption(scores.data)} height={260} /> : <EmptyAction description="暂无评分快照" />}
-          <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={scoreColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={scoreColumns} pagination={{ pageSize: 10 }} />
           <Form form={scoreForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitScore}>
             <Space.Compact block>
               <Form.Item name="score_date" label="日期" style={{ width: "25%" }} rules={[{ required: true, message: "请输入日期" }]}>
@@ -217,7 +217,7 @@ export function StockDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="研究笔记">
-          <Table rowKey="id" size="small" loading={notes.loading} dataSource={notes.data} columns={noteColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={notes.loading} dataSource={notes.data} columns={noteColumns} pagination={{ pageSize: 10 }} />
           <Form form={noteForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitNote}>
             <Space.Compact block>
               <Form.Item name="note_type" label="类型" style={{ width: "34%" }} rules={[{ required: true, message: "请输入类型" }]}>
