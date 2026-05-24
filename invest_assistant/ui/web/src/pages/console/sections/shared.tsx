@@ -9,7 +9,11 @@ export function compactText(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "是" : "否";
   if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+    return str.replace("T", " ").slice(0, 19);
+  }
+  return str;
 }
 
 export function DetailRows({ record }: { record: Record<string, unknown> }) {
