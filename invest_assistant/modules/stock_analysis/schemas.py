@@ -59,6 +59,7 @@ class StockScoreComparisonRead(BaseModel):
     symbol: str | None = None
     stock_code: str | None = None
     stock_name: str | None = None
+    status: str | None = None
     tracks: list[dict] = Field(default_factory=list)
     score_id: int | None = None
     score_date: date | None = None
@@ -76,6 +77,7 @@ class StockValuationComparisonRead(BaseModel):
     symbol: str | None = None
     stock_code: str | None = None
     stock_name: str | None = None
+    status: str | None = None
     tracks: list[dict] = Field(default_factory=list)
     valuation_id: int | None = None
     company: str | None = None

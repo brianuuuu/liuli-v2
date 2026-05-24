@@ -214,19 +214,6 @@ export function CompareSection() {
             </Button>
           </Space>
           <div className="data-panel-toolbar-divider" />
-          <Space size={4} className="toolbar-status-buttons">
-            {statusButtons.map((item) => (
-              <Button
-                key={item.value || "all"}
-                size="small"
-                className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                onClick={() => setStatusFilter(item.value)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </Space>
-          <div className="data-panel-toolbar-divider" />
           <Input.Search
             allowClear
             size="small"
@@ -238,6 +225,22 @@ export function CompareSection() {
           {hasFilters ? <Button size="small" onClick={() => { setTrackFilter("all"); setSearchText(""); setStatusFilter(undefined); }}>清空</Button> : null}
           <div className="data-panel-toolbar-spacer" />
           <span className="stock-compare-context">{selectedTrackName ? `当前赛道：${selectedTrackName}` : "横向比较"}</span>
+        </React.Fragment>,
+        <React.Fragment key="status-filters">
+          <div style={{ overflowX: "auto", flex: 1, padding: "2px 0" }} className="no-scrollbar">
+            <Space size={4} className="toolbar-status-buttons">
+              {statusButtons.map((item) => (
+                <Button
+                  key={item.value || "all"}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
+          </div>
         </React.Fragment>,
         trackSelectOptions.length > 0 ? (
           <React.Fragment key="track-filters">
