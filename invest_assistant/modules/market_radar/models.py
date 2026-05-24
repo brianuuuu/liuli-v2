@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
 from invest_assistant.bootstrap.database import Base
@@ -109,8 +110,26 @@ class TagCandidate(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
+    suggested_target_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
+    merge_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    merge_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
+
+
+def ensure_market_radar_schema(engine: Engine) -> None:
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(tag_candidate)")).all()}
+        additions = {
+            "suggested_target_tag_id": "ALTER TABLE tag_candidate ADD COLUMN suggested_target_tag_id INTEGER",
+            "merge_similarity": "ALTER TABLE tag_candidate ADD COLUMN merge_similarity FLOAT",
+            "merge_reason": "ALTER TABLE tag_candidate ADD COLUMN merge_reason TEXT",
+        }
+        for column, statement in additions.items():
+            if column not in columns:
+                conn.execute(text(statement))

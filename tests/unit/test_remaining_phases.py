@@ -373,6 +373,12 @@ def test_create_app_seeds_default_deepseek_hotword_prompt_once():
         assert "专有名词或实体名词" in prompt.user_prompt
         assert "不要返回新闻短句" in prompt.user_prompt
         assert "没有合格名词就跳过" in prompt.user_prompt
+        merge_prompt = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.suggest_hotword_merges_deepseek").one()
+        assert merge_prompt.title == "DeepSeek 热词近义合并建议"
+        assert merge_prompt.provider == "deepseek"
+        assert merge_prompt.response_format == "json_object"
+        assert "近义归并助手" in merge_prompt.system_prompt
+        assert "互作别名" in merge_prompt.user_prompt
 
         prompt.title = "用户自定义标题"
         db.commit()
@@ -384,7 +390,9 @@ def test_create_app_seeds_default_deepseek_hotword_prompt_once():
     db = SessionLocal()
     try:
         prompts = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.extract_daily_hotwords_deepseek").all()
+        merge_prompts = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.suggest_hotword_merges_deepseek").all()
         assert len(prompts) == 1
+        assert len(merge_prompts) == 1
         assert prompts[0].title == "用户自定义标题"
     finally:
         db.close()

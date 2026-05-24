@@ -22,7 +22,7 @@ def get_deepseek_api_key() -> str:
     return get_settings().deepseek_api_key.strip()
 
 
-def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
+def _chat_json(prompt, model: str, data_payload: dict) -> dict:
     api_key = get_deepseek_api_key()
     if not api_key:
         raise RuntimeError("deepseek api key is not configured")
@@ -36,7 +36,7 @@ def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MOD
             },
             {
                 "role": "user",
-                "content": prompt.user_prompt + "\n\n" + json.dumps({"news": news}, ensure_ascii=False, separators=(",", ":")),
+                "content": prompt.user_prompt + "\n\n" + json.dumps(data_payload, ensure_ascii=False, separators=(",", ":")),
             },
         ],
         "thinking": {"type": "disabled"},
@@ -65,3 +65,11 @@ def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MOD
     parsed = json.loads(content)
     parsed["usage"] = response_payload.get("usage") or {}
     return parsed
+
+
+def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
+    return _chat_json(prompt, model, {"news": news})
+
+
+def suggest_hotword_merges(candidates: list[dict], existing_hotwords: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
+    return _chat_json(prompt, model, {"candidates": candidates, "existing_hotwords": existing_hotwords})

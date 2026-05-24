@@ -17,6 +17,8 @@ from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
 from invest_assistant.shared.time_utils import utc_now
 
 DEEPSEEK_HOTWORD_JOB_NAME = "market_radar.extract_daily_hotwords_deepseek"
+DEEPSEEK_HOTWORD_MERGE_JOB_NAME = "market_radar.suggest_hotword_merges_deepseek"
+MERGE_SIMILARITY_THRESHOLD = 0.82
 
 
 def _fetch_cls_rows(limit: int) -> list[dict]:
@@ -138,7 +140,7 @@ def _today_news_payload(db, target_date: date, max_items: int) -> list[dict]:
 def _normalized_existing_hotword_names(db) -> set[str]:
     names = {
         str(name).strip().casefold()
-        for name in db.scalars(select(Tag.name).where(Tag.type == "hotword"))
+        for name in db.scalars(select(Tag.name).where(Tag.type == "hotword", Tag.status != "disabled"))
         if str(name).strip()
     }
     aliases = {
@@ -159,6 +161,15 @@ def _normalized_existing_hotword_names(db) -> set[str]:
     return names | aliases | candidates
 
 
+def _existing_hotword_merge_options(db) -> list[dict]:
+    tags = list(db.scalars(select(Tag).where(Tag.type == "hotword", Tag.status != "disabled").order_by(Tag.name.asc())))
+    aliases = list(db.scalars(select(HotwordAlias).where(HotwordAlias.status != "disabled").order_by(HotwordAlias.alias.asc())))
+    aliases_by_tag: dict[int, list[str]] = {}
+    for alias in aliases:
+        aliases_by_tag.setdefault(alias.tag_id, []).append(alias.alias)
+    return [{"tag_id": tag.id, "name": tag.name, "aliases": aliases_by_tag.get(tag.id, [])} for tag in tags]
+
+
 def _normalize_score(value) -> int:
     try:
         score = int(round(float(value)))
@@ -167,9 +178,75 @@ def _normalize_score(value) -> int:
     return max(0, min(score, 10))
 
 
-def _create_hotword_candidates(db, hotwords: list[dict]) -> list[tuple[str, int]]:
+def _normalize_similarity(value) -> float:
+    try:
+        similarity = float(value)
+    except (TypeError, ValueError):
+        similarity = 0
+    return max(0, min(similarity, 1))
+
+
+def _suggest_hotword_merges(db, candidates: list[dict], model: str) -> dict[str, dict]:
+    if not candidates:
+        return {}
+    existing_hotwords = _existing_hotword_merge_options(db)
+    if not existing_hotwords:
+        return {}
+    prompt = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_MERGE_JOB_NAME)
+    if prompt is None:
+        return {}
+    active_model = model or prompt.model
+    started = perf_counter()
+    try:
+        response = deepseek_client.suggest_hotword_merges(
+            [{"name": item["name"]} for item in candidates],
+            existing_hotwords,
+            prompt,
+            active_model,
+        )
+    except Exception as exc:
+        create_ai_request_log(
+            db,
+            provider="deepseek",
+            model=active_model,
+            task_name=DEEPSEEK_HOTWORD_MERGE_JOB_NAME,
+            status="failed",
+            duration_ms=int((perf_counter() - started) * 1000),
+            error_message=str(exc),
+        )
+        return {}
+
+    usage = response.get("usage") or {}
+    create_ai_request_log(
+        db,
+        provider="deepseek",
+        model=active_model,
+        task_name=DEEPSEEK_HOTWORD_MERGE_JOB_NAME,
+        status="success",
+        duration_ms=int((perf_counter() - started) * 1000),
+        prompt_tokens=int(usage.get("prompt_tokens") or 0),
+        completion_tokens=int(usage.get("completion_tokens") or 0),
+        total_tokens=int(usage.get("total_tokens") or 0),
+    )
+    valid_target_ids = {item["tag_id"] for item in existing_hotwords}
+    suggestions: dict[str, dict] = {}
+    for item in response.get("suggestions") or []:
+        candidate_name = str(item.get("candidate_name") or "").strip()
+        target_tag_id = item.get("target_tag_id")
+        similarity = _normalize_similarity(item.get("similarity"))
+        if not candidate_name or target_tag_id not in valid_target_ids or similarity < MERGE_SIMILARITY_THRESHOLD:
+            continue
+        suggestions[candidate_name.casefold()] = {
+            "suggested_target_tag_id": target_tag_id,
+            "merge_similarity": similarity,
+            "merge_reason": str(item.get("reason") or "").strip() or None,
+        }
+    return suggestions
+
+
+def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
     existing = _normalized_existing_hotword_names(db)
-    inserted: list[tuple[str, int]] = []
+    payloads: list[dict] = []
     for item in hotwords:
         name = str(item.get("name") or "").strip()
         if not name:
@@ -179,20 +256,39 @@ def _create_hotword_candidates(db, hotwords: list[dict]) -> list[tuple[str, int]
             continue
         score = _normalize_score(item.get("score"))
         reason = str(item.get("reason") or "").strip()
+        payloads.append(
+            {
+                "name": name,
+                "score": score,
+                "reason": f"DeepSeek score={score}/10；{reason}" if reason else f"DeepSeek score={score}/10",
+            }
+        )
+        existing.add(key)
+    return payloads
+
+
+def _create_hotword_candidates(db, hotwords: list[dict], model: str | None = None) -> list[tuple[str, int]]:
+    payloads = _candidate_payloads_from_hotwords(db, hotwords)
+    merge_suggestions = _suggest_hotword_merges(db, payloads, model)
+    inserted: list[tuple[str, int]] = []
+    for item in payloads:
+        merge_suggestion = merge_suggestions.get(item["name"].casefold(), {})
         service.create_candidate(
             db,
             TagCandidateCreate(
-                name=name,
+                name=item["name"],
                 suggested_type="hotword",
                 source_item_id=None,
-                trigger_text=name,
-                confidence=score / 10,
-                reason=f"DeepSeek score={score}/10；{reason}" if reason else f"DeepSeek score={score}/10",
+                trigger_text=item["name"],
+                confidence=item["score"] / 10,
+                reason=item["reason"],
+                suggested_target_tag_id=merge_suggestion.get("suggested_target_tag_id"),
+                merge_similarity=merge_suggestion.get("merge_similarity"),
+                merge_reason=merge_suggestion.get("merge_reason"),
                 status="pending",
             ),
         )
-        existing.add(key)
-        inserted.append((name, score))
+        inserted.append((item["name"], item["score"]))
     return inserted
 
 
@@ -251,7 +347,7 @@ def extract_daily_hotwords_deepseek_job(
             completion_tokens=int(usage.get("completion_tokens") or 0),
             total_tokens=int(usage.get("total_tokens") or 0),
         )
-        inserted = _create_hotword_candidates(db, list(response.get("hotwords") or []))
+        inserted = _create_hotword_candidates(db, list(response.get("hotwords") or []), model)
         if inserted:
             db.add(
                 AlertEvent(

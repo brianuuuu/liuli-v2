@@ -83,3 +83,20 @@ def test_prompt_editor_is_compact_and_modern():
     assert source.count("Row gutter={12}") >= 3
     assert "rows={2}" in source
     assert "rows={3}" in source
+
+
+def test_candidate_merge_ui_supports_deepseek_suggestions_and_manual_target():
+    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
+    types = Path("invest_assistant/ui/web/src/types/api.ts").read_text(encoding="utf-8")
+
+    assert "建议合并" in section
+    assert "suggested_target_tag_id" in section
+    assert "merge_similarity" in section
+    assert "merge_reason" in section
+    assert "mergeTargetId" in section
+    assert "listMarketTags(\"hotword\")" in section
+    assert "target_tag_id" in api
+    assert "mergeTagCandidate(candidateId: number, targetTagId?: number" in api
+    assert "suggested_target_tag_id?: number | null" in types
+    assert "merge_similarity?: number | null" in types

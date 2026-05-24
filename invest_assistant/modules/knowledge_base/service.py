@@ -17,6 +17,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 )
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
+DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY = "market_radar.suggest_hotword_merges_deepseek"
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -38,7 +39,25 @@ DEFAULT_KNOWLEDGE_PROMPTS = [
         ),
         response_format="json_object",
         status="active",
-    )
+    ),
+    KnowledgePromptCreate(
+        prompt_key=DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY,
+        title="DeepSeek 热词近义合并建议",
+        target_task=DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY,
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        system_prompt=(
+            "你是A股热点词近义归并助手。只返回合法JSON，不要返回Markdown。"
+            "你的任务是判断候选热点词是否应作为已有热点词的别名。"
+        ),
+        user_prompt=(
+            "根据候选词和已有热点词列表，找出语义上可归并为同一标签的候选词。"
+            "只有候选词与目标词可互作别名时才返回建议；仅相关、上下游、同赛道、同事件背景但不是同义表达时不要建议。"
+            "返回JSON：{\"suggestions\":[{\"candidate_name\":\"候选词\",\"target_tag_id\":1,\"similarity\":0.0,\"reason\":\"简短原因\"}]}。"
+        ),
+        response_format="json_object",
+        status="active",
+    ),
 ]
 
 

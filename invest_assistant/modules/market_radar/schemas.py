@@ -95,7 +95,14 @@ class TagCandidateCreate(BaseModel):
     confidence: float = 0
     reason: str | None = None
     target_tag_id: int | None = None
+    suggested_target_tag_id: int | None = None
+    merge_similarity: float | None = None
+    merge_reason: str | None = None
     status: str = "pending"
+
+
+class TagCandidateMerge(BaseModel):
+    target_tag_id: int | None = None
 
 
 class TagCandidateRead(TagCandidateCreate):

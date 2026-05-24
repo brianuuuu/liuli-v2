@@ -191,6 +191,9 @@ export type TagCandidate = {
   confidence: number;
   reason?: string | null;
   target_tag_id?: number | null;
+  suggested_target_tag_id?: number | null;
+  merge_similarity?: number | null;
+  merge_reason?: string | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;

@@ -57,9 +57,11 @@ def create_all_tables() -> None:
 
     from invest_assistant.modules.basic.job_center.models import ensure_job_center_schema
     from invest_assistant.modules.basic.stock_master.models import ensure_stock_master_schema
+    from invest_assistant.modules.market_radar.models import ensure_market_radar_schema
 
     ensure_job_center_schema(engine)
     ensure_stock_master_schema(engine)
+    ensure_market_radar_schema(engine)
 
     from invest_assistant.modules.knowledge_base.service import ensure_default_prompts
 

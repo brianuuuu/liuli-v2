@@ -353,7 +353,19 @@ def reject_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
-def merge_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None) -> TagCandidate:
+    resolved_target_id = target_tag_id or candidate.suggested_target_tag_id
+    if resolved_target_id is None:
+        raise ValueError("target hotword tag is required")
+    target = db.get(Tag, resolved_target_id)
+    if target is None or target.type != "hotword" or target.status != "active":
+        raise ValueError("active hotword tag not found")
+    create_hotword_alias(
+        db,
+        resolved_target_id,
+        HotwordAliasCreate(alias=candidate.name, source="ai_suggested", status="active"),
+    )
+    candidate.target_tag_id = resolved_target_id
     candidate.status = "merged"
     db.commit()
     db.refresh(candidate)

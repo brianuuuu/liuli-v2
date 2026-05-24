@@ -51,6 +51,22 @@ def seed_deepseek_hotword_prompt(db) -> None:
     )
 
 
+def seed_deepseek_merge_prompt(db) -> None:
+    db.add(
+        KnowledgePrompt(
+            prompt_key="market_radar.suggest_hotword_merges_deepseek",
+            title="新闻热词近义合并建议",
+            target_task="market_radar.suggest_hotword_merges_deepseek",
+            provider="deepseek",
+            model="deepseek-v4-flash",
+            system_prompt="测试 merge system prompt",
+            user_prompt="测试 merge user prompt",
+            response_format="json_object",
+            status="active",
+        )
+    )
+
+
 def test_market_radar_source_item_and_hotword_flow():
     reset_db()
     seed_stock()
@@ -249,6 +265,123 @@ def test_tag_candidate_approve_reject_and_merge():
     assert any(item["name"] == "机器人" for item in tags.json())
 
 
+def test_tag_candidate_merge_uses_suggested_target_and_creates_hotword_alias():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        target = Tag(name="机器人", type="hotword", status="active")
+        db.add(target)
+        db.flush()
+        candidate = TagCandidate(
+            name="人形机器人",
+            suggested_type="hotword",
+            trigger_text="人形机器人",
+            confidence=0.8,
+            suggested_target_tag_id=target.id,
+            merge_similarity=0.91,
+            merge_reason="语义近似",
+            status="pending",
+        )
+        db.add(candidate)
+        db.commit()
+        candidate_id = candidate.id
+        target_id = target.id
+    finally:
+        db.close()
+
+    response = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/merge", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "merged"
+    assert payload["target_tag_id"] == target_id
+    assert payload["suggested_target_tag_id"] == target_id
+    assert payload["merge_similarity"] == 0.91
+    db = SessionLocal()
+    try:
+        alias = db.query(HotwordAlias).filter(HotwordAlias.tag_id == target_id, HotwordAlias.alias == "人形机器人").one()
+        candidate = db.get(TagCandidate, candidate_id)
+    finally:
+        db.close()
+    assert alias.source == "ai_suggested"
+    assert alias.status == "active"
+    assert candidate.status == "merged"
+
+
+def test_tag_candidate_merge_can_use_manual_target_and_reuses_duplicate_alias():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        target = Tag(name="算力基础设施", type="hotword", status="active")
+        db.add(target)
+        db.flush()
+        db.add(HotwordAlias(tag_id=target.id, alias="AI算力", source="manual", status="active"))
+        candidate = TagCandidate(name="AI算力", suggested_type="hotword", trigger_text="AI算力", status="pending")
+        db.add(candidate)
+        db.commit()
+        candidate_id = candidate.id
+        target_id = target.id
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/market-radar/tag-candidates/{candidate_id}/merge",
+        json={"target_tag_id": target_id},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "merged"
+    assert response.json()["target_tag_id"] == target_id
+    db = SessionLocal()
+    try:
+        aliases = db.query(HotwordAlias).filter(HotwordAlias.tag_id == target_id, HotwordAlias.alias == "AI算力").all()
+    finally:
+        db.close()
+    assert len(aliases) == 1
+
+
+def test_tag_candidate_merge_rejects_invalid_target():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    db = SessionLocal()
+    try:
+        disabled = Tag(name="停用词", type="hotword", status="disabled")
+        track_tag = Tag(name="机器人", type="track", status="active")
+        candidate = TagCandidate(name="人形机器人", suggested_type="hotword", trigger_text="人形机器人", status="pending")
+        db.add_all([disabled, track_tag, candidate])
+        db.commit()
+        candidate_id = candidate.id
+        disabled_id = disabled.id
+        track_id = track_tag.id
+    finally:
+        db.close()
+
+    missing = client.post(f"/api/market-radar/tag-candidates/{candidate_id}/merge", headers=headers)
+    disabled_response = client.post(
+        f"/api/market-radar/tag-candidates/{candidate_id}/merge",
+        json={"target_tag_id": disabled_id},
+        headers=headers,
+    )
+    track_response = client.post(
+        f"/api/market-radar/tag-candidates/{candidate_id}/merge",
+        json={"target_tag_id": track_id},
+        headers=headers,
+    )
+
+    assert missing.status_code == 400
+    assert disabled_response.status_code == 400
+    assert track_response.status_code == 400
+
+
 def test_direct_hotword_creation_creates_tag_and_aliases():
     reset_db()
     client = TestClient(create_app())
@@ -290,6 +423,7 @@ def test_deepseek_daily_hotword_job_creates_new_candidates_and_info_event(monkey
                     response_format="json_object",
                     status="active",
                 ),
+                Tag(name="机器人", type="hotword", status="active"),
                 SourceItem(
                     source_type="news",
                     source_name="财联社",
@@ -306,6 +440,7 @@ def test_deepseek_daily_hotword_job_creates_new_candidates_and_info_event(monkey
                 ),
             ]
         )
+        seed_deepseek_merge_prompt(db)
         db.commit()
     finally:
         db.close()
@@ -324,7 +459,21 @@ def test_deepseek_daily_hotword_job_creates_new_candidates_and_info_event(monkey
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
 
+    def fake_suggest_hotword_merges(candidates, existing_hotwords, prompt, model):
+        captured["merge_candidates"] = candidates
+        captured["existing_hotwords"] = existing_hotwords
+        captured["merge_prompt"] = prompt
+        captured["merge_model"] = model
+        robot = next(item for item in existing_hotwords if item["name"] == "机器人")
+        return {
+            "suggestions": [
+                {"candidate_name": "人形机器人", "target_tag_id": robot["tag_id"], "similarity": 0.91, "reason": "同属机器人概念。"}
+            ],
+            "usage": {"prompt_tokens": 6, "completion_tokens": 4, "total_tokens": 10},
+        }
+
     monkeypatch.setattr("invest_assistant.services.deepseek.client.extract_hotwords", fake_extract_hotwords)
+    monkeypatch.setattr("invest_assistant.services.deepseek.client.suggest_hotword_merges", fake_suggest_hotword_merges)
 
     db = SessionLocal()
     try:
@@ -347,15 +496,106 @@ def test_deepseek_daily_hotword_job_creates_new_candidates_and_info_event(monkey
     assert all(candidate.source_item_id is None for candidate in candidates)
     assert candidates[0].confidence in {0.7, 0.9}
     assert all("DeepSeek score=" in (candidate.reason or "") for candidate in candidates)
+    robot_candidate = next(candidate for candidate in candidates if candidate.name == "人形机器人")
+    assert robot_candidate.suggested_target_tag_id is not None
+    assert robot_candidate.merge_similarity == 0.91
+    assert robot_candidate.merge_reason == "同属机器人概念。"
+    assert captured["merge_candidates"] == [{"name": "AI算力"}, {"name": "人形机器人"}]
+    assert captured["merge_prompt"].prompt_key == "market_radar.suggest_hotword_merges_deepseek"
+    assert captured["merge_model"] == "deepseek-v4-flash"
     assert len(events) == 1
     assert events[0].event_level == "info"
     assert events[0].status == "unread"
     assert "今日新增 2 个新闻热词候选" == events[0].title
     assert "AI算力 9/10" in events[0].message
-    assert len(logs) == 1
-    assert logs[0].provider == "deepseek"
-    assert logs[0].status == "success"
-    assert logs[0].total_tokens == 15
+    assert len(logs) == 2
+    assert {log.task_name for log in logs} == {
+        "market_radar.extract_daily_hotwords_deepseek",
+        "market_radar.suggest_hotword_merges_deepseek",
+    }
+    assert all(log.provider == "deepseek" for log in logs)
+    assert all(log.status == "success" for log in logs)
+    assert {log.total_tokens for log in logs} == {10, 15}
+
+
+def test_deepseek_daily_hotword_job_ignores_low_similarity_merge_suggestions(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        seed_deepseek_hotword_prompt(db)
+        seed_deepseek_merge_prompt(db)
+        db.add(Tag(name="机器人", type="hotword", status="active"))
+        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="人形机器人", publish_time=utc_now()))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.extract_hotwords",
+        lambda news, prompt, model: {
+            "hotwords": [{"name": "人形机器人", "score": 8, "reason": "热度高。"}],
+            "usage": {},
+        },
+    )
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.suggest_hotword_merges",
+        lambda candidates, existing_hotwords, prompt, model: {
+            "suggestions": [{"candidate_name": "人形机器人", "target_tag_id": existing_hotwords[0]["tag_id"], "similarity": 0.5, "reason": "相关但不近义。"}],
+            "usage": {},
+        },
+    )
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    db = SessionLocal()
+    try:
+        candidate = db.query(TagCandidate).filter(TagCandidate.name == "人形机器人").one()
+    finally:
+        db.close()
+    assert result.success is True
+    assert candidate.suggested_target_tag_id is None
+    assert candidate.merge_similarity is None
+    assert candidate.merge_reason is None
+
+
+def test_deepseek_merge_suggestion_failure_does_not_fail_hotword_job(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        seed_deepseek_hotword_prompt(db)
+        seed_deepseek_merge_prompt(db)
+        db.add(Tag(name="机器人", type="hotword", status="active"))
+        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="人形机器人", publish_time=utc_now()))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.extract_hotwords",
+        lambda news, prompt, model: {
+            "hotwords": [{"name": "人形机器人", "score": 8, "reason": "热度高。"}],
+            "usage": {"total_tokens": 1},
+        },
+    )
+
+    def fake_suggest_hotword_merges(candidates, existing_hotwords, prompt, model):
+        raise RuntimeError("merge suggestion failed")
+
+    monkeypatch.setattr("invest_assistant.services.deepseek.client.suggest_hotword_merges", fake_suggest_hotword_merges)
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    db = SessionLocal()
+    try:
+        candidate = db.query(TagCandidate).filter(TagCandidate.name == "人形机器人").one()
+        logs = db.query(AiRequestLog).order_by(AiRequestLog.id.asc()).all()
+    finally:
+        db.close()
+    assert result.success is True
+    assert result.inserted_count == 1
+    assert candidate.status == "pending"
+    assert candidate.suggested_target_tag_id is None
+    assert any(log.task_name == "market_radar.suggest_hotword_merges_deepseek" and log.status == "failed" for log in logs)
 
 
 def test_deepseek_daily_hotword_job_filters_existing_tags_aliases_and_candidates(monkeypatch):
