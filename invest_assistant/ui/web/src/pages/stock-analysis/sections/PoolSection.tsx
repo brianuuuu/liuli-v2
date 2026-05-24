@@ -26,7 +26,22 @@ export function PoolSection() {
   const [stockOptions, setStockOptions] = useState<Stock[]>([]);
   const [stockSearchLoading, setStockSearchLoading] = useState(false);
   const [form] = Form.useForm<PoolFormValues>();
-  const statusButtons = [{ value: undefined, label: "全部" }, ...poolStatusOptions];
+  const statusButtons = useMemo(() => {
+    const counts = pool.data.reduce((acc, item) => {
+      if (item.status) {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    return [
+      { value: undefined, label: `全部 (${pool.data.length})` },
+      ...poolStatusOptions.map((opt) => ({
+        value: opt.value,
+        label: `${opt.label} (${counts[opt.value] || 0})`
+      }))
+    ];
+  }, [pool.data]);
 
   const rows = useMemo(() => pool.data.filter((item) => !statusFilter || item.status === statusFilter), [pool.data, statusFilter]);
   const selectStockOptions = useMemo(
@@ -120,11 +135,9 @@ export function PoolSection() {
       dataIndex: "stock_name",
       render: (value, record) => {
         const stockLabel = value || record.symbol || record.stock_code || `Stock ID ${record.stock_id}`;
-        const codeLabel = [record.symbol || record.stock_code, `ID ${record.stock_id}`].filter(Boolean).join(" / ");
         return (
           <Link to={`/stock-analysis/stocks/${record.stock_id}`} className="stock-pool-target-link">
             <span className="stock-pool-target-name">{stockLabel}</span>
-            <span className="stock-pool-target-meta">{codeLabel}</span>
           </Link>
         );
       }
