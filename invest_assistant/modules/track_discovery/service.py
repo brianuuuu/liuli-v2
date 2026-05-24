@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
+from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import Tag, TagHeatSnapshot
 from invest_assistant.modules.track_discovery.models import (
     Track,
@@ -39,6 +40,8 @@ def create_track(db: Session, payload: TrackCreate) -> dict:
     db.commit()
     db.refresh(track)
     db.refresh(tag)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return _track_dict(track, tag)
 
 
@@ -69,6 +72,8 @@ def update_track(db: Session, track_id: int, payload: TrackUpdate) -> dict | Non
     db.commit()
     db.refresh(track)
     db.refresh(tag)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return _track_dict(track, tag)
 
 
@@ -77,6 +82,10 @@ def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> Track
     db.add(item)
     db.commit()
     db.refresh(item)
+    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track_id))
+    if tag is not None:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return item
 
 

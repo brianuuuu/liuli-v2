@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem, StockUpdate
+from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import Tag
 import invest_assistant.modules.track_discovery.models  # noqa: F401
 
@@ -233,6 +234,10 @@ def create_alias(db: Session, stock_id: int, alias: str, alias_type: str | None,
     db.add(item)
     db.commit()
     db.refresh(item)
+    tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock_id))
+    if tag is not None:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return item
 
 
@@ -276,4 +281,6 @@ def ensure_stock_tag(db: Session, stock_id: int, commit: bool = True) -> Tag:
     if commit:
         db.commit()
         db.refresh(tag)
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return tag

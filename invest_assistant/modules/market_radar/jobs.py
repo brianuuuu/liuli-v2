@@ -8,6 +8,7 @@ from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
+from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB_NAME
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCandidateCreate
@@ -80,6 +81,30 @@ def extract_tags_job(**kwargs) -> JobResult:
     db = SessionLocal()
     try:
         return service.extract_tags(db)
+    finally:
+        db.close()
+
+
+def backfill_source_tags_job(
+    tag_type: str | None = None,
+    tag_id: int | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    source_type: str | None = None,
+    overwrite: bool = False,
+    **kwargs,
+) -> JobResult:
+    db = SessionLocal()
+    try:
+        return service.backfill_source_tags(
+            db,
+            tag_type=tag_type,
+            tag_id=tag_id,
+            start_time=start_time,
+            end_time=end_time,
+            source_type=source_type,
+            overwrite=overwrite,
+        )
     finally:
         db.close()
 
@@ -395,6 +420,46 @@ JOBS = [
         timeout_seconds=180,
         max_retries=1,
         tags=["tag", "market_radar"],
+    ),
+    JobDefinition(
+        job_name=BACKFILL_JOB_NAME,
+        module_name="market_radar",
+        display_name="信息流标签回溯打标",
+        description="按标签类型、标签、时间范围和信息类型回溯补齐 source_tag",
+        handler=backfill_source_tags_job,
+        trigger_type="manual",
+        timeout_seconds=300,
+        max_retries=1,
+        params_schema={
+            "tag_type": {
+                "type": "select",
+                "label": "标签类型",
+                "default": "all",
+                "options": [
+                    {"value": "all", "label": "全部"},
+                    {"value": "stock", "label": "标的"},
+                    {"value": "track", "label": "赛道"},
+                    {"value": "hotword", "label": "热点词"},
+                ],
+            },
+            "tag_id": {"type": "number", "label": "标签 ID", "min": 1},
+            "start_time": {"type": "string", "label": "开始时间", "placeholder": "YYYY-MM-DD 或 ISO 时间"},
+            "end_time": {"type": "string", "label": "结束时间", "placeholder": "YYYY-MM-DD 或 ISO 时间"},
+            "source_type": {
+                "type": "select",
+                "label": "信息类型",
+                "options": [
+                    {"value": "", "label": "全部"},
+                    {"value": "news", "label": "新闻"},
+                    {"value": "announcement", "label": "公告"},
+                    {"value": "policy", "label": "政策"},
+                    {"value": "sentiment", "label": "舆情"},
+                    {"value": "research", "label": "研报"},
+                ],
+            },
+            "overwrite": {"type": "boolean", "label": "覆盖已有打标", "default": False},
+        },
+        tags=["tag", "backfill", "market_radar"],
     ),
     JobDefinition(
         job_name=DEEPSEEK_HOTWORD_JOB_NAME,

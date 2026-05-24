@@ -165,6 +165,18 @@ export type SourceItem = {
   related_type?: string | null;
   related_id?: number | null;
   created_at?: string | null;
+  source_tags?: SourceTag[];
+};
+
+export type SourceTag = {
+  id: number;
+  source_item_id: number;
+  tag_id: number;
+  trigger_text?: string | null;
+  confidence: number;
+  extractor: string;
+  created_at?: string | null;
+  tag?: MarketTag | null;
 };
 
 export type TagHeat = {
