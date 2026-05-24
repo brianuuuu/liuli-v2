@@ -8,6 +8,11 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
+function formatTime(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(0, 19);
+}
+
 export function DashboardPage() {
   const status = useAsyncData(useCallback(getSystemStatus, []), { api: "unknown", database: "unknown" });
   const dashboard = useAsyncData(useCallback(getDashboard, []), { status: "unknown", todo_events: [] });
@@ -53,7 +58,8 @@ export function DashboardPage() {
               columns={[
                 { title: "事件", dataIndex: "title" },
                 { title: "级别", dataIndex: "event_level", width: 80 },
-                { title: "状态", dataIndex: "status", width: 90 }
+                { title: "状态", dataIndex: "status", width: 90 },
+                { title: "时间", width: 160, render: (_, record: any) => formatTime(record.event_time || record.created_at) }
               ]}
             />
           </WorkbenchCard>
@@ -69,7 +75,8 @@ export function DashboardPage() {
               columns={[
                 { title: "任务", dataIndex: "job_name" },
                 { title: "模块", dataIndex: "module_name" },
-                { title: "启用", dataIndex: "enabled", render: (value: boolean) => (value ? "是" : "否") }
+                { title: "启用", dataIndex: "enabled", width: 70, render: (value: boolean) => (value ? "是" : "否") },
+                { title: "最近运行", width: 160, render: (_, record: any) => formatTime(record.last_run_at || record.updated_at) }
               ]}
             />
           </WorkbenchCard>
@@ -84,8 +91,9 @@ export function DashboardPage() {
               pagination={false}
               columns={[
                 { title: "标题", dataIndex: "title" },
-                { title: "类型", dataIndex: "report_type" },
-                { title: "模块", dataIndex: "source_module" }
+                { title: "类型", dataIndex: "report_type", width: 120 },
+                { title: "模块", dataIndex: "source_module", width: 120 },
+                { title: "创建时间", width: 160, render: (_, record: any) => formatTime(record.created_at || record.publish_time) }
               ]}
             />
           </WorkbenchCard>
