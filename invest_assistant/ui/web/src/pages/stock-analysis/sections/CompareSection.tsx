@@ -1,6 +1,6 @@
-import { Button, Input, Segmented, Space, Table } from "antd";
+import { Button, Input, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listStockScoreComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
 import { listTracks } from "../../../api/trackDiscovery";
@@ -53,11 +53,15 @@ export function CompareSection() {
   }, [activeSourceRows]);
 
   const trackSelectOptions = useMemo(() => {
-    return visibleTracks.map((track) => ({
-      label: `${track.name} (${activeTrackCounts.get(track.id) || 0})`,
-      value: `track:${track.id}`
-    }));
-  }, [visibleTracks, activeTrackCounts]);
+    const totalCount = activeSourceRows.length;
+    return [
+      { label: `全部 (${totalCount})`, value: "all" },
+      ...visibleTracks.map((track) => ({
+        label: `${track.name} (${activeTrackCounts.get(track.id) || 0})`,
+        value: `track:${track.id}`
+      }))
+    ];
+  }, [visibleTracks, activeTrackCounts, activeSourceRows.length]);
 
   const selectedTrackName = useMemo(() => {
     if (!trackFilter.startsWith("track:")) return null;
@@ -191,8 +195,8 @@ export function CompareSection() {
 
   return (
     <DataPanel
-      toolbar={
-        <>
+      toolbar={[
+        <React.Fragment key="basic-filters">
           <Space size={4} className="toolbar-tab-buttons">
             <Button
               size="small"
@@ -223,17 +227,6 @@ export function CompareSection() {
             ))}
           </Space>
           <div className="data-panel-toolbar-divider" />
-          {trackSelectOptions.length > 0 && (
-            <>
-              <Segmented
-                size="small"
-                value={trackFilter}
-                options={trackSelectOptions}
-                onChange={(value) => setTrackFilter(String(value))}
-              />
-              <div className="data-panel-toolbar-divider" />
-            </>
-          )}
           <Input.Search
             allowClear
             size="small"
@@ -245,8 +238,26 @@ export function CompareSection() {
           {hasFilters ? <Button size="small" onClick={() => { setTrackFilter("all"); setSearchText(""); setStatusFilter(undefined); }}>清空</Button> : null}
           <div className="data-panel-toolbar-spacer" />
           <span className="stock-compare-context">{selectedTrackName ? `当前赛道：${selectedTrackName}` : "横向比较"}</span>
-        </>
-      }
+        </React.Fragment>,
+        trackSelectOptions.length > 0 ? (
+          <React.Fragment key="track-filters">
+            <div style={{ overflowX: "auto", flex: 1, padding: "2px 0" }} className="no-scrollbar">
+              <Space size={4} className="toolbar-track-buttons">
+                {trackSelectOptions.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    size="small"
+                    className={trackFilter === opt.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                    onClick={() => setTrackFilter(opt.value)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </Space>
+            </div>
+          </React.Fragment>
+        ) : null
+      ]}
     >
       {activeTab === "score" ? (
         <Table

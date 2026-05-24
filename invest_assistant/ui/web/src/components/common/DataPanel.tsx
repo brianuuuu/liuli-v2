@@ -16,7 +16,17 @@ export function DataPanel({
 }) {
   return (
     <div className="data-panel">
-      {toolbar && <div className="data-panel-toolbar">{toolbar}</div>}
+      {toolbar && (
+        Array.isArray(toolbar) ? (
+          toolbar.map((item, idx) => item && (
+            <div key={idx} className="data-panel-toolbar">
+              {item}
+            </div>
+          ))
+        ) : (
+          <div className="data-panel-toolbar">{toolbar}</div>
+        )
+      )}
       {children}
     </div>
   );
