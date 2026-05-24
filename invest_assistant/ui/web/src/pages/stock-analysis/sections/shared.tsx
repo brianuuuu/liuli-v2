@@ -3,9 +3,9 @@ import type { EChartsOption } from "echarts";
 import type { StockScoreSnapshot } from "../../../types/api";
 
 export const poolStatusOptions = [
-  { value: "candidate", label: "候选" },
-  { value: "watching", label: "观察" },
   { value: "focused", label: "重点跟踪" },
+  { value: "watching", label: "观察" },
+  { value: "candidate", label: "候选" },
   { value: "archived", label: "归档" }
 ];
 
