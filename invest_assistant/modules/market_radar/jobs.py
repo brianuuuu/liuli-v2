@@ -7,6 +7,7 @@ from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
+from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCandidateCreate
@@ -198,7 +199,7 @@ def _create_hotword_candidates(db, hotwords: list[dict]) -> list[tuple[str, int]
 def extract_daily_hotwords_deepseek_job(
     target_date: str | None = None,
     max_items: int = 200,
-    model: str = DEFAULT_DEEPSEEK_MODEL,
+    model: str | None = None,
     **kwargs,
 ) -> JobResult:
     db = SessionLocal()
@@ -208,14 +209,29 @@ def extract_daily_hotwords_deepseek_job(
         if not news:
             return JobResult(success=True, message="no news source items for target date", processed_count=0, skipped_count=1)
 
+        prompt = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_JOB_NAME)
+        if prompt is None:
+            message = f"active prompt not found: {DEEPSEEK_HOTWORD_JOB_NAME}"
+            create_ai_request_log(
+                db,
+                provider="deepseek",
+                model=model or DEFAULT_DEEPSEEK_MODEL,
+                task_name=DEEPSEEK_HOTWORD_JOB_NAME,
+                status="failed",
+                duration_ms=0,
+                error_message=message,
+            )
+            return JobResult(success=False, message=message, processed_count=len(news))
+
+        active_model = model or prompt.model
         started = perf_counter()
         try:
-            response = deepseek_client.extract_hotwords(news, model)
+            response = deepseek_client.extract_hotwords(news, prompt, active_model)
         except Exception as exc:
             create_ai_request_log(
                 db,
                 provider="deepseek",
-                model=model,
+                model=active_model,
                 task_name=DEEPSEEK_HOTWORD_JOB_NAME,
                 status="failed",
                 duration_ms=int((perf_counter() - started) * 1000),
@@ -227,7 +243,7 @@ def extract_daily_hotwords_deepseek_job(
         create_ai_request_log(
             db,
             provider="deepseek",
-            model=model,
+            model=active_model,
             task_name=DEEPSEEK_HOTWORD_JOB_NAME,
             status="success",
             duration_ms=int((perf_counter() - started) * 1000),
@@ -253,7 +269,7 @@ def extract_daily_hotwords_deepseek_job(
             processed_count=len(news),
             inserted_count=len(inserted),
             skipped_count=max(len(response.get("hotwords") or []) - len(inserted), 0),
-            extra={"target_date": run_date.isoformat(), "model": model},
+            extra={"target_date": run_date.isoformat(), "model": active_model},
         )
     finally:
         db.close()

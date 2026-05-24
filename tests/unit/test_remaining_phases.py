@@ -7,6 +7,7 @@ from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar.models import TagHeatSnapshot
 from invest_assistant.shared.time_utils import utc_now
@@ -308,3 +309,79 @@ def test_knowledge_base_flow_and_jobs_registered():
     assert run.status_code == 200
     assert "knowledge_base.extract_skills" in JOB_REGISTRY
     assert "knowledge_base.compile_agents" in JOB_REGISTRY
+
+
+def test_knowledge_prompt_crud_uses_soft_delete():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    created = client.post(
+        "/api/knowledge/prompts",
+        json={
+            "prompt_key": "custom.prompt.test",
+            "title": "新闻热词抽取",
+            "target_task": "custom.prompt.test",
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "system_prompt": "只返回合法JSON",
+            "user_prompt": "抽取热词",
+            "response_format": "json_object",
+            "status": "active",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200
+    assert created.json()["prompt_key"] == "custom.prompt.test"
+
+    updated = client.put(
+        f"/api/knowledge/prompts/{created.json()['id']}",
+        json={**created.json(), "title": "今日新闻热词", "user_prompt": "抽取今日新闻热词"},
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "今日新闻热词"
+    assert updated.json()["user_prompt"] == "抽取今日新闻热词"
+
+    listed = client.get("/api/knowledge/prompts", headers=headers)
+    assert listed.status_code == 200
+    assert any(item["prompt_key"] == "custom.prompt.test" for item in listed.json())
+
+    deleted = client.delete(f"/api/knowledge/prompts/{created.json()['id']}", headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json()["status"] == "deleted"
+
+    listed_after_delete = client.get("/api/knowledge/prompts", headers=headers)
+    assert listed_after_delete.status_code == 200
+    assert all(item["prompt_key"] != "custom.prompt.test" for item in listed_after_delete.json())
+
+
+def test_create_app_seeds_default_deepseek_hotword_prompt_once():
+    reset_db()
+    create_app()
+
+    db = SessionLocal()
+    try:
+        prompt = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.extract_daily_hotwords_deepseek").one()
+        assert prompt.title == "DeepSeek 新闻热词候选"
+        assert prompt.provider == "deepseek"
+        assert prompt.model == "deepseek-v4-flash"
+        assert prompt.response_format == "json_object"
+        assert prompt.status == "active"
+        assert "只返回合法JSON" in prompt.system_prompt
+        assert "从以下今日新闻中抽取新闻热词" in prompt.user_prompt
+
+        prompt.title = "用户自定义标题"
+        db.commit()
+    finally:
+        db.close()
+
+    create_app()
+
+    db = SessionLocal()
+    try:
+        prompts = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.extract_daily_hotwords_deepseek").all()
+        assert len(prompts) == 1
+        assert prompts[0].title == "用户自定义标题"
+    finally:
+        db.close()

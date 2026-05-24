@@ -56,3 +56,30 @@ def test_system_config_editor_is_compact():
     assert "rows={5}" in source
     assert "rows={2}" in source
     assert "compactConfigMetaStyle" in source
+
+
+def test_knowledge_menu_replaces_review_and_principles_with_prompt():
+    navigation = Path("invest_assistant/ui/web/src/app/navigation.tsx").read_text(encoding="utf-8")
+    page = Path("invest_assistant/ui/web/src/pages/knowledge/KnowledgePage.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/knowledge.ts").read_text(encoding="utf-8")
+
+    assert "复盘沉淀" not in navigation
+    assert "分析准则" not in navigation
+    assert '{ key: "prompts", label: "Prompt" }' in navigation
+    assert "listKnowledgePrompts" in page
+    assert "System Prompt" in page
+    assert "User Prompt" in page
+    assert "createKnowledgePrompt" in page
+    assert "deleteKnowledgePrompt" in page
+    assert "export async function listKnowledgePrompts" in api
+
+
+def test_prompt_editor_is_compact_and_modern():
+    source = Path("invest_assistant/ui/web/src/pages/knowledge/KnowledgePage.tsx").read_text(encoding="utf-8")
+
+    assert "Space.Compact" not in source
+    assert "width={620}" in source
+    assert "compactPromptFormStyle" in source
+    assert source.count("Row gutter={12}") >= 3
+    assert "rows={2}" in source
+    assert "rows={3}" in source

@@ -22,7 +22,7 @@ def get_deepseek_api_key() -> str:
     return get_settings().deepseek_api_key.strip()
 
 
-def extract_hotwords(news: list[dict], model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
+def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
     api_key = get_deepseek_api_key()
     if not api_key:
         raise RuntimeError("deepseek api key is not configured")
@@ -32,19 +32,15 @@ def extract_hotwords(news: list[dict], model: str = DEFAULT_DEEPSEEK_MODEL) -> d
         "messages": [
             {
                 "role": "system",
-                "content": "你是A股新闻热词抽取助手。只返回合法JSON，不要返回Markdown。",
+                "content": prompt.system_prompt,
             },
             {
                 "role": "user",
-                "content": (
-                    "从以下今日新闻中抽取新闻热词，并给每个热词按今日强度打0-10分。"
-                    "只输出JSON：{\"hotwords\":[{\"name\":\"热词\",\"score\":0,\"reason\":\"简短原因\"}]}。\n\n"
-                    + json.dumps({"news": news}, ensure_ascii=False, separators=(",", ":"))
-                ),
+                "content": prompt.user_prompt + "\n\n" + json.dumps({"news": news}, ensure_ascii=False, separators=(",", ":")),
             },
         ],
         "thinking": {"type": "disabled"},
-        "response_format": {"type": "json_object"},
+        "response_format": {"type": prompt.response_format},
         "stream": False,
         "temperature": 0.2,
     }

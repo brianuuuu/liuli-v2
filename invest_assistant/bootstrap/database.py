@@ -60,3 +60,11 @@ def create_all_tables() -> None:
 
     ensure_job_center_schema(engine)
     ensure_stock_master_schema(engine)
+
+    from invest_assistant.modules.knowledge_base.service import ensure_default_prompts
+
+    db = SessionLocal()
+    try:
+        ensure_default_prompts(db)
+    finally:
+        db.close()

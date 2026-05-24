@@ -54,6 +54,25 @@ class KnowledgeAgentRead(KnowledgeAgentCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class KnowledgePromptCreate(BaseModel):
+    prompt_key: str
+    title: str
+    target_task: str
+    provider: str = "deepseek"
+    model: str
+    system_prompt: str
+    user_prompt: str
+    response_format: str = "json_object"
+    status: str = "active"
+
+
+class KnowledgePromptRead(KnowledgePromptCreate):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class KnowledgeFeedbackLogRead(BaseModel):
     id: int
     agent_id: int | None = None

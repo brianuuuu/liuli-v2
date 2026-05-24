@@ -10,6 +10,8 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeFeedbackLogRead,
     KnowledgeNoteCreate,
     KnowledgeNoteRead,
+    KnowledgePromptCreate,
+    KnowledgePromptRead,
     KnowledgeSkillCreate,
     KnowledgeSkillRead,
 )
@@ -100,6 +102,32 @@ def update_agent(agent_id: int, payload: KnowledgeAgentCreate, db: Session = Dep
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.get("/prompts", response_model=list[KnowledgePromptRead])
+def list_prompts(db: Session = Depends(get_db)) -> list:
+    return service.list_prompts(db)
+
+
+@router.post("/prompts", response_model=KnowledgePromptRead)
+def create_prompt(payload: KnowledgePromptCreate, db: Session = Depends(get_db)):
+    return service.create_prompt(db, payload)
+
+
+@router.put("/prompts/{prompt_id}", response_model=KnowledgePromptRead)
+def update_prompt(prompt_id: int, payload: KnowledgePromptCreate, db: Session = Depends(get_db)):
+    item = service.get_prompt(db, prompt_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="prompt not found")
+    return service.update_prompt(db, item, payload)
+
+
+@router.delete("/prompts/{prompt_id}", response_model=KnowledgePromptRead)
+def delete_prompt(prompt_id: int, db: Session = Depends(get_db)):
+    item = service.get_prompt(db, prompt_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="prompt not found")
+    return service.delete_prompt(db, item)
 
 
 @router.post("/agents/{agent_id}/run", response_model=KnowledgeFeedbackLogRead)
