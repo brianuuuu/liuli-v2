@@ -9,14 +9,45 @@ function getTaskStatus(jobs: JobConfig[], requests: JobRunRequest[], loading: bo
   if (loading && jobs.length === 0 && requests.length === 0) {
     return { label: "任务同步中", className: "status-warn" };
   }
-  const running = jobs.filter((job) => job.last_status === "running").length + requests.filter((request) => request.status === "running").length;
-  if (running > 0) return { label: `运行中 ${running}`, className: "status-warn" };
 
-  const pending = requests.filter((request) => request.status === "pending").length;
-  if (pending > 0) return { label: `待执行 ${pending}`, className: "status-warn" };
+  const runningJobs = jobs.filter((job) => job.last_status === "running");
+  const runningReqs = requests.filter((request) => request.status === "running");
 
-  const failed = jobs.filter((job) => job.last_status === "failed" || job.last_status === "error").length;
-  if (failed > 0) return { label: `异常 ${failed}`, className: "status-danger" };
+  if (runningJobs.length > 0 || runningReqs.length > 0) {
+    const runningNames = Array.from(new Set([
+      ...runningJobs.map((j) => j.display_name || j.job_name),
+      ...runningReqs.map((r) => {
+        const job = jobs.find((j) => j.job_name === r.job_name);
+        return job?.display_name || r.job_name;
+      })
+    ])).filter(Boolean);
+
+    const namesText = runningNames.length > 0 ? `: ${runningNames.slice(0, 2).join(" / ")}${runningNames.length > 2 ? ` +${runningNames.length - 2}` : ""}` : "";
+    return { label: `运行中${namesText}`, className: "status-warn" };
+  }
+
+  const pendingReqs = requests.filter((request) => request.status === "pending");
+  if (pendingReqs.length > 0) {
+    const pendingNames = Array.from(new Set(
+      pendingReqs.map((r) => {
+        const job = jobs.find((j) => j.job_name === r.job_name);
+        return job?.display_name || r.job_name;
+      })
+    )).filter(Boolean);
+
+    const namesText = pendingNames.length > 0 ? `: ${pendingNames.slice(0, 2).join(" / ")}${pendingNames.length > 2 ? ` +${pendingNames.length - 2}` : ""}` : "";
+    return { label: `待执行${namesText}`, className: "status-warn" };
+  }
+
+  const failedJobs = jobs.filter((job) => job.last_status === "failed" || job.last_status === "error");
+  if (failedJobs.length > 0) {
+    const failedNames = Array.from(new Set(
+      failedJobs.map((j) => j.display_name || j.job_name)
+    )).filter(Boolean);
+
+    const namesText = failedNames.length > 0 ? `: ${failedNames.slice(0, 2).join(" / ")}${failedNames.length > 2 ? ` +${failedNames.length - 2}` : ""}` : "";
+    return { label: `异常${namesText}`, className: "status-danger" };
+  }
 
   return { label: "任务正常", className: "status-ok" };
 }
@@ -44,7 +75,7 @@ export function TopStatusBar() {
     }
 
     refreshTaskStatus();
-    const timer = window.setInterval(refreshTaskStatus, 10000);
+    const timer = window.setInterval(refreshTaskStatus, 3000);
     return () => {
       active = false;
       window.clearInterval(timer);

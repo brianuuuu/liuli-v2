@@ -239,6 +239,10 @@ body {
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s ease;
 }
 
 .status-chip i {
