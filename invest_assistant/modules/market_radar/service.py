@@ -313,7 +313,13 @@ def graph_edges(db: Session, related_type: str, window: str) -> dict:
 
 
 def create_candidate(db: Session, payload: TagCandidateCreate) -> TagCandidate:
-    item = TagCandidate(**payload.model_dump())
+    name = payload.name.strip()
+    existing = db.scalar(select(TagCandidate).where(func.lower(TagCandidate.name) == name.lower()))
+    if existing is not None:
+        raise ValueError("candidate name already exists")
+    values = payload.model_dump()
+    values["name"] = name
+    item = TagCandidate(**values)
     db.add(item)
     db.commit()
     db.refresh(item)

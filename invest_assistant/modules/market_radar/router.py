@@ -148,7 +148,10 @@ def list_candidates(db: Session = Depends(get_db)) -> list:
 
 @router.post("/tag-candidates", response_model=TagCandidateRead)
 def create_candidate(payload: TagCandidateCreate, db: Session = Depends(get_db)):
-    return service.create_candidate(db, payload)
+    try:
+        return service.create_candidate(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/tag-candidates/{candidate_id}/approve", response_model=TagCandidateRead)
