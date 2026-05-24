@@ -308,6 +308,12 @@ def test_system_config_crud():
     assert update.status_code == 200
     assert update.json()["config_value"] == "7d"
 
+    delete = client.delete("/api/system-config/market_radar.heat_window", headers=headers)
+    assert delete.status_code == 204
+
+    missing = client.get("/api/system-config/market_radar.heat_window", headers=headers)
+    assert missing.status_code == 404
+
 
 def test_console_data_sources_show_stock_master_and_cls_news():
     reset_db()

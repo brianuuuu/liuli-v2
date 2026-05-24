@@ -5,8 +5,11 @@ from invest_assistant.bootstrap.database import Base, SessionLocal, engine
 from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
-from invest_assistant.modules.market_radar.models import Tag
+from invest_assistant.modules.alert_center.models import AlertEvent
+from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
 from invest_assistant.modules.market_radar import jobs as market_radar_jobs
+from invest_assistant.shared.time_utils import utc_now
 
 
 def reset_db():
@@ -251,3 +254,165 @@ def test_direct_hotword_creation_creates_tag_and_aliases():
         assert db.query(Tag).filter(Tag.type == "hotword").count() == 1
     finally:
         db.close()
+
+
+def test_deepseek_daily_hotword_job_creates_new_candidates_and_info_event(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                SourceItem(
+                    source_type="news",
+                    source_name="财联社",
+                    title="AI算力产业链持续升温",
+                    content="AI服务器订单增长，算力基础设施需求保持高景气。",
+                    publish_time=utc_now(),
+                ),
+                SourceItem(
+                    source_type="announcement",
+                    source_name="公告",
+                    title="公告不参与",
+                    content="这条不是 news 类型。",
+                    publish_time=utc_now(),
+                ),
+            ]
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    captured = {}
+
+    def fake_extract_hotwords(news, model):
+        captured["news"] = news
+        captured["model"] = model
+        return {
+            "hotwords": [
+                {"name": "AI算力", "score": 9, "reason": "算力基础设施需求升温。"},
+                {"name": "人形机器人", "score": 7, "reason": "产业链方向集中出现。"},
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+
+    monkeypatch.setattr("invest_assistant.services.deepseek.client.extract_hotwords", fake_extract_hotwords)
+
+    db = SessionLocal()
+    try:
+        result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+        candidates = db.query(TagCandidate).order_by(TagCandidate.name.asc()).all()
+        events = db.query(AlertEvent).all()
+        logs = db.query(AiRequestLog).all()
+    finally:
+        db.close()
+
+    assert result.success is True
+    assert result.processed_count == 1
+    assert result.inserted_count == 2
+    assert captured["model"] == "deepseek-v4-flash"
+    assert set(captured["news"][0].keys()) == {"title", "content", "publish_time"}
+    assert [candidate.name for candidate in candidates] == ["AI算力", "人形机器人"]
+    assert all(candidate.suggested_type == "hotword" for candidate in candidates)
+    assert all(candidate.source_item_id is None for candidate in candidates)
+    assert candidates[0].confidence in {0.7, 0.9}
+    assert all("DeepSeek score=" in (candidate.reason or "") for candidate in candidates)
+    assert len(events) == 1
+    assert events[0].event_level == "info"
+    assert events[0].status == "unread"
+    assert "今日新增 2 个新闻热词候选" == events[0].title
+    assert "AI算力 9/10" in events[0].message
+    assert len(logs) == 1
+    assert logs[0].provider == "deepseek"
+    assert logs[0].status == "success"
+    assert logs[0].total_tokens == 15
+
+
+def test_deepseek_daily_hotword_job_filters_existing_tags_aliases_and_candidates(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        existing = Tag(name="AI算力", type="hotword", status="active")
+        alias_tag = Tag(name="机器人", type="hotword", status="active")
+        db.add_all([existing, alias_tag])
+        db.flush()
+        db.add(HotwordAlias(tag_id=alias_tag.id, alias="人形机器人", source="manual", status="active"))
+        db.add(TagCandidate(name="低空经济", suggested_type="hotword", trigger_text="低空经济", status="pending"))
+        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="AI算力 人形机器人 低空经济", publish_time=utc_now()))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(
+        "invest_assistant.services.deepseek.client.extract_hotwords",
+        lambda news, model: {
+            "hotwords": [
+                {"name": "AI算力", "score": 9, "reason": "已有正式标签。"},
+                {"name": "人形机器人", "score": 8, "reason": "已有别名。"},
+                {"name": "低空经济", "score": 7, "reason": "已有候选。"},
+            ],
+            "usage": {},
+        },
+    )
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    db = SessionLocal()
+    try:
+        candidates = db.query(TagCandidate).all()
+        events = db.query(AlertEvent).all()
+    finally:
+        db.close()
+
+    assert result.success is True
+    assert result.inserted_count == 0
+    assert len(candidates) == 1
+    assert candidates[0].name == "低空经济"
+    assert events == []
+
+
+def test_deepseek_daily_hotword_job_skips_when_today_has_no_news(monkeypatch):
+    reset_db()
+    called = False
+
+    def fake_extract_hotwords(news, model):
+        nonlocal called
+        called = True
+        return {"hotwords": [], "usage": {}}
+
+    monkeypatch.setattr("invest_assistant.services.deepseek.client.extract_hotwords", fake_extract_hotwords)
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    assert result.success is True
+    assert result.processed_count == 0
+    assert result.skipped_count == 1
+    assert called is False
+
+
+def test_deepseek_daily_hotword_job_records_failed_ai_audit(monkeypatch):
+    reset_db()
+    db = SessionLocal()
+    try:
+        db.add(SourceItem(source_type="news", source_name="财联社", title="今日新闻", content="AI算力", publish_time=utc_now()))
+        db.commit()
+    finally:
+        db.close()
+
+    def fake_extract_hotwords(news, model):
+        raise RuntimeError("deepseek unavailable")
+
+    monkeypatch.setattr("invest_assistant.services.deepseek.client.extract_hotwords", fake_extract_hotwords)
+
+    result = market_radar_jobs.extract_daily_hotwords_deepseek_job()
+
+    db = SessionLocal()
+    try:
+        logs = db.query(AiRequestLog).all()
+    finally:
+        db.close()
+
+    assert result.success is False
+    assert "deepseek unavailable" in result.message
+    assert len(logs) == 1
+    assert logs[0].status == "failed"
+    assert "deepseek unavailable" in (logs[0].error_message or "")

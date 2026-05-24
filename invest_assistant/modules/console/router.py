@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
+from invest_assistant.modules.alert_center.models import AlertEvent
+from invest_assistant.modules.basic.ai_audit.service import list_ai_request_logs
 from invest_assistant.modules.basic.job_center.models import JobConfig
 from invest_assistant.modules.market_radar.models import SourceItem
 
@@ -15,8 +17,28 @@ def _format_time(value) -> str | None:
 
 
 @router.get("/dashboard")
-def dashboard() -> dict[str, str]:
-    return {"status": "ok"}
+def dashboard(db: Session = Depends(get_db)) -> dict:
+    todo_events = (
+        db.query(AlertEvent)
+        .filter(AlertEvent.status != "handled")
+        .order_by(AlertEvent.event_time.desc(), AlertEvent.id.desc())
+        .limit(6)
+        .all()
+    )
+    return {
+        "status": "ok",
+        "todo_events": [
+            {
+                "id": event.id,
+                "event_level": event.event_level,
+                "title": event.title,
+                "message": event.message,
+                "status": event.status,
+                "event_time": _format_time(event.event_time),
+            }
+            for event in todo_events
+        ],
+    }
 
 
 @router.get("/system-status")
@@ -61,5 +83,21 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
 
 
 @router.get("/ai-logs")
-def ai_logs() -> list[dict[str, str]]:
-    return []
+def ai_logs(db: Session = Depends(get_db)) -> list[dict]:
+    return [
+        {
+            "id": item.id,
+            "request_id": item.request_id,
+            "provider": item.provider,
+            "model": item.model,
+            "task_name": item.task_name,
+            "status": item.status,
+            "prompt_tokens": item.prompt_tokens,
+            "completion_tokens": item.completion_tokens,
+            "total_tokens": item.total_tokens,
+            "duration_ms": item.duration_ms,
+            "error_message": item.error_message,
+            "created_at": _format_time(item.created_at),
+        }
+        for item in list_ai_request_logs(db)
+    ]

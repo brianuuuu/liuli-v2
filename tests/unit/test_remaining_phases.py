@@ -6,6 +6,7 @@ from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar.models import TagHeatSnapshot
 from invest_assistant.shared.time_utils import utc_now
@@ -147,6 +148,49 @@ def test_alert_center_rule_event_flow():
     handled = client.post(f"/api/alerts/events/{event.json()['id']}/handle", headers=headers)
     assert handled.status_code == 200
     assert handled.json()["status"] == "handled"
+
+
+def test_dashboard_exposes_unhandled_todo_events_and_ai_logs():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post(
+        "/api/alerts/events",
+        json={"rule_id": None, "event_level": "info", "title": "今日新增 2 个新闻热词候选", "message": "AI算力 9/10", "status": "unread"},
+        headers=headers,
+    )
+    handled = client.post(
+        "/api/alerts/events",
+        json={"rule_id": None, "event_level": "warning", "title": "已处理事件", "message": "ignore", "status": "handled"},
+        headers=headers,
+    )
+    assert handled.status_code == 200
+    db = SessionLocal()
+    try:
+        db.add(
+            AiRequestLog(
+                request_id="test-request",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                task_name="market_radar.extract_daily_hotwords_deepseek",
+                status="success",
+                duration_ms=12,
+                total_tokens=15,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    dashboard = client.get("/api/console/dashboard", headers=headers)
+    ai_logs = client.get("/api/console/ai-logs", headers=headers)
+
+    assert dashboard.status_code == 200
+    assert dashboard.json()["todo_events"][0]["title"] == "今日新增 2 个新闻热词候选"
+    assert all(item["status"] != "handled" for item in dashboard.json()["todo_events"])
+    assert ai_logs.status_code == 200
+    assert ai_logs.json()[0]["provider"] == "deepseek"
+    assert ai_logs.json()[0]["total_tokens"] == 15
 
 
 def test_alert_center_heat_rule_job_creates_deduplicated_event():

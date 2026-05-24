@@ -12,10 +12,13 @@ import { SystemConfigSection } from "./sections/SystemConfigSection";
 import { TagsSection } from "./sections/TagsSection";
 
 const logColumns = [
-  { title: "名称", dataIndex: "name" },
-  { title: "标题", dataIndex: "title" },
-  { title: "类型", dataIndex: "type" },
-  { title: "状态", dataIndex: "status" }
+  { title: "时间", dataIndex: "created_at" },
+  { title: "相关任务", dataIndex: "task_name" },
+  { title: "服务商", dataIndex: "provider" },
+  { title: "模型", dataIndex: "model" },
+  { title: "状态", dataIndex: "status" },
+  { title: "Token", dataIndex: "total_tokens" },
+  { title: "耗时(ms)", dataIndex: "duration_ms" }
 ];
 
 function AiLogsSection() {

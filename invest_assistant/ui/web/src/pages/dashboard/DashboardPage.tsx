@@ -1,6 +1,7 @@
 import { Col, Row, Statistic, Table } from "antd";
 import { useCallback } from "react";
-import { getSystemStatus } from "../../api/console";
+import { getDashboard, getSystemStatus } from "../../api/console";
+import { listAlertEvents } from "../../api/alerts";
 import { listJobs } from "../../api/jobs";
 import { listReports } from "../../api/reports";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -9,8 +10,13 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 
 export function DashboardPage() {
   const status = useAsyncData(useCallback(getSystemStatus, []), { api: "unknown", database: "unknown" });
+  const dashboard = useAsyncData(useCallback(getDashboard, []), { status: "unknown", todo_events: [] });
+  const alertEvents = useAsyncData(useCallback(listAlertEvents, []), []);
   const jobs = useAsyncData(useCallback(listJobs, []), []);
   const reports = useAsyncData(useCallback(listReports, []), []);
+  const todoEvents = dashboard.data.todo_events.length
+    ? dashboard.data.todo_events
+    : alertEvents.data.filter((event) => event.status !== "handled").slice(0, 6);
 
   return (
     <>
@@ -33,7 +39,23 @@ export function DashboardPage() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="报告数量" value={reports.data.length} loading={reports.loading} />
+            <Statistic title="待办事件" value={todoEvents.length} loading={dashboard.loading || alertEvents.loading} />
+          </WorkbenchCard>
+        </Col>
+        <Col span={12}>
+          <WorkbenchCard title="待办事件">
+            <Table
+              rowKey="id"
+              size="small"
+              loading={dashboard.loading || alertEvents.loading}
+              dataSource={todoEvents}
+              pagination={false}
+              columns={[
+                { title: "事件", dataIndex: "title" },
+                { title: "级别", dataIndex: "event_level", width: 80 },
+                { title: "状态", dataIndex: "status", width: 90 }
+              ]}
+            />
           </WorkbenchCard>
         </Col>
         <Col span={12}>

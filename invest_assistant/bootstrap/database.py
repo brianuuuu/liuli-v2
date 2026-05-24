@@ -40,6 +40,7 @@ def get_db() -> Generator[Session, None, None]:
 
 def create_all_tables() -> None:
     import invest_assistant.modules.basic.auth.models  # noqa: F401
+    import invest_assistant.modules.basic.ai_audit.models  # noqa: F401
     import invest_assistant.modules.basic.disclosure_library.models  # noqa: F401
     import invest_assistant.modules.basic.job_center.models  # noqa: F401
     import invest_assistant.modules.basic.report_library.models  # noqa: F401
