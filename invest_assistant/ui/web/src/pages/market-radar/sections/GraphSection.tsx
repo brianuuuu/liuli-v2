@@ -31,7 +31,7 @@ export function GraphSection() {
     const stockColor = isDark ? "#58a6ff" : "#2563eb"; 
     const relatedColor = type === "track" 
       ? (isDark ? "#bc8cff" : "#8b5cf6") 
-      : (isDark ? "#ffaf40" : "#f97316");
+      : (isDark ? "#ffaf40" : "#fb923c");
       
     const data = graph.data.nodes.map((node) => ({
       id: tagKey(node),
