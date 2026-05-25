@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,13 +10,12 @@ from invest_assistant.shared.time_utils import utc_now
 
 class Tag(Base):
     __tablename__ = "tag"
-    __table_args__ = (UniqueConstraint("name", "type", name="uq_tag_name_type"),)
+    __table_args__ = (UniqueConstraint("name", name="uq_tag_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    stock_id: Mapped[int | None] = mapped_column(ForeignKey("stock.id"), nullable=True, index=True)
-    track_id: Mapped[int | None] = mapped_column(ForeignKey("track.id"), nullable=True, index=True)
+    type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -24,19 +23,57 @@ class Tag(Base):
     )
 
 
-class HotwordAlias(Base):
-    __tablename__ = "hotword_alias"
-    __table_args__ = (UniqueConstraint("tag_id", "alias", name="uq_hotword_alias_tag_alias"),)
+class StockTagRelation(Base):
+    __tablename__ = "stock_tag_relation"
+    __table_args__ = (UniqueConstraint("stock_id", "tag_id", name="uq_stock_tag_relation"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
-    alias: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
+
+
+class TrackTagRelation(Base):
+    __tablename__ = "track_tag_relation"
+    __table_args__ = (UniqueConstraint("track_id", "tag_id", name="uq_track_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class Hotword(Base):
+    __tablename__ = "hotword"
+    __table_args__ = (UniqueConstraint("name", name="uq_hotword_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class HotwordTagRelation(Base):
+    __tablename__ = "hotword_tag_relation"
+    __table_args__ = (UniqueConstraint("hotword_id", "tag_id", name="uq_hotword_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hotword_id: Mapped[int] = mapped_column(ForeignKey("hotword.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class SourceItem(Base):
@@ -99,22 +136,17 @@ class TagEdgeSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class TagCandidate(Base):
-    __tablename__ = "tag_candidate"
-    __table_args__ = (UniqueConstraint("name", name="uq_tag_candidate_name"),)
+class AiTagSuggestion(Base):
+    __tablename__ = "ai_tag_suggestion"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    suggested_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_item_id: Mapped[int | None] = mapped_column(ForeignKey("source_item.id"), nullable=True)
-    trigger_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    suggested_text: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    final_tag_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    target_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
-    suggested_target_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
-    merge_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
-    merge_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    final_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
+    ext_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
@@ -122,15 +154,4 @@ class TagCandidate(Base):
 
 
 def ensure_market_radar_schema(engine: Engine) -> None:
-    if engine.dialect.name != "sqlite":
-        return
-    with engine.begin() as conn:
-        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(tag_candidate)")).all()}
-        additions = {
-            "suggested_target_tag_id": "ALTER TABLE tag_candidate ADD COLUMN suggested_target_tag_id INTEGER",
-            "merge_similarity": "ALTER TABLE tag_candidate ADD COLUMN merge_similarity FLOAT",
-            "merge_reason": "ALTER TABLE tag_candidate ADD COLUMN merge_reason TEXT",
-        }
-        for column, statement in additions.items():
-            if column not in columns:
-                conn.execute(text(statement))
+    return

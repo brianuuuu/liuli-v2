@@ -4,7 +4,8 @@ import type {
   TrackRelatedStock,
   TrackThesis,
   TrackValidationIndicator,
-  StockTrackRelation
+  StockTrackRelation,
+  TagBinding
 } from "../types/api";
 import { apiClient } from "./client";
 
@@ -58,6 +59,12 @@ export type TrackTagStockBindingPayload = {
   relation_type?: string | null;
   conviction?: number;
   reason?: string | null;
+  status?: string;
+};
+
+export type TagBindingPayload = {
+  name: string;
+  source?: string | null;
   status?: string;
 };
 
@@ -142,5 +149,15 @@ export async function listStocksForTrack(trackId: number): Promise<StockTrackRel
 
 export async function bindStockFromTrack(trackId: number, payload: TrackTagStockBindingPayload): Promise<StockTrackRelation> {
   const response = await apiClient.post<StockTrackRelation>(`/api/track-discovery/tracks/${trackId}/stocks`, payload);
+  return response.data;
+}
+
+export async function listTrackTagBindings(trackId: number): Promise<TagBinding[]> {
+  const response = await apiClient.get<TagBinding[]>(`/api/track-discovery/tracks/${trackId}/tags`);
+  return response.data;
+}
+
+export async function bindTrackTag(trackId: number, payload: TagBindingPayload): Promise<TagBinding> {
+  const response = await apiClient.post<TagBinding>(`/api/track-discovery/tracks/${trackId}/tags`, payload);
   return response.data;
 }

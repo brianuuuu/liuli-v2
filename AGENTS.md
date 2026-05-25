@@ -2,7 +2,8 @@
 
 ## Project Constraints
 
-- The system architecture must follow `docs/liuli_system_spec_v20.md` as the single source of truth.
+- The long-term system architecture should follow the current v24 technical documentation.
+- This tag-model refactor must follow `docs/liuli_tag_model_alignment.md` as the single source of truth for tag, AI suggestion, hotword, and entity-tag binding behavior.
 - Do not reuse the old project's directory structure, module boundaries, table structure, or architecture design.
 - The `old/` directory is only a functional reference for implementation details such as data fetching, API calls, parsing logic, historical scripts, prompts, and sample data.
 - If old implementation details conflict with the new spec, the new spec wins.
@@ -15,7 +16,7 @@
 ## Web And Mobile Constraints
 
 - Web and Android must not change their technology stack without explicit user approval.
-- Backend technology choices must strictly follow `docs/liuli_system_spec_v20.md`.
+- Backend technology choices must strictly follow the current v24 technical documentation.
 - Web primary navigation is six business modules plus the Console operation panel:
   - Market Radar: `invest_assistant/modules/market_radar`
   - Track Discovery: `invest_assistant/modules/track_discovery`
@@ -36,9 +37,9 @@
 - Do not add `lightweight-charts` until K-line or intraday market charts are implemented.
 - Web theme defaults to light mode and must implement light, dark, and follow-system theme switching in the first Web version. Functional debugging and visual acceptance focus on the light theme first; dark mode can be refined later.
 - Future Web UI work must follow `docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md` for typography, colors, layout, lines, tables, buttons, light theme, and dark theme constraints.
-- Stock tags and stock-track tag bindings are different concepts:
-  - `stock` tags must not be batch-generated from the stock master database. A `tag(type=stock)` is generated only when a stock is added to the stock pool.
-  - A stock can bind to multiple `track` tags as research judgment.
-  - The primary stock-to-track binding entry is Stock Analysis.
-  - Track Discovery provides the reverse maintenance entry by track tag.
-  - Console can view/manage tag definitions, but must not be the stock-track binding workflow owner.
+- Tag words, business entities, and business bindings are different concepts:
+  - `tag` is a language entry and discrete semantic anchor.
+  - `stock`, `track`, and `hotword` are business entities.
+  - Entity-tag ownership is expressed through `stock_tag_relation`, `track_tag_relation`, and `hotword_tag_relation`.
+  - `stock_track_relation` remains the research-confirmed stock-to-track business binding.
+  - Console can view/manage tag definitions, but must not become the main entity-tag binding workflow owner.

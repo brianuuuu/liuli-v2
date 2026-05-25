@@ -19,19 +19,6 @@ class Track(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class TrackAlias(Base):
-    __tablename__ = "track_alias"
-    __table_args__ = (UniqueConstraint("track_id", "alias", name="uq_track_alias_track_alias"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
-    alias: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-
-
 class TrackThesis(Base):
     __tablename__ = "track_thesis"
 

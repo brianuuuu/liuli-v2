@@ -1,12 +1,8 @@
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import {
-  approveTagCandidate,
   disableMarketTag,
   listMarketTags,
-  listTagCandidates,
-  mergeTagCandidate,
-  rejectTagCandidate,
   updateMarketTag
 } from "../../../api/marketRadar";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -92,7 +88,7 @@ export function TagsSection() {
           columns={[
             { title: "名称", dataIndex: "name" },
             { title: "类型", dataIndex: "type" },
-            { title: "绑定实体", render: (_, record) => record.stock_id ? `stock:${record.stock_id}` : record.track_id ? `track:${record.track_id}` : "-" },
+            { title: "来源", dataIndex: "source", render: (value) => value || "-" },
             { title: "状态", dataIndex: "status" },
             {
               title: "操作",
@@ -128,52 +124,5 @@ export function TagsSection() {
         </Form>
       </Modal>
     </>
-  );
-}
-
-export function TagCandidatesSection() {
-  const candidates = useAsyncData(useCallback(listTagCandidates, []), []);
-
-  async function handleAction(action: "approve" | "reject" | "merge", id: number) {
-    if (action === "approve") await approveTagCandidate(id);
-    if (action === "reject") await rejectTagCandidate(id);
-    if (action === "merge") await mergeTagCandidate(id);
-    message.success("候选标签已处理");
-    await candidates.refresh();
-  }
-
-  return (
-    <DataPanel>
-      <Table
-        rowKey="id"
-        size="small"
-        loading={candidates.loading}
-        dataSource={candidates.data}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
-        columns={[
-          { title: "名称", dataIndex: "name" },
-          { title: "建议类型", dataIndex: "suggested_type" },
-          { title: "触发词", dataIndex: "trigger_text", render: (value) => value || "-" },
-          { title: "置信度", dataIndex: "confidence" },
-          { title: "状态", dataIndex: "status" },
-          { title: "原因", dataIndex: "reason", ellipsis: true },
-          {
-            title: "审核",
-            width: 220,
-            render: (_, record) => {
-              const id = Number(record.id);
-              const disabled = record.status !== "pending";
-              return (
-                <Space>
-                  <Button size="small" disabled={disabled} onClick={() => handleAction("approve", id)}>通过</Button>
-                  <Button size="small" disabled={disabled} onClick={() => handleAction("merge", id)}>合并</Button>
-                  <Button size="small" danger disabled={disabled} onClick={() => handleAction("reject", id)}>拒绝</Button>
-                </Space>
-              );
-            }
-          }
-        ]}
-      />
-    </DataPanel>
   );
 }

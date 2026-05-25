@@ -6,8 +6,6 @@ from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.modules.track_discovery import service
 from invest_assistant.modules.track_discovery.schemas import (
-    TrackAliasCreate,
-    TrackAliasRead,
     TrackCreate,
     TrackEvidenceCreate,
     TrackEvidenceRead,
@@ -27,6 +25,8 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationRead,
     TrackStockRelationCreate,
 )
+from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
+from invest_assistant.modules.market_radar import service as market_radar_service
 
 router = APIRouter(prefix="/api/track-discovery", tags=["track_discovery"], dependencies=[Depends(get_current_user)])
 
@@ -68,16 +68,24 @@ def delete_track(track_id: int, db: Session = Depends(get_db)):
     return Response(status_code=204)
 
 
-@router.get("/tracks/{track_id}/aliases", response_model=list[TrackAliasRead])
-def list_track_aliases(track_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_aliases(db, track_id)
+@router.get("/tracks/{track_id}/tags", response_model=list[TagBindingRead])
+def list_track_tags(track_id: int, db: Session = Depends(get_db)) -> list:
+    return market_radar_service.list_track_tag_bindings(db, track_id)
 
 
-@router.post("/tracks/{track_id}/aliases", response_model=TrackAliasRead)
-def create_track_alias(track_id: int, payload: TrackAliasCreate, db: Session = Depends(get_db)):
+@router.post("/tracks/{track_id}/tags", response_model=TagBindingRead)
+def bind_track_tag(track_id: int, payload: TagBindingCreate, db: Session = Depends(get_db)):
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.create_alias(db, track_id, payload)
+    return market_radar_service.bind_track_tag(db, track_id, payload)
+
+
+@router.delete("/tracks/tag-relations/{relation_id}", response_model=TagBindingRead)
+def delete_track_tag(relation_id: int, db: Session = Depends(get_db)):
+    binding = market_radar_service.disable_track_tag_binding(db, relation_id)
+    if binding is None:
+        raise HTTPException(status_code=404, detail="binding not found")
+    return binding
 
 
 @router.get("/tracks/{track_id}/theses", response_model=list[TrackThesisRead])
