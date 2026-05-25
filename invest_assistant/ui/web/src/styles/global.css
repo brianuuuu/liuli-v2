@@ -239,6 +239,10 @@ body {
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+  max-width: 560px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s ease;
 }
 
 .status-chip i {
@@ -579,6 +583,31 @@ body {
   flex: 1;
 }
 
+.toolbar-status-buttons {
+  flex-wrap: wrap;
+}
+
+.data-panel-toolbar .toolbar-filter-button {
+  min-width: 46px;
+  padding-inline: 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ll-muted);
+}
+
+.data-panel-toolbar .toolbar-filter-button:hover {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-text);
+}
+
+.data-panel-toolbar .toolbar-filter-button.active,
+.data-panel-toolbar .toolbar-filter-button.active:hover {
+  border-color: var(--ll-border-soft);
+  background: var(--ll-accent-soft);
+  color: var(--ll-accent);
+}
+
 /* ── Global table styles (standalone tables outside DataPanel) ── */
 .ant-table-wrapper .ant-table {
   border: 1px solid var(--ll-border);
@@ -587,10 +616,10 @@ body {
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th {
-  background: var(--ll-panel-subtle);
+  background: var(--ll-panel);
   border-bottom-color: var(--ll-border);
-  color: var(--ll-muted);
-  font-weight: 600;
+  color: var(--ll-text);
+  font-weight: 700;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
@@ -599,6 +628,86 @@ body {
 
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
   background: var(--ll-panel-subtle);
+}
+
+.stock-pool-target-link {
+  display: grid;
+  gap: 2px;
+  color: var(--ll-text);
+}
+
+.stock-pool-target-link:hover .stock-pool-target-name {
+  color: var(--ll-accent);
+}
+
+.stock-pool-target-name {
+  font-weight: normal;
+}
+
+.stock-pool-target-meta {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-compare-context {
+  color: var(--ll-muted);
+  font-size: 12px;
+  overflow: hidden;
+  max-width: 220px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-compare-target-link {
+  color: var(--ll-text);
+}
+
+.stock-compare-target-link:hover .stock-compare-target-name {
+  color: var(--ll-accent);
+}
+
+.stock-compare-target-name {
+  font-weight: 400;
+}
+
+.stock-compare-score-value,
+.stock-compare-market-value,
+.stock-compare-gap {
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-compare-score-value {
+  color: var(--ll-text);
+  font-weight: 500;
+}
+
+.stock-compare-score-value.strong,
+.stock-compare-market-value.target {
+  color: var(--ll-accent);
+  font-weight: 700;
+}
+
+.stock-compare-market-value {
+  color: var(--ll-text);
+  font-weight: 600;
+}
+
+.stock-compare-model {
+  color: var(--ll-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stock-compare-gap {
+  font-weight: 700;
+}
+
+.stock-compare-gap.positive {
+  color: #10b981;
+}
+
+.stock-compare-gap.negative {
+  color: #f97316;
 }
 
 .flash-layout {
@@ -625,6 +734,12 @@ body {
   margin-top: 0;
   margin-bottom: 14px;
   color: var(--ll-text);
+}
+
+.flash-filter-panel .ant-input-affix-wrapper,
+.flash-filter-panel .ant-select,
+.flash-filter-panel .ant-btn {
+  width: 100%;
 }
 
 .flash-toolbar {
@@ -828,11 +943,35 @@ body {
 .flash-tags {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   min-height: 22px;
   margin-top: 7px;
   color: var(--ll-muted);
   font-size: 12px;
+}
+
+.flash-tags .flash-tag {
+  margin: 0;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  line-height: 18px;
+}
+
+.flash-tags .flash-tag:hover,
+.flash-tags .flash-tag:focus-visible {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.flash-tags .flash-tag.active {
+  border-color: #60a5fa;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .job-center-layout {

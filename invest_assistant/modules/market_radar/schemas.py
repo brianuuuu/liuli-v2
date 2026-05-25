@@ -38,13 +38,6 @@ class SourceItemCreate(BaseModel):
     related_id: int | None = None
 
 
-class SourceItemRead(SourceItemCreate):
-    id: int
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class MarketFlashSyncCreate(BaseModel):
     limit: int = 100
 
@@ -66,6 +59,14 @@ class SourceTagRead(BaseModel):
     extractor: str
     created_at: datetime
     tag: TagRead | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SourceItemRead(SourceItemCreate):
+    id: int
+    created_at: datetime
+    source_tags: list[SourceTagRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -95,7 +96,19 @@ class TagCandidateCreate(BaseModel):
     confidence: float = 0
     reason: str | None = None
     target_tag_id: int | None = None
+    suggested_target_tag_id: int | None = None
+    merge_similarity: float | None = None
+    merge_reason: str | None = None
     status: str = "pending"
+
+
+class TagCandidateMerge(BaseModel):
+    target_tag_id: int | None = None
+    name: str | None = None
+
+
+class TagCandidateApprove(BaseModel):
+    name: str | None = None
 
 
 class TagCandidateRead(TagCandidateCreate):

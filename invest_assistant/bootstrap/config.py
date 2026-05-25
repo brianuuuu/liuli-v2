@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     tushare_token: str = ""
     openai_api_key: str = ""
     qwen_api_key: str = ""
+    deepseek_api_key: str = ""
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

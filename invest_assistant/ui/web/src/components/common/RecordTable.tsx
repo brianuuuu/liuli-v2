@@ -15,12 +15,31 @@ type RecordTableProps = {
 function valueText(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+    return str.replace("T", " ").slice(0, 19);
+  }
+  return str;
 }
 
 export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, drawerTitle }: RecordTableProps) {
   const drawer = useDrawerState<Record<string, unknown>>();
   const keyOf = (record: Record<string, unknown>, index?: number) => String(record[rowKey] ?? index ?? Math.random());
+
+  const formattedColumns = columns.map((col) => {
+    if (col.render) return col;
+    return {
+      ...col,
+      render: (value: unknown) => {
+        if (value === null || value === undefined || value === "") return "-";
+        const str = String(value);
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+          return str.replace("T", " ").slice(0, 19);
+        }
+        return str;
+      }
+    };
+  });
 
   return (
     <>
@@ -29,7 +48,7 @@ export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, 
         size="small"
         loading={loading}
         dataSource={data}
-        columns={columns}
+        columns={formattedColumns}
         locale={{ emptyText: <EmptyAction description={emptyText} /> }}
         pagination={{ pageSize: 10, showSizeChanger: true }}
         onRow={(record) => ({

@@ -12,7 +12,7 @@ class StockPoolItem(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="watching")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -44,6 +44,32 @@ class StockScoreSnapshot(Base):
     moat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     total_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class StockValuationSnapshot(Base):
+    __tablename__ = "stock_valuation_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    company_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    report_period: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    report_release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    current_market_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    financial_performance_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trend_reference_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    guidance_check_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quarter_performance: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    quarter_main_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    profit_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fcf_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    revenue_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    primary_model: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    expected_market_value_3y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expectation_gap_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    analysis_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    researcher: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 

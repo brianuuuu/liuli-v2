@@ -14,6 +14,8 @@ from invest_assistant.modules.market_radar.schemas import (
     SourceItemCreate,
     SourceItemRead,
     TagCandidateCreate,
+    TagCandidateApprove,
+    TagCandidateMerge,
     TagCandidateRead,
     TagCreate,
     TagRead,
@@ -70,9 +72,7 @@ def list_tags(type: str | None = None, db: Session = Depends(get_db)) -> list:
 
 @router.post("/tags", response_model=TagRead)
 def create_tag(payload: TagCreate, db: Session = Depends(get_db)):
-    if payload.type != "hotword":
-        raise HTTPException(status_code=400, detail="stock and track tags are system projections")
-    return service.create_tag(db, payload)
+    raise HTTPException(status_code=400, detail="tags are system projections; approve candidates to create hotwords")
 
 
 @router.get("/tags/{tag_id}", response_model=TagRead)
@@ -149,15 +149,32 @@ def list_candidates(db: Session = Depends(get_db)) -> list:
 
 @router.post("/tag-candidates", response_model=TagCandidateRead)
 def create_candidate(payload: TagCandidateCreate, db: Session = Depends(get_db)):
-    return service.create_candidate(db, payload)
+    try:
+        return service.create_candidate(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/tag-candidates/{candidate_id}/approve", response_model=TagCandidateRead)
-def approve_candidate(candidate_id: int, db: Session = Depends(get_db)):
+def approve_candidate(candidate_id: int, payload: TagCandidateApprove | None = None, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
-    return service.approve_candidate(db, candidate)
+    try:
+        return service.approve_candidate(db, candidate, payload.name if payload is not None else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/tag-candidates/{candidate_id}/promote-track", response_model=TagCandidateRead)
+def promote_candidate_to_track(candidate_id: int, db: Session = Depends(get_db)):
+    candidate = service.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    try:
+        return service.promote_candidate_to_track(db, candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/tag-candidates/{candidate_id}/reject", response_model=TagCandidateRead)
@@ -168,9 +185,28 @@ def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
     return service.reject_candidate(db, candidate)
 
 
-@router.post("/tag-candidates/{candidate_id}/merge", response_model=TagCandidateRead)
-def merge_candidate(candidate_id: int, db: Session = Depends(get_db)):
+@router.post("/tag-candidates/{candidate_id}/restore", response_model=TagCandidateRead)
+def restore_candidate(candidate_id: int, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
-    return service.merge_candidate(db, candidate)
+    try:
+        return service.restore_candidate(db, candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/tag-candidates/{candidate_id}/merge", response_model=TagCandidateRead)
+def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None, db: Session = Depends(get_db)):
+    candidate = service.get_candidate(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    try:
+        return service.merge_candidate(
+            db,
+            candidate,
+            payload.target_tag_id if payload is not None else None,
+            payload.name if payload is not None else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

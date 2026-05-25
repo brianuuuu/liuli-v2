@@ -1,7 +1,7 @@
-import { Button, Drawer, Select, Table } from "antd";
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { getTagTrend, listMarketTags } from "../../../api/marketRadar";
+import { createHotword, disableMarketTag, getTagTrend, listMarketTags } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -9,20 +9,64 @@ import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { MarketTag, TagHeat } from "../../../types/api";
-import { formatTime, rankingTypeOptions, TagTypeTag, trendLineOption } from "./shared";
+import { formatTime, trendLineOption } from "./shared";
+
+type HotwordFormValues = {
+  name: string;
+  aliases?: string;
+  status: string;
+};
+
+const hotwordStatusOptions = [
+  { value: "active", label: "启用" },
+  { value: "candidate", label: "候选" },
+  { value: "disabled", label: "停用" }
+];
+
+function HotwordStatusTag({ status }: { status?: string }) {
+  const label = hotwordStatusOptions.find((item) => item.value === status)?.label || status || "-";
+  return <StatusTag status={status} label={label} />;
+}
+
+function parseAliases(value?: string) {
+  return (value || "")
+    .split(/[\n,，、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 export function TagsSection() {
-  const tags = useAsyncData(useCallback(listMarketTags, []), []);
-  const [typeFilter, setTypeFilter] = useState<string | undefined>();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const tags = useAsyncData(useCallback(() => listMarketTags("hotword"), []), []);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
   const [selected, setSelected] = useState<MarketTag | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form] = Form.useForm<HotwordFormValues>();
 
   const rows = useMemo(
-    () => tags.data.filter((item) => (!typeFilter || item.type === typeFilter) && (!statusFilter || item.status === statusFilter)),
-    [tags.data, typeFilter, statusFilter]
+    () => tags.data.filter((item) => !statusFilter || item.status === statusFilter),
+    [tags.data, statusFilter]
   );
+  const statusButtons = [{ value: undefined, label: "全部" }, ...hotwordStatusOptions];
+
+  function openCreate() {
+    form.setFieldsValue({ status: "active" });
+    setCreateOpen(true);
+  }
+
+  async function submitCreate() {
+    const values = await form.validateFields();
+    await createHotword({
+      name: values.name,
+      aliases: parseAliases(values.aliases),
+      status: values.status
+    });
+    message.success("热点词已新增");
+    setCreateOpen(false);
+    form.resetFields();
+    await tags.refresh();
+  }
 
   async function showTrend(record: MarketTag) {
     setSelected(record);
@@ -34,14 +78,28 @@ export function TagsSection() {
     }
   }
 
+  async function disableHotword(record: MarketTag) {
+    await disableMarketTag(record.id);
+    message.success("热点词已停用");
+    await tags.refresh();
+  }
+
   const columns: ColumnsType<MarketTag> = [
     { title: "名称", dataIndex: "name" },
-    { title: "类型", dataIndex: "type", width: 110, render: (value) => <TagTypeTag type={value} /> },
-    { title: "状态", dataIndex: "status", width: 100, render: (value) => <StatusTag status={value} /> },
-    { title: "Stock ID", dataIndex: "stock_id", width: 90, render: (value) => value || "-" },
-    { title: "Track ID", dataIndex: "track_id", width: 90, render: (value) => value || "-" },
+    { title: "状态", dataIndex: "status", width: 100, render: (value) => <HotwordStatusTag status={value} /> },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
-    { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
+    {
+      title: "操作",
+      width: 150,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => showTrend(record)}>查看</Button>
+          <Popconfirm title="删除这个热点词？" onConfirm={() => disableHotword(record)}>
+            <Button size="small" danger disabled={record.status === "disabled"}>删除</Button>
+          </Popconfirm>
+        </Space>
+      )
+    }
   ];
 
   return (
@@ -49,17 +107,20 @@ export function TagsSection() {
       <DataPanel
         toolbar={
           <>
-            <Select allowClear size="small" placeholder="类型" value={typeFilter} options={rankingTypeOptions} style={{ width: 120 }} onChange={setTypeFilter} />
-            <Select
-              allowClear
-              size="small"
-              placeholder="状态"
-              value={statusFilter}
-              style={{ width: 110 }}
-              onChange={setStatusFilter}
-              options={[{ value: "active", label: "active" }, { value: "candidate", label: "candidate" }, { value: "disabled", label: "disabled" }]}
-            />
+            <Space size={4} className="toolbar-status-buttons">
+              {statusButtons.map((item) => (
+                <Button
+                  key={item.value || "all"}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
             <div className="data-panel-toolbar-spacer" />
+            <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
           </>
         }
       >
@@ -69,10 +130,24 @@ export function TagsSection() {
           loading={tags.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无标签" /> }}
         />
       </DataPanel>
+
+      <Modal title="新增热点词" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} onOk={submitCreate} destroyOnHidden forceRender>
+        <Form form={form} layout="vertical" preserve={false}>
+          <Form.Item name="name" label="热点词名称" rules={[{ required: true, message: "请输入热点词名称" }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="aliases" label="别名">
+            <Input.TextArea rows={3} placeholder="多个别名用逗号或换行分隔" />
+          </Form.Item>
+          <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+            <Select options={hotwordStatusOptions.filter((item) => item.value !== "candidate")} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Drawer title={selected ? `${selected.name} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
         {trend.length ? (

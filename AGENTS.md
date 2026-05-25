@@ -9,6 +9,8 @@
 - Migrated features must be reimplemented under the new system structure instead of copied from old code.
 - Keep module boundaries clear, business logic cohesive, and code paths short.
 - Do not switch branches for the current Liuli rewrite work. Continue development in the current branch unless the user explicitly changes this instruction.
+- Before running any command or test that deletes, drops, resets, recreates, truncates, or otherwise clears database data, confirm with the user first. This includes tests or helpers that call `drop_all`, `create_all` after dropping tables, `reset_db`, migration reset commands, or any command that might point at `var/db/liuli.sqlite3`.
+- Do not run tests that clear any database, even an apparently isolated test database, unless the user has explicitly approved that exact command in the current conversation. Treat function names such as `reset_db`, `drop_all`, `truncate`, `delete_all`, `recreate`, and migration reset helpers as destructive until proven otherwise. Prefer non-destructive tests, static checks, targeted unit tests without database resets, or explain the verification gap instead of silently clearing data.
 
 ## Web And Mobile Constraints
 
@@ -35,7 +37,7 @@
 - Web theme defaults to light mode and must implement light, dark, and follow-system theme switching in the first Web version. Functional debugging and visual acceptance focus on the light theme first; dark mode can be refined later.
 - Future Web UI work must follow `docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md` for typography, colors, layout, lines, tables, buttons, light theme, and dark theme constraints.
 - Stock tags and stock-track tag bindings are different concepts:
-  - `stock` tags are system-derived from stock lifecycle and must not be manually maintained in the Console tag library.
+  - `stock` tags must not be batch-generated from the stock master database. A `tag(type=stock)` is generated only when a stock is added to the stock pool.
   - A stock can bind to multiple `track` tags as research judgment.
   - The primary stock-to-track binding entry is Stock Analysis.
   - Track Discovery provides the reverse maintenance entry by track tag.

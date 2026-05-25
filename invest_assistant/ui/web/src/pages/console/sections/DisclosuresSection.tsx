@@ -154,7 +154,7 @@ export function DisclosuresSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={disclosures.loading} dataSource={disclosures.data} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={disclosures.loading} dataSource={disclosures.data} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
       </DataPanel>
 
       <Modal title={editing ? "编辑公告财报" : "新增公告财报"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>

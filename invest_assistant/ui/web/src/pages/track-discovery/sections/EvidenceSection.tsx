@@ -121,7 +121,7 @@ export function EvidenceSection() {
               loading={evidence.loading}
               dataSource={evidence.data}
               columns={columns}
-              pagination={{ pageSize: 8 }}
+              pagination={{ pageSize: 10 }}
               locale={{ emptyText: <EmptyAction description="暂无证据" /> }}
             />
           </Space>
@@ -166,7 +166,7 @@ export function EvidenceSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={reverseBindings.loading} dataSource={reverseBindings.data} columns={reverseColumns} pagination={{ pageSize: 8 }} />
+        <Table rowKey="id" size="small" loading={reverseBindings.loading} dataSource={reverseBindings.data} columns={reverseColumns} pagination={{ pageSize: 10 }} />
         <WorkbenchCard title="新增关联">
           <Form form={reverseForm} layout="vertical" preserve={false} onFinish={submitReverseBinding}>
             <Space.Compact block>

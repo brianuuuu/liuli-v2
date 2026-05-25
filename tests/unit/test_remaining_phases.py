@@ -6,6 +6,9 @@ from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
+from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar.models import TagHeatSnapshot
 from invest_assistant.shared.time_utils import utc_now
 
@@ -40,8 +43,7 @@ def test_stock_analysis_core_flow():
 
     tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
     assert tags.status_code == 200
-    assert tags.json()[0]["stock_id"] == stock_id
-    assert tags.json()[0]["name"] == "平安银行"
+    assert tags.json() == []
 
     note = client.post(
         f"/api/stock-analysis/stocks/{stock_id}/notes",
@@ -67,6 +69,10 @@ def test_stock_analysis_core_flow():
 
     pool = client.post("/api/stock-analysis/pool", json={"stock_id": stock_id, "status": "watching"}, headers=headers)
     assert pool.status_code == 200
+    tags = client.get("/api/market-radar/tags?type=stock", headers=headers)
+    assert tags.status_code == 200
+    assert tags.json()[0]["stock_id"] == stock_id
+    assert tags.json()[0]["name"] == "平安银行"
 
     group = client.post(
         "/api/stock-analysis/compare-groups",
@@ -145,6 +151,49 @@ def test_alert_center_rule_event_flow():
     assert handled.json()["status"] == "handled"
 
 
+def test_dashboard_exposes_unhandled_todo_events_and_ai_logs():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post(
+        "/api/alerts/events",
+        json={"rule_id": None, "event_level": "info", "title": "今日新增 2 个新闻热词候选", "message": "AI算力 9/10", "status": "unread"},
+        headers=headers,
+    )
+    handled = client.post(
+        "/api/alerts/events",
+        json={"rule_id": None, "event_level": "warning", "title": "已处理事件", "message": "ignore", "status": "handled"},
+        headers=headers,
+    )
+    assert handled.status_code == 200
+    db = SessionLocal()
+    try:
+        db.add(
+            AiRequestLog(
+                request_id="test-request",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                task_name="market_radar.extract_daily_hotwords_deepseek",
+                status="success",
+                duration_ms=12,
+                total_tokens=15,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    dashboard = client.get("/api/console/dashboard", headers=headers)
+    ai_logs = client.get("/api/console/ai-logs", headers=headers)
+
+    assert dashboard.status_code == 200
+    assert dashboard.json()["todo_events"][0]["title"] == "今日新增 2 个新闻热词候选"
+    assert all(item["status"] != "handled" for item in dashboard.json()["todo_events"])
+    assert ai_logs.status_code == 200
+    assert ai_logs.json()[0]["provider"] == "deepseek"
+    assert ai_logs.json()[0]["total_tokens"] == 15
+
+
 def test_alert_center_heat_rule_job_creates_deduplicated_event():
     reset_db()
     client = TestClient(create_app())
@@ -221,6 +270,11 @@ def test_portfolio_flow():
     )
     assert position.status_code == 200
     assert position.json()["group_id"] == group.json()["id"]
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
     review = client.post(
         f"/api/portfolios/{portfolio.json()['id']}/review",
         json={"title": "周复盘", "content": "仓位稳定", "risk_summary": "低"},
@@ -255,3 +309,90 @@ def test_knowledge_base_flow_and_jobs_registered():
     assert run.status_code == 200
     assert "knowledge_base.extract_skills" in JOB_REGISTRY
     assert "knowledge_base.compile_agents" in JOB_REGISTRY
+
+
+def test_knowledge_prompt_crud_uses_soft_delete():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+
+    created = client.post(
+        "/api/knowledge/prompts",
+        json={
+            "prompt_key": "custom.prompt.test",
+            "title": "新闻热词抽取",
+            "target_task": "custom.prompt.test",
+            "provider": "deepseek",
+            "model": "deepseek-v4-flash",
+            "system_prompt": "只返回合法JSON",
+            "user_prompt": "抽取热词",
+            "response_format": "json_object",
+            "status": "active",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 200
+    assert created.json()["prompt_key"] == "custom.prompt.test"
+
+    updated = client.put(
+        f"/api/knowledge/prompts/{created.json()['id']}",
+        json={**created.json(), "title": "今日新闻热词", "user_prompt": "抽取今日新闻热词"},
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "今日新闻热词"
+    assert updated.json()["user_prompt"] == "抽取今日新闻热词"
+
+    listed = client.get("/api/knowledge/prompts", headers=headers)
+    assert listed.status_code == 200
+    assert any(item["prompt_key"] == "custom.prompt.test" for item in listed.json())
+
+    deleted = client.delete(f"/api/knowledge/prompts/{created.json()['id']}", headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json()["status"] == "deleted"
+
+    listed_after_delete = client.get("/api/knowledge/prompts", headers=headers)
+    assert listed_after_delete.status_code == 200
+    assert all(item["prompt_key"] != "custom.prompt.test" for item in listed_after_delete.json())
+
+
+def test_create_app_seeds_default_deepseek_hotword_prompt_once():
+    reset_db()
+    create_app()
+
+    db = SessionLocal()
+    try:
+        prompt = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.extract_daily_hotwords_deepseek").one()
+        assert prompt.title == "DeepSeek 新闻热词候选"
+        assert prompt.provider == "deepseek"
+        assert prompt.model == "deepseek-v4-flash"
+        assert prompt.response_format == "json_object"
+        assert prompt.status == "active"
+        assert "只返回合法JSON" in prompt.system_prompt
+        assert "可作为系统标签长期复用" in prompt.system_prompt
+        assert "专有名词或实体名词" in prompt.user_prompt
+        assert "不要返回新闻短句" in prompt.user_prompt
+        assert "没有合格名词就跳过" in prompt.user_prompt
+        merge_prompt = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.suggest_hotword_merges_deepseek").one()
+        assert merge_prompt.title == "DeepSeek 热词近义合并建议"
+        assert merge_prompt.provider == "deepseek"
+        assert merge_prompt.response_format == "json_object"
+        assert "近义归并助手" in merge_prompt.system_prompt
+        assert "互作别名" in merge_prompt.user_prompt
+
+        prompt.title = "用户自定义标题"
+        db.commit()
+    finally:
+        db.close()
+
+    create_app()
+
+    db = SessionLocal()
+    try:
+        prompts = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.extract_daily_hotwords_deepseek").all()
+        merge_prompts = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.suggest_hotword_merges_deepseek").all()
+        assert len(prompts) == 1
+        assert len(merge_prompts) == 1
+        assert prompts[0].title == "用户自定义标题"
+    finally:
+        db.close()

@@ -1,10 +1,12 @@
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
+from invest_assistant.modules.market_radar.alias_resolver import resolve_source_tag_matches
+from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import (
     HotwordAlias,
     SourceItem,
@@ -39,11 +41,15 @@ def create_tag(db: Session, payload: TagCreate) -> Tag:
             setattr(existing, key, value)
         db.commit()
         db.refresh(existing)
+        enqueue_tag_backfill(db, existing)
+        db.commit()
         return existing
     tag = Tag(**payload.model_dump())
     db.add(tag)
     db.commit()
     db.refresh(tag)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return tag
 
 
@@ -68,11 +74,15 @@ def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) 
             setattr(existing, key, value)
         db.commit()
         db.refresh(existing)
+        enqueue_tag_backfill(db, tag)
+        db.commit()
         return existing
     item = HotwordAlias(tag_id=tag_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return item
 
 
@@ -105,9 +115,15 @@ def disable_tag(db: Session, tag: Tag) -> Tag:
 def create_source_item(db: Session, payload: SourceItemCreate) -> SourceItem:
     existing = find_duplicate_source_item(db, payload)
     if existing is not None:
+        persist_source_tag_matches(db, existing)
+        db.commit()
+        db.refresh(existing)
         return existing
     item = SourceItem(**payload.model_dump())
     db.add(item)
+    db.commit()
+    db.refresh(item)
+    persist_source_tag_matches(db, item)
     db.commit()
     db.refresh(item)
     return item
@@ -134,43 +150,120 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
 
 
 def list_source_items(db: Session) -> list[SourceItem]:
-    return list(db.scalars(select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())))
+    items = list(db.scalars(select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())))
+    return [_source_item_dict(db, item) for item in items]
 
 
 def get_source_item(db: Session, source_item_id: int) -> SourceItem | None:
-    return db.get(SourceItem, source_item_id)
+    item = db.get(SourceItem, source_item_id)
+    return _source_item_dict(db, item) if item is not None else None
 
 
-def _source_text(item: SourceItem) -> str:
-    return f"{item.title}\n{item.content}".casefold()
+def persist_source_tag_matches(
+    db: Session,
+    item: SourceItem,
+    tag_type: str | None = None,
+    tag_id: int | None = None,
+    overwrite: bool = False,
+) -> int:
+    matches = resolve_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id)
+    inserted = 0
+    for match in matches:
+        exists = db.scalar(select(SourceTag).where(SourceTag.source_item_id == item.id, SourceTag.tag_id == match.tag_id))
+        if exists is not None:
+            if overwrite:
+                exists.trigger_text = match.trigger_text
+                exists.extractor = match.extractor
+                exists.confidence = 1.0
+            continue
+        db.add(
+            SourceTag(
+                source_item_id=item.id,
+                tag_id=match.tag_id,
+                trigger_text=match.trigger_text,
+                confidence=1.0,
+                extractor=match.extractor,
+            )
+        )
+        inserted += 1
+    return inserted
+
+
+def _parse_datetime(value: datetime | str | None) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+def backfill_source_tags(
+    db: Session,
+    tag_type: str | None = None,
+    tag_id: int | None = None,
+    start_time: datetime | str | None = None,
+    end_time: datetime | str | None = None,
+    source_type: str | None = None,
+    overwrite: bool = False,
+) -> JobResult:
+    start_dt = _parse_datetime(start_time)
+    end_dt = _parse_datetime(end_time)
+    stmt = select(SourceItem).order_by(SourceItem.id.asc())
+    if source_type:
+        stmt = stmt.where(SourceItem.source_type == source_type)
+    item_time = func.coalesce(SourceItem.publish_time, SourceItem.created_at)
+    if start_dt is not None:
+        stmt = stmt.where(item_time >= start_dt)
+    if end_dt is not None:
+        stmt = stmt.where(item_time <= end_dt)
+    items = list(db.scalars(stmt))
+    inserted = 0
+    for item in items:
+        inserted += persist_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id, overwrite=overwrite)
+    db.commit()
+    return JobResult(
+        success=True,
+        message=f"backfilled {inserted} source tags",
+        processed_count=len(items),
+        inserted_count=inserted,
+    )
 
 
 def extract_tags(db: Session) -> JobResult:
-    tags = list(db.scalars(select(Tag).where(Tag.status != "disabled")))
-    items = list(db.scalars(select(SourceItem).order_by(SourceItem.id.asc())))
-    inserted = 0
-    for item in items:
-        text = _source_text(item)
-        for tag in tags:
-            if tag.name.casefold() not in text:
-                continue
-            exists = db.scalar(
-                select(SourceTag).where(SourceTag.source_item_id == item.id, SourceTag.tag_id == tag.id)
-            )
-            if exists is not None:
-                continue
-            db.add(
-                SourceTag(
-                    source_item_id=item.id,
-                    tag_id=tag.id,
-                    trigger_text=tag.name,
-                    confidence=1.0,
-                    extractor="rule",
-                )
-            )
-            inserted += 1
-    db.commit()
-    return JobResult(success=True, message=f"extracted {inserted} source tags", processed_count=len(items), inserted_count=inserted)
+    return backfill_source_tags(db)
+
+
+def _source_item_dict(db: Session, item: SourceItem) -> dict:
+    rows = db.execute(
+        select(SourceTag, Tag)
+        .join(Tag, Tag.id == SourceTag.tag_id)
+        .where(SourceTag.source_item_id == item.id)
+        .order_by(Tag.type.asc(), Tag.name.asc())
+    ).all()
+    return {
+        "id": item.id,
+        "source_type": item.source_type,
+        "source_name": item.source_name,
+        "title": item.title,
+        "content": item.content,
+        "source_url": item.source_url,
+        "publish_time": item.publish_time,
+        "related_type": item.related_type,
+        "related_id": item.related_id,
+        "created_at": item.created_at,
+        "source_tags": [
+            {
+                "id": source_tag.id,
+                "source_item_id": source_tag.source_item_id,
+                "tag_id": source_tag.tag_id,
+                "trigger_text": source_tag.trigger_text,
+                "confidence": source_tag.confidence,
+                "extractor": source_tag.extractor,
+                "created_at": source_tag.created_at,
+                "tag": _tag_dict(tag),
+            }
+            for source_tag, tag in rows
+        ],
+    }
 
 
 def aggregate_heat(db: Session) -> JobResult:
@@ -313,7 +406,13 @@ def graph_edges(db: Session, related_type: str, window: str) -> dict:
 
 
 def create_candidate(db: Session, payload: TagCandidateCreate) -> TagCandidate:
-    item = TagCandidate(**payload.model_dump())
+    name = payload.name.strip()
+    existing = db.scalar(select(TagCandidate).where(func.lower(TagCandidate.name) == name.lower()))
+    if existing is not None:
+        raise ValueError("candidate name already exists")
+    values = payload.model_dump()
+    values["name"] = name
+    item = TagCandidate(**values)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -328,7 +427,17 @@ def get_candidate(db: Session, candidate_id: int) -> TagCandidate | None:
     return db.get(TagCandidate, candidate_id)
 
 
-def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def _update_candidate_name(candidate: TagCandidate, name: str | None) -> None:
+    if name is None:
+        return
+    normalized = name.strip()
+    if not normalized:
+        raise ValueError("candidate name is required")
+    candidate.name = normalized
+
+
+def approve_candidate(db: Session, candidate: TagCandidate, name: str | None = None) -> TagCandidate:
+    _update_candidate_name(candidate, name)
     if candidate.suggested_type == "hotword":
         tag = create_tag(db, TagCreate(name=candidate.name, type="hotword", status="active"))
         candidate.target_tag_id = tag.id
@@ -339,8 +448,28 @@ def approve_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
         track = create_track(db, TrackCreate(name=candidate.name, status="candidate"))
         candidate.target_tag_id = track["tag"]["id"] if track.get("tag") else None
     else:
-        tag = create_tag(db, TagCreate(name=candidate.name, type=candidate.suggested_type, status="active"))
-        candidate.target_tag_id = tag.id
+        candidate.target_tag_id = None
+    candidate.status = "approved"
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
+def promote_candidate_to_track(db: Session, candidate: TagCandidate) -> TagCandidate:
+    if candidate.status != "pending":
+        raise ValueError("candidate is not pending")
+
+    from invest_assistant.modules.track_discovery.models import Track
+    from invest_assistant.modules.track_discovery.schemas import TrackCreate
+    from invest_assistant.modules.track_discovery.service import create_track
+
+    name = candidate.name.strip()
+    existing = db.scalar(select(Track).where(func.lower(Track.name) == name.lower()))
+    if existing is not None:
+        raise ValueError("track name already exists")
+
+    track = create_track(db, TrackCreate(name=name, status="candidate"))
+    candidate.target_tag_id = track["tag"]["id"] if track.get("tag") else None
     candidate.status = "approved"
     db.commit()
     db.refresh(candidate)
@@ -354,7 +483,29 @@ def reject_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
-def merge_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def restore_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+    if candidate.status != "rejected":
+        raise ValueError("candidate is not rejected")
+    candidate.status = "pending"
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
+def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None, name: str | None = None) -> TagCandidate:
+    _update_candidate_name(candidate, name)
+    resolved_target_id = target_tag_id or candidate.suggested_target_tag_id
+    if resolved_target_id is None:
+        raise ValueError("target hotword tag is required")
+    target = db.get(Tag, resolved_target_id)
+    if target is None or target.type != "hotword" or target.status != "active":
+        raise ValueError("active hotword tag not found")
+    create_hotword_alias(
+        db,
+        resolved_target_id,
+        HotwordAliasCreate(alias=candidate.name, source="ai_suggested", status="active"),
+    )
+    candidate.target_tag_id = resolved_target_id
     candidate.status = "merged"
     db.commit()
     db.refresh(candidate)

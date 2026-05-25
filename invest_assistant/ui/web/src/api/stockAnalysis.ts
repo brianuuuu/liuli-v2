@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreSnapshot, StockTrackRelation } from "../types/api";
+import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -6,6 +6,7 @@ export type StockPoolPayload = {
   status?: string;
   source?: string;
   reason?: string | null;
+  track_ids?: number[];
 };
 
 export type StockNotePayload = {
@@ -77,6 +78,16 @@ export async function listStockScores(stockId: number): Promise<StockScoreSnapsh
 
 export async function createStockScore(stockId: number, payload: StockScorePayload): Promise<StockScoreSnapshot> {
   const response = await apiClient.post<StockScoreSnapshot>(`/api/stock-analysis/stocks/${stockId}/scores`, payload);
+  return response.data;
+}
+
+export async function listStockScoreComparison(): Promise<StockScoreComparisonItem[]> {
+  const response = await apiClient.get<StockScoreComparisonItem[]>("/api/stock-analysis/score-comparison");
+  return response.data;
+}
+
+export async function listStockValuationComparison(): Promise<StockValuationComparisonItem[]> {
+  const response = await apiClient.get<StockValuationComparisonItem[]>("/api/stock-analysis/valuation-comparison");
   return response.data;
 }
 

@@ -124,7 +124,7 @@ export function ReportsSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={reports.loading} dataSource={reports.data} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={reports.loading} dataSource={reports.data} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
       </DataPanel>
 
       <Modal title={editing ? "编辑报告" : "新增报告"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>

@@ -1,8 +1,8 @@
 import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { changeTrackStatus, createTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
+import { changeTrackStatus, createTrack, deleteTrack, listTracks, updateTrack } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -23,25 +23,34 @@ export function ThesesSection() {
   const [statusOpen, setStatusOpen] = useState<Track | null>(null);
   const [form] = Form.useForm<TrackFormValues>();
   const [statusForm] = Form.useForm<{ new_status: string; reason?: string }>();
+  const statusButtons = [{ value: undefined, label: "全部" }, ...thesisStatusOptions];
 
   const rows = useMemo(
     () => tracks.data.filter((item) => !statusFilter || item.status === statusFilter),
     [tracks.data, statusFilter]
   );
 
+  useEffect(() => {
+    if (!open) return;
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue({
+        name: editing.name,
+        description: editing.description || undefined,
+        status: editing.status
+      });
+    } else {
+      form.setFieldsValue({ status: "candidate" });
+    }
+  }, [editing, form, open]);
+
   function openCreate() {
     setEditing(null);
-    form.setFieldsValue({ status: "candidate" });
     setOpen(true);
   }
 
   function openEdit(record: Track) {
     setEditing(record);
-    form.setFieldsValue({
-      name: record.name,
-      description: record.description || undefined,
-      status: record.status
-    });
     setOpen(true);
   }
 
@@ -83,6 +92,17 @@ export function ThesesSection() {
     await tracks.refresh();
   }
 
+  async function remove(record: Track) {
+    try {
+      await deleteTrack(record.id);
+      message.success("候选赛道已删除");
+      await tracks.refresh();
+    } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      message.error(detail || "候选赛道删除失败");
+    }
+  }
+
   const columns: ColumnsType<Track> = [
     { title: "赛道", dataIndex: "name", render: (value, record) => <Link to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
@@ -96,9 +116,15 @@ export function ThesesSection() {
         <Space>
           <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
           <Button size="small" onClick={() => openStatus(record)}>状态</Button>
-          <Popconfirm title="归档这个赛道？" onConfirm={() => archive(record)}>
-            <Button size="small" danger disabled={record.status === "archived"}>归档</Button>
-          </Popconfirm>
+          {record.status === "candidate" ? (
+            <Popconfirm title="物理删除这个候选赛道？" okText="删除" cancelText="取消" onConfirm={() => remove(record)}>
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
+          ) : (
+            <Popconfirm title="归档这个赛道？" okText="归档" cancelText="取消" onConfirm={() => archive(record)}>
+              <Button size="small" danger disabled={record.status === "archived"}>归档</Button>
+            </Popconfirm>
+          )}
         </Space>
       )
     }
@@ -109,7 +135,18 @@ export function ThesesSection() {
       <DataPanel
         toolbar={
           <>
-            <Select allowClear size="small" placeholder="状态" value={statusFilter} options={thesisStatusOptions} style={{ width: 120 }} onChange={setStatusFilter} />
+            <Space size={4} className="toolbar-status-buttons">
+              {statusButtons.map((item) => (
+                <Button
+                  key={item.value || "all"}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatusFilter(item.value)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增赛道</Button>
           </>
@@ -121,12 +158,12 @@ export function ThesesSection() {
           loading={tracks.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无已跟踪赛道" /> }}
         />
       </DataPanel>
 
-      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={760}>
+      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => { setOpen(false); setEditing(null); }} onOk={submit} destroyOnHidden forceRender width={760}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />

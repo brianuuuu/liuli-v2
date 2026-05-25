@@ -30,3 +30,8 @@ def update_config(db: Session, item: SystemConfig, payload: SystemConfigUpdate) 
     db.commit()
     db.refresh(item)
     return item
+
+
+def delete_config(db: Session, item: SystemConfig) -> None:
+    db.delete(item)
+    db.commit()

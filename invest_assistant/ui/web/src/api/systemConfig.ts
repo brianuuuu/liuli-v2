@@ -26,3 +26,7 @@ export async function updateSystemConfig(configKey: string, payload: SystemConfi
   const response = await apiClient.put<SystemConfig>(`/api/system-config/${encodeURIComponent(configKey)}`, payload);
   return response.data;
 }
+
+export async function deleteSystemConfig(configKey: string): Promise<void> {
+  await apiClient.delete(`/api/system-config/${encodeURIComponent(configKey)}`);
+}

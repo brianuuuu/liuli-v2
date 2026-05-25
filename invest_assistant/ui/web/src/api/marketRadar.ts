@@ -42,6 +42,9 @@ export type TagCandidatePayload = {
   confidence?: number;
   reason?: string | null;
   target_tag_id?: number | null;
+  suggested_target_tag_id?: number | null;
+  merge_similarity?: number | null;
+  merge_reason?: string | null;
   status?: string;
 };
 
@@ -108,8 +111,16 @@ export async function createTagCandidate(payload: TagCandidatePayload): Promise<
   return response.data;
 }
 
-export async function approveTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/approve`);
+export async function approveTagCandidate(candidateId: number, name?: string): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(
+    `/api/market-radar/tag-candidates/${candidateId}/approve`,
+    name ? { name } : undefined
+  );
+  return response.data;
+}
+
+export async function promoteTagCandidateToTrack(candidateId: number): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/promote-track`);
   return response.data;
 }
 
@@ -118,8 +129,16 @@ export async function rejectTagCandidate(candidateId: number): Promise<TagCandid
   return response.data;
 }
 
-export async function mergeTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/merge`);
+export async function restoreTagCandidate(candidateId: number): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/restore`);
+  return response.data;
+}
+
+export async function mergeTagCandidate(candidateId: number, targetTagId?: number, name?: string): Promise<TagCandidate> {
+  const response = await apiClient.post<TagCandidate>(
+    `/api/market-radar/tag-candidates/${candidateId}/merge`,
+    targetTagId || name ? { target_tag_id: targetTagId, name } : undefined
+  );
   return response.data;
 }
 

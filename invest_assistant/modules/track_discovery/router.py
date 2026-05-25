@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
@@ -55,6 +55,17 @@ def update_track(track_id: int, payload: TrackUpdate, db: Session = Depends(get_
     if track is None:
         raise HTTPException(status_code=404, detail="track not found")
     return track
+
+
+@router.delete("/tracks/{track_id}", status_code=204)
+def delete_track(track_id: int, db: Session = Depends(get_db)):
+    try:
+        deleted = service.delete_candidate_track(db, track_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="track not found")
+    return Response(status_code=204)
 
 
 @router.get("/tracks/{track_id}/aliases", response_model=list[TrackAliasRead])

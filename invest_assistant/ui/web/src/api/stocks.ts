@@ -2,8 +2,11 @@ import type { Stock, StockAlias } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockImportItem = {
+  symbol?: string | null;
   stock_code: string;
   stock_name: string;
+  name_pinyin?: string | null;
+  name_abbr?: string | null;
   market?: string | null;
   exchange?: string | null;
 };
@@ -43,5 +46,10 @@ export async function listStockAliases(stockId: number): Promise<StockAlias[]> {
 
 export async function createStockAlias(stockId: number, payload: StockAliasCreate): Promise<StockAlias> {
   const response = await apiClient.post<StockAlias>(`/api/stocks/${stockId}/aliases`, payload);
+  return response.data;
+}
+
+export async function replaceStockAliases(stockId: number, aliases: StockAliasCreate[]): Promise<StockAlias[]> {
+  const response = await apiClient.put<StockAlias[]>(`/api/stocks/${stockId}/aliases`, { aliases });
   return response.data;
 }

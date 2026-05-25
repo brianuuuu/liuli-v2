@@ -1,10 +1,11 @@
 import { ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Drawer, Input, Select, Space, Tag, Typography, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
-import { listMarketTags, listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
+import { listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { MarketTag, SourceItem } from "../../../types/api";
+import type { SourceItem } from "../../../types/api";
+import { filterFlashRows } from "./flashFilters";
 import { formatTime } from "./shared";
 
 const flashTypes = new Set(["news", "policy", "sentiment", "announcement", "financial"]);
@@ -30,11 +31,6 @@ function flashText(item: SourceItem) {
   return `${item.title}\n${item.content}`.toLowerCase();
 }
 
-function matchedTags(item: SourceItem, tags: MarketTag[]) {
-  const text = flashText(item);
-  return tags.filter((tag) => tag.status === "active" && tag.name && text.includes(tag.name.toLowerCase())).slice(0, 8);
-}
-
 function dotClass(item: SourceItem) {
   if (isImportantFlash(item)) return "flash-dot important";
   if (item.source_type === "announcement" || item.source_type === "financial") return "flash-dot filing";
@@ -43,11 +39,11 @@ function dotClass(item: SourceItem) {
 
 export function FlashSection() {
   const sources = useAsyncData(useCallback(listSourceItems, []), []);
-  const tags = useAsyncData(useCallback(() => listMarketTags(), []), []);
   const [keyword, setKeyword] = useState("");
   const [sourceName, setSourceName] = useState<string | undefined>();
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [importantOnly, setImportantOnly] = useState(false);
+  const [activeTagId, setActiveTagId] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
 
@@ -58,14 +54,16 @@ export function FlashSection() {
 
   const rows = useMemo(() => {
     const query = keyword.trim().toLowerCase();
-    return sources.data
+    const filteredRows = sources.data
       .filter((item) => flashTypes.has(item.source_type))
       .filter((item) => !sourceName || item.source_name === sourceName)
       .filter((item) => !sourceType || item.source_type === sourceType)
       .filter((item) => !importantOnly || isImportantFlash(item))
       .filter((item) => !query || flashText(item).includes(query))
       .sort((a, b) => String(b.publish_time || b.created_at || "").localeCompare(String(a.publish_time || a.created_at || "")));
-  }, [importantOnly, keyword, sourceName, sourceType, sources.data]);
+
+    return filterFlashRows(filteredRows, { activeTagId });
+  }, [activeTagId, importantOnly, keyword, sourceName, sourceType, sources.data]);
 
   const feedItems = useMemo(() => {
     const result: Array<{ type: "date"; date: string; key: string } | { type: "flash"; item: SourceItem; key: string }> = [];
@@ -101,6 +99,11 @@ export function FlashSection() {
     setSourceName(undefined);
     setSourceType(undefined);
     setImportantOnly(false);
+    setActiveTagId(null);
+  }
+
+  function toggleTagFilter(tagId: number) {
+    setActiveTagId((current) => (current === tagId ? null : tagId));
   }
 
   return (
@@ -134,7 +137,7 @@ export function FlashSection() {
                   );
                 }
                 const item = entry.item;
-                const itemTags = matchedTags(item, tags.data);
+                const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter(Boolean).slice(0, 8);
                 return (
                   <article className="flash-row" key={entry.key}>
                     <div className="flash-rail">
@@ -151,7 +154,26 @@ export function FlashSection() {
                       <div className="flash-title">{item.title}</div>
                       <div className="flash-content">{item.content}</div>
                       <div className="flash-tags">
-                        {itemTags.length ? itemTags.map((tag) => <Tag key={tag.id}>{tag.name}</Tag>) : <span>暂无命中标签</span>}
+                        {itemTags.length ? itemTags.map((tag) => (
+                          <Tag
+                            className={activeTagId === tag.id ? "flash-tag active" : "flash-tag"}
+                            key={tag.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleTagFilter(tag.id);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" && event.key !== " ") return;
+                              event.preventDefault();
+                              event.stopPropagation();
+                              toggleTagFilter(tag.id);
+                            }}
+                          >
+                            {tag.name}
+                          </Tag>
+                        )) : <span>暂无命中标签</span>}
                       </div>
                     </button>
                   </article>

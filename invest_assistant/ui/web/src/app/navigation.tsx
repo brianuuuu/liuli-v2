@@ -62,8 +62,7 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   ],
   knowledge: [
     { key: "notes", label: "知识笔记" },
-    { key: "review", label: "复盘沉淀" },
-    { key: "principles", label: "分析准则" },
+    { key: "prompts", label: "Prompt" },
     { key: "skills", label: "Skills" },
     { key: "agents", label: "Agents" },
     { key: "feedback", label: "反哺记录" }

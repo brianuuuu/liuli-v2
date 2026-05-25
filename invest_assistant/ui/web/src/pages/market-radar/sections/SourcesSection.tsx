@@ -66,7 +66,7 @@ export function SourcesSection() {
           loading={sources.loading}
           dataSource={sources.data}
           columns={columns}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步财联社" /> }}
         />
       </DataPanel>

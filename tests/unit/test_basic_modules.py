@@ -1,10 +1,8 @@
 import os
-import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 
-import pandas as pd
 from fastapi.testclient import TestClient
 
 test_db_path = Path(tempfile.gettempdir()) / "liuli_test_basic_modules.sqlite3"
@@ -12,11 +10,14 @@ os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path.as_posix()}"
 
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.modules.basic.job_center.models import JobConfig
 from invest_assistant.modules.basic.stock_master.jobs import sync_stock_basic_job
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.stock_master.service import build_a_stock_item
 from invest_assistant.modules.basic.system_config.models import SystemConfig
+from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.market_radar.models import Tag
+from invest_assistant.services.tushare.client import get_tushare_token
 
 
 def reset_db():
@@ -44,9 +45,48 @@ def test_stock_import_and_search():
     search = client.get("/api/stocks/search?keyword=平安", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
+
+
+def test_stock_list_exposes_and_replaces_aliases():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    stock = client.post(
+        "/api/stocks/import",
+        json=[{"stock_code": "000001", "stock_name": "平安银行", "market": "MAIN", "exchange": "SZSE"}],
+        headers=headers,
+    ).json()[0]
+
+    response = client.put(
+        f"/api/stocks/{stock['id']}/aliases",
+        json={"aliases": [{"alias": "平安", "alias_type": "short"}, {"alias": "PAYH", "source": "manual"}]},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert [item["alias"] for item in response.json()] == ["平安", "PAYH"]
+
+    stocks = client.get("/api/stocks", headers=headers)
+    assert stocks.status_code == 200
+    assert [item["alias"] for item in stocks.json()[0]["aliases"]] == ["PAYH", "平安"]
     search = client.get("/api/stocks/search?keyword=payh", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"
+    edit = client.put(
+        f"/api/stocks/{stock['id']}",
+        json={"stock_name": "平安银行A", "status": "active"},
+        headers=headers,
+    )
+    assert edit.status_code == 200
+    db = SessionLocal()
+    try:
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
+    finally:
+        db.close()
 
 
 def test_build_a_stock_item_adds_symbol_market_and_pinyin():
@@ -61,7 +101,7 @@ def test_build_a_stock_item_adds_symbol_market_and_pinyin():
     assert item.name_abbr == "ndsd"
 
 
-def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch):
+def test_sync_stock_basic_job_upserts_and_does_not_create_stock_tags(monkeypatch):
     reset_db()
     db = SessionLocal()
     try:
@@ -78,24 +118,15 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     finally:
         db.close()
 
-    first_tushare_df = pd.DataFrame(
-        [
-            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"},
-            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
-            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
-        ]
-    )
-    tushare_pro = SimpleNamespace(stock_basic=lambda **kwargs: first_tushare_df)
-    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
-    monkeypatch.setitem(
-        sys.modules,
-        "tushare",
-        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: tushare_pro),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "akshare",
-        SimpleNamespace(stock_info_a_code_name=lambda: (_ for _ in ()).throw(AssertionError("AkShare fallback should not be called"))),
+    first_tushare_rows = [
+        {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"},
+        {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+        {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
+    ]
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_basic_rows", lambda: first_tushare_rows)
+    monkeypatch.setattr(
+        "invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_code_name_rows",
+        lambda: (_ for _ in ()).throw(AssertionError("AkShare fallback should not be called")),
     )
 
     result = sync_stock_basic_job()
@@ -127,20 +158,16 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
         stale = db.query(Stock).filter(Stock.stock_code == "600000").one()
         assert stale.status == "disabled"
 
-        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
-        assert tag.name == "平安银行"
-        assert tag.status == "active"
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
     finally:
         db.close()
 
-    second_tushare_df = pd.DataFrame(
-        [
-            {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行A"},
-            {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
-            {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
-        ]
-    )
-    tushare_pro.stock_basic = lambda **kwargs: second_tushare_df
+    second_tushare_rows = [
+        {"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行A"},
+        {"ts_code": "600519.SH", "symbol": "600519", "name": "贵州茅台"},
+        {"ts_code": "430047.BJ", "symbol": "430047", "name": "诺思兰德"},
+    ]
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_basic_rows", lambda: second_tushare_rows)
 
     result = sync_stock_basic_job()
 
@@ -152,26 +179,18 @@ def test_sync_stock_basic_job_upserts_disables_and_syncs_stock_tags(monkeypatch)
     try:
         ping_an = db.query(Stock).filter(Stock.stock_code == "000001", Stock.exchange == "SZSE").one()
         assert ping_an.stock_name == "平安银行A"
-        tag = db.query(Tag).filter(Tag.type == "stock", Tag.stock_id == ping_an.id).one()
-        assert tag.name == "平安银行A"
+        assert db.query(Tag).filter(Tag.type == "stock").count() == 0
     finally:
         db.close()
 
 
 def test_sync_stock_basic_job_falls_back_to_akshare_when_tushare_fails(monkeypatch):
     reset_db()
-    fallback_df = pd.DataFrame([{"code": "000001", "name": "平安银行"}])
-
     def fail_tushare(**kwargs):
         raise RuntimeError("tushare unavailable")
 
-    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
-    monkeypatch.setitem(
-        sys.modules,
-        "tushare",
-        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=fail_tushare)),
-    )
-    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: fallback_df))
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_basic_rows", fail_tushare)
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_code_name_rows", lambda: [{"code": "000001", "name": "平安银行"}])
 
     result = sync_stock_basic_job()
 
@@ -203,21 +222,9 @@ def test_sync_stock_basic_job_reads_tushare_token_from_system_config(monkeypatch
     finally:
         db.close()
 
-    captured = {}
-    tushare_df = pd.DataFrame([{"ts_code": "000001.SZ", "symbol": "000001", "name": "平安银行"}])
+    monkeypatch.setattr("invest_assistant.services.tushare.client.get_settings", lambda: type("Settings", (), {"tushare_token": ""})())
 
-    def pro_api(token=None):
-        captured["token"] = token
-        return SimpleNamespace(stock_basic=lambda **kwargs: tushare_df)
-
-    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token=""))
-    monkeypatch.setitem(sys.modules, "tushare", SimpleNamespace(set_token=lambda token: None, pro_api=pro_api))
-
-    result = sync_stock_basic_job()
-
-    assert result.success is True
-    assert result.extra["source"] == "tushare"
-    assert captured["token"] == "system-config-token"
+    assert get_tushare_token() == "system-config-token"
 
 
 def test_sync_stock_basic_job_failure_does_not_modify_existing_stocks(monkeypatch):
@@ -232,13 +239,8 @@ def test_sync_stock_basic_job_failure_does_not_modify_existing_stocks(monkeypatc
     def fail_fetch():
         raise RuntimeError("upstream unavailable")
 
-    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
-    monkeypatch.setitem(
-        sys.modules,
-        "tushare",
-        SimpleNamespace(set_token=lambda token: None, pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: fail_fetch())),
-    )
-    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=fail_fetch))
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_basic_rows", fail_fetch)
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_code_name_rows", fail_fetch)
 
     result = sync_stock_basic_job()
 
@@ -264,16 +266,8 @@ def test_sync_stock_basic_job_empty_source_does_not_modify_existing_stocks(monke
     finally:
         db.close()
 
-    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.get_settings", lambda: SimpleNamespace(tushare_token="test-token"))
-    monkeypatch.setitem(
-        sys.modules,
-        "tushare",
-        SimpleNamespace(
-            set_token=lambda token: None,
-            pro_api=lambda token=None: SimpleNamespace(stock_basic=lambda **kwargs: pd.DataFrame(columns=["ts_code", "symbol", "name"])),
-        ),
-    )
-    monkeypatch.setitem(sys.modules, "akshare", SimpleNamespace(stock_info_a_code_name=lambda: pd.DataFrame(columns=["code", "name"])))
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_basic_rows", lambda: [])
+    monkeypatch.setattr("invest_assistant.modules.basic.stock_master.jobs.fetch_a_stock_code_name_rows", lambda: [])
 
     result = sync_stock_basic_job()
 
@@ -313,6 +307,68 @@ def test_system_config_crud():
     )
     assert update.status_code == 200
     assert update.json()["config_value"] == "7d"
+
+    delete = client.delete("/api/system-config/market_radar.heat_window", headers=headers)
+    assert delete.status_code == 204
+
+    missing = client.get("/api/system-config/market_radar.heat_window", headers=headers)
+    assert missing.status_code == 404
+
+
+def test_console_data_sources_show_stock_master_and_cls_news():
+    reset_db()
+    client = TestClient(create_app())
+    headers = login_headers(client)
+    client.post(
+        "/api/stocks/import",
+        json=[{"stock_code": "000001", "stock_name": "平安银行", "market": "MAIN", "exchange": "SZSE"}],
+        headers=headers,
+    )
+    db = SessionLocal()
+    try:
+        db.add(
+            JobConfig(
+                job_name="stock_master.sync_stock_basic",
+                module_name="stock_master",
+                display_name="同步股票基础库",
+                config_json={},
+                ext_json={},
+                last_status="success",
+                last_run_at=datetime(2026, 5, 21, 23, 12, 42),
+            )
+        )
+        db.add(
+            JobConfig(
+                job_name="market_radar.fetch_news",
+                module_name="market_radar",
+                display_name="抓取市场新闻",
+                config_json={},
+                ext_json={},
+                last_status="success",
+                last_run_at=datetime(2026, 5, 21, 23, 40, 38),
+            )
+        )
+        db.add(
+            SourceItem(
+                source_type="news",
+                source_name="财联社",
+                title="测试快讯",
+                content="测试快讯",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get("/api/console/data-sources", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["name"] for item in data] == ["股票基础库", "信息流（财联社）"]
+    assert data[0]["record_count"] == 1
+    assert data[1]["record_count"] == 1
+    assert data[0]["last_sync_at"].startswith("2026-05-21T23:12:42")
+    assert data[1]["last_sync_at"].startswith("2026-05-21T23:40:38")
 
 
 def test_report_library_creates_report_index():

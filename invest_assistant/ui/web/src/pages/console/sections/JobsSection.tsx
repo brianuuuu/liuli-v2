@@ -1,5 +1,5 @@
 import { SearchOutlined } from "@ant-design/icons";
-import { Button, Checkbox, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Switch, Tabs, message } from "antd";
+import { Button, Checkbox, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Space, Switch, Tabs, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, updateJob } from "../../../api/jobs";
 import type { JobConfig, JobRunLog } from "../../../types/api";
@@ -26,6 +26,38 @@ type RunParamRow = {
   value: string;
 };
 
+type RunParamSchemaItem = {
+  type?: string;
+  label?: string;
+  default?: unknown;
+  placeholder?: string;
+  min?: number;
+  options?: Array<{ value: string; label: string }>;
+};
+
+type RunParamSchemaEntry = [string, RunParamSchemaItem];
+
+function runParamSchemaEntries(job: JobConfig | null): RunParamSchemaEntry[] {
+  const schema = job?.params_schema;
+  if (!schema) return [];
+  return Object.entries(schema)
+    .filter((entry): entry is RunParamSchemaEntry => Boolean(entry[1]) && typeof entry[1] === "object" && !Array.isArray(entry[1]));
+}
+
+function defaultRunParamValues(job: JobConfig): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const [key, schema] of runParamSchemaEntries(job)) {
+    if (schema.default !== undefined) {
+      values[key] = schema.default;
+    } else if (schema.type === "boolean") {
+      values[key] = false;
+    } else {
+      values[key] = undefined;
+    }
+  }
+  return values;
+}
+
 export function JobsSection() {
   const jobs = useAsyncData(useCallback(listJobs, []), []);
   const requests = useAsyncData(useCallback(listRunRequests, []), []);
@@ -42,6 +74,7 @@ export function JobsSection() {
   const [runOpen, setRunOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<Record<string, unknown> | null>(null);
   const [runParamRows, setRunParamRows] = useState<RunParamRow[]>([]);
+  const [schemaParamValues, setSchemaParamValues] = useState<Record<string, unknown>>({});
   const [showAdvancedParams, setShowAdvancedParams] = useState(false);
   const [editForm] = Form.useForm<JobScheduleFormValues>();
   const executionMode = Form.useWatch("execution_mode", editForm);
@@ -172,6 +205,7 @@ export function JobsSection() {
   function openRun(record: JobConfig) {
     setSelectedJob(record);
     setRunParamRows([]);
+    setSchemaParamValues(defaultRunParamValues(record));
     setShowAdvancedParams(false);
     setRunOpen(true);
   }
@@ -189,8 +223,28 @@ export function JobsSection() {
     setRunParamRows((rows) => rows.filter((row) => row.id !== id));
   }
 
+  function updateSchemaParam(key: string, value: unknown) {
+    setSchemaParamValues((values) => ({ ...values, [key]: value }));
+  }
+
   function buildRunParams(showError: boolean): Record<string, unknown> | null {
     const params: Record<string, unknown> = {};
+    for (const [key, schema] of runParamSchemaEntries(selectedJob)) {
+      const value = schemaParamValues[key];
+      if (value === undefined || value === null || value === "") continue;
+      if (schema.type === "number") {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+          if (showError) message.error(`参数 ${key} 需要填写数字`);
+          return null;
+        }
+        params[key] = numericValue;
+      } else if (schema.type === "boolean") {
+        params[key] = value === true;
+      } else {
+        params[key] = value;
+      }
+    }
     const keys = new Set<string>();
     for (const row of runParamRows) {
       const key = row.key.trim();
@@ -241,6 +295,57 @@ export function JobsSection() {
         value={row.value}
         onChange={(event) => updateRunParamRow(row.id, { value: event.target.value })}
       />
+    );
+  }
+
+  function renderSchemaParam(key: string, schema: RunParamSchemaItem) {
+    const label = schema.label || key;
+    if (schema.type === "boolean") {
+      return (
+        <label className="job-config-inline-field" key={key}>
+          <span>{label}</span>
+          <Switch checked={schemaParamValues[key] === true} onChange={(checked) => updateSchemaParam(key, checked)} />
+        </label>
+      );
+    }
+    if (schema.type === "number") {
+      return (
+        <label className="job-config-inline-field" key={key}>
+          <span>{label}</span>
+          <InputNumber
+            min={schema.min}
+            precision={0}
+            placeholder={schema.placeholder}
+            value={schemaParamValues[key] as number | null | undefined}
+            onChange={(value) => updateSchemaParam(key, value)}
+            style={{ width: "100%" }}
+          />
+        </label>
+      );
+    }
+    if (schema.type === "select") {
+      return (
+        <label className="job-config-inline-field" key={key}>
+          <span>{label}</span>
+          <Select
+            allowClear
+            placeholder={schema.placeholder}
+            value={schemaParamValues[key] as string | undefined}
+            options={schema.options || []}
+            onChange={(value) => updateSchemaParam(key, value)}
+          />
+        </label>
+      );
+    }
+    return (
+      <label className="job-config-inline-field" key={key}>
+        <span>{label}</span>
+        <Input
+          placeholder={schema.placeholder}
+          value={(schemaParamValues[key] as string | undefined) || ""}
+          onChange={(event) => updateSchemaParam(key, event.target.value)}
+        />
+      </label>
     );
   }
 
@@ -484,7 +589,16 @@ export function JobsSection() {
               </div>
             </div>
             {selectedJob.description ? <p className="job-run-description">{selectedJob.description}</p> : null}
-            <div className="job-run-no-params">此任务默认无需填写参数，可以直接运行。</div>
+            {runParamSchemaEntries(selectedJob).length ? (
+              <div className="job-config-section">
+                <div className="job-config-section-title">运行参数</div>
+                <Space orientation="vertical" size={12} style={{ width: "100%" }}>
+                  {runParamSchemaEntries(selectedJob).map(([key, schema]) => renderSchemaParam(key, schema))}
+                </Space>
+              </div>
+            ) : (
+              <div className="job-run-no-params">此任务默认无需填写参数，可以直接运行。</div>
+            )}
             <button
               type="button"
               className="job-run-advanced-toggle"

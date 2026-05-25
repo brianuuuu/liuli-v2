@@ -1,7 +1,7 @@
 import { Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useState } from "react";
-import { createStockAlias, importStocks, listStockAliases, listStocks, searchStocks, updateStock } from "../../../api/stocks";
+import { useCallback, useEffect, useState } from "react";
+import { createStockAlias, listStockAliases, listStocks, replaceStockAliases, searchStocks, updateStock } from "../../../api/stocks";
 import type { Stock, StockAlias } from "../../../types/api";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
@@ -17,10 +17,7 @@ type StockFormValues = {
   market?: string;
   exchange?: string;
   status?: string;
-};
-
-type ImportFormValues = {
-  stocks: string;
+  alias_text?: string;
 };
 
 type AliasFormValues = {
@@ -29,16 +26,16 @@ type AliasFormValues = {
   source?: string;
 };
 
-function parseImportLines(text: string) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
+function formatAliases(aliases?: StockAlias[]) {
+  return (aliases || []).map((item) => item.alias).join("，");
+}
+
+function parseAliasText(text?: string) {
+  return (text || "")
+    .split(/[\n,，、]/)
+    .map((item) => item.trim())
     .filter(Boolean)
-    .map((line) => {
-      const [stock_code, stock_name, market, exchange] = line.split(/[\t,，]/).map((part) => part.trim());
-      if (!stock_code || !stock_name) throw new Error(`无法解析：${line}`);
-      return { stock_code, stock_name, market: market || null, exchange: exchange || null };
-    });
+    .map((alias) => ({ alias, alias_type: null, source: "manual" }));
 }
 
 export function StocksSection() {
@@ -50,9 +47,7 @@ export function StocksSection() {
   const [aliases, setAliases] = useState<StockAlias[]>([]);
   const [aliasLoading, setAliasLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [form] = Form.useForm<StockFormValues>();
-  const [importForm] = Form.useForm<ImportFormValues>();
   const [aliasForm] = Form.useForm<AliasFormValues>();
 
   const dataSource = rows ?? stocks.data;
@@ -73,40 +68,33 @@ export function StocksSection() {
 
   function openEdit(record: Stock) {
     setEditing(record);
-    form.setFieldsValue({
-      stock_code: record.stock_code || record.symbol || "",
-      stock_name: record.stock_name || record.name || "",
-      symbol: record.symbol || undefined,
-      name_pinyin: record.name_pinyin || undefined,
-      name_abbr: record.name_abbr || undefined,
-      market: record.market || undefined,
-      exchange: record.exchange || undefined,
-      status: record.status || "active"
-    });
     setEditOpen(true);
   }
+
+  useEffect(() => {
+    if (!editOpen || !editing) return;
+    form.setFieldsValue({
+      stock_code: editing.stock_code || editing.symbol || "",
+      stock_name: editing.stock_name || editing.name || "",
+      symbol: editing.symbol || undefined,
+      name_pinyin: editing.name_pinyin || undefined,
+      name_abbr: editing.name_abbr || undefined,
+      market: editing.market || undefined,
+      exchange: editing.exchange || undefined,
+      status: editing.status || "active",
+      alias_text: formatAliases(editing.aliases)
+    });
+  }, [editOpen, editing, form]);
 
   async function submitEdit() {
     if (!editing) return;
     const values = await form.validateFields();
-    await updateStock(editing.id, values);
+    const { alias_text, ...stockValues } = values;
+    await updateStock(editing.id, stockValues);
+    await replaceStockAliases(editing.id, parseAliasText(alias_text));
     message.success("股票基础信息已更新");
     setEditOpen(false);
-    await refresh();
-  }
-
-  async function submitImport() {
-    const values = await importForm.validateFields();
-    let items;
-    try {
-      items = parseImportLines(values.stocks);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "导入格式错误");
-      return;
-    }
-    const result = await importStocks(items);
-    message.success(`已导入/更新 ${result.length} 条股票`);
-    setImportOpen(false);
+    setEditing(null);
     await refresh();
   }
 
@@ -130,13 +118,17 @@ export function StocksSection() {
     });
     message.success("别名已新增");
     aliasForm.resetFields();
-    setAliases(await listStockAliases(detail.id));
+    const nextAliases = await listStockAliases(detail.id);
+    setAliases(nextAliases);
+    setDetail({ ...detail, aliases: nextAliases });
+    await refresh();
   }
 
   const columns: ColumnsType<Stock> = [
     { title: "代码", dataIndex: "stock_code", width: 120, render: (value, record) => value || record.symbol || "-" },
     { title: "统一代码", dataIndex: "symbol", width: 120, render: (value) => value || "-" },
     { title: "名称", dataIndex: "stock_name", render: (value, record) => value || record.name || "-" },
+    { title: "别名", dataIndex: "aliases", width: 180, render: (_, record) => formatAliases(record.aliases) || "-" },
     { title: "市场", dataIndex: "market", width: 100, render: (value) => value || "-" },
     { title: "交易所", dataIndex: "exchange", width: 100, render: (value) => value || "-" },
     { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag color={value === "active" ? "green" : "default"}>{value || "-"}</Tag> },
@@ -169,14 +161,13 @@ export function StocksSection() {
             />
             <Button size="small" onClick={refresh}>重置</Button>
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" type="primary" onClick={() => setImportOpen(true)}>导入股票</Button>
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={stocks.loading} dataSource={dataSource} columns={columns} pagination={{ pageSize: 12, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={stocks.loading} dataSource={dataSource} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
       </DataPanel>
 
-      <Modal title="编辑股票" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden>
+      <Modal title="编辑股票" open={editOpen} onCancel={() => { setEditOpen(false); setEditing(null); }} onOk={submitEdit} destroyOnHidden forceRender>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="stock_code" label="股票代码" rules={[{ required: true, message: "请输入股票代码" }]}>
             <Input />
@@ -206,18 +197,8 @@ export function StocksSection() {
           <Form.Item name="status" label="状态">
             <Select options={[{ value: "active", label: "active" }, { value: "disabled", label: "disabled" }]} />
           </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal title="导入股票" open={importOpen} onCancel={() => setImportOpen(false)} onOk={submitImport} destroyOnHidden>
-        <Form form={importForm} layout="vertical" preserve={false}>
-          <Form.Item
-            name="stocks"
-            label="股票列表"
-            rules={[{ required: true, message: "请输入股票列表" }]}
-            extra="每行一条：代码,名称,市场,交易所。市场和交易所可留空。"
-          >
-            <Input.TextArea rows={8} placeholder={"300750,宁德时代,CN,SZ\n600519,贵州茅台,CN,SH"} />
+          <Form.Item name="alias_text" label="别名">
+            <Input.TextArea rows={3} placeholder="多个别名用逗号或换行分隔" />
           </Form.Item>
         </Form>
       </Modal>

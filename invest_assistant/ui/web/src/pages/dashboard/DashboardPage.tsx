@@ -1,16 +1,27 @@
 import { Col, Row, Statistic, Table } from "antd";
 import { useCallback } from "react";
-import { getSystemStatus } from "../../api/console";
+import { getDashboard, getSystemStatus } from "../../api/console";
+import { listAlertEvents } from "../../api/alerts";
 import { listJobs } from "../../api/jobs";
 import { listReports } from "../../api/reports";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
+function formatTime(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(0, 19);
+}
+
 export function DashboardPage() {
   const status = useAsyncData(useCallback(getSystemStatus, []), { api: "unknown", database: "unknown" });
+  const dashboard = useAsyncData(useCallback(getDashboard, []), { status: "unknown", todo_events: [] });
+  const alertEvents = useAsyncData(useCallback(listAlertEvents, []), []);
   const jobs = useAsyncData(useCallback(listJobs, []), []);
   const reports = useAsyncData(useCallback(listReports, []), []);
+  const todoEvents = dashboard.data.todo_events.length
+    ? dashboard.data.todo_events
+    : alertEvents.data.filter((event) => event.status !== "handled").slice(0, 6);
 
   return (
     <>
@@ -28,12 +39,29 @@ export function DashboardPage() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="任务定义" value={jobs.data.length} loading={jobs.loading} />
+            <Statistic title="启用周期任务" value={jobs.data.filter((job: any) => job.config_json?.enabled === true && job.config_json?.execution_mode === "schedule").length} loading={jobs.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="报告数量" value={reports.data.length} loading={reports.loading} />
+            <Statistic title="待办事件" value={todoEvents.length} loading={dashboard.loading || alertEvents.loading} />
+          </WorkbenchCard>
+        </Col>
+        <Col span={12}>
+          <WorkbenchCard title="待办事件">
+            <Table
+              rowKey="id"
+              size="small"
+              loading={dashboard.loading || alertEvents.loading}
+              dataSource={todoEvents}
+              pagination={false}
+              columns={[
+                { title: "事件", dataIndex: "title" },
+                { title: "级别", dataIndex: "event_level", width: 80 },
+                { title: "状态", dataIndex: "status", width: 90 },
+                { title: "时间", width: 160, render: (_, record: any) => formatTime(record.event_time || record.created_at) }
+              ]}
+            />
           </WorkbenchCard>
         </Col>
         <Col span={12}>
@@ -47,7 +75,8 @@ export function DashboardPage() {
               columns={[
                 { title: "任务", dataIndex: "job_name" },
                 { title: "模块", dataIndex: "module_name" },
-                { title: "启用", dataIndex: "enabled", render: (value: boolean) => (value ? "是" : "否") }
+                { title: "启用", dataIndex: "config_json", width: 70, render: (config: any) => (config?.enabled === true ? "是" : "否") },
+                { title: "最近运行", width: 160, render: (_, record: any) => formatTime(record.last_run_at || record.updated_at) }
               ]}
             />
           </WorkbenchCard>
@@ -62,8 +91,9 @@ export function DashboardPage() {
               pagination={false}
               columns={[
                 { title: "标题", dataIndex: "title" },
-                { title: "类型", dataIndex: "report_type" },
-                { title: "模块", dataIndex: "source_module" }
+                { title: "类型", dataIndex: "report_type", width: 120 },
+                { title: "模块", dataIndex: "source_module", width: 120 },
+                { title: "创建时间", width: 160, render: (_, record: any) => formatTime(record.created_at || record.publish_time) }
               ]}
             />
           </WorkbenchCard>

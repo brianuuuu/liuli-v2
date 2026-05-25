@@ -1,6 +1,6 @@
 import { Button, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   changeTrackStatus,
@@ -68,13 +68,18 @@ export function TrackDetailPage() {
   const [evidenceForm] = Form.useForm<EvidenceFormValues>();
   const [stockForm] = Form.useForm<RelatedStockFormValues>();
 
-  function openEdit() {
-    if (!track.data) return;
+  useEffect(() => {
+    if (!editOpen || !track.data) return;
+    editForm.resetFields();
     editForm.setFieldsValue({
       name: track.data.name,
       description: track.data.description || undefined,
       status: track.data.status
     });
+  }, [editForm, editOpen, track.data]);
+
+  function openEdit() {
+    if (!track.data) return;
     setEditOpen(true);
   }
 
@@ -219,7 +224,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="验证指标">
-          <Table rowKey="id" size="small" loading={indicators.loading} dataSource={indicators.data} columns={indicatorColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={indicators.loading} dataSource={indicators.data} columns={indicatorColumns} pagination={{ pageSize: 10 }} />
           <Form form={indicatorForm} layout="inline" style={{ marginTop: 12 }} onFinish={submitIndicator}>
             <Form.Item name="name" rules={[{ required: true, message: "请输入指标名" }]}><Input placeholder="指标" /></Form.Item>
             <Form.Item name="indicator_type"><Input placeholder="类型" /></Form.Item>
@@ -230,7 +235,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="证据链">
-          <Table rowKey="id" size="small" loading={evidence.loading} dataSource={evidence.data} columns={evidenceColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={evidence.loading} dataSource={evidence.data} columns={evidenceColumns} pagination={{ pageSize: 10 }} />
           <Form form={evidenceForm} layout="vertical" style={{ marginTop: 12 }} onFinish={submitEvidence}>
             <Space.Compact block>
               <Form.Item name="evidence_direction" label="方向" style={{ width: "34%" }} rules={[{ required: true }]}>
@@ -249,7 +254,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
 
         <WorkbenchCard title="关联标的">
-          <Table rowKey="id" size="small" loading={relatedStocks.loading} dataSource={relatedStocks.data} columns={stockColumns} pagination={{ pageSize: 6 }} />
+          <Table rowKey="id" size="small" loading={relatedStocks.loading} dataSource={relatedStocks.data} columns={stockColumns} pagination={{ pageSize: 10 }} />
           <Form form={stockForm} layout="inline" style={{ marginTop: 12 }} onFinish={submitRelatedStock}>
             <Form.Item name="stock_id" rules={[{ required: true, message: "请输入 Stock ID" }]}><InputNumber min={1} placeholder="Stock ID" /></Form.Item>
             <Form.Item name="role"><Input placeholder="角色" /></Form.Item>
@@ -260,7 +265,7 @@ export function TrackDetailPage() {
         </WorkbenchCard>
       </Space>
 
-      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden width={760}>
+      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden forceRender width={760}>
         <Form form={editForm} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />

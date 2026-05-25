@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
@@ -37,3 +37,12 @@ def update_config(config_key: str, payload: SystemConfigUpdate, db: Session = De
     if item is None:
         raise HTTPException(status_code=404, detail="config not found")
     return service.update_config(db, item, payload)
+
+
+@router.delete("/{config_key}", status_code=204)
+def delete_config(config_key: str, db: Session = Depends(get_db)) -> Response:
+    item = service.get_config(db, config_key)
+    if item is None:
+        raise HTTPException(status_code=404, detail="config not found")
+    service.delete_config(db, item)
+    return Response(status_code=204)

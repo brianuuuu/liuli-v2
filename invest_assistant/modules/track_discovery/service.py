@@ -1,8 +1,10 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
-from invest_assistant.modules.market_radar.models import Tag, TagHeatSnapshot
+from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
+from invest_assistant.modules.market_radar.models import SourceTag, Tag, TagCandidate, TagHeatSnapshot
+from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
     TrackAlias,
@@ -39,6 +41,8 @@ def create_track(db: Session, payload: TrackCreate) -> dict:
     db.commit()
     db.refresh(track)
     db.refresh(tag)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return _track_dict(track, tag)
 
 
@@ -69,7 +73,42 @@ def update_track(db: Session, track_id: int, payload: TrackUpdate) -> dict | Non
     db.commit()
     db.refresh(track)
     db.refresh(tag)
+    enqueue_tag_backfill(db, tag)
+    db.commit()
     return _track_dict(track, tag)
+
+
+def delete_candidate_track(db: Session, track_id: int) -> bool:
+    track = db.get(Track, track_id)
+    if track is None:
+        return False
+    if track.status != "candidate":
+        raise ValueError("only candidate tracks can be deleted")
+
+    tag_ids = [
+        tag_id
+        for tag_id in db.scalars(select(Tag.id).where(Tag.type == "track", Tag.track_id == track_id))
+        if tag_id is not None
+    ]
+    if tag_ids:
+        db.execute(delete(SourceTag).where(SourceTag.tag_id.in_(tag_ids)))
+        db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_ids)))
+        db.execute(update(TagCandidate).where(TagCandidate.target_tag_id.in_(tag_ids)).values(target_tag_id=None))
+        db.execute(delete(Tag).where(Tag.id.in_(tag_ids)))
+
+    db.execute(delete(StockTrackRelation).where(StockTrackRelation.track_id == track_id))
+    db.execute(update(StockResearchNote).where(StockResearchNote.related_track_id == track_id).values(related_track_id=None))
+    db.execute(update(StockScoreSnapshot).where(StockScoreSnapshot.track_id == track_id).values(track_id=None))
+    db.execute(update(StockCompareGroup).where(StockCompareGroup.track_id == track_id).values(track_id=None))
+    db.execute(delete(TrackStatusHistory).where(TrackStatusHistory.track_id == track_id))
+    db.execute(delete(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id))
+    db.execute(delete(TrackEvidence).where(TrackEvidence.track_id == track_id))
+    db.execute(delete(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id))
+    db.execute(delete(TrackAlias).where(TrackAlias.track_id == track_id))
+    db.execute(delete(TrackThesis).where(TrackThesis.track_id == track_id))
+    db.delete(track)
+    db.commit()
+    return True
 
 
 def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> TrackAlias:
@@ -77,6 +116,10 @@ def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> Track
     db.add(item)
     db.commit()
     db.refresh(item)
+    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track_id))
+    if tag is not None:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return item
 
 
