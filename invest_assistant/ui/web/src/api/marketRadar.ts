@@ -1,18 +1,17 @@
-import type { Hotword, MarketGraph, MarketTag, SourceItem, TagCandidate, TagHeat } from "../types/api";
+import type { AiTagSuggestion, Hotword, MarketGraph, MarketTag, SourceItem, TagHeat } from "../types/api";
 import { apiClient } from "./client";
 
 export type MarketOverview = {
   source_items: number;
   tags: number;
-  tag_candidates: number;
+  ai_tag_suggestions: number;
 };
 
 export type MarketTagPayload = {
   name: string;
   type: string;
-  stock_id?: number | null;
-  track_id?: number | null;
   status?: string;
+  source?: string | null;
 };
 
 export type SourceItemPayload = {
@@ -34,23 +33,19 @@ export type MarketFlashSyncResult = {
   skipped_count: number;
 };
 
-export type TagCandidatePayload = {
-  name: string;
-  suggested_type: string;
-  source_item_id?: number | null;
-  trigger_text?: string | null;
-  confidence?: number;
+export type AiTagSuggestionPayload = {
+  suggested_text: string;
+  final_tag_name?: string | null;
+  score?: number;
   reason?: string | null;
-  target_tag_id?: number | null;
-  suggested_target_tag_id?: number | null;
-  merge_similarity?: number | null;
-  merge_reason?: string | null;
+  final_tag_id?: number | null;
+  ext_json?: string | null;
   status?: string;
 };
 
 export type HotwordPayload = {
   name: string;
-  aliases?: string[];
+  description?: string | null;
   status?: string;
 };
 
@@ -72,10 +67,17 @@ export async function createMarketTag(payload: MarketTagPayload): Promise<Market
   if (payload.type === "hotword") {
     const response = await apiClient.post<Hotword>("/api/market-radar/hotwords", {
       name: payload.name,
-      aliases: [],
+      description: null,
       status: payload.status || "active"
     });
-    return response.data.tag;
+    return {
+      id: response.data.hotword.id,
+      name: response.data.hotword.name,
+      type: "hotword",
+      status: response.data.hotword.status,
+      created_at: response.data.hotword.created_at,
+      updated_at: response.data.hotword.updated_at
+    };
   }
   const response = await apiClient.post<MarketTag>("/api/market-radar/tags", payload);
   return response.data;
@@ -101,43 +103,43 @@ export async function getTagTrend(tagId: number): Promise<TagHeat[]> {
   return response.data;
 }
 
-export async function listTagCandidates(): Promise<TagCandidate[]> {
-  const response = await apiClient.get<TagCandidate[]>("/api/market-radar/tag-candidates");
+export async function listTagCandidates(): Promise<AiTagSuggestion[]> {
+  const response = await apiClient.get<AiTagSuggestion[]>("/api/market-radar/tag-candidates");
   return response.data;
 }
 
-export async function createTagCandidate(payload: TagCandidatePayload): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>("/api/market-radar/tag-candidates", payload);
+export async function createTagCandidate(payload: AiTagSuggestionPayload): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>("/api/market-radar/tag-candidates", payload);
   return response.data;
 }
 
-export async function approveTagCandidate(candidateId: number, name?: string): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(
+export async function approveTagCandidate(candidateId: number, finalTagName?: string): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(
     `/api/market-radar/tag-candidates/${candidateId}/approve`,
-    name ? { name } : undefined
+    finalTagName ? { final_tag_name: finalTagName } : undefined
   );
   return response.data;
 }
 
-export async function promoteTagCandidateToTrack(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/promote-track`);
+export async function promoteTagCandidateToTrack(candidateId: number): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/tag-candidates/${candidateId}/promote-track`);
   return response.data;
 }
 
-export async function rejectTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/reject`);
+export async function rejectTagCandidate(candidateId: number): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/tag-candidates/${candidateId}/reject`);
   return response.data;
 }
 
-export async function restoreTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/restore`);
+export async function restoreTagCandidate(candidateId: number): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/tag-candidates/${candidateId}/restore`);
   return response.data;
 }
 
-export async function mergeTagCandidate(candidateId: number, targetTagId?: number, name?: string): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(
+export async function mergeTagCandidate(candidateId: number, targetTagId?: number, finalTagName?: string): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(
     `/api/market-radar/tag-candidates/${candidateId}/merge`,
-    targetTagId || name ? { target_tag_id: targetTagId, name } : undefined
+    targetTagId || finalTagName ? { target_tag_id: targetTagId, final_tag_name: finalTagName } : undefined
   );
   return response.data;
 }

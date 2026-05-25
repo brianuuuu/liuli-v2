@@ -33,8 +33,8 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
     { key: "overview", label: "市场总览" },
     { key: "flashes", label: "信息流" },
     { key: "rankings", label: "标签热度" },
-    { key: "candidates", label: "候选标签" },
-    { key: "hotwords", label: "热点词" },
+    { key: "candidates", label: "AI 推荐词" },
+    { key: "hotwords", label: "市场热词" },
     { key: "graph", label: "关系图谱" }
   ],
   "track-discovery": [

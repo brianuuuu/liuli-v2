@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
-from invest_assistant.modules.market_radar.models import SourceTag, Tag, TagCandidate, TagHeatSnapshot
+from invest_assistant.modules.market_radar.models import AiTagSuggestion, SourceTag, Tag, TagHeatSnapshot
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
-    TrackAlias,
+    TrackTagRelation,
     TrackEvidence,
     TrackRelatedStock,
     TrackStatusHistory,
@@ -15,7 +15,6 @@ from invest_assistant.modules.track_discovery.models import (
     TrackValidationIndicator,
 )
 from invest_assistant.modules.track_discovery.schemas import (
-    TrackAliasCreate,
     TrackCreate,
     TrackEvidenceCreate,
     TrackRelatedStockCreate,
@@ -93,7 +92,7 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     if tag_ids:
         db.execute(delete(SourceTag).where(SourceTag.tag_id.in_(tag_ids)))
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_ids)))
-        db.execute(update(TagCandidate).where(TagCandidate.target_tag_id.in_(tag_ids)).values(target_tag_id=None))
+        db.execute(update(AiTagSuggestion).where(AiTagSuggestion.final_tag_id.in_(tag_ids)).values(final_tag_id=None))
         db.execute(delete(Tag).where(Tag.id.in_(tag_ids)))
 
     db.execute(delete(StockTrackRelation).where(StockTrackRelation.track_id == track_id))
@@ -104,27 +103,13 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     db.execute(delete(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id))
     db.execute(delete(TrackEvidence).where(TrackEvidence.track_id == track_id))
     db.execute(delete(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id))
-    db.execute(delete(TrackAlias).where(TrackAlias.track_id == track_id))
+    db.execute(delete(TrackTagRelation).where(TrackTagRelation.track_id == track_id))
     db.execute(delete(TrackThesis).where(TrackThesis.track_id == track_id))
     db.delete(track)
     db.commit()
     return True
 
 
-def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> TrackAlias:
-    item = TrackAlias(track_id=track_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track_id))
-    if tag is not None:
-        enqueue_tag_backfill(db, tag)
-        db.commit()
-    return item
-
-
-def list_aliases(db: Session, track_id: int) -> list[TrackAlias]:
-    return list(db.scalars(select(TrackAlias).where(TrackAlias.track_id == track_id).order_by(TrackAlias.alias.asc())))
 
 
 def create_thesis(db: Session, track_id: int, payload: TrackThesisCreate, user_id: int | None) -> TrackThesis:

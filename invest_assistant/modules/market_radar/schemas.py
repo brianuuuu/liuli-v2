@@ -6,17 +6,15 @@ from pydantic import BaseModel, ConfigDict
 class TagCreate(BaseModel):
     name: str
     type: str
-    stock_id: int | None = None
-    track_id: int | None = None
     status: str = "active"
+    source: str | None = None
 
 
 class TagUpdate(BaseModel):
     name: str | None = None
     type: str | None = None
-    stock_id: int | None = None
-    track_id: int | None = None
     status: str | None = None
+    source: str | None = None
 
 
 class TagRead(TagCreate):
@@ -88,30 +86,21 @@ class TagHeatRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TagCandidateCreate(BaseModel):
-    name: str
-    suggested_type: str
-    source_item_id: int | None = None
-    trigger_text: str | None = None
-    confidence: float = 0
+class AiTagSuggestionCreate(BaseModel):
+    suggested_text: str
+    final_tag_name: str | None = None
+    score: float = 0
     reason: str | None = None
-    target_tag_id: int | None = None
-    suggested_target_tag_id: int | None = None
-    merge_similarity: float | None = None
-    merge_reason: str | None = None
+    final_tag_id: int | None = None
+    ext_json: str | None = None
     status: str = "pending"
 
 
-class TagCandidateMerge(BaseModel):
-    target_tag_id: int | None = None
-    name: str | None = None
+class AiTagSuggestionApprove(BaseModel):
+    final_tag_name: str | None = None
 
 
-class TagCandidateApprove(BaseModel):
-    name: str | None = None
-
-
-class TagCandidateRead(TagCandidateCreate):
+class AiTagSuggestionRead(AiTagSuggestionCreate):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -119,15 +108,15 @@ class TagCandidateRead(TagCandidateCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class HotwordAliasCreate(BaseModel):
-    alias: str
+class HotwordTagRelationCreate(BaseModel):
+    tag_id: int
     source: str = "manual"
     status: str = "active"
 
 
-class HotwordAliasRead(HotwordAliasCreate):
+class HotwordTagRelationRead(HotwordTagRelationCreate):
     id: int
-    tag_id: int
+    hotword_id: int
     created_at: datetime
     updated_at: datetime
 
@@ -136,10 +125,10 @@ class HotwordAliasRead(HotwordAliasCreate):
 
 class HotwordCreate(BaseModel):
     name: str
-    aliases: list[str] = []
+    description: str | None = None
     status: str = "active"
 
 
 class HotwordRead(BaseModel):
-    tag: TagRead
-    aliases: list[HotwordAliasRead]
+    hotword: dict
+    tag_relations: list[HotwordTagRelationRead]

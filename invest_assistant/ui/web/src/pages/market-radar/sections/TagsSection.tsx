@@ -13,7 +13,7 @@ import { formatTime, trendLineOption } from "./shared";
 
 type HotwordFormValues = {
   name: string;
-  aliases?: string;
+  description?: string;
   status: string;
 };
 
@@ -26,13 +26,6 @@ const hotwordStatusOptions = [
 function HotwordStatusTag({ status }: { status?: string }) {
   const label = hotwordStatusOptions.find((item) => item.value === status)?.label || status || "-";
   return <StatusTag status={status} label={label} />;
-}
-
-function parseAliases(value?: string) {
-  return (value || "")
-    .split(/[\n,，、]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 export function TagsSection() {
@@ -59,7 +52,7 @@ export function TagsSection() {
     const values = await form.validateFields();
     await createHotword({
       name: values.name,
-      aliases: parseAliases(values.aliases),
+      description: values.description || null,
       status: values.status
     });
     message.success("热点词已新增");
@@ -140,8 +133,8 @@ export function TagsSection() {
           <Form.Item name="name" label="热点词名称" rules={[{ required: true, message: "请输入热点词名称" }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="aliases" label="别名">
-            <Input.TextArea rows={3} placeholder="多个别名用逗号或换行分隔" />
+          <Form.Item name="description" label="说明">
+            <Input.TextArea rows={3} placeholder="可填写热词背景、适用语境等" />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={hotwordStatusOptions.filter((item) => item.value !== "candidate")} />
@@ -161,4 +154,3 @@ export function TagsSection() {
     </>
   );
 }
-
