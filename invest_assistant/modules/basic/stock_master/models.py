@@ -27,15 +27,19 @@ class Stock(Base):
     )
 
 
-class StockAlias(Base):
-    __tablename__ = "stock_alias"
+class StockTagRelation(Base):
+    __tablename__ = "stock_tag_relation"
+    __table_args__ = (UniqueConstraint("stock_id", "tag_id", name="uq_stock_tag_relation"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
-    alias: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    alias_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
     source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 def ensure_stock_master_schema(engine: Engine) -> None:

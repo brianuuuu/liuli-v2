@@ -5,18 +5,15 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.schemas import (
+    AiTagSuggestionApprove,
+    AiTagSuggestionCreate,
+    AiTagSuggestionRead,
     MarketFlashSyncCreate,
     MarketFlashSyncResult,
-    HotwordAliasCreate,
-    HotwordAliasRead,
     HotwordCreate,
     HotwordRead,
     SourceItemCreate,
     SourceItemRead,
-    TagCandidateCreate,
-    TagCandidateApprove,
-    TagCandidateMerge,
-    TagCandidateRead,
     TagCreate,
     TagRead,
     TagUpdate,
@@ -31,7 +28,7 @@ def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
         "source_items": len(service.list_source_items(db)),
         "tags": len(service.list_tags(db)),
-        "tag_candidates": len(service.list_candidates(db)),
+        "ai_tag_suggestions": len(service.list_candidates(db)),
     }
 
 
@@ -109,19 +106,6 @@ def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
     return service.create_hotword(db, payload)
 
 
-@router.get("/hotwords/aliases", response_model=list[HotwordAliasRead])
-def list_hotword_aliases(db: Session = Depends(get_db)) -> list:
-    return service.list_hotword_aliases(db)
-
-
-@router.post("/hotwords/{tag_id}/aliases", response_model=HotwordAliasRead)
-def create_hotword_alias(tag_id: int, payload: HotwordAliasCreate, db: Session = Depends(get_db)):
-    try:
-        return service.create_hotword_alias(db, tag_id, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @router.get("/tags/{tag_id}/sources")
 def tag_sources(tag_id: int) -> list:
     return []
@@ -142,31 +126,31 @@ def stock_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> d
     return service.graph_edges(db, "hotword", window)
 
 
-@router.get("/tag-candidates", response_model=list[TagCandidateRead])
+@router.get("/tag-candidates", response_model=list[AiTagSuggestionRead])
 def list_candidates(db: Session = Depends(get_db)) -> list:
     return service.list_candidates(db)
 
 
-@router.post("/tag-candidates", response_model=TagCandidateRead)
-def create_candidate(payload: TagCandidateCreate, db: Session = Depends(get_db)):
+@router.post("/tag-candidates", response_model=AiTagSuggestionRead)
+def create_candidate(payload: AiTagSuggestionCreate, db: Session = Depends(get_db)):
     try:
         return service.create_candidate(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/tag-candidates/{candidate_id}/approve", response_model=TagCandidateRead)
-def approve_candidate(candidate_id: int, payload: TagCandidateApprove | None = None, db: Session = Depends(get_db)):
+@router.post("/tag-candidates/{candidate_id}/approve", response_model=AiTagSuggestionRead)
+def approve_candidate(candidate_id: int, payload: AiTagSuggestionApprove | None = None, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
     try:
-        return service.approve_candidate(db, candidate, payload.name if payload is not None else None)
+        return service.approve_candidate(db, candidate, payload.final_tag_name if payload is not None else None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/tag-candidates/{candidate_id}/promote-track", response_model=TagCandidateRead)
+@router.post("/tag-candidates/{candidate_id}/promote-track", response_model=AiTagSuggestionRead)
 def promote_candidate_to_track(candidate_id: int, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
@@ -177,7 +161,7 @@ def promote_candidate_to_track(candidate_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/tag-candidates/{candidate_id}/reject", response_model=TagCandidateRead)
+@router.post("/tag-candidates/{candidate_id}/reject", response_model=AiTagSuggestionRead)
 def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
@@ -185,7 +169,7 @@ def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
     return service.reject_candidate(db, candidate)
 
 
-@router.post("/tag-candidates/{candidate_id}/restore", response_model=TagCandidateRead)
+@router.post("/tag-candidates/{candidate_id}/restore", response_model=AiTagSuggestionRead)
 def restore_candidate(candidate_id: int, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
@@ -196,8 +180,8 @@ def restore_candidate(candidate_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/tag-candidates/{candidate_id}/merge", response_model=TagCandidateRead)
-def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None, db: Session = Depends(get_db)):
+@router.post("/tag-candidates/{candidate_id}/merge", response_model=AiTagSuggestionRead)
+def merge_candidate(candidate_id: int, payload: AiTagSuggestionApprove | None = None, db: Session = Depends(get_db)):
     candidate = service.get_candidate(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=404, detail="candidate not found")
@@ -205,8 +189,8 @@ def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None,
         return service.merge_candidate(
             db,
             candidate,
-            payload.target_tag_id if payload is not None else None,
-            payload.name if payload is not None else None,
+            None,
+            payload.final_tag_name if payload is not None else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

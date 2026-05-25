@@ -27,7 +27,7 @@ function RankingList({ title, rows, loading }: { title: string; rows: Awaited<Re
 }
 
 export function OverviewSection() {
-  const overview = useAsyncData(useCallback(getMarketOverview, []), { source_items: 0, tags: 0, tag_candidates: 0 });
+  const overview = useAsyncData(useCallback(getMarketOverview, []), { source_items: 0, tags: 0, ai_tag_suggestions: 0 });
   const hotwords = useAsyncData(useCallback(() => listRankings("hotword", "24h"), []), []);
   const tracks = useAsyncData(useCallback(() => listRankings("track", "24h"), []), []);
   const stocks = useAsyncData(useCallback(() => listRankings("stock", "24h"), []), []);
@@ -38,7 +38,7 @@ export function OverviewSection() {
   const allRankings = [...hotwords.data, ...tracks.data, ...stocks.data].sort((a, b) => Number(b.heat_score) - Number(a.heat_score));
   const latestStat = allRankings.map((item) => item.stat_time).sort().at(-1);
   const activeTagCount = tags.data.filter((item) => item.status === "active").length || overview.data.tags;
-  const pendingCandidateCount = candidates.data.filter((item) => item.status === "pending").length || overview.data.tag_candidates;
+  const pendingCandidateCount = candidates.data.filter((item) => item.status === "pending").length || overview.data.ai_tag_suggestions;
 
   return (
     <>
@@ -55,7 +55,7 @@ export function OverviewSection() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="候选热点" value={pendingCandidateCount} loading={candidates.loading} />
+            <Statistic title="AI 推荐词待审核" value={pendingCandidateCount} loading={candidates.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>

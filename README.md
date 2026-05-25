@@ -120,12 +120,12 @@ flowchart LR
 
 ### 1) Market Radar（市场雷达）
 - **解决问题**：把分散信息流（新闻、标签、热度）汇总成可观测市场脉搏。
-- **主要能力**：新闻入库、标签抽取、热度快照、标签关系快照、候选标签管理。
+- **主要能力**：新闻入库、标签抽取、热度快照、标签关系快照、AI 推荐词审核、市场热词管理。
 - **数据流向**：外部新闻/公告 → `source_item` → 标签/热度/关系计算 → 前端工作台展示。
 
 ### 2) Track Discovery（赛道发现）
 - **解决问题**：从热点线索沉淀“赛道假设—证据—关联标的”的研究对象。
-- **主要能力**：候选赛道生成、赛道别名、赛道论点、证据、验证指标、关联标的维护。
+- **主要能力**：候选赛道生成、赛道标签绑定、赛道论点、证据、验证指标、关联标的维护。
 - **数据流向**：市场雷达标签热度/人工输入 → `track*` 数据表 → 赛道页面与详情页。
 
 ### 3) Stock Analysis（标的分析）
@@ -163,12 +163,12 @@ flowchart LR
 |---|---|---|
 | Health | `/api` | `GET /health` |
 | Auth | `/api/auth` | `POST /login`, `POST /logout`, `GET /me` |
-| Stock Master | `/api/stocks` | `GET /`, `GET /search`, `POST /import`, `GET/PUT /{stock_id}`, `GET/POST /{stock_id}/aliases` |
+| Stock Master | `/api/stocks` | `GET /`, `GET /search`, `POST /import`, `GET/PUT /{stock_id}` |
 | System Config | `/api/system-config` | `GET/POST /`, `GET/PUT /{config_key}` |
 | Job Center | `/api/jobs` | `GET /`, `POST /sync-definitions`, `GET /run-requests`, `GET/PUT /{job_name}`, `POST /{job_name}/run`, `GET /{job_name}/logs` |
 | Report Library | `/api/reports` | `GET/POST /`, `GET/PUT/DELETE /{report_id}`, `GET /{report_id}/content`, `GET /{report_id}/download` |
 | Disclosure Library | `/api/disclosures` | `GET/POST /`, `POST /fetch`, `GET/PUT /{id}`, `POST /{id}/download`, `POST /{id}/parse`, `GET /{id}/file`, `GET /{id}/parsed`, `POST /{id}/to-source-item` |
-| Market Radar | `/api/market-radar` | `GET /overview`, `GET/POST /source-items`, `POST /source-items/sync-cls`, `GET/POST /tags`, `GET /rankings`, `GET /graphs/stock-track`, `GET /tag-candidates` |
+| Market Radar | `/api/market-radar` | `GET /overview`, `GET/POST /source-items`, `POST /source-items/sync-cls`, `GET/POST /tags`, `POST /hotwords`, `GET /rankings`, `GET /graphs/stock-track`, `GET /tag-candidates` |
 | Track Discovery | `/api/track-discovery` | `GET/POST /tracks`, `GET/PUT /tracks/{id}`, `GET/POST /tracks/{id}/evidence`, `GET/POST /tracks/{id}/stocks`, `POST /tracks/{id}/status` |
 | Stock Analysis | `/api/stock-analysis` | `GET/POST/PUT /pool`, `GET /candidates`, `GET /stocks/{id}`, `GET/POST /stocks/{id}/notes`, `GET/POST /stocks/{id}/scores`, `GET/POST /compare-groups`, `GET /reports` |
 | Alert Center | `/api/alerts` | `GET/POST/PUT/DELETE /rules`, `GET/POST /events`, `POST /events/{id}/read`, `POST /events/{id}/handle` |
@@ -251,13 +251,16 @@ sequenceDiagram
 
 ## 🗃️ 数据库设计（核心表摘要）
 
-> 完整字段请以 `models.py` 与数据库规范文档为准。
+> 完整字段请以 `models.py` 与数据库规范文档为准。当前业务口径中 `tag` 是语言入口，`stock/track/hotword` 是业务实体，实体通过 relation 表绑定标签词。
 
 | 表名 | 用途 | 关键字段（示例） | 关系摘要 |
 |---|---|---|---|
 | `user_account` | 账号与鉴权 | `username`, `password_hash`, `is_active` | 基础认证 |
 | `job_config` / `job_run_request` / `job_run_log` | 任务配置、执行请求、执行日志 | `job_name`, `status`, `requested_at` | Job Center 核心链路 |
-| `stock` / `stock_alias` | 股票主数据与别名 | `symbol`, `name`, `exchange` | 被多个业务模块引用 |
+| `stock` / `stock_tag_relation` | 股票主数据与标签绑定 | `symbol`, `stock_name`, `exchange`; relation: `stock_id`, `tag_id` | `stock` 通过 relation 绑定多个 `tag` |
+| `track` / `track_tag_relation` | 赛道主数据与标签绑定 | `name`, `status`; relation: `track_id`, `tag_id` | `track` 通过 relation 绑定多个 `tag` |
+| `hotword` / `hotword_tag_relation` | 市场热词实体与标签绑定 | `name`, `status`; relation: `hotword_id`, `tag_id` | `hotword` 通过 relation 绑定多个 `tag` |
+| `ai_tag_suggestion` | AI 推荐词审核池 | `suggested_text`, `final_tag_name`, `score`, `status`, `final_tag_id` | AI 只推荐词，人工审核后再绑定实体 |
 | `company_disclosure` | 公告财报库 | `title`, `source_url`, `publish_time` | 可转写 `source_item` |
 | `report` | 报告索引 | `title`, `source`, `publish_time` | 报告库 |
 | `tag` / `source_item` / `source_tag` | 市场标签与信息源 | `tag_type`, `content`, `source_name` | 雷达核心输入输出 |
@@ -345,4 +348,3 @@ sequenceDiagram
 - 数据库规范：`docs/liuli_database_schema_spec_v5.md`
 - Web UI 规范：`docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md`
 - 其它设计/计划：`docs/superpowers/specs/` 与 `docs/superpowers/plans/`
-

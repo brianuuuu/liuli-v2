@@ -147,9 +147,8 @@ export type MarketTag = {
   id: number;
   name: string;
   type: "stock" | "track" | "hotword" | string;
-  stock_id?: number | null;
-  track_id?: number | null;
   status: string;
+  source?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -194,27 +193,23 @@ export type TagHeat = {
   tag?: MarketTag | null;
 };
 
-export type TagCandidate = {
+export type AiTagSuggestion = {
   id: number;
-  name: string;
-  suggested_type: string;
-  source_item_id?: number | null;
-  trigger_text?: string | null;
-  confidence: number;
+  suggested_text: string;
+  final_tag_name?: string | null;
+  score: number;
   reason?: string | null;
-  target_tag_id?: number | null;
-  suggested_target_tag_id?: number | null;
-  merge_similarity?: number | null;
-  merge_reason?: string | null;
+  final_tag_id?: number | null;
+  ext_json?: string | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-export type HotwordAlias = {
+export type HotwordTagRelation = {
   id: number;
+  hotword_id: number;
   tag_id: number;
-  alias: string;
   source: string;
   status: string;
   created_at?: string | null;
@@ -222,8 +217,15 @@ export type HotwordAlias = {
 };
 
 export type Hotword = {
-  tag: MarketTag;
-  aliases: HotwordAlias[];
+  hotword: {
+    id: number;
+    name: string;
+    description?: string | null;
+    status: string;
+    created_at?: string | null;
+    updated_at?: string | null;
+  };
+  tag_relations: HotwordTagRelation[];
 };
 
 export type Track = {
