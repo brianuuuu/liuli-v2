@@ -3,7 +3,6 @@
 ## Project Constraints
 
 - The long-term system architecture should follow the current v24 technical documentation.
-- This tag-model refactor must follow `docs/liuli_tag_model_alignment.md` as the single source of truth for tag, AI suggestion, hotword, and entity-tag binding behavior.
 - Do not reuse the old project's directory structure, module boundaries, table structure, or architecture design.
 - The `old/` directory is only a functional reference for implementation details such as data fetching, API calls, parsing logic, historical scripts, prompts, and sample data.
 - If old implementation details conflict with the new spec, the new spec wins.
