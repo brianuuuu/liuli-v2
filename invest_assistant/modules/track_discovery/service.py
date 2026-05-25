@@ -7,7 +7,6 @@ from invest_assistant.modules.market_radar.models import SourceTag, Tag, AiTagSu
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
-    TrackAlias,
     TrackTagRelation,
     TrackEvidence,
     TrackRelatedStock,
@@ -16,7 +15,6 @@ from invest_assistant.modules.track_discovery.models import (
     TrackValidationIndicator,
 )
 from invest_assistant.modules.track_discovery.schemas import (
-    TrackAliasCreate,
     TrackTagRelationCreate,
     TrackCreate,
     TrackEvidenceCreate,
@@ -106,27 +104,10 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     db.execute(delete(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id))
     db.execute(delete(TrackEvidence).where(TrackEvidence.track_id == track_id))
     db.execute(delete(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id))
-    db.execute(delete(TrackAlias).where(TrackAlias.track_id == track_id))
     db.execute(delete(TrackThesis).where(TrackThesis.track_id == track_id))
     db.delete(track)
     db.commit()
     return True
-
-
-def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> TrackAlias:
-    item = TrackAlias(track_id=track_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track_id))
-    if tag is not None:
-        enqueue_tag_backfill(db, tag)
-        db.commit()
-    return item
-
-
-def list_aliases(db: Session, track_id: int) -> list[TrackAlias]:
-    return list(db.scalars(select(TrackAlias).where(TrackAlias.track_id == track_id).order_by(TrackAlias.alias.asc())))
 
 
 def create_thesis(db: Session, track_id: int, payload: TrackThesisCreate, user_id: int | None) -> TrackThesis:

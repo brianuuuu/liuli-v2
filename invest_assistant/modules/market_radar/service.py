@@ -5,7 +5,7 @@ from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
-from invest_assistant.modules.market_radar.hotword_resolver import resolve_source_tag_matches
+from invest_assistant.modules.market_radar.alias_resolver import resolve_source_tag_matches
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import (
     HotwordTagRelation,
@@ -61,7 +61,7 @@ def create_hotword(db: Session, payload: HotwordCreate) -> dict:
     tag = create_tag(db, TagCreate(name=payload.name, type="hotword", status=payload.status))
     for alias in payload.hotwords:
         create_hotword_tag_relation(db, tag.id, HotwordTagRelationCreate(hotword=alias))
-    return {"tag": tag, "aliases": list_hotword_tag_relations(db, tag.id)}
+    return {"tag": tag, "hotwords": list_hotword_tag_relations(db, tag.id)}
 
 
 def create_hotword_tag_relation(db: Session, tag_id: int, payload: HotwordTagRelationCreate) -> HotwordTagRelation:

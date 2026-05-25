@@ -110,8 +110,8 @@ def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/hotword-tag-relations", response_model=list[HotwordTagRelationRead])
-def list_hotword_tag_relationes(db: Session = Depends(get_db)) -> list:
-    return service.list_hotword_tag_relationes(db)
+def list_hotword_tag_relations(db: Session = Depends(get_db)) -> list:
+    return service.list_hotword_tag_relations(db)
 
 
 @router.post("/hotwords/{tag_id}/hotword-tags", response_model=HotwordTagRelationRead)
