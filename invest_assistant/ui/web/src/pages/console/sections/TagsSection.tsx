@@ -72,7 +72,7 @@ export function TagsSection() {
               options={[
                 { value: "stock", label: "标的" },
                 { value: "track", label: "赛道" },
-                { value: "hotword", label: "热点词" }
+                { value: "hotword", label: "市场热词" }
               ]}
             />
             <div className="data-panel-toolbar-spacer" />
@@ -115,7 +115,7 @@ export function TagsSection() {
             <Select disabled options={[
               { value: "stock", label: "标的" },
               { value: "track", label: "赛道" },
-              { value: "hotword", label: "热点词" }
+              { value: "hotword", label: "市场热词" }
             ]} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>

@@ -10,7 +10,7 @@ import { tagKey, windowOptions } from "./shared";
 
 const graphTypeOptions = [
   { value: "track", label: "标的-赛道" },
-  { value: "hotword", label: "标的-热点词" }
+  { value: "hotword", label: "标的-市场热词" }
 ];
 
 export function GraphSection() {
@@ -39,13 +39,13 @@ export function GraphSection() {
       }));
     return {
       tooltip: {},
-      legend: [{ data: ["标的", type === "track" ? "赛道" : "热点词"] }],
+      legend: [{ data: ["标的", type === "track" ? "赛道" : "市场热词"] }],
       series: [
         {
           type: "graph",
           layout: "force",
           roam: true,
-          categories: [{ name: "标的" }, { name: type === "track" ? "赛道" : "热点词" }],
+          categories: [{ name: "标的" }, { name: type === "track" ? "赛道" : "市场热词" }],
           data,
           links,
           force: { repulsion: 180, edgeLength: 90 },

@@ -55,7 +55,7 @@ export function TagsSection() {
       description: values.description || null,
       status: values.status
     });
-    message.success("热点词已新增");
+    message.success("市场热词已新增");
     setCreateOpen(false);
     form.resetFields();
     await hotwords.refresh();
@@ -106,7 +106,7 @@ export function TagsSection() {
               ))}
             </Space>
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" type="primary" onClick={openCreate}>新增热点词</Button>
+            <Button size="small" type="primary" onClick={openCreate}>新增市场热词</Button>
           </>
         }
       >
@@ -121,9 +121,9 @@ export function TagsSection() {
         />
       </DataPanel>
 
-      <Modal title="新增热点词" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} onOk={submitCreate} destroyOnHidden forceRender>
+      <Modal title="新增市场热词" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} onOk={submitCreate} destroyOnHidden forceRender>
         <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item name="name" label="热点词名称" rules={[{ required: true, message: "请输入热点词名称" }]}>
+          <Form.Item name="name" label="市场热词名称" rules={[{ required: true, message: "请输入市场热词名称" }]}>
             <Input />
           </Form.Item>
           <Form.Item name="description" label="说明">

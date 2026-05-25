@@ -3,7 +3,7 @@ import type { EChartsOption } from "echarts";
 import type { MarketTag, TagHeat } from "../../../types/api";
 
 export const rankingTypeOptions = [
-  { value: "hotword", label: "热点词" },
+  { value: "hotword", label: "市场热词" },
   { value: "track", label: "赛道" },
   { value: "stock", label: "标的" }
 ];
@@ -23,7 +23,7 @@ export function formatTime(value?: string | null) {
 export function tagTypeLabel(type?: string | null) {
   if (type === "stock") return "标的";
   if (type === "track") return "赛道";
-  if (type === "hotword") return "热点词";
+  if (type === "hotword") return "市场热词";
   return type || "-";
 }
 

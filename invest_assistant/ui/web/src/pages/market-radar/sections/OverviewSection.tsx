@@ -74,7 +74,7 @@ export function OverviewSection() {
           </WorkbenchCard>
         )}
         <Space direction="vertical" size={10} style={{ width: "100%" }}>
-          <RankingList title="热点词" rows={hotwords.data} loading={hotwords.loading} />
+          <RankingList title="市场热词" rows={hotwords.data} loading={hotwords.loading} />
           <RankingList title="赛道" rows={tracks.data} loading={tracks.loading} />
           <RankingList title="标的" rows={stocks.data} loading={stocks.loading} />
         </Space>
