@@ -1414,7 +1414,7 @@ body {
 .job-run-list {
   display: grid;
   gap: 8px;
-  max-height: calc(100vh - 336px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   padding-right: 2px;
 }
