@@ -17,7 +17,7 @@ const graphTypeOptions = [
 
 export function GraphSection() {
   const { resolvedMode } = useLiuliTheme();
-  const [type, setType] = useState<GraphType>("track");
+  const [type, setType] = useState<GraphType>("hotword");
   const [window, setWindow] = useState<RankingWindow>("24h");
   const graph = useAsyncData(
     useCallback(() => (type === "track" ? getStockTrackGraph(window) : getStockHotwordGraph(window)), [type, window]),
