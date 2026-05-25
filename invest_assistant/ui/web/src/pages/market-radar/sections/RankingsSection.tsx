@@ -11,7 +11,7 @@ import type { TagHeat } from "../../../types/api";
 import { formatTime, rankingTypeOptions, tagName, TagTypeTag, trendLineOption, windowOptions } from "./shared";
 
 export function RankingsSection() {
-  const [type, setType] = useState<RankingType>("hotword");
+  const [type, setType] = useState<RankingType>("all");
   const [window, setWindow] = useState<RankingWindow>("24h");
   const [selected, setSelected] = useState<TagHeat | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);

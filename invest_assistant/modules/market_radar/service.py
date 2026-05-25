@@ -436,12 +436,13 @@ def latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
     latest_stat = db.scalar(select(func.max(TagHeatSnapshot.stat_time)).where(TagHeatSnapshot.window_type == window))
     if latest_stat is None:
         return []
-    rows = db.execute(
-        select(TagHeatSnapshot, Tag)
-        .join(Tag, Tag.id == TagHeatSnapshot.tag_id)
-        .where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == latest_stat, Tag.type == tag_type)
-        .order_by(TagHeatSnapshot.rank_no.asc())
-    ).all()
+    stmt = select(TagHeatSnapshot, Tag).join(Tag, Tag.id == TagHeatSnapshot.tag_id).where(
+        TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == latest_stat
+    )
+    if tag_type != "all":
+        stmt = stmt.where(Tag.type == tag_type)
+    stmt = stmt.order_by(TagHeatSnapshot.rank_no.asc())
+    rows = db.execute(stmt).all()
     return [dict(_snapshot_dict(snapshot), tag=_tag_dict(tag)) for snapshot, tag in rows]
 
 

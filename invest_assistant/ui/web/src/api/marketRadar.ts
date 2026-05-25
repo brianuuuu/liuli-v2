@@ -61,7 +61,7 @@ export type TagBindingPayload = {
   status?: string;
 };
 
-export type RankingType = "stock" | "track" | "hotword";
+export type RankingType = "all" | "stock" | "track" | "hotword";
 export type RankingWindow = "1h" | "24h" | "7d" | "30d";
 export type GraphType = "track" | "hotword";
 
