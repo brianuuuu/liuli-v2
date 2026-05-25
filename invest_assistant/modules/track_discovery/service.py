@@ -112,15 +112,7 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
 
 
 def create_alias(db: Session, track_id: int, payload: TrackAliasCreate) -> TrackAlias:
-    item = TrackAlias(track_id=track_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track_id))
-    if tag is not None:
-        enqueue_tag_backfill(db, tag)
-        db.commit()
-    return item
+    raise ValueError("track_alias is deprecated in current phase; writing to old table is disabled")
 
 
 def list_aliases(db: Session, track_id: int) -> list[TrackAlias]:

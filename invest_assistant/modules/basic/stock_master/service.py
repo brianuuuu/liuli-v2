@@ -230,38 +230,11 @@ def list_aliases(db: Session, stock_id: int) -> list[StockAlias]:
 
 
 def create_alias(db: Session, stock_id: int, alias: str, alias_type: str | None, source: str | None) -> StockAlias:
-    item = StockAlias(stock_id=stock_id, alias=alias, alias_type=alias_type, source=source)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock_id))
-    if tag is not None:
-        enqueue_tag_backfill(db, tag)
-        db.commit()
-    return item
+    raise ValueError("stock_alias is deprecated in current phase; writing to old table is disabled")
 
 
 def replace_aliases(db: Session, stock_id: int, aliases: list[dict]) -> list[StockAlias]:
-    db.execute(delete(StockAlias).where(StockAlias.stock_id == stock_id))
-    result = []
-    seen = set()
-    for raw_alias in aliases:
-        alias = str(raw_alias.get("alias") or "").strip()
-        if not alias or alias in seen:
-            continue
-        seen.add(alias)
-        item = StockAlias(
-            stock_id=stock_id,
-            alias=alias,
-            alias_type=raw_alias.get("alias_type"),
-            source=raw_alias.get("source"),
-        )
-        db.add(item)
-        result.append(item)
-    db.commit()
-    for item in result:
-        db.refresh(item)
-    return result
+    raise ValueError("stock_alias is deprecated in current phase; writing to old table is disabled")
 
 
 def ensure_stock_tag(db: Session, stock_id: int, commit: bool = True) -> Tag:

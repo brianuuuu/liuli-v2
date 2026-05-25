@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from invest_assistant.bootstrap.config import get_settings
@@ -54,6 +54,7 @@ def create_all_tables() -> None:
     import invest_assistant.modules.track_discovery.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_required_phase_tables(engine)
 
     from invest_assistant.modules.basic.job_center.models import ensure_job_center_schema
     from invest_assistant.modules.basic.stock_master.models import ensure_stock_master_schema
@@ -70,3 +71,18 @@ def create_all_tables() -> None:
         ensure_default_prompts(db)
     finally:
         db.close()
+
+
+def _ensure_required_phase_tables(db_engine) -> None:
+    required_tables = {
+        "stock_tag_relation",
+        "track_tag_relation",
+        "hotword",
+        "hotword_tag_relation",
+        "ai_tag_suggestion",
+    }
+    existing = set(inspect(db_engine).get_table_names())
+    missing = required_tables - existing
+    if missing:
+        missing_list = ", ".join(sorted(missing))
+        raise RuntimeError(f"missing required tables after initialization: {missing_list}")

@@ -99,6 +99,67 @@ class TagEdgeSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
+class StockTagRelation(Base):
+    __tablename__ = "stock_tag_relation"
+    __table_args__ = (UniqueConstraint("stock_id", "tag_id", name="uq_stock_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class TrackTagRelation(Base):
+    __tablename__ = "track_tag_relation"
+    __table_args__ = (UniqueConstraint("track_id", "tag_id", name="uq_track_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Hotword(Base):
+    __tablename__ = "hotword"
+    __table_args__ = (UniqueConstraint("name", name="uq_hotword_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class HotwordTagRelation(Base):
+    __tablename__ = "hotword_tag_relation"
+    __table_args__ = (UniqueConstraint("hotword_id", "tag_id", name="uq_hotword_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hotword_id: Mapped[int] = mapped_column(ForeignKey("hotword.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AITagSuggestion(Base):
+    __tablename__ = "ai_tag_suggestion"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_item_id: Mapped[int | None] = mapped_column(ForeignKey("source_item.id"), nullable=True, index=True)
+    suggestion_text: Mapped[str] = mapped_column(String(255), nullable=False)
+    suggested_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True, index=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class TagCandidate(Base):
     __tablename__ = "tag_candidate"
     __table_args__ = (UniqueConstraint("name", name="uq_tag_candidate_name"),)

@@ -65,25 +65,7 @@ def create_hotword(db: Session, payload: HotwordCreate) -> dict:
 
 
 def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) -> HotwordAlias:
-    tag = db.get(Tag, tag_id)
-    if tag is None or tag.type != "hotword":
-        raise ValueError("hotword tag not found")
-    existing = db.scalar(select(HotwordAlias).where(HotwordAlias.tag_id == tag_id, HotwordAlias.alias == payload.alias))
-    if existing is not None:
-        for key, value in payload.model_dump().items():
-            setattr(existing, key, value)
-        db.commit()
-        db.refresh(existing)
-        enqueue_tag_backfill(db, tag)
-        db.commit()
-        return existing
-    item = HotwordAlias(tag_id=tag_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    enqueue_tag_backfill(db, tag)
-    db.commit()
-    return item
+    raise ValueError("hotword_alias is deprecated in current phase; writing to old table is disabled")
 
 
 def list_hotword_aliases(db: Session, tag_id: int | None = None) -> list[HotwordAlias]:
@@ -406,17 +388,7 @@ def graph_edges(db: Session, related_type: str, window: str) -> dict:
 
 
 def create_candidate(db: Session, payload: TagCandidateCreate) -> TagCandidate:
-    name = payload.name.strip()
-    existing = db.scalar(select(TagCandidate).where(func.lower(TagCandidate.name) == name.lower()))
-    if existing is not None:
-        raise ValueError("candidate name already exists")
-    values = payload.model_dump()
-    values["name"] = name
-    item = TagCandidate(**values)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+    raise ValueError("tag_candidate is deprecated in current phase; writing to old table is disabled")
 
 
 def list_candidates(db: Session) -> list[TagCandidate]:

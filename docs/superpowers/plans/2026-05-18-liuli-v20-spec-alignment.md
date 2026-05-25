@@ -3,6 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Align the in-development Liuli v2 implementation with `liuli_system_spec_v20.md` and `liuli_database_schema_spec_v5.md` without old API compatibility or data migration.
+**Migration policy (current phase):** No formal migration in this phase. Legacy tables are only deprecated and must no longer receive writes (`stock_alias` / `track_alias` / `hotword_alias` / `tag_candidate`).
 
 **Architecture:** Preserve the current FastAPI, SQLAlchemy, React, Vite, Ant Design, ECharts, module directories, and reusable components. Change conflicting business models, APIs, Web menus, and tests directly to the v20 business design: `source_item` feed, tag index governance, track-first discovery, `stock_pool`, real portfolio groups, and hotword aliases.
 
