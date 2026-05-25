@@ -296,9 +296,9 @@ def _tags_by_track_id(db: Session, track_ids: list[int]) -> dict[int, Tag]:
 
 
 def _sync_track_tag(db: Session, track: Track) -> Tag:
-    tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track.id))
+    tag = db.scalar(select(Tag).where(Tag.name == track.name))
     if tag is None:
-        tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.name == track.name))
+        tag = db.scalar(select(Tag).where(Tag.type == "track", Tag.track_id == track.id))
     if tag is None:
         tag = Tag(name=track.name, type="track", track_id=track.id, status=track.status)
         db.add(tag)

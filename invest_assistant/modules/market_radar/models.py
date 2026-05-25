@@ -10,7 +10,7 @@ from invest_assistant.shared.time_utils import utc_now
 
 class Tag(Base):
     __tablename__ = "tag"
-    __table_args__ = (UniqueConstraint("name", "type", name="uq_tag_name_type"),)
+    __table_args__ = (UniqueConstraint("name", name="uq_tag_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)

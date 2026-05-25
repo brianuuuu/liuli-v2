@@ -208,6 +208,7 @@ def _normalized_existing_hotword_names(db) -> set[str]:
 
 
 def _existing_hotword_merge_options(db) -> list[dict]:
+    service._guard_tag_name_conflicts(db)
     tags = list(db.scalars(select(Tag).where(Tag.type == "hotword", Tag.status != "disabled").order_by(Tag.name.asc())))
     aliases = list(db.scalars(select(HotwordAlias).where(HotwordAlias.status != "disabled").order_by(HotwordAlias.alias.asc())))
     aliases_by_tag: dict[int, list[str]] = {}

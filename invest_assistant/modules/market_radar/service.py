@@ -28,6 +28,7 @@ WINDOWS = {
 
 
 def list_tags(db: Session, tag_type: str | None = None) -> list[Tag]:
+    _guard_tag_name_conflicts(db)
     stmt = select(Tag).order_by(Tag.type.asc(), Tag.name.asc())
     if tag_type:
         stmt = stmt.where(Tag.type == tag_type)
@@ -35,7 +36,8 @@ def list_tags(db: Session, tag_type: str | None = None) -> list[Tag]:
 
 
 def create_tag(db: Session, payload: TagCreate) -> Tag:
-    existing = db.scalar(select(Tag).where(Tag.name == payload.name, Tag.type == payload.type))
+    _guard_tag_name_conflicts(db, payload.name)
+    existing = db.scalar(select(Tag).where(Tag.name == payload.name))
     if existing is not None:
         for key, value in payload.model_dump().items():
             setattr(existing, key, value)
@@ -51,6 +53,24 @@ def create_tag(db: Session, payload: TagCreate) -> Tag:
     enqueue_tag_backfill(db, tag)
     db.commit()
     return tag
+
+
+def _guard_tag_name_conflicts(db: Session, name: str | None = None) -> None:
+    if name:
+        normalized_name = name.strip()
+        if not normalized_name:
+            return
+        rows = db.execute(
+            select(Tag.name, func.count(Tag.id))
+            .where(Tag.name == normalized_name)
+            .group_by(Tag.name)
+            .having(func.count(Tag.id) > 1)
+        ).all()
+    else:
+        rows = db.execute(select(Tag.name, func.count(Tag.id)).group_by(Tag.name).having(func.count(Tag.id) > 1)).all()
+    if rows:
+        conflict_names = [str(row[0]) for row in rows]
+        raise ValueError(f"tag name conflict detected: {', '.join(conflict_names)}")
 
 
 def create_projected_tag(db: Session, payload: TagCreate) -> Tag:

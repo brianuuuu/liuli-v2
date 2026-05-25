@@ -268,9 +268,9 @@ def ensure_stock_tag(db: Session, stock_id: int, commit: bool = True) -> Tag:
     stock = db.get(Stock, stock_id)
     if stock is None:
         raise ValueError("stock not found")
-    tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock.id))
+    tag = db.scalar(select(Tag).where(Tag.name == stock.stock_name))
     if tag is None:
-        tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.name == stock.stock_name))
+        tag = db.scalar(select(Tag).where(Tag.type == "stock", Tag.stock_id == stock.id))
     if tag is None:
         tag = Tag(name=stock.stock_name, type="stock", stock_id=stock.id, status=stock.status)
         db.add(tag)
