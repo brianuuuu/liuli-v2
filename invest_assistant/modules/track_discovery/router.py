@@ -6,8 +6,8 @@ from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.modules.track_discovery import service
 from invest_assistant.modules.track_discovery.schemas import (
-    TrackAliasCreate,
-    TrackAliasRead,
+    TrackTagRelationCreate,
+    TrackTagRelationRead,
     TrackCreate,
     TrackEvidenceCreate,
     TrackEvidenceRead,
@@ -68,16 +68,16 @@ def delete_track(track_id: int, db: Session = Depends(get_db)):
     return Response(status_code=204)
 
 
-@router.get("/tracks/{track_id}/aliases", response_model=list[TrackAliasRead])
-def list_track_aliases(track_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_aliases(db, track_id)
+@router.get("/tracks/{track_id}/track-tag-relations", response_model=list[TrackTagRelationRead])
+def list_track_tag_relations(track_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_track_tag_relations(db, track_id)
 
 
-@router.post("/tracks/{track_id}/aliases", response_model=TrackAliasRead)
-def create_track_alias(track_id: int, payload: TrackAliasCreate, db: Session = Depends(get_db)):
+@router.post("/tracks/{track_id}/track-tag-relations", response_model=TrackTagRelationRead)
+def create_track_tag_relation(track_id: int, payload: TrackTagRelationCreate, db: Session = Depends(get_db)):
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.create_alias(db, track_id, payload)
+    return service.create_track_tag_relation(db, track_id, payload)
 
 
 @router.get("/tracks/{track_id}/theses", response_model=list[TrackThesisRead])

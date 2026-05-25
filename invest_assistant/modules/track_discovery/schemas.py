@@ -143,3 +143,18 @@ class TrackStatusHistoryRead(BaseModel):
     changed_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TrackTagRelationCreate(BaseModel):
+    tag_id: int
+    source: str = "manual"
+    status: str = "active"
+
+
+class TrackTagRelationRead(TrackTagRelationCreate):
+    id: int
+    track_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

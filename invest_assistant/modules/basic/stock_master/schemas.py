@@ -60,3 +60,18 @@ class StockAliasRead(StockAliasCreate):
 
 class StockAliasReplace(BaseModel):
     aliases: list[StockAliasCreate] = []
+
+
+class StockTagRelationCreate(BaseModel):
+    tag_id: int
+    source: str = "manual"
+    status: str = "active"
+
+
+class StockTagRelationRead(StockTagRelationCreate):
+    id: int
+    stock_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
-from invest_assistant.modules.market_radar.models import SourceTag, Tag, TagCandidate, TagHeatSnapshot
+from invest_assistant.modules.market_radar.models import SourceTag, Tag, AiTagSuggestion, TagHeatSnapshot
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
     TrackAlias,
+    TrackTagRelation,
     TrackEvidence,
     TrackRelatedStock,
     TrackStatusHistory,
@@ -16,6 +17,7 @@ from invest_assistant.modules.track_discovery.models import (
 )
 from invest_assistant.modules.track_discovery.schemas import (
     TrackAliasCreate,
+    TrackTagRelationCreate,
     TrackCreate,
     TrackEvidenceCreate,
     TrackRelatedStockCreate,
@@ -93,7 +95,7 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     if tag_ids:
         db.execute(delete(SourceTag).where(SourceTag.tag_id.in_(tag_ids)))
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_ids)))
-        db.execute(update(TagCandidate).where(TagCandidate.target_tag_id.in_(tag_ids)).values(target_tag_id=None))
+        db.execute(update(AiTagSuggestion).where(AiTagSuggestion.target_tag_id.in_(tag_ids)).values(target_tag_id=None))
         db.execute(delete(Tag).where(Tag.id.in_(tag_ids)))
 
     db.execute(delete(StockTrackRelation).where(StockTrackRelation.track_id == track_id))
@@ -317,3 +319,18 @@ def _heat_dict(snapshot: TagHeatSnapshot) -> dict:
         "heat_score": snapshot.heat_score,
         "rank_no": snapshot.rank_no,
     }
+
+
+def create_track_tag_relation(db: Session, track_id: int, payload: TrackTagRelationCreate) -> TrackTagRelation:
+    item = db.scalar(select(TrackTagRelation).where(TrackTagRelation.track_id == track_id, TrackTagRelation.tag_id == payload.tag_id))
+    if item is None:
+        item = TrackTagRelation(track_id=track_id, **payload.model_dump())
+        db.add(item)
+    else:
+        item.source = payload.source
+        item.status = payload.status
+    db.commit(); db.refresh(item); return item
+
+
+def list_track_tag_relations(db: Session, track_id: int) -> list[TrackTagRelation]:
+    return list(db.scalars(select(TrackTagRelation).where(TrackTagRelation.track_id == track_id).order_by(TrackTagRelation.id.desc())))

@@ -27,6 +27,19 @@ class Stock(Base):
     )
 
 
+class StockTagRelation(Base):
+    __tablename__ = "stock_tag_relation"
+    __table_args__ = (UniqueConstraint("stock_id", "tag_id", name="uq_stock_tag_relation_stock_tag"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class StockAlias(Base):
     __tablename__ = "stock_alias"
 

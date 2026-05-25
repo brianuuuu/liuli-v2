@@ -88,7 +88,7 @@ class TagHeatRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TagCandidateCreate(BaseModel):
+class AiTagSuggestionCreate(BaseModel):
     name: str
     suggested_type: str
     source_item_id: int | None = None
@@ -102,16 +102,16 @@ class TagCandidateCreate(BaseModel):
     status: str = "pending"
 
 
-class TagCandidateMerge(BaseModel):
+class AiTagSuggestionMerge(BaseModel):
     target_tag_id: int | None = None
     name: str | None = None
 
 
-class TagCandidateApprove(BaseModel):
+class AiTagSuggestionApprove(BaseModel):
     name: str | None = None
 
 
-class TagCandidateRead(TagCandidateCreate):
+class AiTagSuggestionRead(AiTagSuggestionCreate):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -119,13 +119,13 @@ class TagCandidateRead(TagCandidateCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class HotwordAliasCreate(BaseModel):
-    alias: str
+class HotwordTagRelationCreate(BaseModel):
+    hotword: str
     source: str = "manual"
     status: str = "active"
 
 
-class HotwordAliasRead(HotwordAliasCreate):
+class HotwordTagRelationRead(HotwordTagRelationCreate):
     id: int
     tag_id: int
     created_at: datetime
@@ -136,10 +136,10 @@ class HotwordAliasRead(HotwordAliasCreate):
 
 class HotwordCreate(BaseModel):
     name: str
-    aliases: list[str] = []
+    hotwords: list[str] = []
     status: str = "active"
 
 
 class HotwordRead(BaseModel):
     tag: TagRead
-    aliases: list[HotwordAliasRead]
+    hotwords: list[HotwordTagRelationRead]

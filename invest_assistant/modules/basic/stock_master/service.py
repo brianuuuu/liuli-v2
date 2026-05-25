@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
+from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias, StockTagRelation
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem, StockUpdate
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import Tag
@@ -284,3 +284,18 @@ def ensure_stock_tag(db: Session, stock_id: int, commit: bool = True) -> Tag:
         enqueue_tag_backfill(db, tag)
         db.commit()
     return tag
+
+
+def list_stock_tag_relations(db: Session, stock_id: int) -> list[StockTagRelation]:
+    return list(db.scalars(select(StockTagRelation).where(StockTagRelation.stock_id == stock_id).order_by(StockTagRelation.id.desc())))
+
+
+def create_stock_tag_relation(db: Session, stock_id: int, tag_id: int, source: str = "manual", status: str = "active") -> StockTagRelation:
+    item = db.scalar(select(StockTagRelation).where(StockTagRelation.stock_id == stock_id, StockTagRelation.tag_id == tag_id))
+    if item is None:
+        item = StockTagRelation(stock_id=stock_id, tag_id=tag_id, source=source, status=status)
+        db.add(item)
+    else:
+        item.source = source
+        item.status = status
+    db.commit(); db.refresh(item); return item

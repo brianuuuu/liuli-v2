@@ -5,18 +5,18 @@ from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
-from invest_assistant.modules.market_radar.alias_resolver import resolve_source_tag_matches
+from invest_assistant.modules.market_radar.hotword_resolver import resolve_source_tag_matches
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import (
-    HotwordAlias,
+    HotwordTagRelation,
     SourceItem,
     SourceTag,
     Tag,
-    TagCandidate,
+    AiTagSuggestion,
     TagEdgeSnapshot,
     TagHeatSnapshot,
 )
-from invest_assistant.modules.market_radar.schemas import HotwordAliasCreate, HotwordCreate, SourceItemCreate, TagCandidateCreate, TagCreate, TagUpdate
+from invest_assistant.modules.market_radar.schemas import HotwordTagRelationCreate, HotwordCreate, SourceItemCreate, AiTagSuggestionCreate, TagCreate, TagUpdate
 from invest_assistant.shared.time_utils import utc_now
 
 WINDOWS = {
@@ -59,16 +59,16 @@ def create_projected_tag(db: Session, payload: TagCreate) -> Tag:
 
 def create_hotword(db: Session, payload: HotwordCreate) -> dict:
     tag = create_tag(db, TagCreate(name=payload.name, type="hotword", status=payload.status))
-    for alias in payload.aliases:
-        create_hotword_alias(db, tag.id, HotwordAliasCreate(alias=alias))
-    return {"tag": tag, "aliases": list_hotword_aliases(db, tag.id)}
+    for alias in payload.hotwords:
+        create_hotword_tag_relation(db, tag.id, HotwordTagRelationCreate(hotword=alias))
+    return {"tag": tag, "aliases": list_hotword_tag_relations(db, tag.id)}
 
 
-def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) -> HotwordAlias:
+def create_hotword_tag_relation(db: Session, tag_id: int, payload: HotwordTagRelationCreate) -> HotwordTagRelation:
     tag = db.get(Tag, tag_id)
     if tag is None or tag.type != "hotword":
         raise ValueError("hotword tag not found")
-    existing = db.scalar(select(HotwordAlias).where(HotwordAlias.tag_id == tag_id, HotwordAlias.alias == payload.alias))
+    existing = db.scalar(select(HotwordTagRelation).where(HotwordTagRelation.tag_id == tag_id, HotwordTagRelation.hotword == payload.hotword))
     if existing is not None:
         for key, value in payload.model_dump().items():
             setattr(existing, key, value)
@@ -77,7 +77,7 @@ def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) 
         enqueue_tag_backfill(db, tag)
         db.commit()
         return existing
-    item = HotwordAlias(tag_id=tag_id, **payload.model_dump())
+    item = HotwordTagRelation(tag_id=tag_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -86,10 +86,10 @@ def create_hotword_alias(db: Session, tag_id: int, payload: HotwordAliasCreate) 
     return item
 
 
-def list_hotword_aliases(db: Session, tag_id: int | None = None) -> list[HotwordAlias]:
-    stmt = select(HotwordAlias).order_by(HotwordAlias.alias.asc())
+def list_hotword_tag_relations(db: Session, tag_id: int | None = None) -> list[HotwordTagRelation]:
+    stmt = select(HotwordTagRelation).order_by(HotwordTagRelation.hotword.asc())
     if tag_id is not None:
-        stmt = stmt.where(HotwordAlias.tag_id == tag_id)
+        stmt = stmt.where(HotwordTagRelation.tag_id == tag_id)
     return list(db.scalars(stmt))
 
 
@@ -405,29 +405,29 @@ def graph_edges(db: Session, related_type: str, window: str) -> dict:
     }
 
 
-def create_candidate(db: Session, payload: TagCandidateCreate) -> TagCandidate:
+def create_candidate(db: Session, payload: AiTagSuggestionCreate) -> AiTagSuggestion:
     name = payload.name.strip()
-    existing = db.scalar(select(TagCandidate).where(func.lower(TagCandidate.name) == name.lower()))
+    existing = db.scalar(select(AiTagSuggestion).where(func.lower(AiTagSuggestion.name) == name.lower()))
     if existing is not None:
         raise ValueError("candidate name already exists")
     values = payload.model_dump()
     values["name"] = name
-    item = TagCandidate(**values)
+    item = AiTagSuggestion(**values)
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_candidates(db: Session) -> list[TagCandidate]:
-    return list(db.scalars(select(TagCandidate).order_by(TagCandidate.created_at.desc())))
+def list_candidates(db: Session) -> list[AiTagSuggestion]:
+    return list(db.scalars(select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc())))
 
 
-def get_candidate(db: Session, candidate_id: int) -> TagCandidate | None:
-    return db.get(TagCandidate, candidate_id)
+def get_candidate(db: Session, candidate_id: int) -> AiTagSuggestion | None:
+    return db.get(AiTagSuggestion, candidate_id)
 
 
-def _update_candidate_name(candidate: TagCandidate, name: str | None) -> None:
+def _update_candidate_name(candidate: AiTagSuggestion, name: str | None) -> None:
     if name is None:
         return
     normalized = name.strip()
@@ -436,7 +436,7 @@ def _update_candidate_name(candidate: TagCandidate, name: str | None) -> None:
     candidate.name = normalized
 
 
-def approve_candidate(db: Session, candidate: TagCandidate, name: str | None = None) -> TagCandidate:
+def approve_candidate(db: Session, candidate: AiTagSuggestion, name: str | None = None) -> AiTagSuggestion:
     _update_candidate_name(candidate, name)
     if candidate.suggested_type == "hotword":
         tag = create_tag(db, TagCreate(name=candidate.name, type="hotword", status="active"))
@@ -455,7 +455,7 @@ def approve_candidate(db: Session, candidate: TagCandidate, name: str | None = N
     return candidate
 
 
-def promote_candidate_to_track(db: Session, candidate: TagCandidate) -> TagCandidate:
+def promote_candidate_to_track(db: Session, candidate: AiTagSuggestion) -> AiTagSuggestion:
     if candidate.status != "pending":
         raise ValueError("candidate is not pending")
 
@@ -476,14 +476,14 @@ def promote_candidate_to_track(db: Session, candidate: TagCandidate) -> TagCandi
     return candidate
 
 
-def reject_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def reject_candidate(db: Session, candidate: AiTagSuggestion) -> AiTagSuggestion:
     candidate.status = "rejected"
     db.commit()
     db.refresh(candidate)
     return candidate
 
 
-def restore_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
+def restore_candidate(db: Session, candidate: AiTagSuggestion) -> AiTagSuggestion:
     if candidate.status != "rejected":
         raise ValueError("candidate is not rejected")
     candidate.status = "pending"
@@ -492,7 +492,7 @@ def restore_candidate(db: Session, candidate: TagCandidate) -> TagCandidate:
     return candidate
 
 
-def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | None = None, name: str | None = None) -> TagCandidate:
+def merge_candidate(db: Session, candidate: AiTagSuggestion, target_tag_id: int | None = None, name: str | None = None) -> AiTagSuggestion:
     _update_candidate_name(candidate, name)
     resolved_target_id = target_tag_id or candidate.suggested_target_tag_id
     if resolved_target_id is None:
@@ -500,10 +500,10 @@ def merge_candidate(db: Session, candidate: TagCandidate, target_tag_id: int | N
     target = db.get(Tag, resolved_target_id)
     if target is None or target.type != "hotword" or target.status != "active":
         raise ValueError("active hotword tag not found")
-    create_hotword_alias(
+    create_hotword_tag_relation(
         db,
         resolved_target_id,
-        HotwordAliasCreate(alias=candidate.name, source="ai_suggested", status="active"),
+        HotwordTagRelationCreate(alias=candidate.name, source="ai_suggested", status="active"),
     )
     candidate.target_tag_id = resolved_target_id
     candidate.status = "merged"

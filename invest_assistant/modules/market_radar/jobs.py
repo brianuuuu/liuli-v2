@@ -7,13 +7,13 @@ from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
-from invest_assistant.modules.basic.stock_master.models import Stock, StockAlias
+from invest_assistant.modules.basic.stock_master.models import Stock, StockTagRelation
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB_NAME
 from invest_assistant.modules.market_radar import service
-from invest_assistant.modules.market_radar.models import HotwordAlias, SourceItem, Tag, TagCandidate
-from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagCandidateCreate
-from invest_assistant.modules.track_discovery.models import Track, TrackAlias
+from invest_assistant.modules.market_radar.models import HotwordTagRelation, SourceItem, Tag, AiTagSuggestion
+from invest_assistant.modules.market_radar.schemas import SourceItemCreate, AiTagSuggestionCreate
+from invest_assistant.modules.track_discovery.models import Track, TrackTagRelation
 from invest_assistant.services.akshare.client import fetch_cls_news_rows
 from invest_assistant.services.deepseek import client as deepseek_client
 from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
@@ -180,40 +180,40 @@ def _normalized_existing_hotword_names(db) -> set[str]:
         for name in db.scalars(select(Stock.stock_name).where(Stock.status != "disabled"))
         if str(name).strip()
     }
-    hotword_aliases = {
+    hotword_terms = {
         str(alias).strip().casefold()
-        for alias in db.scalars(select(HotwordAlias.alias).where(HotwordAlias.status != "disabled"))
+        for alias in db.scalars(select(HotwordTagRelation.hotword).where(HotwordTagRelation.status != "disabled"))
         if str(alias).strip()
     }
-    track_aliases = {
-        str(alias).strip().casefold()
-        for alias in db.scalars(select(TrackAlias.alias).where(TrackAlias.status != "disabled"))
-        if str(alias).strip()
+    track_terms = {
+        str(name).strip().casefold()
+        for name in db.scalars(select(Tag.name).join(TrackTagRelation, TrackTagRelation.tag_id == Tag.id).where(TrackTagRelation.status != "disabled"))
+        if str(name).strip()
     }
-    stock_aliases = {
-        str(alias).strip().casefold()
-        for alias in db.scalars(select(StockAlias.alias))
-        if str(alias).strip()
+    stock_terms = {
+        str(name).strip().casefold()
+        for name in db.scalars(select(Tag.name).join(StockTagRelation, StockTagRelation.tag_id == Tag.id).where(StockTagRelation.status != "disabled"))
+        if str(name).strip()
     }
     candidates = {
         str(name).strip().casefold()
         for name in db.scalars(
-            select(TagCandidate.name).where(
-                TagCandidate.suggested_type == "hotword",
+            select(AiTagSuggestion.name).where(
+                AiTagSuggestion.suggested_type == "hotword",
             )
         )
         if str(name).strip()
     }
-    return tag_names | track_names | stock_names | hotword_aliases | track_aliases | stock_aliases | candidates
+    return tag_names | track_names | stock_names | hotword_terms | track_terms | stock_terms | candidates
 
 
 def _existing_hotword_merge_options(db) -> list[dict]:
     tags = list(db.scalars(select(Tag).where(Tag.type == "hotword", Tag.status != "disabled").order_by(Tag.name.asc())))
-    aliases = list(db.scalars(select(HotwordAlias).where(HotwordAlias.status != "disabled").order_by(HotwordAlias.alias.asc())))
-    aliases_by_tag: dict[int, list[str]] = {}
-    for alias in aliases:
-        aliases_by_tag.setdefault(alias.tag_id, []).append(alias.alias)
-    return [{"tag_id": tag.id, "name": tag.name, "aliases": aliases_by_tag.get(tag.id, [])} for tag in tags]
+    relations = list(db.scalars(select(HotwordTagRelation).where(HotwordTagRelation.status != "disabled").order_by(HotwordTagRelation.hotword.asc())))
+    terms_by_tag: dict[int, list[str]] = {}
+    for relation in relations:
+        terms_by_tag.setdefault(relation.tag_id, []).append(relation.hotword)
+    return [{"tag_id": tag.id, "name": tag.name, "hotwords": terms_by_tag.get(tag.id, [])} for tag in tags]
 
 
 def _normalize_score(value) -> int:
@@ -321,7 +321,7 @@ def _create_hotword_candidates(db, hotwords: list[dict], model: str | None = Non
         merge_suggestion = merge_suggestions.get(item["name"].casefold(), {})
         service.create_candidate(
             db,
-            TagCandidateCreate(
+            AiTagSuggestionCreate(
                 name=item["name"],
                 suggested_type="hotword",
                 source_item_id=None,

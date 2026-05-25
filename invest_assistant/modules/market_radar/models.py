@@ -24,13 +24,13 @@ class Tag(Base):
     )
 
 
-class HotwordAlias(Base):
-    __tablename__ = "hotword_alias"
-    __table_args__ = (UniqueConstraint("tag_id", "alias", name="uq_hotword_alias_tag_alias"),)
+class HotwordTagRelation(Base):
+    __tablename__ = "hotword_tag_relation"
+    __table_args__ = (UniqueConstraint("tag_id", "hotword", name="uq_hotword_tag_relation_tag_hotword"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
-    alias: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    hotword: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -99,9 +99,9 @@ class TagEdgeSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class TagCandidate(Base):
-    __tablename__ = "tag_candidate"
-    __table_args__ = (UniqueConstraint("name", name="uq_tag_candidate_name"),)
+class AiTagSuggestion(Base):
+    __tablename__ = "ai_tag_suggestion"
+    __table_args__ = (UniqueConstraint("name", name="uq_ai_tag_suggestion_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
@@ -125,11 +125,11 @@ def ensure_market_radar_schema(engine: Engine) -> None:
     if engine.dialect.name != "sqlite":
         return
     with engine.begin() as conn:
-        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(tag_candidate)")).all()}
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(ai_tag_suggestion)")).all()}
         additions = {
-            "suggested_target_tag_id": "ALTER TABLE tag_candidate ADD COLUMN suggested_target_tag_id INTEGER",
-            "merge_similarity": "ALTER TABLE tag_candidate ADD COLUMN merge_similarity FLOAT",
-            "merge_reason": "ALTER TABLE tag_candidate ADD COLUMN merge_reason TEXT",
+            "suggested_target_tag_id": "ALTER TABLE ai_tag_suggestion ADD COLUMN suggested_target_tag_id INTEGER",
+            "merge_similarity": "ALTER TABLE ai_tag_suggestion ADD COLUMN merge_similarity FLOAT",
+            "merge_reason": "ALTER TABLE ai_tag_suggestion ADD COLUMN merge_reason TEXT",
         }
         for column, statement in additions.items():
             if column not in columns:

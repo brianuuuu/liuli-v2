@@ -19,6 +19,19 @@ class Track(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class TrackTagRelation(Base):
+    __tablename__ = "track_tag_relation"
+    __table_args__ = (UniqueConstraint("track_id", "tag_id", name="uq_track_tag_relation_track_tag"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class TrackAlias(Base):
     __tablename__ = "track_alias"
     __table_args__ = (UniqueConstraint("track_id", "alias", name="uq_track_alias_track_alias"),)
