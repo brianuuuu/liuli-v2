@@ -630,6 +630,13 @@ body {
   background: var(--ll-panel-subtle);
 }
 
+.track-name-link,
+.track-name-link:hover,
+.track-name-link:focus-visible {
+  color: var(--ll-text);
+  text-decoration: none;
+}
+
 .stock-pool-target-link {
   display: grid;
   gap: 2px;
@@ -953,25 +960,27 @@ body {
 
 .flash-tags .flash-tag {
   margin: 0;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
+  border: 1px solid #d6dee8;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #334155;
   cursor: pointer;
+  font-weight: 500;
   line-height: 18px;
 }
 
 .flash-tags .flash-tag:hover,
 .flash-tags .flash-tag:focus-visible {
-  border-color: #93c5fd;
-  background: #dbeafe;
-  color: #1d4ed8;
+  border-color: #b7c4d4;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .flash-tags .flash-tag.active {
-  border-color: #60a5fa;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-weight: 600;
+  border-color: #d6dee8;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 500;
 }
 
 .job-center-layout {
@@ -1550,6 +1559,25 @@ body {
 
 [data-theme="dark"] .flash-content {
   color: #9fb4cc;
+}
+
+[data-theme="dark"] .flash-tags .flash-tag {
+  border-color: rgba(139, 148, 158, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c9d1d9;
+}
+
+[data-theme="dark"] .flash-tags .flash-tag:hover,
+[data-theme="dark"] .flash-tags .flash-tag:focus-visible {
+  border-color: rgba(139, 148, 158, 0.48);
+  background: rgba(255, 255, 255, 0.07);
+  color: #e6edf3;
+}
+
+[data-theme="dark"] .flash-tags .flash-tag.active {
+  border-color: rgba(139, 148, 158, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c9d1d9;
 }
 
 [data-theme="dark"] .job-card:hover {
