@@ -5,9 +5,6 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.stock_master import service
 from invest_assistant.modules.basic.stock_master.schemas import (
-    StockAliasCreate,
-    StockAliasReplace,
-    StockAliasRead,
     StockImportItem,
     StockRead,
     StockUpdate,
@@ -46,22 +43,3 @@ def update_stock(stock_id: int, payload: StockUpdate, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="stock not found")
     return service.stock_to_dict(db, service.update_stock(db, stock, payload))
 
-
-@router.get("/{stock_id}/aliases", response_model=list[StockAliasRead])
-def list_aliases(stock_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_aliases(db, stock_id)
-
-
-@router.post("/{stock_id}/aliases", response_model=StockAliasRead)
-def create_alias(stock_id: int, payload: StockAliasCreate, db: Session = Depends(get_db)):
-    if service.get_stock(db, stock_id) is None:
-        raise HTTPException(status_code=404, detail="stock not found")
-    return service.create_alias(db, stock_id, payload.alias, payload.alias_type, payload.source)
-
-
-@router.put("/{stock_id}/aliases", response_model=list[StockAliasRead])
-def replace_aliases(stock_id: int, payload: StockAliasReplace, db: Session = Depends(get_db)):
-    if service.get_stock(db, stock_id) is None:
-        raise HTTPException(status_code=404, detail="stock not found")
-    aliases = [item.model_dump() for item in payload.aliases]
-    return service.replace_aliases(db, stock_id, aliases)

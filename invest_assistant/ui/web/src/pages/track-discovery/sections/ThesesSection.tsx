@@ -11,7 +11,6 @@ import { formatTime, StatusTag, thesisStatusOptions } from "./shared";
 
 type TrackFormValues = {
   name: string;
-  description?: string;
   status: string;
 };
 
@@ -36,7 +35,6 @@ export function ThesesSection() {
     if (editing) {
       form.setFieldsValue({
         name: editing.name,
-        description: editing.description || undefined,
         status: editing.status
       });
     } else {
@@ -58,7 +56,6 @@ export function ThesesSection() {
     const values = await form.validateFields();
     const payload = {
       name: values.name,
-      description: values.description || null,
       status: values.status
     };
     if (editing) {
@@ -104,7 +101,7 @@ export function ThesesSection() {
   }
 
   const columns: ColumnsType<Track> = [
-    { title: "赛道", dataIndex: "name", render: (value, record) => <Link to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
+    { title: "赛道", dataIndex: "name", render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
     { title: "说明", dataIndex: "description", ellipsis: true, render: (value) => value || "-" },
     { title: "Tag ID", dataIndex: ["tag", "id"], width: 90, render: (value) => value || "-" },
@@ -163,13 +160,10 @@ export function ThesesSection() {
         />
       </DataPanel>
 
-      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => { setOpen(false); setEditing(null); }} onOk={submit} destroyOnHidden forceRender width={760}>
+      <Modal title={editing ? "编辑赛道" : "新增赛道"} open={open} onCancel={() => { setOpen(false); setEditing(null); }} onOk={submit} destroyOnHidden forceRender width={480}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="description" label="说明">
-            <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={thesisStatusOptions} />

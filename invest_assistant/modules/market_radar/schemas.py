@@ -5,17 +5,15 @@ from pydantic import BaseModel, ConfigDict
 
 class TagCreate(BaseModel):
     name: str
-    type: str
-    stock_id: int | None = None
-    track_id: int | None = None
+    type: str | None = None
+    source: str | None = None
     status: str = "active"
 
 
 class TagUpdate(BaseModel):
     name: str | None = None
     type: str | None = None
-    stock_id: int | None = None
-    track_id: int | None = None
+    source: str | None = None
     status: str | None = None
 
 
@@ -88,46 +86,40 @@ class TagHeatRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TagCandidateCreate(BaseModel):
+class TagBindingCreate(BaseModel):
     name: str
-    suggested_type: str
-    source_item_id: int | None = None
-    trigger_text: str | None = None
-    confidence: float = 0
-    reason: str | None = None
-    target_tag_id: int | None = None
-    suggested_target_tag_id: int | None = None
-    merge_similarity: float | None = None
-    merge_reason: str | None = None
-    status: str = "pending"
-
-
-class TagCandidateMerge(BaseModel):
-    target_tag_id: int | None = None
-    name: str | None = None
-
-
-class TagCandidateApprove(BaseModel):
-    name: str | None = None
-
-
-class TagCandidateRead(TagCandidateCreate):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class HotwordAliasCreate(BaseModel):
-    alias: str
-    source: str = "manual"
+    source: str | None = "manual"
     status: str = "active"
 
 
-class HotwordAliasRead(HotwordAliasCreate):
+class TagBindingRead(BaseModel):
     id: int
-    tag_id: int
+    tag: TagRead
+    source: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AiTagSuggestionCreate(BaseModel):
+    suggested_text: str
+    final_tag_name: str | None = None
+    score: float | None = None
+    reason: str | None = None
+    status: str = "pending"
+    final_tag_id: int | None = None
+    ext_json: str = "{}"
+
+
+class AiTagSuggestionApprove(BaseModel):
+    final_tag_name: str | None = None
+    target_type: str
+    target_id: int | None = None
+    target_name: str | None = None
+
+
+class AiTagSuggestionRead(AiTagSuggestionCreate):
+    id: int
     created_at: datetime
     updated_at: datetime
 
@@ -136,10 +128,14 @@ class HotwordAliasRead(HotwordAliasCreate):
 
 class HotwordCreate(BaseModel):
     name: str
-    aliases: list[str] = []
+    description: str | None = None
     status: str = "active"
 
 
-class HotwordRead(BaseModel):
-    tag: TagRead
-    aliases: list[HotwordAliasRead]
+class HotwordRead(HotwordCreate):
+    id: int
+    tags: list[TagBindingRead] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

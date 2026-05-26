@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem } from "../types/api";
+import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -38,6 +38,12 @@ export type StockTrackRelationPayload = {
   relation_type?: string | null;
   conviction?: number;
   reason?: string | null;
+  status?: string;
+};
+
+export type TagBindingPayload = {
+  name: string;
+  source?: string | null;
   status?: string;
 };
 
@@ -108,6 +114,16 @@ export async function listStockReports(): Promise<Record<string, unknown>[]> {
 
 export async function listStockTrackRelations(stockId: number): Promise<StockTrackRelation[]> {
   const response = await apiClient.get<StockTrackRelation[]>(`/api/stock-analysis/stocks/${stockId}/tracks`);
+  return response.data;
+}
+
+export async function listStockTagBindings(stockId: number): Promise<TagBinding[]> {
+  const response = await apiClient.get<TagBinding[]>(`/api/stock-analysis/stocks/${stockId}/tags`);
+  return response.data;
+}
+
+export async function bindStockTag(stockId: number, payload: TagBindingPayload): Promise<TagBinding> {
+  const response = await apiClient.post<TagBinding>(`/api/stock-analysis/stocks/${stockId}/tags`, payload);
   return response.data;
 }
 

@@ -49,7 +49,6 @@ type RelatedStockFormValues = {
 
 type TrackEditFormValues = {
   name: string;
-  description?: string;
   status: string;
 };
 
@@ -73,7 +72,6 @@ export function TrackDetailPage() {
     editForm.resetFields();
     editForm.setFieldsValue({
       name: track.data.name,
-      description: track.data.description || undefined,
       status: track.data.status
     });
   }, [editForm, editOpen, track.data]);
@@ -87,7 +85,6 @@ export function TrackDetailPage() {
     const values = await editForm.validateFields();
     await updateTrack(trackId, {
       name: values.name,
-      description: values.description || null,
       status: values.status
     });
     message.success("赛道已更新");
@@ -265,13 +262,10 @@ export function TrackDetailPage() {
         </WorkbenchCard>
       </Space>
 
-      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden forceRender width={760}>
+      <Modal title="编辑赛道" open={editOpen} onCancel={() => setEditOpen(false)} onOk={submitEdit} destroyOnHidden forceRender width={480}>
         <Form form={editForm} layout="vertical" preserve={false}>
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="description" label="说明">
-            <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={thesisStatusOptions} />

@@ -52,7 +52,7 @@ def test_stock_import_and_search():
         db.close()
 
 
-def test_stock_list_exposes_and_replaces_aliases():
+def test_stock_list_has_no_alias_workflow_after_tag_model_refactor():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
@@ -62,17 +62,11 @@ def test_stock_list_exposes_and_replaces_aliases():
         headers=headers,
     ).json()[0]
 
-    response = client.put(
-        f"/api/stocks/{stock['id']}/aliases",
-        json={"aliases": [{"alias": "平安", "alias_type": "short"}, {"alias": "PAYH", "source": "manual"}]},
-        headers=headers,
-    )
-    assert response.status_code == 200
-    assert [item["alias"] for item in response.json()] == ["平安", "PAYH"]
-
     stocks = client.get("/api/stocks", headers=headers)
     assert stocks.status_code == 200
-    assert [item["alias"] for item in stocks.json()[0]["aliases"]] == ["PAYH", "平安"]
+    assert "aliases" not in stocks.json()[0]
+    removed = client.get(f"/api/stocks/{stock['id']}/aliases", headers=headers)
+    assert removed.status_code == 404
     search = client.get("/api/stocks/search?keyword=payh", headers=headers)
     assert search.status_code == 200
     assert search.json()[0]["stock_name"] == "平安银行"

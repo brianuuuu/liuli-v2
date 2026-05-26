@@ -24,21 +24,6 @@ class TrackRead(TrackCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TrackAliasCreate(BaseModel):
-    alias: str
-    source: str = "manual"
-    status: str = "active"
-
-
-class TrackAliasRead(TrackAliasCreate):
-    id: int
-    track_id: int
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class TrackThesisCreate(BaseModel):
     title: str
     core_thesis: str

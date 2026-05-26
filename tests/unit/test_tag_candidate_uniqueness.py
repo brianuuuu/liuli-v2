@@ -1,18 +1,19 @@
-from pathlib import Path
 from uuid import uuid4
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
-from invest_assistant.modules.market_radar.models import TagCandidate
-from invest_assistant.modules.market_radar.router import router
-from invest_assistant.modules.market_radar.schemas import TagCandidateCreate
-from invest_assistant.modules.market_radar.service import create_candidate
+from invest_assistant.modules.basic.auth.models import UserAccount
+from invest_assistant.modules.market_radar.models import AiTagSuggestion
+from invest_assistant.modules.market_radar.schemas import AiTagSuggestionCreate
+from invest_assistant.modules.market_radar.service import create_ai_tag_suggestion
 
-TEST_DB_ROOT = Path("var/cache/test-tag-candidates")
+TEST_DB_ROOT = Path("var/cache/test-ai-tag-suggestions")
 
 
 def make_session(name: str):
@@ -23,69 +24,38 @@ def make_session(name: str):
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
-def test_create_candidate_rejects_duplicate_name_even_when_existing_is_rejected():
-    SessionLocal = make_session("service-duplicate")
+def test_ai_tag_suggestions_do_not_require_business_type():
+    SessionLocal = make_session("service")
     db = SessionLocal()
     try:
-        create_candidate(
-            db,
-            TagCandidateCreate(
-                name="AI算力",
-                suggested_type="hotword",
-                trigger_text="AI算力",
-                status="rejected",
-            ),
-        )
-
-        try:
-            create_candidate(
-                db,
-                TagCandidateCreate(
-                    name="AI算力",
-                    suggested_type="track",
-                    trigger_text="AI算力",
-                    status="pending",
-                ),
-            )
-        except ValueError as exc:
-            assert "candidate name already exists" in str(exc)
-        else:
-            raise AssertionError("expected duplicate candidate name to be rejected")
-
-        rows = list(db.scalars(select(TagCandidate).where(TagCandidate.name == "AI算力")))
-        assert len(rows) == 1
-        assert rows[0].status == "rejected"
+        create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=8.0, reason="关注度上升"))
+        create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=7.0, reason="重复推荐"))
+        rows = list(db.scalars(select(AiTagSuggestion).where(AiTagSuggestion.suggested_text == "AI算力")))
+        assert len(rows) == 2
+        assert all(not hasattr(row, "suggested_type") for row in rows)
     finally:
         db.close()
 
 
-def test_create_candidate_api_returns_400_for_duplicate_name():
-    from fastapi.testclient import TestClient
+def test_ai_tag_suggestion_api_accepts_plain_words():
+    SessionLocal = make_session("api")
+    client = TestClient(create_app())
 
-    SessionLocal = make_session("api-duplicate")
-    app = FastAPI()
-    app.include_router(router)
-
-    def override_db():
+    def override_get_db():
         db = SessionLocal()
         try:
             yield db
         finally:
             db.close()
 
-    app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_current_user] = lambda: object()
-    client = TestClient(app)
-
-    first = client.post(
-        "/api/market-radar/tag-candidates",
-        json={"name": "AI算力", "suggested_type": "hotword", "trigger_text": "AI算力", "status": "rejected"},
+    client.app.dependency_overrides[get_db] = override_get_db
+    client.app.dependency_overrides[get_current_user] = lambda: UserAccount(id=1, username="tester", password_hash="x", status="active")
+    response = client.post(
+        "/api/market-radar/ai-tag-suggestions",
+        json={"suggested_text": "商业航天", "score": 8.5, "reason": "多条新闻提及"},
+        headers={"Authorization": "Bearer test-token"},
     )
-    duplicate = client.post(
-        "/api/market-radar/tag-candidates",
-        json={"name": "AI算力", "suggested_type": "track", "trigger_text": "AI算力", "status": "pending"},
-    )
+    client.app.dependency_overrides.clear()
 
-    assert first.status_code == 200
-    assert duplicate.status_code == 400
-    assert duplicate.json()["detail"] == "candidate name already exists"
+    assert response.status_code == 200
+    assert "suggested_type" not in response.json()

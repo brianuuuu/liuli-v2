@@ -1,4 +1,4 @@
-import { Button, Input, Space, Table } from "antd";
+import { Button, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -17,7 +17,6 @@ export function CompareSection() {
   const [activeTab, setActiveTab] = useState("score");
   const [trackFilter, setTrackFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [searchText, setSearchText] = useState("");
 
   const visibleTracks = useMemo(
     () => tracks.data.filter((track) => ["candidate", "active", "paused"].includes(track.status)),
@@ -82,21 +81,13 @@ export function CompareSection() {
     return Boolean(item.tracks?.some((track) => track.id === trackId));
   }
 
-  function matchesSearch(item: StockScoreComparisonItem | StockValuationComparisonItem) {
-    const keyword = searchText.trim().toLowerCase();
-    if (!keyword) return true;
-    return [item.stock_name, item.symbol, item.stock_code, `id ${item.stock_id}`, String(item.stock_id)]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(keyword));
-  }
-
   const scoreRows = useMemo(
-    () => comparison.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item) && matchesSearch(item)),
-    [comparison.data, statusFilter, trackFilter, searchText]
+    () => comparison.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item)),
+    [comparison.data, statusFilter, trackFilter]
   );
   const valuationRows = useMemo(
-    () => valuation.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item) && matchesSearch(item)),
-    [valuation.data, statusFilter, trackFilter, searchText]
+    () => valuation.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item)),
+    [valuation.data, statusFilter, trackFilter]
   );
 
   function formatScore(value?: number | null) {
@@ -148,13 +139,9 @@ export function CompareSection() {
 
   function emptyDescription(sourceCount: number) {
     if (!sourceCount) return "暂无标的池数据，先在标的池加入标的";
-    if (searchText.trim()) return "未找到匹配标的";
     if (trackFilter !== "all") return "当前赛道无绑定标的，去标的详情或标的池维护赛道绑定";
     return "暂无标的";
   }
-
-  const currentSourceCount = activeTab === "score" ? comparison.data.length : valuation.data.length;
-  const hasFilters = trackFilter !== "all" || Boolean(searchText.trim()) || statusFilter !== undefined;
 
   const scoreColumns: ColumnsType<StockScoreComparisonItem> = [
     {
@@ -214,19 +201,6 @@ export function CompareSection() {
             </Button>
           </Space>
           <div className="data-panel-toolbar-divider" />
-          <Input.Search
-            allowClear
-            size="small"
-            placeholder="搜索名称 / 代码"
-            value={searchText}
-            style={{ width: 180 }}
-            onChange={(event) => setSearchText(event.target.value)}
-          />
-          {hasFilters ? <Button size="small" onClick={() => { setTrackFilter("all"); setSearchText(""); setStatusFilter(undefined); }}>清空</Button> : null}
-          <div className="data-panel-toolbar-spacer" />
-          <span className="stock-compare-context">{selectedTrackName ? `当前赛道：${selectedTrackName}` : "横向比较"}</span>
-        </React.Fragment>,
-        <React.Fragment key="status-filters">
           <div style={{ overflowX: "auto", flex: 1, padding: "2px 0" }} className="no-scrollbar">
             <Space size={4} className="toolbar-status-buttons">
               {statusButtons.map((item) => (
@@ -241,6 +215,8 @@ export function CompareSection() {
               ))}
             </Space>
           </div>
+          <div className="data-panel-toolbar-spacer" />
+          <span className="stock-compare-context">{selectedTrackName ? `当前赛道：${selectedTrackName}` : "横向比较"}</span>
         </React.Fragment>,
         trackSelectOptions.length > 0 ? (
           <React.Fragment key="track-filters">

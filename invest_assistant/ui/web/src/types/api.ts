@@ -109,7 +109,6 @@ export type Stock = {
   status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-  aliases?: StockAlias[];
 };
 
 export type DataSourceStatus = {
@@ -120,15 +119,6 @@ export type DataSourceStatus = {
   record_count: number;
   status?: string | null;
   last_sync_at?: string | null;
-};
-
-export type StockAlias = {
-  id: number;
-  stock_id: number;
-  alias: string;
-  alias_type?: string | null;
-  source?: string | null;
-  created_at?: string | null;
 };
 
 export type SystemConfig = {
@@ -146,9 +136,8 @@ export type SystemConfig = {
 export type MarketTag = {
   id: number;
   name: string;
-  type: "stock" | "track" | "hotword" | string;
-  stock_id?: number | null;
-  track_id?: number | null;
+  type?: "stock" | "track" | "hotword" | "general" | string | null;
+  source?: string | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
@@ -194,36 +183,36 @@ export type TagHeat = {
   tag?: MarketTag | null;
 };
 
-export type TagCandidate = {
+export type TagBinding = {
   id: number;
-  name: string;
-  suggested_type: string;
-  source_item_id?: number | null;
-  trigger_text?: string | null;
-  confidence: number;
-  reason?: string | null;
-  target_tag_id?: number | null;
-  suggested_target_tag_id?: number | null;
-  merge_similarity?: number | null;
-  merge_reason?: string | null;
+  tag: MarketTag;
+  source?: string | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-export type HotwordAlias = {
+export type AiTagSuggestion = {
   id: number;
-  tag_id: number;
-  alias: string;
-  source: string;
+  suggested_text: string;
+  final_tag_name?: string | null;
+  score?: number | null;
+  reason?: string | null;
+  final_tag_id?: number | null;
+  ext_json: string;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
 export type Hotword = {
-  tag: MarketTag;
-  aliases: HotwordAlias[];
+  id: number;
+  name: string;
+  description?: string | null;
+  status: string;
+  tags: TagBinding[];
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type Track = {
@@ -232,16 +221,6 @@ export type Track = {
   description?: string | null;
   status: string;
   tag?: MarketTag | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type TrackAlias = {
-  id: number;
-  track_id: number;
-  alias: string;
-  source: string;
-  status: string;
   created_at?: string | null;
   updated_at?: string | null;
 };

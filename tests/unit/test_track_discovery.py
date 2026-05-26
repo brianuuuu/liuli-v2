@@ -69,15 +69,15 @@ def test_track_crud_children_and_status_history():
     )
     assert track.status_code == 200
     track_id = track.json()["id"]
-    assert track.json()["tag"]["type"] == "track"
-    assert track.json()["tag"]["track_id"] == track_id
+    assert track.json()["tag"]["name"] == "AI算力"
 
-    alias = client.post(
-        f"/api/track-discovery/tracks/{track_id}/aliases",
-        json={"alias": "AI服务器", "source": "manual", "status": "active"},
+    binding = client.post(
+        f"/api/track-discovery/tracks/{track_id}/tags",
+        json={"name": "AI服务器", "source": "manual", "status": "active"},
         headers=headers,
     )
-    assert alias.status_code == 200
+    assert binding.status_code == 200
+    assert binding.json()["tag"]["name"] == "AI服务器"
 
     thesis = client.post(
         f"/api/track-discovery/tracks/{track_id}/theses",

@@ -1,17 +1,16 @@
-import type { Hotword, MarketGraph, MarketTag, SourceItem, TagCandidate, TagHeat } from "../types/api";
+import type { AiTagSuggestion, Hotword, MarketGraph, MarketTag, SourceItem, TagBinding, TagHeat } from "../types/api";
 import { apiClient } from "./client";
 
 export type MarketOverview = {
   source_items: number;
   tags: number;
-  tag_candidates: number;
+  ai_tag_suggestions: number;
 };
 
 export type MarketTagPayload = {
   name: string;
-  type: string;
-  stock_id?: number | null;
-  track_id?: number | null;
+  type?: string | null;
+  source?: string | null;
   status?: string;
 };
 
@@ -34,27 +33,35 @@ export type MarketFlashSyncResult = {
   skipped_count: number;
 };
 
-export type TagCandidatePayload = {
-  name: string;
-  suggested_type: string;
-  source_item_id?: number | null;
-  trigger_text?: string | null;
-  confidence?: number;
+export type AiTagSuggestionPayload = {
+  suggested_text: string;
+  final_tag_name?: string | null;
+  score?: number | null;
   reason?: string | null;
-  target_tag_id?: number | null;
-  suggested_target_tag_id?: number | null;
-  merge_similarity?: number | null;
-  merge_reason?: string | null;
   status?: string;
+  ext_json?: string;
+};
+
+export type AiTagSuggestionApprovePayload = {
+  final_tag_name?: string | null;
+  target_type: "stock" | "track" | "hotword";
+  target_id?: number | null;
+  target_name?: string | null;
 };
 
 export type HotwordPayload = {
   name: string;
-  aliases?: string[];
+  description?: string | null;
   status?: string;
 };
 
-export type RankingType = "stock" | "track" | "hotword";
+export type TagBindingPayload = {
+  name: string;
+  source?: string | null;
+  status?: string;
+};
+
+export type RankingType = "all" | "stock" | "track" | "hotword";
 export type RankingWindow = "1h" | "24h" | "7d" | "30d";
 export type GraphType = "track" | "hotword";
 
@@ -69,20 +76,22 @@ export async function listMarketTags(type?: string): Promise<MarketTag[]> {
 }
 
 export async function createMarketTag(payload: MarketTagPayload): Promise<MarketTag> {
-  if (payload.type === "hotword") {
-    const response = await apiClient.post<Hotword>("/api/market-radar/hotwords", {
-      name: payload.name,
-      aliases: [],
-      status: payload.status || "active"
-    });
-    return response.data.tag;
-  }
   const response = await apiClient.post<MarketTag>("/api/market-radar/tags", payload);
   return response.data;
 }
 
 export async function createHotword(payload: HotwordPayload): Promise<Hotword> {
   const response = await apiClient.post<Hotword>("/api/market-radar/hotwords", payload);
+  return response.data;
+}
+
+export async function listHotwords(status?: string): Promise<Hotword[]> {
+  const response = await apiClient.get<Hotword[]>("/api/market-radar/hotwords", { params: status ? { status } : undefined });
+  return response.data;
+}
+
+export async function bindHotwordTag(hotwordId: number, payload: TagBindingPayload): Promise<TagBinding> {
+  const response = await apiClient.post<TagBinding>(`/api/market-radar/hotwords/${hotwordId}/tags`, payload);
   return response.data;
 }
 
@@ -101,44 +110,28 @@ export async function getTagTrend(tagId: number): Promise<TagHeat[]> {
   return response.data;
 }
 
-export async function listTagCandidates(): Promise<TagCandidate[]> {
-  const response = await apiClient.get<TagCandidate[]>("/api/market-radar/tag-candidates");
+export async function listAiTagSuggestions(): Promise<AiTagSuggestion[]> {
+  const response = await apiClient.get<AiTagSuggestion[]>("/api/market-radar/ai-tag-suggestions");
   return response.data;
 }
 
-export async function createTagCandidate(payload: TagCandidatePayload): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>("/api/market-radar/tag-candidates", payload);
+export async function createAiTagSuggestion(payload: AiTagSuggestionPayload): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>("/api/market-radar/ai-tag-suggestions", payload);
   return response.data;
 }
 
-export async function approveTagCandidate(candidateId: number, name?: string): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(
-    `/api/market-radar/tag-candidates/${candidateId}/approve`,
-    name ? { name } : undefined
-  );
+export async function approveAiTagSuggestion(suggestionId: number, payload: AiTagSuggestionApprovePayload): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${suggestionId}/approve`, payload);
   return response.data;
 }
 
-export async function promoteTagCandidateToTrack(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/promote-track`);
+export async function rejectAiTagSuggestion(suggestionId: number): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${suggestionId}/reject`);
   return response.data;
 }
 
-export async function rejectTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/reject`);
-  return response.data;
-}
-
-export async function restoreTagCandidate(candidateId: number): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(`/api/market-radar/tag-candidates/${candidateId}/restore`);
-  return response.data;
-}
-
-export async function mergeTagCandidate(candidateId: number, targetTagId?: number, name?: string): Promise<TagCandidate> {
-  const response = await apiClient.post<TagCandidate>(
-    `/api/market-radar/tag-candidates/${candidateId}/merge`,
-    targetTagId || name ? { target_tag_id: targetTagId, name } : undefined
-  );
+export async function restoreAiTagSuggestion(suggestionId: number): Promise<AiTagSuggestion> {
+  const response = await apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${suggestionId}/restore`);
   return response.data;
 }
 

@@ -19,6 +19,8 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationUpdate,
     StockValuationComparisonRead,
 )
+from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
+from invest_assistant.modules.market_radar import service as market_radar_service
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
 
@@ -105,6 +107,24 @@ def reports() -> list:
 @router.get("/stocks/{stock_id}/tracks", response_model=list[StockTrackRelationRead])
 def list_stock_tracks(stock_id: int, db: Session = Depends(get_db)) -> list:
     return service.list_track_relations(db, stock_id)
+
+
+@router.get("/stocks/{stock_id}/tags", response_model=list[TagBindingRead])
+def list_stock_tags(stock_id: int, db: Session = Depends(get_db)) -> list:
+    return market_radar_service.list_stock_tag_bindings(db, stock_id)
+
+
+@router.post("/stocks/{stock_id}/tags", response_model=TagBindingRead)
+def bind_stock_tag(stock_id: int, payload: TagBindingCreate, db: Session = Depends(get_db)):
+    return market_radar_service.bind_stock_tag(db, stock_id, payload)
+
+
+@router.delete("/stocks/tag-relations/{relation_id}", response_model=TagBindingRead)
+def delete_stock_tag(relation_id: int, db: Session = Depends(get_db)):
+    binding = market_radar_service.disable_stock_tag_binding(db, relation_id)
+    if binding is None:
+        raise HTTPException(status_code=404, detail="binding not found")
+    return binding
 
 
 @router.post("/stocks/{stock_id}/tracks", response_model=StockTrackRelationRead)

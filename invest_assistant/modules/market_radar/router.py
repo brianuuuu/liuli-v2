@@ -5,18 +5,17 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.schemas import (
-    MarketFlashSyncCreate,
-    MarketFlashSyncResult,
-    HotwordAliasCreate,
-    HotwordAliasRead,
+    AiTagSuggestionApprove,
+    AiTagSuggestionCreate,
+    AiTagSuggestionRead,
     HotwordCreate,
     HotwordRead,
+    MarketFlashSyncCreate,
+    MarketFlashSyncResult,
     SourceItemCreate,
     SourceItemRead,
-    TagCandidateCreate,
-    TagCandidateApprove,
-    TagCandidateMerge,
-    TagCandidateRead,
+    TagBindingCreate,
+    TagBindingRead,
     TagCreate,
     TagRead,
     TagUpdate,
@@ -31,7 +30,7 @@ def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
         "source_items": len(service.list_source_items(db)),
         "tags": len(service.list_tags(db)),
-        "tag_candidates": len(service.list_candidates(db)),
+        "ai_tag_suggestions": len(service.list_ai_tag_suggestions(db)),
     }
 
 
@@ -109,17 +108,29 @@ def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
     return service.create_hotword(db, payload)
 
 
-@router.get("/hotwords/aliases", response_model=list[HotwordAliasRead])
-def list_hotword_aliases(db: Session = Depends(get_db)) -> list:
-    return service.list_hotword_aliases(db)
+@router.get("/hotwords", response_model=list[HotwordRead])
+def list_hotwords(status: str | None = None, db: Session = Depends(get_db)) -> list:
+    return service.list_hotwords(db, status)
 
 
-@router.post("/hotwords/{tag_id}/aliases", response_model=HotwordAliasRead)
-def create_hotword_alias(tag_id: int, payload: HotwordAliasCreate, db: Session = Depends(get_db)):
-    try:
-        return service.create_hotword_alias(db, tag_id, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+@router.get("/hotwords/{hotword_id}/tags", response_model=list[TagBindingRead])
+def list_hotword_tags(hotword_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_hotword_tag_bindings(db, hotword_id)
+
+
+@router.post("/hotwords/{hotword_id}/tags", response_model=TagBindingRead)
+def bind_hotword_tag(hotword_id: int, payload: TagBindingCreate, db: Session = Depends(get_db)):
+    if service.get_hotword(db, hotword_id) is None:
+        raise HTTPException(status_code=404, detail="hotword not found")
+    return service.bind_hotword_tag(db, hotword_id, payload)
+
+
+@router.delete("/hotwords/tag-relations/{relation_id}", response_model=TagBindingRead)
+def delete_hotword_tag(relation_id: int, db: Session = Depends(get_db)):
+    binding = service.disable_hotword_tag_binding(db, relation_id)
+    if binding is None:
+        raise HTTPException(status_code=404, detail="binding not found")
+    return binding
 
 
 @router.get("/tags/{tag_id}/sources")
@@ -142,71 +153,41 @@ def stock_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> d
     return service.graph_edges(db, "hotword", window)
 
 
-@router.get("/tag-candidates", response_model=list[TagCandidateRead])
-def list_candidates(db: Session = Depends(get_db)) -> list:
-    return service.list_candidates(db)
+@router.get("/ai-tag-suggestions", response_model=list[AiTagSuggestionRead])
+def list_ai_tag_suggestions(db: Session = Depends(get_db)) -> list:
+    return service.list_ai_tag_suggestions(db)
 
 
-@router.post("/tag-candidates", response_model=TagCandidateRead)
-def create_candidate(payload: TagCandidateCreate, db: Session = Depends(get_db)):
+@router.post("/ai-tag-suggestions", response_model=AiTagSuggestionRead)
+def create_ai_tag_suggestion(payload: AiTagSuggestionCreate, db: Session = Depends(get_db)):
+    return service.create_ai_tag_suggestion(db, payload)
+
+
+@router.post("/ai-tag-suggestions/{suggestion_id}/approve", response_model=AiTagSuggestionRead)
+def approve_ai_tag_suggestion(suggestion_id: int, payload: AiTagSuggestionApprove, db: Session = Depends(get_db)):
+    suggestion = service.get_ai_tag_suggestion(db, suggestion_id)
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="suggestion not found")
     try:
-        return service.create_candidate(db, payload)
+        return service.approve_ai_tag_suggestion(db, suggestion, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/tag-candidates/{candidate_id}/approve", response_model=TagCandidateRead)
-def approve_candidate(candidate_id: int, payload: TagCandidateApprove | None = None, db: Session = Depends(get_db)):
-    candidate = service.get_candidate(db, candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
+@router.post("/ai-tag-suggestions/{suggestion_id}/reject", response_model=AiTagSuggestionRead)
+def reject_ai_tag_suggestion(suggestion_id: int, db: Session = Depends(get_db)):
+    suggestion = service.get_ai_tag_suggestion(db, suggestion_id)
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="suggestion not found")
+    return service.reject_ai_tag_suggestion(db, suggestion)
+
+
+@router.post("/ai-tag-suggestions/{suggestion_id}/restore", response_model=AiTagSuggestionRead)
+def restore_ai_tag_suggestion(suggestion_id: int, db: Session = Depends(get_db)):
+    suggestion = service.get_ai_tag_suggestion(db, suggestion_id)
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="suggestion not found")
     try:
-        return service.approve_candidate(db, candidate, payload.name if payload is not None else None)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/tag-candidates/{candidate_id}/promote-track", response_model=TagCandidateRead)
-def promote_candidate_to_track(candidate_id: int, db: Session = Depends(get_db)):
-    candidate = service.get_candidate(db, candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
-    try:
-        return service.promote_candidate_to_track(db, candidate)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/tag-candidates/{candidate_id}/reject", response_model=TagCandidateRead)
-def reject_candidate(candidate_id: int, db: Session = Depends(get_db)):
-    candidate = service.get_candidate(db, candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
-    return service.reject_candidate(db, candidate)
-
-
-@router.post("/tag-candidates/{candidate_id}/restore", response_model=TagCandidateRead)
-def restore_candidate(candidate_id: int, db: Session = Depends(get_db)):
-    candidate = service.get_candidate(db, candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
-    try:
-        return service.restore_candidate(db, candidate)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/tag-candidates/{candidate_id}/merge", response_model=TagCandidateRead)
-def merge_candidate(candidate_id: int, payload: TagCandidateMerge | None = None, db: Session = Depends(get_db)):
-    candidate = service.get_candidate(db, candidate_id)
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
-    try:
-        return service.merge_candidate(
-            db,
-            candidate,
-            payload.target_tag_id if payload is not None else None,
-            payload.name if payload is not None else None,
-        )
+        return service.restore_ai_tag_suggestion(db, suggestion)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

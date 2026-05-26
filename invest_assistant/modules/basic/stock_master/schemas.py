@@ -37,26 +37,7 @@ class StockUpdate(BaseModel):
 
 class StockRead(StockBase):
     id: int
-    aliases: list["StockAliasRead"] = []
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class StockAliasCreate(BaseModel):
-    alias: str
-    alias_type: str | None = None
-    source: str | None = None
-
-
-class StockAliasRead(StockAliasCreate):
-    id: int
-    stock_id: int
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class StockAliasReplace(BaseModel):
-    aliases: list[StockAliasCreate] = []
