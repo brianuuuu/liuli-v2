@@ -1,4 +1,4 @@
-import type { AiTagSuggestion, Hotword, MarketGraph, MarketTag, SourceItem, TagBinding, TagHeat } from "../types/api";
+import type { AiTagSuggestion, Hotword, JobRunRequest, MarketGraph, MarketTag, SourceItem, TagBinding, TagHeat } from "../types/api";
 import { apiClient } from "./client";
 
 export type MarketOverview = {
@@ -135,8 +135,13 @@ export async function restoreAiTagSuggestion(suggestionId: number): Promise<AiTa
   return response.data;
 }
 
-export async function listSourceItems(): Promise<SourceItem[]> {
-  const response = await apiClient.get<SourceItem[]>("/api/market-radar/source-items");
+export type SourceItemListParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export async function listSourceItems(params: SourceItemListParams = {}): Promise<SourceItem[]> {
+  const response = await apiClient.get<SourceItem[]>("/api/market-radar/source-items", { params });
   return response.data;
 }
 
@@ -147,6 +152,11 @@ export async function createSourceItem(payload: SourceItemPayload): Promise<Sour
 
 export async function syncClsMarketFlashes(limit = 100): Promise<MarketFlashSyncResult> {
   const response = await apiClient.post<MarketFlashSyncResult>("/api/market-radar/source-items/sync-cls", { limit });
+  return response.data;
+}
+
+export async function syncFutuMarketFlashes(limit = 100): Promise<JobRunRequest> {
+  const response = await apiClient.post<JobRunRequest>("/api/jobs/market_radar.fetch_futu_news/run", { params: { limit } });
   return response.data;
 }
 

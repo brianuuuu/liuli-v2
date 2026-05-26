@@ -724,11 +724,73 @@ body {
   align-items: start;
 }
 
+.flash-content-column {
+  min-width: 0;
+}
+
+.flash-command-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ll-border);
+  border-radius: 7px 7px 0 0;
+  background: color-mix(in srgb, var(--ll-panel) 88%, var(--ll-panel-subtle));
+}
+
+.flash-command-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.flash-command-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ll-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.flash-command-summary span + span {
+  padding-left: 8px;
+  border-left: 1px solid var(--ll-border);
+}
+
+.flash-command-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.flash-command-actions .ant-btn {
+  height: 28px;
+  border-color: var(--ll-border);
+  border-radius: 6px;
+  background: var(--ll-panel);
+  color: var(--ll-text);
+  font-weight: 500;
+}
+
+.flash-command-actions .ant-btn:hover {
+  border-color: color-mix(in srgb, var(--ll-accent) 48%, var(--ll-border));
+  background: var(--ll-panel-subtle);
+  color: var(--ll-accent);
+}
+
 .flash-feed-panel,
 .flash-filter-panel {
   border: 1px solid var(--ll-border);
   border-radius: 7px;
   background: var(--ll-panel);
+}
+
+.flash-feed-panel {
+  overflow: hidden;
 }
 
 .flash-filter-panel {
@@ -747,16 +809,6 @@ body {
 .flash-filter-panel .ant-select,
 .flash-filter-panel .ant-btn {
   width: 100%;
-}
-
-.flash-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--ll-border);
-  background: var(--ll-panel-subtle);
 }
 
 .flash-toolbar-left {
@@ -831,10 +883,7 @@ body {
 
 .flash-date-label::before,
 .flash-date-label::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--ll-border);
+  content: none;
 }
 
 .flash-row {
@@ -1552,9 +1601,34 @@ body {
   word-break: break-word;
 }
 
+.flash-load-more {
+  padding: 14px 0 4px 42px;
+  color: var(--ll-muted);
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 12px;
+  text-align: center;
+}
+
 [data-theme="dark"] .flash-segment.active.important {
   background: rgba(249, 115, 22, 0.16);
   color: #fb923c;
+}
+
+[data-theme="dark"] .flash-command-bar {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(22, 27, 34, 0.92);
+}
+
+[data-theme="dark"] .flash-command-actions .ant-btn {
+  border-color: rgba(139, 148, 158, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c9d1d9;
+}
+
+[data-theme="dark"] .flash-command-actions .ant-btn:hover {
+  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.12);
+  color: #e6edf3;
 }
 
 [data-theme="dark"] .flash-content {

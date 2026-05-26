@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
@@ -28,15 +28,19 @@ router = APIRouter(prefix="/api/market-radar", tags=["market_radar"], dependenci
 @router.get("/overview")
 def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
-        "source_items": len(service.list_source_items(db)),
+        "source_items": len(service.list_source_items(db, limit=None)),
         "tags": len(service.list_tags(db)),
         "ai_tag_suggestions": len(service.list_ai_tag_suggestions(db)),
     }
 
 
 @router.get("/source-items", response_model=list[SourceItemRead])
-def list_source_items(db: Session = Depends(get_db)) -> list:
-    return service.list_source_items(db)
+def list_source_items(
+    limit: int = Query(200, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> list:
+    return service.list_source_items(db, limit=limit, offset=offset)
 
 
 @router.post("/source-items", response_model=SourceItemRead)

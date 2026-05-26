@@ -279,8 +279,13 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
-def list_source_items(db: Session) -> list[dict]:
-    items = list(db.scalars(select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())))
+def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> list[dict]:
+    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())
+    if offset > 0:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(max(int(limit), 1))
+    items = list(db.scalars(stmt))
     return [_source_item_dict(db, item) for item in items]
 
 
