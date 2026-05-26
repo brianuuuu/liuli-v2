@@ -289,6 +289,10 @@ def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> 
     return [_source_item_dict(db, item) for item in items]
 
 
+def count_source_items(db: Session) -> int:
+    return int(db.scalar(select(func.count()).select_from(SourceItem)) or 0)
+
+
 def get_source_item(db: Session, source_item_id: int) -> dict | None:
     item = db.get(SourceItem, source_item_id)
     return _source_item_dict(db, item) if item is not None else None

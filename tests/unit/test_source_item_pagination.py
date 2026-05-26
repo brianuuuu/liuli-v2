@@ -38,5 +38,6 @@ def test_list_source_items_limits_and_offsets_by_publish_time():
 
         assert [item["title"] for item in first_page] == ["item-4", "item-3"]
         assert [item["title"] for item in second_page] == ["item-2", "item-1"]
+        assert service.count_source_items(db) == 5
     finally:
         db.close()

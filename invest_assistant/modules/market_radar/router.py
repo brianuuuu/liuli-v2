@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/market-radar", tags=["market_radar"], dependenci
 @router.get("/overview")
 def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
-        "source_items": len(service.list_source_items(db, limit=None)),
+        "source_items": service.count_source_items(db),
         "tags": len(service.list_tags(db)),
         "ai_tag_suggestions": len(service.list_ai_tag_suggestions(db)),
     }
