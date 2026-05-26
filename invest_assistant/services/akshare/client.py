@@ -28,3 +28,17 @@ def fetch_cls_news_rows(limit: int) -> list[dict]:
         raise RuntimeError(f"failed to fetch CLS news: {exc}") from exc
 
     return [dict(row) for _, row in df.head(max(int(limit), 1)).iterrows()]
+
+
+def fetch_futu_news_rows(limit: int) -> list[dict]:
+    try:
+        import akshare as ak
+    except Exception as exc:
+        raise RuntimeError(f"akshare is unavailable: {exc}") from exc
+
+    try:
+        df = ak.stock_info_global_futu()
+    except Exception as exc:
+        raise RuntimeError(f"failed to fetch Futu news: {exc}") from exc
+
+    return [dict(row) for _, row in df.head(max(int(limit), 1)).iterrows()]

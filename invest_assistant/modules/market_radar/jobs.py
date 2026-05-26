@@ -14,7 +14,7 @@ from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.track_discovery.models import Track
-from invest_assistant.services.akshare.client import fetch_cls_news_rows
+from invest_assistant.services.akshare.client import fetch_cls_news_rows, fetch_futu_news_rows
 from invest_assistant.services.deepseek import client as deepseek_client
 from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
 from invest_assistant.shared.time_utils import utc_now
@@ -26,6 +26,10 @@ MERGE_SIMILARITY_THRESHOLD = 0.82
 
 def _fetch_cls_rows(limit: int) -> list[dict]:
     return fetch_cls_news_rows(limit)
+
+
+def _fetch_futu_rows(limit: int) -> list[dict]:
+    return fetch_futu_news_rows(limit)
 
 
 def _normalize_cls_row(row: dict) -> SourceItemCreate | None:
@@ -42,6 +46,23 @@ def _normalize_cls_row(row: dict) -> SourceItemCreate | None:
         content=content,
         source_url=None,
         publish_time=f"{published_date}T{published_time}" if published_date and published_time else None,
+    )
+
+
+def _normalize_futu_row(row: dict) -> SourceItemCreate | None:
+    title = str(row.get("标题") or "").strip()
+    content = str(row.get("内容") or title or "").strip()
+    source_url = str(row.get("链接") or "").strip() or None
+    publish_time = str(row.get("发布时间") or "").strip() or None
+    if not content:
+        return None
+    return SourceItemCreate(
+        source_type="news",
+        source_name="富途牛牛",
+        title=(title or content)[:120],
+        content=content,
+        source_url=source_url,
+        publish_time=publish_time,
     )
 
 
@@ -73,6 +94,40 @@ def fetch_news_job(limit: int = 50, **kwargs) -> JobResult:
     return JobResult(
         success=True,
         message=f"fetched {len(rows)} CLS news",
+        fetched_count=len(rows),
+        inserted_count=inserted,
+        skipped_count=skipped,
+    )
+
+
+def fetch_futu_news_job(limit: int = 50, **kwargs) -> JobResult:
+    try:
+        raw_rows = _fetch_futu_rows(max(int(limit), 1))
+    except Exception as exc:
+        return JobResult(success=False, message=str(exc))
+
+    rows = []
+    for row in raw_rows:
+        payload = _normalize_futu_row(row)
+        if payload is not None:
+            rows.append(payload)
+
+    db = SessionLocal()
+    try:
+        inserted = 0
+        skipped = 0
+        for payload in rows:
+            exists = service.find_duplicate_source_item(db, payload)
+            if exists is not None:
+                skipped += 1
+                continue
+            service.create_source_item(db, payload)
+            inserted += 1
+    finally:
+        db.close()
+    return JobResult(
+        success=True,
+        message=f"fetched {len(rows)} Futu news",
         fetched_count=len(rows),
         inserted_count=inserted,
         skipped_count=skipped,
@@ -405,6 +460,19 @@ JOBS = [
         timeout_seconds=120,
         max_retries=1,
         tags=["news", "market_radar"],
+    ),
+    JobDefinition(
+        job_name="market_radar.fetch_futu_news",
+        module_name="market_radar",
+        display_name="抓取富途快讯",
+        description="抓取富途牛牛快讯并写入 source_item",
+        handler=fetch_futu_news_job,
+        trigger_type="both",
+        cron_expr="*/30 * * * *",
+        timeout_seconds=120,
+        max_retries=1,
+        params_schema={"limit": {"type": "number", "label": "最多快讯条数", "default": 50, "min": 1}},
+        tags=["news", "futu", "market_radar"],
     ),
     JobDefinition(
         job_name="market_radar.extract_tags",
