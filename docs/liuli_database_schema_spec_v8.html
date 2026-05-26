@@ -1,0 +1,868 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>liuli 数据库表设计说明书 v8</title><style>
+:root { --fg:#16213e; --line:#d8e0f0; --blue:#2454d6; --bg:#f7f9fc; --code:#f0f4ff; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif; line-height:1.72; }
+.container { max-width:1160px; margin:0 auto; padding:42px 30px 90px; background:white; min-height:100vh; box-shadow:0 0 30px rgba(20,40,90,.06); }
+h1 { font-size:34px; text-align:center; margin:0 0 28px; color:#0f2b68; }
+h2 { font-size:24px; margin-top:44px; padding-bottom:8px; border-bottom:2px solid var(--line); color:#153e8a; }
+h3 { font-size:19px; margin-top:30px; color:#2454d6; }
+h4 { font-size:16px; margin-top:20px; color:#37527f; }
+p { margin:8px 0; }
+blockquote { border-left:4px solid var(--blue); margin:18px 0; padding:10px 16px; background:#f2f6ff; color:#33415c; }
+pre { background:#0f172a; color:#e2e8f0; padding:16px 18px; border-radius:10px; overflow:auto; font-size:13px; line-height:1.55; }
+code { background:var(--code); color:#123c8c; padding:2px 5px; border-radius:5px; }
+pre code { background:transparent; color:inherit; padding:0; }
+table { border-collapse:collapse; width:100%; margin:16px 0; font-size:14px; }
+th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#f1f5ff; color:#173b7a; }
+strong { color:#0f2b68; }
+</style></head><body><main class="container"><h1>liuli 数据库表设计说明书 v8</h1>
+
+<blockquote>来源：从 `liuli_system_spec_v24.md` 中单独提取数据库表设计。</blockquote>
+<blockquote>本版重点：标签模型调整为 `tag` 语言入口 + `stock/track/hotword` 业务实体 + relation 绑定关系。</blockquote>
+
+<p>---</p>
+
+<h2>1. 数据库设计总原则</h2>
+
+<pre><code class="language-text">
+业务模块内聚优先；
+
+数据库统一管理；
+
+tag 是语言词项，不是业务主体；
+
+stock / track / hotword 是业务实体；
+
+实体通过 relation 绑定多个 tag；
+
+source_tag 是信息流命中关系；
+
+tag_heat_snapshot 是标签词热度；
+
+实体热度通过绑定关系聚合；
+
+不使用 stock_alias / track_alias / hotword_alias；
+
+ai_tag_suggestion 替代 tag_candidate。
+
+</code></pre>
+
+<p>---</p>
+
+<h2>2. 本版表结构变更</h2>
+
+<pre><code class="language-text">
+新增表：stock_tag_relation、track_tag_relation、hotword、hotword_tag_relation、ai_tag_suggestion
+
+删除/停用：stock_alias、track_alias、hotword_alias、tag_candidate
+
+修改核心表：tag
+
+保留但调整口径：source_tag、tag_heat_snapshot、tag_edge_snapshot
+
+</code></pre>
+
+<p>---</p>
+
+<h2>3. 关键关系</h2>
+
+<pre><code class="language-text">
+source_item → source_tag → tag
+
+stock → stock_tag_relation → tag
+
+track → track_tag_relation → tag
+
+hotword → hotword_tag_relation → tag
+
+stock → stock_track_relation → track
+
+</code></pre>
+
+<p>---</p>
+
+<h2>4. 表结构明细</h2>
+
+<blockquote>本节集中展示主要数据表。每张表名后附简要说明；详细 DDL、索引、约束以迁移文件为准。</blockquote>
+
+<h3>34.1 basic/auth</h3>
+
+<h4>`user_account`：用户登录账户表，负责系统访问安全</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>username</td><td>登录用户名</td></tr>
+<tr><td>password_hash</td><td>密码哈希</td></tr>
+<tr><td>display_name</td><td>显示名</td></tr>
+<tr><td>email</td><td>邮箱，可选</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>last_login_at</td><td>最近登录时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.2 basic/stock_master</h3>
+
+<h4>`stock`：A股股票基础主数据表，保存客观交易品种信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_code</td><td>股票代码</td></tr>
+<tr><td>stock_name</td><td>股票名称</td></tr>
+<tr><td>market</td><td>市场，如 A股、港股、美股</td></tr>
+<tr><td>exchange</td><td>交易所</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+stock 是系统内部标准股票主数据；
+
+同步 A 股基础库时不批量生成 tag；
+
+加入 stock_pool 后才 ensure 同名 tag 并写 stock_tag_relation。
+
+</code></pre>
+
+<p>---</p>
+
+<h3>34.3 basic/system_config</h3>
+
+<h4>`system_config`：系统运行配置表，保存非敏感、可调整的业务配置</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>config_key</td><td>配置键</td></tr>
+<tr><td>config_value</td><td>配置值</td></tr>
+<tr><td>config_type</td><td>类型，如 string/int/bool/json</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>enabled</td><td>是否启用</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.4 basic/ai_audit</h3>
+
+<h4>`ai_request_log`：AI 请求审计日志表，每一次 AI 请求一条记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>request_id</td><td>本次 AI 请求唯一 ID</td></tr>
+<tr><td>source_module</td><td>来源模块</td></tr>
+<tr><td>task_name</td><td>AI 任务名</td></tr>
+<tr><td>provider</td><td>AI 厂家，如 openai/qwen/kimi/deepseek/gemini</td></tr>
+<tr><td>model_name</td><td>模型名</td></tr>
+<tr><td>prompt_version</td><td>Prompt 版本</td></tr>
+<tr><td>input_tokens</td><td>输入 Token 数</td></tr>
+<tr><td>output_tokens</td><td>输出 Token 数</td></tr>
+<tr><td>total_tokens</td><td>总 Token 数</td></tr>
+<tr><td>context_window</td><td>模型最大上下文窗口</td></tr>
+<tr><td>context_used_tokens</td><td>本次实际上下文 Token</td></tr>
+<tr><td>context_usage_ratio</td><td>上下文使用比例</td></tr>
+<tr><td>input_chars</td><td>输入字符数</td></tr>
+<tr><td>output_chars</td><td>输出字符数</td></tr>
+<tr><td>messages_count</td><td>messages 数量</td></tr>
+<tr><td>input_hash</td><td>输入内容 Hash</td></tr>
+<tr><td>output_hash</td><td>输出内容 Hash</td></tr>
+<tr><td>raw_request_path</td><td>原始请求文件路径</td></tr>
+<tr><td>raw_response_path</td><td>原始响应文件路径</td></tr>
+<tr><td>latency_ms</td><td>请求耗时</td></tr>
+<tr><td>success</td><td>是否成功</td></tr>
+<tr><td>error_code</td><td>错误码</td></tr>
+<tr><td>error_message</td><td>错误信息</td></tr>
+<tr><td>cost_amount</td><td>估算成本</td></tr>
+<tr><td>currency</td><td>币种</td></tr>
+<tr><td>related_type</td><td>关联对象类型</td></tr>
+<tr><td>related_id</td><td>关联对象 ID</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h3>34.5 basic/job_center</h3>
+
+<h4>`job_config`：任务配置表，保存任务身份、展示信息、配置 JSON 和最近运行状态</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>全局唯一任务名，例如 market_radar.fetch_news</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>display_name</td><td>展示名称</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>config_json</td><td>任务可执行配置，JSON</td></tr>
+<tr><td>ext_json</td><td>展示、分类、标签等扩展信息，JSON</td></tr>
+<tr><td>last_run_at</td><td>最近执行时间</td></tr>
+<tr><td>last_status</td><td>最近执行状态</td></tr>
+<tr><td>next_run_at</td><td>下次执行时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+任务调度参数、启停、Cron、超时、重试、参数 Schema 等统一保存到 config_json；
+
+展示标签、分类、排序等进入 ext_json；
+
+最近错误信息通过 job_run_log 查询；
+
+job_name 必须全局唯一。
+
+</code></pre>
+
+
+<h4>`job_run_request`：任务手动触发请求表，记录控制台触发的待执行任务</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>任务名</td></tr>
+<tr><td>params_json</td><td>执行参数</td></tr>
+<tr><td>status</td><td>pending/running/success/failed/canceled</td></tr>
+<tr><td>requested_by</td><td>触发用户</td></tr>
+<tr><td>requested_at</td><td>请求时间</td></tr>
+<tr><td>started_at</td><td>开始时间</td></tr>
+<tr><td>finished_at</td><td>结束时间</td></tr>
+<tr><td>error_message</td><td>错误信息</td></tr>
+</tbody></table>
+
+<h4>`job_run_log`：任务执行日志表，记录每次任务运行结果和统计信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>job_name</td><td>任务名</td></tr>
+<tr><td>module_name</td><td>所属模块</td></tr>
+<tr><td>trigger_type</td><td>schedule/manual</td></tr>
+<tr><td>status</td><td>success/failed</td></tr>
+<tr><td>params_json</td><td>参数</td></tr>
+<tr><td>result_json</td><td>结果</td></tr>
+<tr><td>started_at</td><td>开始时间</td></tr>
+<tr><td>finished_at</td><td>结束时间</td></tr>
+<tr><td>duration_ms</td><td>耗时</td></tr>
+<tr><td>fetched_count</td><td>拉取数量</td></tr>
+<tr><td>processed_count</td><td>处理数量</td></tr>
+<tr><td>inserted_count</td><td>新增数量</td></tr>
+<tr><td>updated_count</td><td>更新数量</td></tr>
+<tr><td>error_message</td><td>错误信息</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.6 basic/report_library</h3>
+
+<h4>`report`：报告索引表，保存报告元数据和文件路径</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>报告标题</td></tr>
+<tr><td>report_type</td><td>daily/weekly/track/stock/portfolio/alert/knowledge</td></tr>
+<tr><td>source_module</td><td>来源模块</td></tr>
+<tr><td>target_type</td><td>market/track/stock/portfolio/alert</td></tr>
+<tr><td>target_id</td><td>目标对象 ID</td></tr>
+<tr><td>summary</td><td>摘要</td></tr>
+<tr><td>file_format</td><td>md/html/pdf</td></tr>
+<tr><td>file_path</td><td>报告文件路径</td></tr>
+<tr><td>generated_by</td><td>ai/system/manual</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.7 basic/disclosure_library</h3>
+
+<h4>`company_disclosure`：公告财报索引表，保存公告/财报元数据、文件路径和解析状态</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>关联 stock</td></tr>
+<tr><td>source</td><td>cninfo/exchange/tushare</td></tr>
+<tr><td>disclosure_type</td><td>announcement/annual_report/quarterly_report/interim_report</td></tr>
+<tr><td>title</td><td>公告标题</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>report_period</td><td>报告期</td></tr>
+<tr><td>source_url</td><td>来源 URL</td></tr>
+<tr><td>file_path</td><td>原始文件路径</td></tr>
+<tr><td>parsed_text_path</td><td>解析文本路径</td></tr>
+<tr><td>parsed_markdown_path</td><td>解析 Markdown 路径</td></tr>
+<tr><td>parse_status</td><td>解析状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.8 market_radar</h3>
+
+<h4>`tag`：标签词表，保存可被信息流识别的语言词项</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>标签词</td></tr>
+<tr><td>type</td><td>stock/track/hotword/general，可选</td></tr>
+<tr><td>status</td><td>active/archived/rejected</td></tr>
+<tr><td>source</td><td>ai/rule/manual/system，可选</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+tag 是语言入口，不是业务主体；
+
+stock / track / hotword 才是业务实体。
+
+</code></pre>
+
+<h4>`hotword`：市场热词实体表</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>市场热词名称</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>status</td><td>active/archived</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_tag_relation`：标的-标签绑定表</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>关联 stock</td></tr>
+<tr><td>tag_id</td><td>关联 tag</td></tr>
+<tr><td>source</td><td>manual/ai/system，可选</td></tr>
+<tr><td>status</td><td>active/inactive</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_tag_relation`：赛道-标签绑定表</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>track_id</td><td>关联 track</td></tr>
+<tr><td>tag_id</td><td>关联 tag</td></tr>
+<tr><td>source</td><td>manual/ai/system，可选</td></tr>
+<tr><td>status</td><td>active/inactive</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`hotword_tag_relation`：市场热词-标签绑定表</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>hotword_id</td><td>关联 hotword</td></tr>
+<tr><td>tag_id</td><td>关联 tag</td></tr>
+<tr><td>source</td><td>manual/ai/system，可选</td></tr>
+<tr><td>status</td><td>active/inactive</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`ai_tag_suggestion`：AI 推荐词表，保存 AI 从信息流中推荐、等待人工审核的词</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>suggested_text</td><td>AI 原始推荐词</td></tr>
+<tr><td>final_tag_name</td><td>人工修正后的正式标签名，可空</td></tr>
+<tr><td>score</td><td>AI 推荐强度</td></tr>
+<tr><td>reason</td><td>AI 推荐理由</td></tr>
+<tr><td>status</td><td>pending/approved/rejected</td></tr>
+<tr><td>final_tag_id</td><td>最终创建或绑定的 tag_id，可空</td></tr>
+<tr><td>ext_json</td><td>扩展信息，可选</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+ai_tag_suggestion 替代旧 tag_candidate；
+
+AI 只推荐词，不判断 stock / track / hotword；
+
+业务归属由人工审核后通过 relation 表表达。
+
+</code></pre>
+
+<h4>`source_item`：信息流条目表，保存新闻、公告摘要、政策、舆情、研报摘要等市场雷达输入</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>source_type</td><td>news/announcement/policy/sentiment/research</td></tr>
+<tr><td>source_name</td><td>来源名称</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>正文/摘要/AI摘要/关键段落</td></tr>
+<tr><td>source_url</td><td>来源 URL</td></tr>
+<tr><td>publish_time</td><td>发布时间</td></tr>
+<tr><td>related_type</td><td>可选：company_disclosure/report/manual</td></tr>
+<tr><td>related_id</td><td>可选：关联业务表 ID</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`source_tag`：信息-标签触发表，记录每条信息命中的标签词</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>source_item_id</td><td>信息源 ID</td></tr>
+<tr><td>tag_id</td><td>标签词 ID</td></tr>
+<tr><td>trigger_text</td><td>触发文本</td></tr>
+<tr><td>confidence</td><td>置信度</td></tr>
+<tr><td>extractor</td><td>rule/ai/manual</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`tag_heat_snapshot`：标签词热度快照表，按时间窗口保存标签词热度</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>tag_id</td><td>标签词 ID</td></tr>
+<tr><td>window_type</td><td>1h/24h/7d/30d</td></tr>
+<tr><td>stat_time</td><td>统计时间</td></tr>
+<tr><td>trigger_count</td><td>触发次数</td></tr>
+<tr><td>source_count</td><td>信息源数量</td></tr>
+<tr><td>heat_score</td><td>热度分</td></tr>
+<tr><td>avg_count</td><td>平均次数</td></tr>
+<tr><td>change_ratio</td><td>变化率</td></tr>
+<tr><td>rank_no</td><td>排名</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+tag_heat_snapshot 是标签词热度；
+
+stock / track / hotword 的实体热度需要通过绑定关系聚合。
+
+</code></pre>
+
+<h4>`tag_edge_snapshot`：标签关系快照表，保存标签词之间的信息流共现关系</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_tag_id</td><td>标的标签词 ID</td></tr>
+<tr><td>related_tag_id</td><td>关联标签词 ID</td></tr>
+<tr><td>related_tag_type</td><td>track/hotword</td></tr>
+<tr><td>window_type</td><td>1h/24h/7d/30d</td></tr>
+<tr><td>stat_time</td><td>统计时间</td></tr>
+<tr><td>cooccur_count</td><td>共现次数</td></tr>
+<tr><td>source_count</td><td>信息源数量</td></tr>
+<tr><td>weight</td><td>关系权重</td></tr>
+<tr><td>latest_source_item_id</td><td>最近触发信息源</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>说明：</p>
+
+<pre><code class="language-text">
+tag_edge_snapshot 是信息流自动关联，不是业务绑定；
+
+stock_track_relation 才是标的-赛道的研究确认关系。
+
+</code></pre>
+
+<p>---</p>
+
+<h3>34.9 track_discovery</h3>
+
+<h4>`track`：赛道主表，保存赛道业务实体</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>赛道正式名称</td></tr>
+<tr><td>description</td><td>简要说明，可选</td></tr>
+<tr><td>status</td><td>candidate/active/paused/archived</td></tr>
+<tr><td>priority_level</td><td>high/medium/low，可选</td></tr>
+<tr><td>archive_reason</td><td>归档原因，可选</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_thesis`：赛道假设表，保存需要长期验证的赛道认知假设</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>track_id</td><td>关联 track</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>title</td><td>赛道假设标题</td></tr>
+<tr><td>core_thesis</td><td>核心假设</td></tr>
+<tr><td>underlying_change</td><td>底层变化</td></tr>
+<tr><td>old_bottleneck</td><td>旧瓶颈</td></tr>
+<tr><td>new_solution</td><td>新解决方案</td></tr>
+<tr><td>value_chain_shift</td><td>价值链变化</td></tr>
+<tr><td>time_horizon</td><td>时间周期</td></tr>
+<tr><td>confidence_level</td><td>置信度</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_validation_indicator`：赛道验证指标表，保存判断赛道真伪和阶段的指标</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>name</td><td>指标名称</td></tr>
+<tr><td>indicator_type</td><td>指标类型</td></tr>
+<tr><td>data_source</td><td>数据来源</td></tr>
+<tr><td>current_value</td><td>当前值</td></tr>
+<tr><td>direction</td><td>变化方向</td></tr>
+<tr><td>validation_meaning</td><td>验证意义</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`track_evidence`：赛道证据表，保存支持、削弱或中性的证据记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>source_item_id</td><td>信息源 ID</td></tr>
+<tr><td>evidence_direction</td><td>support/weaken/neutral/noise</td></tr>
+<tr><td>evidence_strength</td><td>证据强度</td></tr>
+<tr><td>summary</td><td>摘要</td></tr>
+<tr><td>affected_segments</td><td>影响环节</td></tr>
+<tr><td>related_stock_ids</td><td>相关股票</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`track_status_history`：赛道状态历史表，记录赛道状态变化和原因</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>thesis_id</td><td>赛道假设 ID</td></tr>
+<tr><td>old_status</td><td>原状态</td></tr>
+<tr><td>new_status</td><td>新状态</td></tr>
+<tr><td>reason</td><td>变更原因</td></tr>
+<tr><td>changed_at</td><td>变更时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.10 stock_analysis</h3>
+
+<h4>`stock_research_note`：标的研究笔记表，保存围绕具体公司的研究记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>note_type</td><td>笔记类型</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>内容</td></tr>
+<tr><td>related_track_id</td><td>关联赛道</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_score_snapshot`：标的评分快照表，保存某时点的公司多维评分</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>score_date</td><td>评分日期</td></tr>
+<tr><td>track_id</td><td>关联赛道</td></tr>
+<tr><td>growth_score</td><td>成长性分</td></tr>
+<tr><td>valuation_score</td><td>估值分</td></tr>
+<tr><td>moat_score</td><td>壁垒分</td></tr>
+<tr><td>risk_score</td><td>风险分</td></tr>
+<tr><td>total_score</td><td>总分</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<h4>`stock_compare_group`：标的对比组表，用于同赛道公司横向 PK</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>对比组名称</td></tr>
+<tr><td>track_id</td><td>关联赛道</td></tr>
+<tr><td>stock_ids</td><td>对比股票</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_thesis`：标的假设表，保存公司投资逻辑、验证指标和证伪条件</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>thesis_text</td><td>标的假设</td></tr>
+<tr><td>key_logic</td><td>核心逻辑</td></tr>
+<tr><td>validation_indicators</td><td>验证指标</td></tr>
+<tr><td>falsification_conditions</td><td>证伪条件</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_pool`：标的研究池，保存候选、观察、重点跟踪等研究状态</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>status</td><td>candidate/watching/focused/archived</td></tr>
+<tr><td>source</td><td>来源：manual/ai/market_radar/track_discovery</td></tr>
+<tr><td>reason</td><td>入池原因</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`stock_track_relation`：标的-赛道绑定表，保存研究确认后的标的所属赛道关系</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>stock_id</td><td>标的 ID</td></tr>
+<tr><td>track_id</td><td>赛道 ID</td></tr>
+<tr><td>relation_type</td><td>关系类型：core/related/watch</td></tr>
+<tr><td>source</td><td>来源：manual/ai/market_radar</td></tr>
+<tr><td>confidence</td><td>置信度，可选</td></tr>
+<tr><td>note</td><td>备注</td></tr>
+<tr><td>status</td><td>active/inactive</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+
+<p>---</p>
+
+<h3>34.11 alert_center</h3>
+
+<h4>`alert_rule`：预警规则表，保存价格、热度、公告、组合等触发条件</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>rule_type</td><td>规则类型</td></tr>
+<tr><td>target_type</td><td>目标类型</td></tr>
+<tr><td>target_id</td><td>目标 ID</td></tr>
+<tr><td>condition_json</td><td>触发条件</td></tr>
+<tr><td>enabled</td><td>是否启用</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`alert_event`：预警事件表，保存规则触发后的具体提醒记录</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>rule_id</td><td>规则 ID</td></tr>
+<tr><td>event_time</td><td>事件时间</td></tr>
+<tr><td>event_level</td><td>级别</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>message</td><td>消息</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.12 portfolio</h3>
+
+<h4>`portfolio`：投资组合表，保存实盘组合名称、基准货币等组合元信息</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>user_id</td><td>用户 ID</td></tr>
+<tr><td>name</td><td>组合名称</td></tr>
+<tr><td>base_currency</td><td>基准货币</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`portfolio_group`：实盘组合分组表，区分核心仓、卫星仓、防守仓、现金仓等实盘仓位角色</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>portfolio_id</td><td>组合 ID</td></tr>
+<tr><td>name</td><td>分组名称</td></tr>
+<tr><td>group_type</td><td>core/satellite/defensive/cash/custom</td></tr>
+<tr><td>target_weight</td><td>目标权重，可选</td></tr>
+<tr><td>max_stock_count</td><td>个股数量配置项，可选</td></tr>
+<tr><td>sort_order</td><td>排序</td></tr>
+<tr><td>note</td><td>备注</td></tr>
+<tr><td>status</td><td>active/inactive</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`portfolio_position`：实盘持仓表，保存组合内真实持仓数量和成本</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>portfolio_id</td><td>组合 ID</td></tr>
+<tr><td>group_id</td><td>实盘分组 ID</td></tr>
+<tr><td>stock_id</td><td>股票 ID</td></tr>
+<tr><td>quantity</td><td>实盘持仓数量</td></tr>
+<tr><td>cost_price</td><td>成本价</td></tr>
+<tr><td>current_price</td><td>当前价，可选</td></tr>
+<tr><td>market_value</td><td>市值，可计算</td></tr>
+<tr><td>target_weight</td><td>个股目标权重，可选</td></tr>
+<tr><td>note</td><td>备注</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<h3>34.13 knowledge_base</h3>
+
+<h4>`knowledge_note`：知识笔记表，保存心得、复盘、原则、错误案例等认知材料</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>标题</td></tr>
+<tr><td>content</td><td>内容</td></tr>
+<tr><td>note_type</td><td>thesis/stock/portfolio/alert/market/mistake/principle</td></tr>
+<tr><td>related_module</td><td>关联模块</td></tr>
+<tr><td>related_id</td><td>关联对象</td></tr>
+<tr><td>tags</td><td>标签</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_skill`：知识 Skill 表，将经验提炼为可复用分析准则</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>title</td><td>Skill 标题</td></tr>
+<tr><td>skill_type</td><td>Skill 类型</td></tr>
+<tr><td>principle</td><td>分析准则</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>input_schema</td><td>输入结构</td></tr>
+<tr><td>output_schema</td><td>输出结构</td></tr>
+<tr><td>prompt_template</td><td>Prompt 模板</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_agent`：知识 Agent 表，将多个 Skills 编排为可执行分析流程</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>name</td><td>Agent 名称</td></tr>
+<tr><td>target_module</td><td>目标模块</td></tr>
+<tr><td>description</td><td>描述</td></tr>
+<tr><td>skills_json</td><td>编排的 Skills</td></tr>
+<tr><td>workflow_json</td><td>工作流</td></tr>
+<tr><td>status</td><td>状态</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+<tr><td>updated_at</td><td>更新时间</td></tr>
+</tbody></table>
+
+<h4>`knowledge_feedback_log`：业务反哺日志表，记录 Agent/Skill 对业务模块的反哺结果</h4>
+
+<table>
+<thead><tr><th>字段</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>id</td><td>主键</td></tr>
+<tr><td>agent_id</td><td>Agent ID</td></tr>
+<tr><td>target_module</td><td>目标模块</td></tr>
+<tr><td>target_id</td><td>目标对象</td></tr>
+<tr><td>feedback_type</td><td>反馈类型</td></tr>
+<tr><td>result_summary</td><td>结果摘要</td></tr>
+<tr><td>effectiveness</td><td>有效性</td></tr>
+<tr><td>created_at</td><td>创建时间</td></tr>
+</tbody></table>
+
+<p>---</p>
+
+<p>---</p>
+
+<p>---</p>
+
+<h2>5. 一句话总结</h2>
+
+<pre><code class="language-text">
+信息流产生语言信号，AI 推荐词负责发现未知词，tag 承载语言词项，stock / track / hotword 承载业务实体，relation 表负责把语言绑定到业务对象。
+
+</code></pre></main></body></html>
