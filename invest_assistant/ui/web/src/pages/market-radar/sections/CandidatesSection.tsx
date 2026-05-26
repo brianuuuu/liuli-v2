@@ -114,6 +114,7 @@ export function CandidatesSection() {
     { title: "最终标签", dataIndex: "final_tag_name", width: 150, ellipsis: true, render: (value) => value || "-" },
     { title: "分数", dataIndex: "score", width: 80, render: (value) => (value == null ? "-" : Number(value).toFixed(1)) },
     { title: "状态", dataIndex: "status", width: 92, render: (value) => <SuggestionStatusTag status={value} /> },
+    { title: "拒绝次数", dataIndex: "rejected_count", width: 88, render: (value) => Number(value || 0) },
     { title: "原因", dataIndex: "reason", width: 220, ellipsis: true, render: (value) => value || "-" },
     { title: "创建", dataIndex: "created_at", width: 132, render: (value) => formatTime(value).slice(5, 16) },
     {

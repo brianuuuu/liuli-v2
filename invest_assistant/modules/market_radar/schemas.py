@@ -107,6 +107,7 @@ class AiTagSuggestionCreate(BaseModel):
     score: float | None = None
     reason: str | None = None
     status: str = "pending"
+    rejected_count: int = 0
     final_tag_id: int | None = None
     ext_json: str = "{}"
 

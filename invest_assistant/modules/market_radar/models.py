@@ -145,6 +145,7 @@ class AiTagSuggestion(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     final_tag_id: Mapped[int | None] = mapped_column(ForeignKey("tag.id"), nullable=True)
     ext_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

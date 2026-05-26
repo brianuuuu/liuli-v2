@@ -540,6 +540,7 @@ def approve_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion, payload:
 
 def reject_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion) -> AiTagSuggestion:
     suggestion.status = "rejected"
+    suggestion.rejected_count = int(suggestion.rejected_count or 0) + 1
     db.commit()
     db.refresh(suggestion)
     return suggestion

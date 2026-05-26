@@ -199,6 +199,7 @@ export type AiTagSuggestion = {
   score?: number | null;
   reason?: string | null;
   final_tag_id?: number | null;
+  rejected_count: number;
   ext_json: string;
   status: string;
   created_at?: string | null;
