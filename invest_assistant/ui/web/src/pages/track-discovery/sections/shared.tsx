@@ -1,5 +1,5 @@
 import { Tag } from "antd";
-import type { TrackCandidate, TrackThesis } from "../../../types/api";
+import type { TrackCandidate } from "../../../types/api";
 
 export const trackWindowOptions = [
   { value: "1h", label: "1h" },
@@ -13,6 +13,14 @@ export const thesisStatusOptions = [
   { value: "active", label: "跟踪中" },
   { value: "paused", label: "暂停观察" },
   { value: "archived", label: "归档" }
+];
+
+export const stageOptions = [
+  { value: "concept", label: "概念期" },
+  { value: "validate", label: "验证期" },
+  { value: "growth", label: "成长期" },
+  { value: "overheat", label: "过热期" },
+  { value: "decline", label: "衰退期" }
 ];
 
 export const confidenceOptions = [
@@ -33,14 +41,10 @@ export function StatusTag({ status }: { status?: string | null }) {
 }
 
 export function DirectionTag({ direction }: { direction?: string | null }) {
-  const color = direction === "positive" ? "green" : direction === "negative" ? "red" : "gold";
+  const color = direction === "support" ? "green" : direction === "weaken" ? "red" : direction === "noise" ? "default" : "gold";
   return <Tag color={color}>{direction || "neutral"}</Tag>;
 }
 
 export function candidateTitle(candidate: TrackCandidate) {
   return candidate.tag?.name || "未命名赛道";
-}
-
-export function thesisToRecord(thesis: TrackThesis) {
-  return thesis as unknown as Record<string, unknown>;
 }

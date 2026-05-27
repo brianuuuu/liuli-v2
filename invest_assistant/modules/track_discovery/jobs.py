@@ -11,18 +11,18 @@ def generate_candidates_job(**kwargs) -> JobResult:
         db.close()
 
 
-def collect_evidence_job(**kwargs) -> JobResult:
+def collect_materials_job(**kwargs) -> JobResult:
     db = SessionLocal()
     try:
-        return service.collect_evidence_job(db)
+        return service.collect_materials_job(db)
     finally:
         db.close()
 
 
-def refresh_related_stocks_job(**kwargs) -> JobResult:
+def refresh_bound_stocks_job(**kwargs) -> JobResult:
     db = SessionLocal()
     try:
-        return service.refresh_related_stocks_job(db)
+        return service.refresh_bound_stocks_job(db)
     finally:
         db.close()
 
@@ -37,19 +37,19 @@ JOBS = [
         trigger_type="manual",
     ),
     JobDefinition(
-        job_name="track_discovery.collect_evidence",
+        job_name="track_discovery.collect_materials",
         module_name="track_discovery",
-        display_name="收集赛道证据",
-        description="阶段 4 保留任务入口，证据主要由用户和业务模块手动写入",
-        handler=collect_evidence_job,
+        display_name="收集赛道材料",
+        description="赛道材料由信息流、知识笔记和人工判断写入 track_material",
+        handler=collect_materials_job,
         trigger_type="manual",
     ),
     JobDefinition(
-        job_name="track_discovery.refresh_related_stocks",
+        job_name="track_discovery.refresh_bound_stocks",
         module_name="track_discovery",
-        display_name="刷新赛道相关标的",
-        description="阶段 4 保留任务入口，相关标的主要由用户手动维护",
-        handler=refresh_related_stocks_job,
+        display_name="刷新赛道绑定标的",
+        description="标的绑定统一由 stock_track_relation 维护",
+        handler=refresh_bound_stocks_job,
         trigger_type="manual",
     ),
 ]

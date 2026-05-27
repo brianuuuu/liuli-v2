@@ -40,7 +40,7 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   "track-discovery": [
     { key: "overview", label: "赛道总览" },
     { key: "tracks", label: "赛道库" },
-    { key: "evidence", label: "赛道证据" },
+    { key: "materials", label: "赛道动态" },
     { key: "compare", label: "赛道对比" }
   ],
   "stock-analysis": [

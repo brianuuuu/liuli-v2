@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Popconfirm, Select, Space, Table, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -7,14 +7,19 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Track } from "../../../types/api";
-import { formatTime, StatusTag, thesisStatusOptions } from "./shared";
+import { confidenceOptions, formatTime, stageOptions, StatusTag, thesisStatusOptions } from "./shared";
 
 type TrackFormValues = {
   name: string;
+  description?: string;
   status: string;
+  track_score?: number;
+  current_view?: string;
+  stage?: string;
+  confidence_level?: string;
 };
 
-export function ThesesSection() {
+export function TracksSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [editing, setEditing] = useState<Track | null>(null);
@@ -35,7 +40,12 @@ export function ThesesSection() {
     if (editing) {
       form.setFieldsValue({
         name: editing.name,
-        status: editing.status
+        description: editing.description || undefined,
+        status: editing.status,
+        track_score: editing.track_score ?? undefined,
+        current_view: editing.current_view || undefined,
+        stage: editing.stage || undefined,
+        confidence_level: editing.confidence_level || undefined
       });
     } else {
       form.setFieldsValue({ status: "candidate" });
@@ -56,7 +66,12 @@ export function ThesesSection() {
     const values = await form.validateFields();
     const payload = {
       name: values.name,
-      status: values.status
+      description: values.description || null,
+      status: values.status,
+      track_score: values.track_score ?? null,
+      current_view: values.current_view || null,
+      stage: values.stage || null,
+      confidence_level: values.confidence_level || null
     };
     if (editing) {
       await updateTrack(editing.id, payload);
@@ -103,7 +118,10 @@ export function ThesesSection() {
   const columns: ColumnsType<Track> = [
     { title: "赛道", dataIndex: "name", render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
-    { title: "说明", dataIndex: "description", ellipsis: true, render: (value) => value || "-" },
+    { title: "阶段", dataIndex: "stage", width: 100, render: (value) => stageOptions.find((item) => item.value === value)?.label || value || "-" },
+    { title: "评分", dataIndex: "track_score", width: 80, render: (value) => value ?? "-" },
+    { title: "置信", dataIndex: "confidence_level", width: 90, render: (value) => value || "-" },
+    { title: "当前判断", dataIndex: "current_view", ellipsis: true, render: (value) => value || "-" },
     { title: "Tag ID", dataIndex: ["tag", "id"], width: 90, render: (value) => value || "-" },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
     {
@@ -165,8 +183,25 @@ export function ThesesSection() {
           <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}>
             <Input />
           </Form.Item>
+          <Form.Item name="description" label="说明">
+            <Input.TextArea rows={2} />
+          </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={thesisStatusOptions} />
+          </Form.Item>
+          <Space.Compact block>
+            <Form.Item name="track_score" label="评分" style={{ width: "34%" }}>
+              <InputNumber min={0} max={100} style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="stage" label="阶段" style={{ width: "33%" }}>
+              <Select allowClear options={stageOptions} />
+            </Form.Item>
+            <Form.Item name="confidence_level" label="置信度" style={{ width: "33%" }}>
+              <Select allowClear options={confidenceOptions} />
+            </Form.Item>
+          </Space.Compact>
+          <Form.Item name="current_view" label="当前判断">
+            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>
