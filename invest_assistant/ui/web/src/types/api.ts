@@ -259,6 +259,11 @@ export type TrackMaterial = {
   track_id: number;
   material_type: "source_item" | "knowledge_note" | string;
   material_id: number;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_url?: string | null;
+  material_time?: string | null;
   direction?: string | null;
   importance_level?: string | null;
   status: string;

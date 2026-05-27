@@ -713,10 +713,6 @@ body {
   content: "";
 }
 
-.track-material-event.pending .track-material-event-rail::after {
-  border-color: #d97706;
-}
-
 .track-material-event.ignored .track-material-event-rail::after {
   border-color: var(--ll-muted);
 }
@@ -783,6 +779,42 @@ body {
   line-height: 1.55;
 }
 
+.track-material-reference {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+.track-material-reference + .ant-form {
+  margin-top: 14px;
+}
+
+.track-material-reference-title,
+.track-material-pending-title {
+  color: var(--ll-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.track-material-reference-summary {
+  margin-top: 6px;
+  color: var(--ll-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.track-material-reference-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
 .track-material-actions {
   display: flex;
   gap: 6px;
@@ -811,6 +843,10 @@ body {
   margin-bottom: 10px;
   color: var(--ll-text);
   font-size: 13px;
+}
+
+.track-material-pending-title {
+  margin-top: 8px;
 }
 
 .track-material-drawer-hint {

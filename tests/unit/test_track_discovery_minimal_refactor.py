@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgeNote
-from invest_assistant.modules.market_radar.models import Tag, TrackTagRelation
+from invest_assistant.modules.market_radar.models import SourceItem, Tag, TrackTagRelation
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery.models import Track, TrackAnalysisSnapshot, TrackMaterial, TrackStatusHistory
 from invest_assistant.modules.track_discovery.schemas import (
@@ -97,7 +97,7 @@ def test_track_material_unique_reference_and_status_update(db_session: Session):
 
     assert material.material_type == "knowledge_note"
     assert material.status == "pending"
-    assert list_materials(db_session, track["id"])[0].id == material.id
+    assert list_materials(db_session, track["id"])[0]["id"] == material.id
 
     updated = update_material(db_session, material.id, TrackMaterialUpdate(status="confirmed", note="纳入当前判断"))
 
@@ -115,6 +115,42 @@ def test_track_material_unique_reference_and_status_update(db_session: Session):
     )
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+
+def test_track_material_list_includes_referenced_material_summary(db_session: Session):
+    track = create_track(db_session, TrackCreate(name="AI Agents"))
+    source = SourceItem(
+        source_type="news",
+        source_name="manual",
+        title="Agent tooling demand rises",
+        content="Enterprise teams are adopting agent workflow tools. The relevant part should be summarized for review.",
+        source_url="https://example.com/agent",
+    )
+    note = KnowledgeNote(title="复盘：Agent 工具链", content="这是个人复盘内容，用于验证知识笔记摘要。", note_type="review")
+    db_session.add_all([source, note])
+    db_session.commit()
+
+    create_material(
+        db_session,
+        track["id"],
+        TrackMaterialCreate(material_type="source_item", material_id=source.id, status="pending"),
+    )
+    create_material(
+        db_session,
+        track["id"],
+        TrackMaterialCreate(material_type="knowledge_note", material_id=note.id, status="confirmed"),
+    )
+
+    rows = list_materials(db_session, track["id"])
+
+    source_row = next(item for item in rows if item["material_type"] == "source_item")
+    note_row = next(item for item in rows if item["material_type"] == "knowledge_note")
+    assert source_row["material_title"] == "Agent tooling demand rises"
+    assert source_row["material_summary"].startswith("Enterprise teams are adopting")
+    assert source_row["material_source_name"] == "manual"
+    assert source_row["material_url"] == "https://example.com/agent"
+    assert note_row["material_title"] == "复盘：Agent 工具链"
+    assert note_row["material_summary"] == "这是个人复盘内容，用于验证知识笔记摘要。"
 
 
 def test_status_history_records_track_stage_change(db_session: Session):

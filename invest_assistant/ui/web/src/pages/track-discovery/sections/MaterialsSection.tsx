@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Select, Space, Tag, Typography, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import { createTrackMaterial, listTrackMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
@@ -9,7 +9,7 @@ import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackMaterial } from "../../../types/api";
 import { DirectionTag, formatTime } from "./shared";
 import {
-  filterMaterialsByStatus,
+  compactMaterialSummary,
   groupMaterialsByDate,
   materialDirectionLabel,
   materialDirectionOptions,
@@ -20,6 +20,7 @@ import {
   materialTypeLabel,
   materialTypeOptions,
   pendingMaterials,
+  timelineMaterials,
   type MaterialStatusFilter,
 } from "./materialTimeline";
 
@@ -30,7 +31,7 @@ type DrawerMode = "create" | "edit";
 export function MaterialsSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [trackId, setTrackId] = useState<number | undefined>();
-  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("pending");
+  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("all");
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [editingMaterial, setEditingMaterial] = useState<TrackMaterial | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -39,16 +40,17 @@ export function MaterialsSection() {
 
   const trackOptions = useMemo(() => tracks.data.map((item) => ({ value: item.id, label: item.name })), [tracks.data]);
   const activeTrack = useMemo(() => tracks.data.find((item) => item.id === trackId), [trackId, tracks.data]);
-  const visibleMaterials = useMemo(() => filterMaterialsByStatus(materials.data, statusFilter), [materials.data, statusFilter]);
+  const visibleMaterials = useMemo(() => timelineMaterials(materials.data, statusFilter), [materials.data, statusFilter]);
   const timelineGroups = useMemo(() => groupMaterialsByDate(visibleMaterials), [visibleMaterials]);
   const pendingRows = useMemo(() => pendingMaterials(materials.data), [materials.data]);
+  const timelineStatusOptions = useMemo(() => materialStatusOptions.filter((item) => item.value !== "pending"), []);
   const statusCounts = useMemo(() => {
     return materials.data.reduce(
       (acc, item) => {
-        acc.all += 1;
         if (item.status === "pending") acc.pending += 1;
         if (item.status === "confirmed") acc.confirmed += 1;
         if (item.status === "ignored") acc.ignored += 1;
+        if (item.status !== "pending") acc.all += 1;
         return acc;
       },
       { pending: 0, confirmed: 0, ignored: 0, all: 0 }
@@ -78,7 +80,7 @@ export function MaterialsSection() {
     setDrawerOpen(true);
   }
 
-  async function submitDrawer() {
+  async function submitDrawer(statusOverride?: string) {
     if (!trackId) {
       message.warning("请先选择赛道");
       return;
@@ -88,10 +90,10 @@ export function MaterialsSection() {
       await updateTrackMaterial(editingMaterial.id, {
         direction: values.direction || null,
         importance_level: values.importance_level || null,
-        status: values.status || "pending",
+        status: statusOverride || values.status || "pending",
         note: values.note || null,
       });
-      message.success("材料判断已更新");
+      message.success(statusOverride === "confirmed" ? "材料已确认" : statusOverride === "ignored" ? "材料已忽略" : "材料判断已更新");
     } else {
       await createTrackMaterial(trackId, {
         material_type: values.material_type,
@@ -108,12 +110,6 @@ export function MaterialsSection() {
     await materials.refresh();
   }
 
-  async function updateStatus(record: TrackMaterial, status: string) {
-    await updateTrackMaterial(record.id, { status });
-    message.success(status === "confirmed" ? "材料已确认" : "材料已忽略");
-    await materials.refresh();
-  }
-
   function renderMaterialMeta(item: TrackMaterial) {
     return (
       <div className="track-material-meta">
@@ -122,6 +118,19 @@ export function MaterialsSection() {
         <DirectionTag direction={item.direction} />
         <Tag className="track-material-tag">{materialImportanceLabel(item.importance_level)}</Tag>
         <Tag className={`track-material-status ${item.status}`}>{materialStatusLabel(item.status)}</Tag>
+      </div>
+    );
+  }
+
+  function renderMaterialReference(item: TrackMaterial) {
+    return (
+      <div className="track-material-reference">
+        <div className="track-material-reference-title">{item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}</div>
+        <div className="track-material-reference-summary">{compactMaterialSummary(item, 96)}</div>
+        <div className="track-material-reference-foot">
+          <span>{item.material_source_name || materialTypeLabel(item.material_type)}</span>
+          <span>{item.material_time ? formatTime(item.material_time) : formatTime(item.updated_at || item.created_at)}</span>
+        </div>
       </div>
     );
   }
@@ -143,7 +152,7 @@ export function MaterialsSection() {
             />
             <div className="data-panel-toolbar-divider" />
             <Space size={4} className="toolbar-status-buttons">
-              {materialStatusOptions.map((item) => (
+              {timelineStatusOptions.map((item) => (
                 <Button
                   key={item.value}
                   size="small"
@@ -170,7 +179,7 @@ export function MaterialsSection() {
               <div className="track-material-section-head">
                 <div>
                   <Typography.Title level={5}>发展时间轴</Typography.Title>
-                  <Typography.Text type="secondary">按材料更新时间倒序展示赛道判断变化</Typography.Text>
+                  <Typography.Text type="secondary">只展示已处理材料，待确认材料在右侧处理</Typography.Text>
                 </div>
                 <span>{visibleMaterials.length} 条</span>
               </div>
@@ -188,15 +197,10 @@ export function MaterialsSection() {
                               {renderMaterialMeta(item)}
                               <span className="track-material-time">{formatTime(item.updated_at || item.created_at)}</span>
                             </div>
+                            {item.material_title || item.material_summary ? renderMaterialReference(item) : null}
                             <div className="track-material-note">{item.note || "尚未填写赛道视角判断"}</div>
                             <div className="track-material-actions">
                               <Button size="small" icon={<EditOutlined />} onClick={() => openEditDrawer(item)}>编辑判断</Button>
-                              {item.status === "pending" ? (
-                                <>
-                                  <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => updateStatus(item, "confirmed")}>确认</Button>
-                                  <Button size="small" icon={<CloseOutlined />} onClick={() => updateStatus(item, "ignored")}>忽略</Button>
-                                </>
-                              ) : null}
                             </div>
                           </div>
                         </article>
@@ -205,7 +209,7 @@ export function MaterialsSection() {
                   ))}
                 </div>
               ) : (
-                <EmptyAction description={statusFilter === "pending" ? "当前赛道没有待处理材料" : "当前筛选下没有赛道材料"} />
+                <EmptyAction description="当前筛选下没有已处理的赛道材料" />
               )}
             </section>
 
@@ -213,7 +217,7 @@ export function MaterialsSection() {
               <div className="track-material-section-head compact">
                 <div>
                   <Typography.Title level={5}>待处理</Typography.Title>
-                  <Typography.Text type="secondary">快速确认、忽略或补判断</Typography.Text>
+                  <Typography.Text type="secondary">先看摘要，再进入详情处理</Typography.Text>
                 </div>
                 <span>{pendingRows.length}</span>
               </div>
@@ -222,11 +226,10 @@ export function MaterialsSection() {
                   {pendingRows.map((item) => (
                     <article className="track-material-pending-card" key={item.id}>
                       {renderMaterialMeta(item)}
-                      <div className="track-material-pending-note">{item.note || "待补充赛道视角判断"}</div>
+                      <div className="track-material-pending-title">{item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}</div>
+                      <div className="track-material-pending-note">{compactMaterialSummary(item, 72)}</div>
                       <Space size={6}>
-                        <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => updateStatus(item, "confirmed")}>确认</Button>
-                        <Button size="small" icon={<CloseOutlined />} onClick={() => updateStatus(item, "ignored")}>忽略</Button>
-                        <Button size="small" icon={<EditOutlined />} onClick={() => openEditDrawer(item)}>补判断</Button>
+                        <Button size="small" icon={<EyeOutlined />} onClick={() => openEditDrawer(item)}>详情 / 处理</Button>
                       </Space>
                     </article>
                   ))}
@@ -244,8 +247,18 @@ export function MaterialsSection() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         size="large"
-        extra={<Button type="primary" size="small" onClick={submitDrawer}>{drawerMode === "edit" ? "保存" : "引用"}</Button>}
+        extra={
+          drawerMode === "edit" && editingMaterial?.status === "pending" ? (
+            <Space size={6}>
+              <Button size="small" icon={<CloseOutlined />} onClick={() => submitDrawer("ignored")}>忽略</Button>
+              <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => submitDrawer("confirmed")}>确认</Button>
+            </Space>
+          ) : (
+            <Button type="primary" size="small" onClick={() => submitDrawer()}>{drawerMode === "edit" ? "保存" : "引用"}</Button>
+          )
+        }
       >
+        {editingMaterial ? renderMaterialReference(editingMaterial) : null}
         <Form form={form} layout="vertical" preserve={false}>
           <Space.Compact block>
             <Form.Item name="material_type" label="来源" style={{ width: "50%" }} rules={[{ required: true, message: "请选择来源" }]}>

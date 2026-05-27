@@ -54,6 +54,11 @@ export function pendingMaterials(rows: TrackMaterial[]) {
   return filterMaterialsByStatus(rows, "pending");
 }
 
+export function timelineMaterials(rows: TrackMaterial[], status: MaterialStatusFilter) {
+  const scoped = status === "all" ? rows : rows.filter((item) => item.status === status);
+  return sortMaterialsByTime(scoped.filter((item) => item.status !== "pending"));
+}
+
 export function groupMaterialsByDate(rows: TrackMaterial[]): MaterialDateGroup[] {
   const groups = new Map<string, TrackMaterial[]>();
   for (const item of sortMaterialsByTime(rows)) {
@@ -61,6 +66,15 @@ export function groupMaterialsByDate(rows: TrackMaterial[]): MaterialDateGroup[]
     groups.set(date, [...(groups.get(date) || []), item]);
   }
   return Array.from(groups.entries()).map(([date, items]) => ({ date, items }));
+}
+
+export function compactMaterialSummary(
+  material: Pick<TrackMaterial, "material_summary" | "material_title" | "note">,
+  limit = 48
+) {
+  const text = String(material.material_summary || material.material_title || material.note || "暂无材料摘要").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}...`;
 }
 
 export function materialStatusLabel(status?: string | null) {
