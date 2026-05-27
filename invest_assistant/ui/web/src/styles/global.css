@@ -608,6 +608,224 @@ body {
   color: var(--ll-accent);
 }
 
+/* ── Track Discovery: material timeline workbench ── */
+.track-material-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.track-material-context {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--ll-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-material-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 10px;
+}
+
+.track-material-timeline-panel,
+.track-material-pending-panel {
+  min-width: 0;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+.track-material-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ll-border);
+}
+
+.track-material-section-head h5 {
+  margin: 0 0 2px;
+}
+
+.track-material-section-head > span {
+  color: var(--ll-muted);
+  font-size: 13px;
+}
+
+.track-material-section-head.compact {
+  padding: 12px;
+}
+
+.track-material-timeline {
+  padding: 12px 14px 14px;
+}
+
+.track-material-day {
+  display: grid;
+  gap: 8px;
+}
+
+.track-material-day + .track-material-day {
+  margin-top: 14px;
+}
+
+.track-material-day-label {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.track-material-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.track-material-event-rail {
+  position: relative;
+}
+
+.track-material-event-rail::before {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  width: 1px;
+  height: 100%;
+  background: var(--ll-border);
+  content: "";
+}
+
+.track-material-event-rail::after {
+  position: absolute;
+  top: 16px;
+  left: 2px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--ll-accent);
+  border-radius: 50%;
+  background: var(--ll-panel);
+  content: "";
+}
+
+.track-material-event.pending .track-material-event-rail::after {
+  border-color: #d97706;
+}
+
+.track-material-event.ignored .track-material-event-rail::after {
+  border-color: var(--ll-muted);
+}
+
+.track-material-event-body {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 7px;
+  background: var(--ll-panel-subtle);
+}
+
+.track-material-event-head,
+.track-material-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.track-material-event-head {
+  justify-content: space-between;
+}
+
+.track-material-meta {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.track-material-tag,
+.track-material-status {
+  margin: 0;
+}
+
+.track-material-status.pending {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.track-material-status.confirmed {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.track-material-status.ignored {
+  color: var(--ll-muted);
+  background: var(--ll-panel);
+  border-color: var(--ll-border);
+}
+
+.track-material-time {
+  color: var(--ll-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.track-material-note,
+.track-material-pending-note {
+  margin-top: 8px;
+  color: var(--ll-text);
+  line-height: 1.55;
+}
+
+.track-material-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.track-material-pending-panel {
+  align-self: start;
+}
+
+.track-material-pending-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.track-material-pending-card {
+  padding: 10px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 7px;
+  background: var(--ll-panel-subtle);
+}
+
+.track-material-pending-note {
+  margin-bottom: 10px;
+  color: var(--ll-text);
+  font-size: 13px;
+}
+
+.track-material-drawer-hint {
+  padding: 10px 12px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 7px;
+  background: var(--ll-panel-subtle);
+}
+
+@media (max-width: 1100px) {
+  .track-material-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Global table styles (standalone tables outside DataPanel) ── */
 .ant-table-wrapper .ant-table {
   border: 1px solid var(--ll-border);
