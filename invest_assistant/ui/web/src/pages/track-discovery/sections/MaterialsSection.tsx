@@ -178,8 +178,8 @@ export function MaterialsSection() {
             <section className="track-material-timeline-panel">
               <div className="track-material-section-head">
                 <div>
-                  <Typography.Title level={5}>发展时间轴</Typography.Title>
-                  <Typography.Text type="secondary">只展示已处理材料，待确认材料在右侧处理</Typography.Text>
+                  <Typography.Title level={5}>重大事件</Typography.Title>
+                  <Typography.Text type="secondary"></Typography.Text>
                 </div>
                 <span>{visibleMaterials.length} 条</span>
               </div>
