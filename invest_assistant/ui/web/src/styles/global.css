@@ -1940,8 +1940,8 @@ body {
   --ll-surface: #0d1117;
   --ll-text: #e6edf3;
   --ll-muted: #8b949e;
-  --ll-accent: #58a6ff;
-  --ll-accent-soft: rgba(56, 139, 253, 0.15);
+  --ll-accent: #2563eb;
+  --ll-accent-soft: rgba(37, 99, 235, 0.15);
 }
 
 [data-theme="dark"] body {
