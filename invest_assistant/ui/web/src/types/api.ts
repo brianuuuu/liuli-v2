@@ -199,6 +199,7 @@ export type AiTagSuggestion = {
   score?: number | null;
   reason?: string | null;
   final_tag_id?: number | null;
+  rejected_count: number;
   ext_json: string;
   status: string;
   created_at?: string | null;
@@ -220,6 +221,10 @@ export type Track = {
   name: string;
   description?: string | null;
   status: string;
+  track_score?: number | null;
+  current_view?: string | null;
+  stage?: string | null;
+  confidence_level?: string | null;
   tag?: MarketTag | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -238,23 +243,6 @@ export type MarketGraph = {
   edges: MarketGraphEdge[];
 };
 
-export type TrackThesis = {
-  id: number;
-  track_id: number;
-  user_id?: number | null;
-  title: string;
-  core_thesis: string;
-  underlying_change?: string | null;
-  old_bottleneck?: string | null;
-  new_solution?: string | null;
-  value_chain_shift?: string | null;
-  time_horizon?: string | null;
-  confidence_level?: string | null;
-  status: string;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
 export type TrackCandidate = {
   tag: MarketTag;
   heat: {
@@ -266,44 +254,39 @@ export type TrackCandidate = {
   };
 };
 
-export type TrackValidationIndicator = {
+export type TrackMaterial = {
   id: number;
   track_id: number;
-  thesis_id?: number | null;
-  name: string;
-  indicator_type?: string | null;
-  data_source?: string | null;
-  current_value?: string | null;
+  material_type: "source_item" | "knowledge_note" | string;
+  material_id: number;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_url?: string | null;
+  material_time?: string | null;
   direction?: string | null;
-  validation_meaning?: string | null;
-  updated_at?: string | null;
-};
-
-export type TrackEvidence = {
-  id: number;
-  track_id: number;
-  thesis_id?: number | null;
-  source_item_id?: number | null;
-  evidence_direction: string;
-  evidence_strength: number;
-  summary?: string | null;
-  affected_segments?: string | null;
-  related_stock_ids?: string | null;
-  created_at?: string | null;
-};
-
-export type TrackRelatedStock = {
-  id: number;
-  track_id: number;
-  thesis_id?: number | null;
-  stock_id: number;
-  role?: string | null;
-  relevance_score: number;
-  evidence_count: number;
-  heat_score: number;
+  importance_level?: string | null;
   status: string;
+  note?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+export type TrackAnalysisSnapshot = {
+  id: number;
+  track_id: number;
+  analysis_date: string;
+  market_space?: string | null;
+  market_size?: string | null;
+  growth_rate?: string | null;
+  heat_summary?: string | null;
+  ai_summary?: string | null;
+  opportunity_points?: string | null;
+  risk_points?: string | null;
+  watch_signals?: string | null;
+  score?: number | null;
+  confidence_level?: string | null;
+  created_at?: string | null;
 };
 
 export type StockPoolItem = {

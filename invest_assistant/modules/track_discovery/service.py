@@ -2,28 +2,24 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
-from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
-from invest_assistant.modules.market_radar.models import SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
+from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate
 from invest_assistant.modules.market_radar.service import bind_track_tag, list_track_tag_bindings
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
-    TrackEvidence,
-    TrackRelatedStock,
+    TrackAnalysisSnapshot,
+    TrackMaterial,
     TrackStatusHistory,
-    TrackThesis,
-    TrackValidationIndicator,
 )
 from invest_assistant.modules.track_discovery.schemas import (
+    TrackAnalysisSnapshotCreate,
     TrackCreate,
-    TrackEvidenceCreate,
-    TrackRelatedStockCreate,
+    TrackMaterialCreate,
+    TrackMaterialUpdate,
     TrackStatusChange,
-    TrackThesisCreate,
-    TrackThesisUpdate,
     TrackUpdate,
-    TrackValidationIndicatorCreate,
 )
 
 
@@ -89,35 +85,34 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     db.execute(update(StockScoreSnapshot).where(StockScoreSnapshot.track_id == track_id).values(track_id=None))
     db.execute(update(StockCompareGroup).where(StockCompareGroup.track_id == track_id).values(track_id=None))
     db.execute(delete(TrackStatusHistory).where(TrackStatusHistory.track_id == track_id))
-    db.execute(delete(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id))
-    db.execute(delete(TrackEvidence).where(TrackEvidence.track_id == track_id))
-    db.execute(delete(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id))
-    db.execute(delete(TrackThesis).where(TrackThesis.track_id == track_id))
+    db.execute(delete(TrackMaterial).where(TrackMaterial.track_id == track_id))
+    db.execute(delete(TrackAnalysisSnapshot).where(TrackAnalysisSnapshot.track_id == track_id))
     db.delete(track)
     db.commit()
     return True
 
 
-def create_thesis(db: Session, track_id: int, payload: TrackThesisCreate, user_id: int | None) -> TrackThesis:
-    item = TrackThesis(track_id=track_id, **payload.model_dump(), user_id=user_id)
+def create_material(db: Session, track_id: int, payload: TrackMaterialCreate) -> TrackMaterial:
+    item = TrackMaterial(track_id=track_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_theses(db: Session, track_id: int | None = None) -> list[TrackThesis]:
-    stmt = select(TrackThesis).order_by(TrackThesis.updated_at.desc(), TrackThesis.id.desc())
-    if track_id is not None:
-        stmt = stmt.where(TrackThesis.track_id == track_id)
-    return list(db.scalars(stmt))
+def list_materials(db: Session, track_id: int) -> list[dict]:
+    stmt = (
+        select(TrackMaterial)
+        .where(TrackMaterial.track_id == track_id)
+        .order_by(TrackMaterial.updated_at.desc(), TrackMaterial.id.desc())
+    )
+    return [_material_dict(db, item) for item in db.scalars(stmt)]
 
 
-def get_thesis(db: Session, thesis_id: int) -> TrackThesis | None:
-    return db.get(TrackThesis, thesis_id)
-
-
-def update_thesis(db: Session, item: TrackThesis, payload: TrackThesisUpdate) -> TrackThesis:
+def update_material(db: Session, material_id: int, payload: TrackMaterialUpdate) -> TrackMaterial | None:
+    item = db.get(TrackMaterial, material_id)
+    if item is None:
+        return None
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
     db.commit()
@@ -125,47 +120,19 @@ def update_thesis(db: Session, item: TrackThesis, payload: TrackThesisUpdate) ->
     return item
 
 
-def archive_thesis(db: Session, item: TrackThesis) -> TrackThesis:
-    item.status = "archived"
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def add_indicator(db: Session, track_id: int, payload: TrackValidationIndicatorCreate, thesis_id: int | None = None) -> TrackValidationIndicator:
-    item = TrackValidationIndicator(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
+def create_analysis_snapshot(db: Session, track_id: int, payload: TrackAnalysisSnapshotCreate) -> TrackAnalysisSnapshot:
+    item = TrackAnalysisSnapshot(track_id=track_id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_indicators(db: Session, track_id: int) -> list[TrackValidationIndicator]:
-    return list(db.scalars(select(TrackValidationIndicator).where(TrackValidationIndicator.track_id == track_id)))
-
-
-def add_evidence(db: Session, track_id: int, payload: TrackEvidenceCreate, thesis_id: int | None = None) -> TrackEvidence:
-    item = TrackEvidence(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def list_evidence(db: Session, track_id: int) -> list[TrackEvidence]:
-    return list(db.scalars(select(TrackEvidence).where(TrackEvidence.track_id == track_id).order_by(TrackEvidence.id.desc())))
-
-
-def add_related_stock(db: Session, track_id: int, payload: TrackRelatedStockCreate, thesis_id: int | None = None) -> TrackRelatedStock:
-    item = TrackRelatedStock(track_id=track_id, thesis_id=thesis_id, **payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def list_related_stocks(db: Session, track_id: int) -> list[TrackRelatedStock]:
-    return list(db.scalars(select(TrackRelatedStock).where(TrackRelatedStock.track_id == track_id)))
+def list_analysis_snapshots(db: Session, track_id: int | None = None) -> list[TrackAnalysisSnapshot]:
+    stmt = select(TrackAnalysisSnapshot).order_by(TrackAnalysisSnapshot.analysis_date.desc(), TrackAnalysisSnapshot.id.desc())
+    if track_id is not None:
+        stmt = stmt.where(TrackAnalysisSnapshot.track_id == track_id)
+    return list(db.scalars(stmt))
 
 
 def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) -> dict | None:
@@ -173,40 +140,25 @@ def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) 
     if track is None:
         return None
     old_status = track.status
+    old_stage = track.stage
     track.status = payload.new_status
+    if payload.new_stage is not None:
+        track.stage = payload.new_stage
     db.add(
         TrackStatusHistory(
             track_id=track.id,
             old_status=old_status,
             new_status=payload.new_status,
+            old_stage=old_stage,
+            new_stage=track.stage,
             reason=payload.reason,
+            changed_by=payload.changed_by,
         )
     )
     db.commit()
     db.refresh(track)
     bind_track_tag(db, track.id, TagBindingCreate(name=track.name, source="system", status="active"))
     return _track_dict(db, track)
-
-
-def change_status(db: Session, thesis: TrackThesis, payload: TrackStatusChange) -> TrackThesis:
-    old_status = thesis.status
-    thesis.status = payload.new_status
-    db.add(
-        TrackStatusHistory(
-            track_id=thesis.track_id,
-            thesis_id=thesis.id,
-            old_status=old_status,
-            new_status=payload.new_status,
-            reason=payload.reason,
-        )
-    )
-    db.commit()
-    db.refresh(thesis)
-    return thesis
-
-
-def list_status_history(db: Session, thesis_id: int) -> list[TrackStatusHistory]:
-    return list(db.scalars(select(TrackStatusHistory).where(TrackStatusHistory.thesis_id == thesis_id)))
 
 
 def market_radar_candidates(db: Session, window: str = "24h") -> list[dict]:
@@ -227,12 +179,12 @@ def generate_candidates_job(db: Session) -> JobResult:
     return JobResult(success=True, message=f"generated {len(candidates)} track candidates", processed_count=len(candidates))
 
 
-def collect_evidence_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="evidence collection is manual in phase 4")
+def collect_materials_job(db: Session) -> JobResult:
+    return JobResult(success=True, message="track materials are curated manually")
 
 
-def refresh_related_stocks_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="related stock refresh is manual in phase 4")
+def refresh_bound_stocks_job(db: Session) -> JobResult:
+    return JobResult(success=True, message="stock-track relations are curated manually")
 
 
 def _tag_dict(tag: Tag) -> dict:
@@ -252,6 +204,10 @@ def _track_dict(db: Session, track: Track) -> dict:
         "name": track.name,
         "description": track.description,
         "status": track.status,
+        "track_score": track.track_score,
+        "current_view": track.current_view,
+        "stage": track.stage,
+        "confidence_level": track.confidence_level,
         "created_at": track.created_at,
         "updated_at": track.updated_at,
         "tag": bindings[0]["tag"] if bindings else None,
@@ -266,3 +222,50 @@ def _heat_dict(snapshot: TagHeatSnapshot) -> dict:
         "heat_score": snapshot.heat_score,
         "rank_no": snapshot.rank_no,
     }
+
+
+def _material_dict(db: Session, item: TrackMaterial) -> dict:
+    material = {
+        "id": item.id,
+        "track_id": item.track_id,
+        "material_type": item.material_type,
+        "material_id": item.material_id,
+        "direction": item.direction,
+        "importance_level": item.importance_level,
+        "status": item.status,
+        "note": item.note,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+        "material_title": None,
+        "material_summary": None,
+        "material_source_name": None,
+        "material_url": None,
+        "material_time": None,
+    }
+    if item.material_type == "source_item":
+        source = db.get(SourceItem, item.material_id)
+        if source is not None:
+            material.update(
+                material_title=source.title,
+                material_summary=_summary(source.content),
+                material_source_name=source.source_name,
+                material_url=source.source_url,
+                material_time=source.publish_time or source.created_at,
+            )
+    elif item.material_type == "knowledge_note":
+        note = db.get(KnowledgeNote, item.material_id)
+        if note is not None:
+            material.update(
+                material_title=note.title,
+                material_summary=_summary(note.content),
+                material_source_name="knowledge_note",
+                material_time=note.updated_at or note.created_at,
+            )
+    return material
+
+
+def _summary(value: str | None, limit: int = 120) -> str | None:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return None
+    return text if len(text) <= limit else f"{text[:limit]}..."

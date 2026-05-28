@@ -28,6 +28,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagCreate,
     TagUpdate,
 )
+from invest_assistant.modules.track_discovery.material_generation import create_pending_materials_for_source_item
 from invest_assistant.shared.time_utils import utc_now
 
 WINDOWS = {
@@ -246,6 +247,7 @@ def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
     existing = find_duplicate_source_item(db, payload)
     if existing is not None:
         persist_source_tag_matches(db, existing)
+        create_pending_materials_for_source_item(db, existing.id)
         db.commit()
         db.refresh(existing)
         return _source_item_dict(db, existing)
@@ -254,6 +256,7 @@ def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
     db.commit()
     db.refresh(item)
     persist_source_tag_matches(db, item)
+    create_pending_materials_for_source_item(db, item.id)
     db.commit()
     db.refresh(item)
     return _source_item_dict(db, item)
@@ -279,9 +282,18 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
-def list_source_items(db: Session) -> list[dict]:
-    items = list(db.scalars(select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())))
+def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> list[dict]:
+    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())
+    if offset > 0:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(max(int(limit), 1))
+    items = list(db.scalars(stmt))
     return [_source_item_dict(db, item) for item in items]
+
+
+def count_source_items(db: Session) -> int:
+    return int(db.scalar(select(func.count()).select_from(SourceItem)) or 0)
 
 
 def get_source_item(db: Session, source_item_id: int) -> dict | None:
@@ -346,10 +358,22 @@ def backfill_source_tags(
         stmt = stmt.where(item_time <= end_dt)
     items = list(db.scalars(stmt))
     inserted = 0
+    material_inserted = 0
     for item in items:
         inserted += persist_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id, overwrite=overwrite)
+        material_inserted += create_pending_materials_for_source_item(
+            db,
+            item.id,
+            [tag_id] if tag_id is not None else None,
+        )
     db.commit()
-    return JobResult(success=True, message=f"backfilled {inserted} source tags", processed_count=len(items), inserted_count=inserted)
+    return JobResult(
+        success=True,
+        message=f"backfilled {inserted} source tags and {material_inserted} track materials",
+        processed_count=len(items),
+        inserted_count=inserted,
+        extra={"track_material_inserted_count": material_inserted},
+    )
 
 
 def extract_tags(db: Session) -> JobResult:
@@ -535,6 +559,7 @@ def approve_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion, payload:
 
 def reject_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion) -> AiTagSuggestion:
     suggestion.status = "rejected"
+    suggestion.rejected_count = int(suggestion.rejected_count or 0) + 1
     db.commit()
     db.refresh(suggestion)
     return suggestion

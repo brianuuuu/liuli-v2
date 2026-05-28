@@ -1,57 +1,43 @@
 import type {
-  Track,
-  TrackEvidence,
-  TrackRelatedStock,
-  TrackThesis,
-  TrackValidationIndicator,
   StockTrackRelation,
-  TagBinding
+  TagBinding,
+  Track,
+  TrackAnalysisSnapshot,
+  TrackMaterial
 } from "../types/api";
 import { apiClient } from "./client";
-
-export type TrackThesisPayload = {
-  title: string;
-  core_thesis: string;
-  underlying_change?: string | null;
-  old_bottleneck?: string | null;
-  new_solution?: string | null;
-  value_chain_shift?: string | null;
-  time_horizon?: string | null;
-  confidence_level?: string | null;
-  status?: string;
-};
 
 export type TrackPayload = {
   name: string;
   description?: string | null;
   status?: string;
+  track_score?: number | null;
+  current_view?: string | null;
+  stage?: string | null;
+  confidence_level?: string | null;
 };
 
-export type TrackIndicatorPayload = {
-  name: string;
-  indicator_type?: string | null;
-  data_source?: string | null;
-  current_value?: string | null;
+export type TrackMaterialPayload = {
+  material_type: "source_item" | "knowledge_note";
+  material_id: number;
   direction?: string | null;
-  validation_meaning?: string | null;
-};
-
-export type TrackEvidencePayload = {
-  source_item_id?: number | null;
-  evidence_direction: string;
-  evidence_strength?: number;
-  summary?: string | null;
-  affected_segments?: string | null;
-  related_stock_ids?: string | null;
-};
-
-export type TrackRelatedStockPayload = {
-  stock_id: number;
-  role?: string | null;
-  relevance_score?: number;
-  evidence_count?: number;
-  heat_score?: number;
+  importance_level?: string | null;
   status?: string;
+  note?: string | null;
+};
+
+export type TrackAnalysisSnapshotPayload = {
+  analysis_date: string;
+  market_space?: string | null;
+  market_size?: string | null;
+  growth_rate?: string | null;
+  heat_summary?: string | null;
+  ai_summary?: string | null;
+  opportunity_points?: string | null;
+  risk_points?: string | null;
+  watch_signals?: string | null;
+  score?: number | null;
+  confidence_level?: string | null;
 };
 
 export type TrackTagStockBindingPayload = {
@@ -94,51 +80,38 @@ export async function deleteTrack(trackId: number): Promise<void> {
   await apiClient.delete(`/api/track-discovery/tracks/${trackId}`);
 }
 
-export async function changeTrackStatus(trackId: number, newStatus: string, reason?: string | null): Promise<Track> {
+export async function changeTrackStatus(trackId: number, newStatus: string, reason?: string | null, newStage?: string | null): Promise<Track> {
   const response = await apiClient.post<Track>(`/api/track-discovery/tracks/${trackId}/status`, {
     new_status: newStatus,
-    reason: reason || null
+    new_stage: newStage || null,
+    reason: reason || null,
+    changed_by: "manual"
   });
   return response.data;
 }
 
-export async function listTrackTheses(trackId: number): Promise<TrackThesis[]> {
-  const response = await apiClient.get<TrackThesis[]>(`/api/track-discovery/tracks/${trackId}/theses`);
+export async function listTrackMaterials(trackId: number): Promise<TrackMaterial[]> {
+  const response = await apiClient.get<TrackMaterial[]>(`/api/track-discovery/tracks/${trackId}/materials`);
   return response.data;
 }
 
-export async function createTrackThesis(trackId: number, payload: TrackThesisPayload): Promise<TrackThesis> {
-  const response = await apiClient.post<TrackThesis>(`/api/track-discovery/tracks/${trackId}/theses`, payload);
+export async function createTrackMaterial(trackId: number, payload: TrackMaterialPayload): Promise<TrackMaterial> {
+  const response = await apiClient.post<TrackMaterial>(`/api/track-discovery/tracks/${trackId}/materials`, payload);
   return response.data;
 }
 
-export async function listTrackIndicators(trackId: number): Promise<TrackValidationIndicator[]> {
-  const response = await apiClient.get<TrackValidationIndicator[]>(`/api/track-discovery/tracks/${trackId}/indicators`);
+export async function updateTrackMaterial(materialId: number, payload: Partial<TrackMaterialPayload>): Promise<TrackMaterial> {
+  const response = await apiClient.put<TrackMaterial>(`/api/track-discovery/tracks/materials/${materialId}`, payload);
   return response.data;
 }
 
-export async function createTrackIndicator(trackId: number, payload: TrackIndicatorPayload): Promise<TrackValidationIndicator> {
-  const response = await apiClient.post<TrackValidationIndicator>(`/api/track-discovery/tracks/${trackId}/indicators`, payload);
+export async function listTrackAnalysisSnapshots(trackId: number): Promise<TrackAnalysisSnapshot[]> {
+  const response = await apiClient.get<TrackAnalysisSnapshot[]>(`/api/track-discovery/tracks/${trackId}/analysis-snapshots`);
   return response.data;
 }
 
-export async function listTrackEvidence(trackId: number): Promise<TrackEvidence[]> {
-  const response = await apiClient.get<TrackEvidence[]>(`/api/track-discovery/tracks/${trackId}/evidence`);
-  return response.data;
-}
-
-export async function createTrackEvidence(trackId: number, payload: TrackEvidencePayload): Promise<TrackEvidence> {
-  const response = await apiClient.post<TrackEvidence>(`/api/track-discovery/tracks/${trackId}/evidence`, payload);
-  return response.data;
-}
-
-export async function listTrackRelatedStocks(trackId: number): Promise<TrackRelatedStock[]> {
-  const response = await apiClient.get<TrackRelatedStock[]>(`/api/track-discovery/tracks/${trackId}/related-stocks`);
-  return response.data;
-}
-
-export async function createTrackRelatedStock(trackId: number, payload: TrackRelatedStockPayload): Promise<TrackRelatedStock> {
-  const response = await apiClient.post<TrackRelatedStock>(`/api/track-discovery/tracks/${trackId}/related-stocks`, payload);
+export async function createTrackAnalysisSnapshot(trackId: number, payload: TrackAnalysisSnapshotPayload): Promise<TrackAnalysisSnapshot> {
+  const response = await apiClient.post<TrackAnalysisSnapshot>(`/api/track-discovery/tracks/${trackId}/analysis-snapshots`, payload);
   return response.data;
 }
 

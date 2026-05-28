@@ -1,18 +1,58 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+MATERIAL_TYPES = {"source_item", "knowledge_note"}
+MATERIAL_DIRECTIONS = {"support", "weaken", "neutral", "noise"}
+MATERIAL_IMPORTANCE = {"high", "medium", "low"}
+MATERIAL_STATUSES = {"pending", "confirmed", "ignored"}
+TRACK_STAGES = {"concept", "validate", "growth", "overheat", "decline"}
+CONFIDENCE_LEVELS = {"low", "medium", "high"}
 
 
 class TrackCreate(BaseModel):
     name: str
     description: str | None = None
     status: str = "candidate"
+    track_score: float | None = None
+    current_view: str | None = None
+    stage: str | None = None
+    confidence_level: str | None = None
+
+    @field_validator("stage")
+    @classmethod
+    def validate_stage(cls, value: str | None) -> str | None:
+        if value is not None and value not in TRACK_STAGES:
+            raise ValueError("stage must be concept, validate, growth, overheat, or decline")
+        return value
+
+    @field_validator("confidence_level")
+    @classmethod
+    def validate_confidence_level(cls, value: str | None) -> str | None:
+        if value is not None and value not in CONFIDENCE_LEVELS:
+            raise ValueError("confidence_level must be low, medium, or high")
+        return value
 
 
 class TrackUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
+    track_score: float | None = None
+    current_view: str | None = None
+    stage: str | None = None
+    confidence_level: str | None = None
+
+    @field_validator("stage")
+    @classmethod
+    def validate_stage(cls, value: str | None) -> str | None:
+        return TrackCreate.validate_stage(value)
+
+    @field_validator("confidence_level")
+    @classmethod
+    def validate_confidence_level(cls, value: str | None) -> str | None:
+        return TrackCreate.validate_confidence_level(value)
 
 
 class TrackRead(TrackCreate):
@@ -24,89 +64,75 @@ class TrackRead(TrackCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TrackThesisCreate(BaseModel):
-    title: str
-    core_thesis: str
-    underlying_change: str | None = None
-    old_bottleneck: str | None = None
-    new_solution: str | None = None
-    value_chain_shift: str | None = None
-    time_horizon: str | None = None
-    confidence_level: str | None = None
-    status: str = "watching"
-
-
-class TrackThesisUpdate(BaseModel):
-    title: str | None = None
-    core_thesis: str | None = None
-    underlying_change: str | None = None
-    old_bottleneck: str | None = None
-    new_solution: str | None = None
-    value_chain_shift: str | None = None
-    time_horizon: str | None = None
-    confidence_level: str | None = None
-    status: str | None = None
-
-
-class TrackThesisRead(TrackThesisCreate):
-    id: int
-    track_id: int
-    user_id: int | None = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TrackValidationIndicatorCreate(BaseModel):
-    name: str
-    indicator_type: str | None = None
-    data_source: str | None = None
-    current_value: str | None = None
+class TrackMaterialCreate(BaseModel):
+    material_type: str
+    material_id: int
     direction: str | None = None
-    validation_meaning: str | None = None
+    importance_level: str | None = None
+    status: str = "pending"
+    note: str | None = None
+
+    @field_validator("material_type")
+    @classmethod
+    def validate_material_type(cls, value: str) -> str:
+        if value not in MATERIAL_TYPES:
+            raise ValueError("material_type must be source_item or knowledge_note")
+        return value
+
+    @field_validator("direction")
+    @classmethod
+    def validate_direction(cls, value: str | None) -> str | None:
+        if value is not None and value not in MATERIAL_DIRECTIONS:
+            raise ValueError("direction must be support, weaken, neutral, or noise")
+        return value
+
+    @field_validator("importance_level")
+    @classmethod
+    def validate_importance_level(cls, value: str | None) -> str | None:
+        if value is not None and value not in MATERIAL_IMPORTANCE:
+            raise ValueError("importance_level must be high, medium, or low")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in MATERIAL_STATUSES:
+            raise ValueError("status must be pending, confirmed, or ignored")
+        return value
 
 
-class TrackValidationIndicatorRead(TrackValidationIndicatorCreate):
+class TrackMaterialUpdate(BaseModel):
+    direction: str | None = None
+    importance_level: str | None = None
+    status: str | None = None
+    note: str | None = None
+
+    @field_validator("direction")
+    @classmethod
+    def validate_direction(cls, value: str | None) -> str | None:
+        return TrackMaterialCreate.validate_direction(value)
+
+    @field_validator("importance_level")
+    @classmethod
+    def validate_importance_level(cls, value: str | None) -> str | None:
+        return TrackMaterialCreate.validate_importance_level(value)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None:
+            TrackMaterialCreate.validate_status(value)
+        return value
+
+
+class TrackMaterialRead(TrackMaterialCreate):
     id: int
     track_id: int
-    thesis_id: int | None = None
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TrackEvidenceCreate(BaseModel):
-    source_item_id: int | None = None
-    evidence_direction: str
-    evidence_strength: float = 0
-    summary: str | None = None
-    affected_segments: str | None = None
-    related_stock_ids: str | None = None
-
-
-class TrackEvidenceRead(TrackEvidenceCreate):
-    id: int
-    track_id: int
-    thesis_id: int | None = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TrackRelatedStockCreate(BaseModel):
-    stock_id: int
-    role: str | None = None
-    relevance_score: float = 0
-    evidence_count: int = 0
-    heat_score: float = 0
-    status: str = "candidate"
-
-
-class TrackRelatedStockRead(TrackRelatedStockCreate):
-    id: int
-    track_id: int
-    thesis_id: int | None = None
+    material_title: str | None = None
+    material_summary: str | None = None
+    material_source_name: str | None = None
+    material_url: str | None = None
+    material_time: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -115,16 +141,52 @@ class TrackRelatedStockRead(TrackRelatedStockCreate):
 
 class TrackStatusChange(BaseModel):
     new_status: str
+    new_stage: str | None = None
     reason: str | None = None
+    changed_by: str = "manual"
+
+    @field_validator("new_stage")
+    @classmethod
+    def validate_new_stage(cls, value: str | None) -> str | None:
+        return TrackCreate.validate_stage(value)
 
 
 class TrackStatusHistoryRead(BaseModel):
     id: int
     track_id: int
-    thesis_id: int | None = None
     old_status: str | None = None
     new_status: str
+    old_stage: str | None = None
+    new_stage: str | None = None
     reason: str | None = None
+    changed_by: str
     changed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrackAnalysisSnapshotCreate(BaseModel):
+    analysis_date: date
+    market_space: str | None = None
+    market_size: str | None = None
+    growth_rate: str | None = None
+    heat_summary: str | None = None
+    ai_summary: str | None = None
+    opportunity_points: str | None = None
+    risk_points: str | None = None
+    watch_signals: str | None = None
+    score: float | None = None
+    confidence_level: str | None = None
+
+    @field_validator("confidence_level")
+    @classmethod
+    def validate_confidence_level(cls, value: str | None) -> str | None:
+        return TrackCreate.validate_confidence_level(value)
+
+
+class TrackAnalysisSnapshotRead(TrackAnalysisSnapshotCreate):
+    id: int
+    track_id: int
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

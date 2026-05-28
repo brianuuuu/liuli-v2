@@ -242,7 +242,7 @@ def _normalized_existing_hotword_names(db) -> set[str]:
     }
     suggestions = {
         str(name).strip().casefold()
-        for name in db.scalars(select(AiTagSuggestion.suggested_text).where(AiTagSuggestion.status != "rejected"))
+        for name in db.scalars(select(AiTagSuggestion.suggested_text))
         if str(name).strip()
     }
     return tag_names | track_names | stock_names | hotword_names | suggestions
@@ -329,6 +329,12 @@ def _suggest_hotword_merges(db, candidates: list[dict], model: str) -> dict[str,
 
 def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
     existing = _normalized_existing_hotword_names(db)
+    rejected_suggestions = {
+        suggestion.suggested_text.strip().casefold(): suggestion
+        for suggestion in db.scalars(select(AiTagSuggestion).where(AiTagSuggestion.status == "rejected"))
+        if suggestion.suggested_text.strip()
+    }
+    bumped_rejected_count = 0
     payloads: list[dict] = []
     for item in hotwords:
         name = str(item.get("name") or "").strip()
@@ -336,6 +342,10 @@ def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
             continue
         key = name.casefold()
         if key in existing:
+            suggestion = rejected_suggestions.get(key)
+            if suggestion is not None:
+                suggestion.rejected_count = int(suggestion.rejected_count or 0) + 1
+                bumped_rejected_count += 1
             continue
         score = _normalize_score(item.get("score"))
         reason = str(item.get("reason") or "").strip()
@@ -347,6 +357,8 @@ def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
             }
         )
         existing.add(key)
+    if bumped_rejected_count:
+        db.commit()
     return payloads
 
 

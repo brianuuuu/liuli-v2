@@ -1,6 +1,6 @@
 import { Col, Row, Space, Statistic } from "antd";
 import { useCallback } from "react";
-import { getMarketOverview, listAiTagSuggestions, listMarketTags, listRankings, listSourceItems } from "../../../api/marketRadar";
+import { getMarketOverview, listAiTagSuggestions, listMarketTags, listRankings } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
@@ -31,7 +31,6 @@ export function OverviewSection() {
   const hotwords = useAsyncData(useCallback(() => listRankings("hotword", "24h"), []), []);
   const tracks = useAsyncData(useCallback(() => listRankings("track", "24h"), []), []);
   const stocks = useAsyncData(useCallback(() => listRankings("stock", "24h"), []), []);
-  const sources = useAsyncData(useCallback(listSourceItems, []), []);
   const tags = useAsyncData(useCallback(listMarketTags, []), []);
   const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
 
@@ -45,7 +44,7 @@ export function OverviewSection() {
       <Row gutter={[10, 10]} className="metric-grid-row">
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="市场信号" value={overview.data.source_items || sources.data.length} loading={overview.loading || sources.loading} />
+            <Statistic title="市场信号" value={overview.data.source_items} loading={overview.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>

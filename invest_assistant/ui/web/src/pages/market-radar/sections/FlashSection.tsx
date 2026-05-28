@@ -1,11 +1,11 @@
 import { ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Drawer, Input, Select, Space, Tag, Typography, message } from "antd";
-import { useCallback, useMemo, useState } from "react";
-import { listSourceItems, syncClsMarketFlashes } from "../../../api/marketRadar";
+import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { listSourceItems, syncClsMarketFlashes, syncFutuMarketFlashes } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { SourceItem } from "../../../types/api";
 import { filterFlashRows } from "./flashFilters";
+import { FLASH_PAGE_SIZE, shouldLoadNextFlashPage } from "./flashPagination";
 import { formatTime } from "./shared";
 
 const flashTypes = new Set(["news", "policy", "sentiment", "announcement", "financial"]);
@@ -38,23 +38,58 @@ function dotClass(item: SourceItem) {
 }
 
 export function FlashSection() {
-  const sources = useAsyncData(useCallback(listSourceItems, []), []);
+  const [sourceItems, setSourceItems] = useState<SourceItem[]>([]);
+  const [loadingSources, setLoadingSources] = useState(true);
+  const [loadingMoreSources, setLoadingMoreSources] = useState(false);
+  const [hasMoreSources, setHasMoreSources] = useState(true);
   const [keyword, setKeyword] = useState("");
   const [sourceName, setSourceName] = useState<string | undefined>();
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [importantOnly, setImportantOnly] = useState(false);
   const [activeTagId, setActiveTagId] = useState<number | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  const [syncingCls, setSyncingCls] = useState(false);
+  const [syncingFutu, setSyncingFutu] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
 
+  const loadSourcePage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) {
+      setLoadingSources(true);
+    } else {
+      setLoadingMoreSources(true);
+    }
+    try {
+      const nextItems = await listSourceItems({ limit: FLASH_PAGE_SIZE, offset });
+      setHasMoreSources(nextItems.length === FLASH_PAGE_SIZE);
+      setSourceItems((currentItems) => {
+        if (replace) return nextItems;
+        const seenIds = new Set(currentItems.map((item) => item.id));
+        return [...currentItems, ...nextItems.filter((item) => !seenIds.has(item.id))];
+      });
+    } finally {
+      if (replace) {
+        setLoadingSources(false);
+      } else {
+        setLoadingMoreSources(false);
+      }
+    }
+  }, []);
+
+  const refreshFirstPage = useCallback(async () => {
+    await loadSourcePage(0, true);
+  }, [loadSourcePage]);
+
+  useEffect(() => {
+    void refreshFirstPage();
+  }, [refreshFirstPage]);
+
   const sourceOptions = useMemo(() => {
-    const names = Array.from(new Set(sources.data.map((item) => item.source_name).filter(Boolean))).sort();
+    const names = Array.from(new Set(sourceItems.map((item) => item.source_name).filter(Boolean))).sort();
     return names.map((name) => ({ value: name, label: name }));
-  }, [sources.data]);
+  }, [sourceItems]);
 
   const rows = useMemo(() => {
     const query = keyword.trim().toLowerCase();
-    const filteredRows = sources.data
+    const filteredRows = sourceItems
       .filter((item) => flashTypes.has(item.source_type))
       .filter((item) => !sourceName || item.source_name === sourceName)
       .filter((item) => !sourceType || item.source_type === sourceType)
@@ -63,7 +98,7 @@ export function FlashSection() {
       .sort((a, b) => String(b.publish_time || b.created_at || "").localeCompare(String(a.publish_time || a.created_at || "")));
 
     return filterFlashRows(filteredRows, { activeTagId });
-  }, [activeTagId, importantOnly, keyword, sourceName, sourceType, sources.data]);
+  }, [activeTagId, importantOnly, keyword, sourceItems, sourceName, sourceType]);
 
   const feedItems = useMemo(() => {
     const result: Array<{ type: "date"; date: string; key: string } | { type: "flash"; item: SourceItem; key: string }> = [];
@@ -80,7 +115,7 @@ export function FlashSection() {
   }, [rows]);
 
   async function syncCls() {
-    setSyncing(true);
+    setSyncingCls(true);
     try {
       const result = await syncClsMarketFlashes(100);
       if (!result.success) {
@@ -88,9 +123,20 @@ export function FlashSection() {
         return;
       }
       message.success(`新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条`);
-      await sources.refresh();
+      await refreshFirstPage();
     } finally {
-      setSyncing(false);
+      setSyncingCls(false);
+    }
+  }
+
+  async function syncFutu() {
+    setSyncingFutu(true);
+    try {
+      await syncFutuMarketFlashes(100);
+      message.success("已提交富途同步任务");
+      await refreshFirstPage();
+    } finally {
+      setSyncingFutu(false);
     }
   }
 
@@ -106,83 +152,100 @@ export function FlashSection() {
     setActiveTagId((current) => (current === tagId ? null : tagId));
   }
 
+  function handleFlashScroll(event: UIEvent<HTMLDivElement>) {
+    if (loadingSources || loadingMoreSources || !hasMoreSources) return;
+    const target = event.currentTarget;
+    if (!shouldLoadNextFlashPage(target)) return;
+    void loadSourcePage(sourceItems.length, false);
+  }
+
   return (
     <>
       <div className="flash-layout">
-        <section className="flash-feed-panel">
-          <div className="flash-toolbar">
-            <div className="flash-toolbar-left">
-              <button className={!importantOnly ? "flash-segment active" : "flash-segment"} onClick={() => setImportantOnly(false)}>
-                全部
-              </button>
-              <button className={importantOnly ? "flash-segment active important" : "flash-segment"} onClick={() => setImportantOnly(true)}>
-                重要
-              </button>
+        <div className="flash-content-column">
+          <section className="flash-feed-panel">
+            <div className="flash-command-bar">
+              <div className="flash-command-primary">
+                <div className="flash-toolbar-left" aria-label="快讯重要性筛选">
+                  <button className={!importantOnly ? "flash-segment active" : "flash-segment"} onClick={() => setImportantOnly(false)}>
+                    全部
+                  </button>
+                  <button className={importantOnly ? "flash-segment active important" : "flash-segment"} onClick={() => setImportantOnly(true)}>
+                    重要
+                  </button>
+                </div>
+                <div className="flash-command-summary">
+                  <span>{rows.length} 条信息流</span>
+                  {activeTagId ? <span>已按标签筛选</span> : null}
+                </div>
+              </div>
+              <Space className="flash-command-actions" size={8}>
+                <Button size="small" icon={<SyncOutlined />} loading={syncingCls} onClick={syncCls}>同步财联社</Button>
+                <Button size="small" icon={<SyncOutlined />} loading={syncingFutu} onClick={syncFutu}>同步富途</Button>
+                <Button size="small" icon={<ReloadOutlined />} loading={loadingSources} onClick={refreshFirstPage}>刷新</Button>
+              </Space>
             </div>
-            <Space>
-              <Button size="small" icon={<SyncOutlined />} loading={syncing} onClick={syncCls}>同步财联社</Button>
-              <Button size="small" icon={<ReloadOutlined />} onClick={() => sources.refresh()}>刷新</Button>
-            </Space>
-          </div>
-
-          <div className="flash-scroll">
-            <div className="flash-feed">
-              {feedItems.map((entry) => {
-                if (entry.type === "date") {
+            <div className="flash-scroll" onScroll={handleFlashScroll}>
+              <div className="flash-feed">
+                {feedItems.map((entry) => {
+                  if (entry.type === "date") {
+                    return (
+                      <div className="flash-date-row" key={entry.key}>
+                        <span className="flash-rail-line" />
+                        <div className="flash-date-label">{entry.date}</div>
+                      </div>
+                    );
+                  }
+                  const item = entry.item;
+                  const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter(Boolean).slice(0, 8);
                   return (
-                    <div className="flash-date-row" key={entry.key}>
-                      <span className="flash-rail-line" />
-                      <div className="flash-date-label">{entry.date}</div>
-                    </div>
+                    <article className="flash-row" key={entry.key}>
+                      <div className="flash-rail">
+                        <span className="flash-rail-line" />
+                        <span className={dotClass(item)} />
+                      </div>
+                      <button className="flash-line" onClick={() => setDetail(item)}>
+                        <div className="flash-line-head">
+                          <span className="flash-time">{formatTime(item.publish_time)}</span>
+                          <span>{item.source_name}</span>
+                          <span>{item.source_type}</span>
+                          {isImportantFlash(item) ? <Tag color="orange">重要</Tag> : null}
+                        </div>
+                        <div className="flash-title">{item.title}</div>
+                        <div className="flash-content">{item.content}</div>
+                        <div className="flash-tags">
+                          {itemTags.length ? itemTags.map((tag) => (
+                            <Tag
+                              className={activeTagId === tag.id ? "flash-tag active" : "flash-tag"}
+                              key={tag.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleTagFilter(tag.id);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleTagFilter(tag.id);
+                              }}
+                            >
+                              {tag.name}
+                            </Tag>
+                          )) : <span>暂无命中标签</span>}
+                        </div>
+                      </button>
+                    </article>
                   );
-                }
-                const item = entry.item;
-                const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter(Boolean).slice(0, 8);
-                return (
-                  <article className="flash-row" key={entry.key}>
-                    <div className="flash-rail">
-                      <span className="flash-rail-line" />
-                      <span className={dotClass(item)} />
-                    </div>
-                    <button className="flash-line" onClick={() => setDetail(item)}>
-                      <div className="flash-line-head">
-                        <span className="flash-time">{formatTime(item.publish_time)}</span>
-                        <span>{item.source_name}</span>
-                        <span>{item.source_type}</span>
-                        {isImportantFlash(item) ? <Tag color="orange">重要</Tag> : null}
-                      </div>
-                      <div className="flash-title">{item.title}</div>
-                      <div className="flash-content">{item.content}</div>
-                      <div className="flash-tags">
-                        {itemTags.length ? itemTags.map((tag) => (
-                          <Tag
-                            className={activeTagId === tag.id ? "flash-tag active" : "flash-tag"}
-                            key={tag.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleTagFilter(tag.id);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter" && event.key !== " ") return;
-                              event.preventDefault();
-                              event.stopPropagation();
-                              toggleTagFilter(tag.id);
-                            }}
-                          >
-                            {tag.name}
-                          </Tag>
-                        )) : <span>暂无命中标签</span>}
-                      </div>
-                    </button>
-                  </article>
-                );
-              })}
-              {!sources.loading && feedItems.length === 0 ? <EmptyAction description="暂无快讯，可同步财联社或调整筛选条件" /> : null}
+                })}
+                {!loadingSources && feedItems.length === 0 ? <EmptyAction description="暂无快讯，可同步财联社或调整筛选条件" /> : null}
+                {loadingMoreSources ? <div className="flash-load-more">加载更多信息流...</div> : null}
+                {!hasMoreSources && feedItems.length > 0 ? <div className="flash-load-more">已加载全部信息流</div> : null}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <aside className="flash-filter-panel">
           <Typography.Title level={5}>筛选</Typography.Title>

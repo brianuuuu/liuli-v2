@@ -103,9 +103,9 @@ def to_source_item(disclosure_id: int, db: Session = Depends(get_db)):
     return service.disclosure_to_source_item(db, item)
 
 
-@router.post("/{disclosure_id}/to-track-evidence")
-def to_track_evidence(disclosure_id: int) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="track discovery integration is not implemented in phase 1")
+@router.post("/{disclosure_id}/to-track-material")
+def to_track_material(disclosure_id: int) -> dict[str, str]:
+    raise HTTPException(status_code=501, detail="track material integration is not implemented in phase 1")
 
 
 @router.post("/{disclosure_id}/to-stock-analysis")
