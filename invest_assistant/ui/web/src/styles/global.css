@@ -504,9 +504,17 @@ body {
   background: var(--ll-panel);
 }
 
-/* Toolbar controls: ghost-style selects */
+.data-panel-toolbar,
+.data-panel-toolbar .ant-segmented-item,
+.data-panel-toolbar .ant-segmented-item-label,
+.data-panel-toolbar input,
 .data-panel-toolbar .ant-select,
-.data-panel-toolbar .ant-select-selection-item {
+.data-panel-toolbar .ant-select-selector,
+.data-panel-toolbar .ant-select-selection-item,
+.data-panel-toolbar .ant-select-selection-placeholder,
+.data-panel-toolbar .ant-btn,
+.data-panel-toolbar span,
+.data-panel-toolbar strong {
   font-size: 13px !important;
   font-family: inherit !important;
 }

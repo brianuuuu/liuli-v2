@@ -94,6 +94,16 @@ export function JobsSection() {
     editForm.setFieldsValue(editInitialValues);
   }, [editForm, editInitialValues, editOpen, selectedJob]);
 
+  const jobMap = useMemo(() => {
+    const map = new Map<string, string>();
+    jobs.data.forEach((job) => {
+      if (job.display_name) {
+        map.set(job.job_name, job.display_name);
+      }
+    });
+    return map;
+  }, [jobs.data]);
+
   const requestRows = useMemo(
     () => logDrawerMode === "all" ? requests.data : requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
     [logDrawerMode, requests.data, selectedJob]
@@ -401,7 +411,7 @@ export function JobsSection() {
           />
           <div className="data-panel-toolbar-spacer" />
           <span style={{ fontSize: "13px", color: "var(--ll-muted)", whiteSpace: "nowrap" }}>
-            最近运行: <span style={{ fontWeight: 600, color: "var(--ll-text)" }}>{jobSummary.lastRun}</span>
+            最近运行: <span style={{ color: "var(--ll-text)" }}>{jobSummary.lastRun}</span>
           </span>
           <div className="data-panel-toolbar-divider" />
           <Button size="small" onClick={sync}>同步任务定义</Button>
@@ -648,12 +658,12 @@ export function JobsSection() {
             {
               key: "requests",
               label: "运行请求",
-              children: <JobRequestEventList rows={requestRows} loading={requests.loading} />
+              children: <JobRequestEventList rows={requestRows} loading={requests.loading} jobMap={jobMap} />
             },
             {
               key: "logs",
               label: "执行日志",
-              children: <JobLogEventList rows={logDrawerMode === "all" ? allLogs : logs} loading={logsLoading} />
+              children: <JobLogEventList rows={logDrawerMode === "all" ? allLogs : logs} loading={logsLoading} jobMap={jobMap} />
             }
           ]}
         />

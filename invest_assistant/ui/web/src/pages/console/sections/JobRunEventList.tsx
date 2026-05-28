@@ -22,7 +22,15 @@ function JsonBlock({ title, value }: { title: string; value?: string | null }) {
   );
 }
 
-export function JobRequestEventList({ rows, loading }: { rows: JobRunRequest[]; loading: boolean }) {
+export function JobRequestEventList({
+  rows,
+  loading,
+  jobMap
+}: {
+  rows: JobRunRequest[];
+  loading: boolean;
+  jobMap?: Map<string, string>;
+}) {
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (loading) return <EmptyAction description="正在加载运行请求" />;
@@ -32,24 +40,24 @@ export function JobRequestEventList({ rows, loading }: { rows: JobRunRequest[]; 
     <div className="job-run-list">
       {rows.map((row) => {
         const open = openId === row.id;
+        const displayName = jobMap?.get(row.job_name) || row.job_name;
         return (
           <button className={open ? "job-run-event open" : "job-run-event"} key={row.id} onClick={() => setOpenId(open ? null : row.id)}>
             <span className={`job-run-dot ${statusClass(row.status)}`} />
             <div className="job-run-main">
               <div className="job-run-head">
-                <strong>请求 #{row.id}</strong>
+                <strong>请求 #{row.id} - {displayName}</strong>
                 <Tag color={jobStatusColor(row.status)}>{row.status}</Tag>
               </div>
               <div className="job-run-sub">{row.job_name}</div>
               <div className="job-run-meta">
                 <span>请求时间</span><strong>{formatTime(row.requested_at)}</strong>
-                <span>请求人</span><strong>{row.requested_by || "-"}</strong>
               </div>
               {row.error_message ? <div className="job-run-error">{row.error_message}</div> : null}
               {open ? (
                 <div className="job-run-detail">
-                  <div><span>开始</span><strong>{formatTime(row.started_at)}</strong></div>
-                  <div><span>结束</span><strong>{formatTime(row.finished_at)}</strong></div>
+                  <span>开始</span><strong>{formatTime(row.started_at)}</strong>
+                  <span>结束</span><strong>{formatTime(row.finished_at)}</strong>
                   <JsonBlock title="params_json" value={row.params_json} />
                 </div>
               ) : null}
@@ -61,7 +69,15 @@ export function JobRequestEventList({ rows, loading }: { rows: JobRunRequest[]; 
   );
 }
 
-export function JobLogEventList({ rows, loading }: { rows: JobRunLog[]; loading: boolean }) {
+export function JobLogEventList({
+  rows,
+  loading,
+  jobMap
+}: {
+  rows: JobRunLog[];
+  loading: boolean;
+  jobMap?: Map<string, string>;
+}) {
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (loading) return <EmptyAction description="正在加载执行日志" />;
@@ -71,15 +87,16 @@ export function JobLogEventList({ rows, loading }: { rows: JobRunLog[]; loading:
     <div className="job-run-list">
       {rows.map((row) => {
         const open = openId === row.id;
+        const displayName = jobMap?.get(row.job_name) || row.job_name;
         return (
           <button className={open ? "job-run-event open" : "job-run-event"} key={row.id} onClick={() => setOpenId(open ? null : row.id)}>
             <span className={`job-run-dot ${statusClass(row.status)}`} />
             <div className="job-run-main">
               <div className="job-run-head">
-                <strong>日志 #{row.id}</strong>
+                <strong>日志 #{row.id} - {displayName}</strong>
                 <Tag color={jobStatusColor(row.status)}>{row.status}</Tag>
               </div>
-              <div className="job-run-sub">{formatTime(row.started_at)} / {row.duration_ms} ms</div>
+              <div className="job-run-sub">{row.job_name} | {formatTime(row.started_at)} / {row.duration_ms} ms</div>
               <div className="job-run-metrics">
                 <span>抓取 {row.fetched_count}</span>
                 <span>处理 {row.processed_count}</span>
@@ -89,10 +106,9 @@ export function JobLogEventList({ rows, loading }: { rows: JobRunLog[]; loading:
               {row.error_message ? <div className="job-run-error">{row.error_message}</div> : null}
               {open ? (
                 <div className="job-run-detail">
-                  <div><span>任务</span><strong>{row.job_name}</strong></div>
-                  <div><span>模块</span><strong>{row.module_name}</strong></div>
-                  <div><span>触发</span><strong>{row.trigger_type}</strong></div>
-                  <div><span>结束</span><strong>{formatTime(row.finished_at)}</strong></div>
+                  <span>任务</span><strong>{row.job_name}</strong>
+                  <span>触发</span><strong>{row.trigger_type}</strong>
+                  <span>结束</span><strong>{formatTime(row.finished_at)}</strong>
                   <JsonBlock title="params_json" value={row.params_json} />
                   <JsonBlock title="result_json" value={row.result_json} />
                   <JsonBlock title="error_message" value={row.error_message} />
