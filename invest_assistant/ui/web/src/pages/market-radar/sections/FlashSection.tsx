@@ -175,7 +175,6 @@ export function FlashSection() {
                   </button>
                 </div>
                 <div className="flash-command-summary">
-                  <span>{rows.length} 条信息流</span>
                   {activeTagId ? <span>已按标签筛选</span> : null}
                 </div>
               </div>
