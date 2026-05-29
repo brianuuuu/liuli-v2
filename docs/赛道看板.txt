@@ -1,1 +1,0 @@
-参考这张图的视觉风格和布局，生成琉璃项目“赛道看板”页面。不要切图，不要用图片当背景。用 React + Ant Design + ECharts 实现真实网页组件。页面结构为：左侧一级菜单、顶部标题、赛道发现二级 Tabs、顶部指标卡、赛道热度趋势图、今日赛道热度榜、重点赛道卡片、最新赛道动态、AI 赛道分析摘要。数据模型按 track、track_tag_relation、stock_track_relation、track_material、track_analysis_snapshot、tag_heat_snapshot 聚合实现，不使用 track_related_stock、track_thesis、track_evidence。
