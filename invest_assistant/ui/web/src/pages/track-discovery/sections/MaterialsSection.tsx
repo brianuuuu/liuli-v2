@@ -103,8 +103,23 @@ export function MaterialsSection() {
     return true;
   }, [selectedDate, directionFilter, typeFilter, timeFilter]);
 
-  const filteredVisible = useMemo(() => visibleMaterials.filter(filterItem), [visibleMaterials, filterItem]);
-  const filteredPending = useMemo(() => pendingRows.filter(filterItem), [pendingRows, filterItem]);
+  const filteredVisible = useMemo(() => {
+    const list = visibleMaterials.filter(filterItem);
+    return list.sort((a, b) => {
+      const timeA = a.material_time || a.created_at || "";
+      const timeB = b.material_time || b.created_at || "";
+      return timeB.localeCompare(timeA);
+    });
+  }, [visibleMaterials, filterItem]);
+
+  const filteredPending = useMemo(() => {
+    const list = pendingRows.filter(filterItem);
+    return list.sort((a, b) => {
+      const timeA = a.material_time || a.created_at || "";
+      const timeB = b.material_time || b.created_at || "";
+      return timeB.localeCompare(timeA);
+    });
+  }, [pendingRows, filterItem]);
 
   // Statistics
   const stats = useMemo(() => {
