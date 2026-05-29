@@ -41,6 +41,7 @@ export function MaterialsSection() {
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [editingMaterial, setEditingMaterial] = useState<ExtendedTrackMaterial | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [form] = Form.useForm<MaterialFormValues>();
 
   // Fetch materials dynamically based on selected trackId (or fetch all in parallel if undefined)
@@ -230,6 +231,7 @@ export function MaterialsSection() {
   function openCreateDrawer() {
     setDrawerMode("create");
     setEditingMaterial(null);
+    setIsSummaryExpanded(false);
     form.resetFields();
     form.setFieldsValue({ material_type: "source_item", status: "confirmed" });
     setDrawerOpen(true);
@@ -238,6 +240,7 @@ export function MaterialsSection() {
   function openEditDrawer(record: ExtendedTrackMaterial) {
     setDrawerMode("edit");
     setEditingMaterial(record);
+    setIsSummaryExpanded(false);
     form.resetFields();
     form.setFieldsValue({
       material_type: record.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
@@ -298,10 +301,26 @@ export function MaterialsSection() {
   }
 
   function renderMaterialReference(item: ExtendedTrackMaterial) {
+    const fullText = String(item.material_summary || item.material_title || item.note || "暂无材料摘要").trim();
+    const isLongText = fullText.length > 96;
+
     return (
       <div className="track-material-reference">
         <div className="track-material-reference-title">{item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}</div>
-        <div className="track-material-reference-summary">{compactMaterialSummary(item, 96)}</div>
+        {isLongText ? (
+          <div
+            className="track-material-reference-summary"
+            style={{ cursor: "pointer", transition: "all 0.2s ease" }}
+            onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+          >
+            {isSummaryExpanded ? fullText : `${fullText.slice(0, 96)}...`}
+            <span style={{ color: "var(--ll-accent)", marginLeft: "6px", fontSize: "12px", fontWeight: 600 }}>
+              {isSummaryExpanded ? "收起" : "查看全文"}
+            </span>
+          </div>
+        ) : (
+          <div className="track-material-reference-summary">{fullText}</div>
+        )}
         <div className="track-material-reference-foot">
           <span>{item.material_source_name || materialTypeLabel(item.material_type)}</span>
           <span>{item.material_time ? formatTime(item.material_time) : formatTime(item.updated_at || item.created_at)}</span>
