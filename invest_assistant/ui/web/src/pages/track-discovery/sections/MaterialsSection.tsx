@@ -1,61 +1,231 @@
 import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, InputNumber, Select, Space, Tag, Typography, message } from "antd";
+import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Typography, message } from "antd";
+import ReactECharts from "echarts-for-react";
 import { useCallback, useMemo, useState } from "react";
 import { createTrackMaterial, listTrackMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
 import type { TrackMaterialPayload } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
+import { useLiuliTheme } from "../../../app/theme";
 import type { TrackMaterial } from "../../../types/api";
 import { DirectionTag, formatTime } from "./shared";
 import {
   compactMaterialSummary,
   groupMaterialsByDate,
-  materialDirectionLabel,
-  materialDirectionOptions,
   materialImportanceLabel,
   materialImportanceOptions,
   materialStatusLabel,
-  materialStatusOptions,
   materialTypeLabel,
   materialTypeOptions,
   pendingMaterials,
-  timelineMaterials,
-  type MaterialStatusFilter,
 } from "./materialTimeline";
 
-type MaterialFormValues = TrackMaterialPayload;
+// Extend TrackMaterial type locally to hold the dynamically bound track name
+interface ExtendedTrackMaterial extends TrackMaterial {
+  track_name?: string;
+}
 
+type MaterialFormValues = TrackMaterialPayload & { track_id?: number };
 type DrawerMode = "create" | "edit";
 
 export function MaterialsSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
+  const { resolvedMode } = useLiuliTheme();
   const [trackId, setTrackId] = useState<number | undefined>();
-  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>("all");
+  const [directionFilter, setDirectionFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [timeFilter, setTimeFilter] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
-  const [editingMaterial, setEditingMaterial] = useState<TrackMaterial | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<ExtendedTrackMaterial | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm<MaterialFormValues>();
-  const materials = useAsyncData(useCallback(() => (trackId ? listTrackMaterials(trackId) : Promise.resolve([])), [trackId]), []);
+
+  // Fetch materials dynamically based on selected trackId (or fetch all in parallel if undefined)
+  const materials = useAsyncData(
+    useCallback(async () => {
+      const tracksList = await listTracks();
+      if (trackId) {
+        const data = await listTrackMaterials(trackId);
+        const currentTrack = tracksList.find((t) => t.id === trackId);
+        return data.map((item) => ({ ...item, track_name: currentTrack?.name })) as ExtendedTrackMaterial[];
+      } else {
+        // Fetch all tracks in parallel
+        const promises = tracksList.map(async (track) => {
+          try {
+            const list = await listTrackMaterials(track.id);
+            return list.map((item) => ({ ...item, track_name: track.name }));
+          } catch (e) {
+            return [];
+          }
+        });
+        const results = await Promise.all(promises);
+        return results.flat() as ExtendedTrackMaterial[];
+      }
+    }, [trackId]),
+    []
+  );
 
   const trackOptions = useMemo(() => tracks.data.map((item) => ({ value: item.id, label: item.name })), [tracks.data]);
   const activeTrack = useMemo(() => tracks.data.find((item) => item.id === trackId), [trackId, tracks.data]);
-  const visibleMaterials = useMemo(() => timelineMaterials(materials.data, statusFilter), [materials.data, statusFilter]);
-  const timelineGroups = useMemo(() => groupMaterialsByDate(visibleMaterials), [visibleMaterials]);
+
+  // Main Event Timeline only displays confirmed materials
+  const visibleMaterials = useMemo(() => materials.data.filter((item) => item.status === "confirmed"), [materials.data]);
   const pendingRows = useMemo(() => pendingMaterials(materials.data), [materials.data]);
-  const timelineStatusOptions = useMemo(() => materialStatusOptions.filter((item) => item.value !== "pending"), []);
-  const statusCounts = useMemo(() => {
+
+  // Local Filter Logic
+  const filterItem = useCallback((item: ExtendedTrackMaterial) => {
+    // 0. Selected date filter
+    if (selectedDate) {
+      const itemDate = (item.material_time || item.created_at || "").slice(0, 10);
+      if (itemDate !== selectedDate) return false;
+    }
+    // 1. direction filter
+    if (directionFilter !== "all" && item.direction !== directionFilter) return false;
+    // 2. type filter
+    if (typeFilter !== "all" && item.material_type !== typeFilter) return false;
+    // 3. time filter
+    if (timeFilter !== "all") {
+      const timeStr = item.material_time || item.updated_at || item.created_at;
+      if (!timeStr) return false;
+      const itemDate = new Date(timeStr);
+      const now = new Date();
+      const diffTime = now.getTime() - itemDate.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      if (timeFilter === "today" && diffDays > 1) return false;
+      if (timeFilter === "3d" && diffDays > 3) return false;
+      if (timeFilter === "7d" && diffDays > 7) return false;
+      if (timeFilter === "30d" && diffDays > 30) return false;
+    }
+    return true;
+  }, [selectedDate, directionFilter, typeFilter, timeFilter]);
+
+  const filteredVisible = useMemo(() => visibleMaterials.filter(filterItem), [visibleMaterials, filterItem]);
+  const filteredPending = useMemo(() => pendingRows.filter(filterItem), [pendingRows, filterItem]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
     return materials.data.reduce(
       (acc, item) => {
+        const itemDate = (item.material_time || item.created_at || "").slice(0, 10);
+        if (itemDate === todayStr) {
+          acc.todayAdded += 1;
+        }
         if (item.status === "pending") acc.pending += 1;
         if (item.status === "confirmed") acc.confirmed += 1;
         if (item.status === "ignored") acc.ignored += 1;
-        if (item.status !== "pending") acc.all += 1;
         return acc;
       },
-      { pending: 0, confirmed: 0, ignored: 0, all: 0 }
+      { todayAdded: 0, pending: 0, confirmed: 0, ignored: 0 }
     );
   }, [materials.data]);
+
+  // ECharts Timeline Event Distribution data
+  const chartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of materials.data) {
+      if (item.status !== "confirmed") continue; // Only count confirmed events on the chart
+      if (directionFilter !== "all" && item.direction !== directionFilter) continue;
+      if (typeFilter !== "all" && item.material_type !== typeFilter) continue;
+
+      const dateStr = (item.material_time || item.created_at || "").slice(0, 10);
+      if (dateStr) {
+        counts[dateStr] = (counts[dateStr] || 0) + 1;
+      }
+    }
+    const sortedDates = Object.keys(counts).sort();
+    return sortedDates.map((date) => ({
+      date,
+      count: counts[date]
+    }));
+  }, [materials.data, directionFilter, typeFilter]);
+
+  // ECharts config options for Circular Glow display
+  const accentColor = resolvedMode === "dark" ? "#58a6ff" : "#2563eb";
+  const shadowColor = resolvedMode === "dark" ? "rgba(88, 166, 255, 0.6)" : "rgba(37, 99, 235, 0.6)";
+  const borderColor = resolvedMode === "dark" ? "#161b22" : "#ffffff";
+
+  const chartOption = useMemo(() => ({
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: any) => {
+        const item = params[0];
+        return `${item.name}<br/>事件数: <b>${item.value}</b>`;
+      }
+    },
+    grid: {
+      top: 15,
+      left: 30,
+      right: 15,
+      bottom: 20
+    },
+    xAxis: {
+      type: "category",
+      data: chartData.map((d) => d.date),
+      axisLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.08)" : "#e2e8f0" } },
+      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: "value",
+      minInterval: 1,
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.03)" : "#f1f5f9" } },
+      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 }
+    },
+    series: [
+      {
+        data: chartData.map((d) => d.count),
+        type: "line",
+        smooth: true,
+        showSymbol: true,
+        symbol: "circle",
+        symbolSize: 10,
+        itemStyle: {
+          color: accentColor,
+          shadowBlur: 8,
+          shadowColor: shadowColor,
+          borderWidth: 2,
+          borderColor: borderColor
+        },
+        lineStyle: {
+          color: accentColor,
+          width: 2.5,
+          shadowBlur: 4,
+          shadowColor: shadowColor
+        },
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: resolvedMode === "dark" ? "rgba(88, 166, 255, 0.15)" : "rgba(37, 99, 235, 0.12)" },
+              { offset: 1, color: "rgba(37, 99, 235, 0)" }
+            ]
+          }
+        }
+      }
+    ]
+  }), [chartData, accentColor, shadowColor, borderColor, resolvedMode]);
+
+  const onChartClick = useCallback((params: any) => {
+    if (params && params.name) {
+      setSelectedDate(params.name);
+      message.info(`已筛选 ${params.name} 的赛道事件`);
+    }
+  }, []);
+
+  const onEvents = useMemo(() => ({
+    click: onChartClick
+  }), [onChartClick]);
 
   function openCreateDrawer() {
     setDrawerMode("create");
@@ -65,7 +235,7 @@ export function MaterialsSection() {
     setDrawerOpen(true);
   }
 
-  function openEditDrawer(record: TrackMaterial) {
+  function openEditDrawer(record: ExtendedTrackMaterial) {
     setDrawerMode("edit");
     setEditingMaterial(record);
     form.resetFields();
@@ -80,12 +250,29 @@ export function MaterialsSection() {
     setDrawerOpen(true);
   }
 
+  async function handleStatusChange(item: ExtendedTrackMaterial, newStatus: string) {
+    try {
+      await updateTrackMaterial(item.id, {
+        direction: item.direction || null,
+        importance_level: item.importance_level || null,
+        status: newStatus,
+        note: item.note || null,
+      });
+      message.success(newStatus === "confirmed" ? "材料已确认" : "材料已忽略");
+      await materials.refresh();
+    } catch (err) {
+      message.error("更新状态失败");
+    }
+  }
+
   async function submitDrawer(statusOverride?: string) {
-    if (!trackId) {
-      message.warning("请先选择赛道");
+    const values = await form.validateFields();
+    const targetTrackId = drawerMode === "create" ? (trackId || values.track_id) : editingMaterial?.track_id;
+    if (!targetTrackId) {
+      message.warning("请选择关联赛道");
       return;
     }
-    const values = await form.validateFields();
+
     if (drawerMode === "edit" && editingMaterial) {
       await updateTrackMaterial(editingMaterial.id, {
         direction: values.direction || null,
@@ -95,7 +282,7 @@ export function MaterialsSection() {
       });
       message.success(statusOverride === "confirmed" ? "材料已确认" : statusOverride === "ignored" ? "材料已忽略" : "材料判断已更新");
     } else {
-      await createTrackMaterial(trackId, {
+      await createTrackMaterial(Number(targetTrackId), {
         material_type: values.material_type,
         material_id: values.material_id,
         direction: values.direction || null,
@@ -110,19 +297,7 @@ export function MaterialsSection() {
     await materials.refresh();
   }
 
-  function renderMaterialMeta(item: TrackMaterial) {
-    return (
-      <div className="track-material-meta">
-        <span>{materialTypeLabel(item.material_type)}</span>
-        <span>ID {item.material_id}</span>
-        <DirectionTag direction={item.direction} />
-        <Tag className="track-material-tag">{materialImportanceLabel(item.importance_level)}</Tag>
-        <Tag className={`track-material-status ${item.status}`}>{materialStatusLabel(item.status)}</Tag>
-      </div>
-    );
-  }
-
-  function renderMaterialReference(item: TrackMaterial) {
+  function renderMaterialReference(item: ExtendedTrackMaterial) {
     return (
       <div className="track-material-reference">
         <div className="track-material-reference-title">{item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}</div>
@@ -144,102 +319,231 @@ export function MaterialsSection() {
               showSearch
               size="small"
               placeholder="选择赛道"
-              value={trackId}
-              options={trackOptions}
+              value={trackId || "all"}
+              options={[
+                { value: "all", label: "全部赛道" },
+                ...trackOptions,
+              ]}
               loading={tracks.loading}
-              style={{ width: 260 }}
-              onChange={setTrackId}
+              style={{ width: 180 }}
+              onChange={(val) => {
+                setTrackId(val === "all" ? undefined : val);
+                setSelectedDate(null); // Clear selected date filter on track change
+              }}
             />
             <div className="data-panel-toolbar-divider" />
-            <Space size={4} className="toolbar-status-buttons">
-              {timelineStatusOptions.map((item) => (
-                <Button
-                  key={item.value}
-                  size="small"
-                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                  onClick={() => setStatusFilter(item.value)}
-                >
-                  {item.label} ({statusCounts[item.value]})
-                </Button>
-              ))}
-            </Space>
+            <Select
+              size="small"
+              value={directionFilter}
+              options={[
+                { value: "all", label: "方向：全部" },
+                { value: "support", label: "方向：支持" },
+                { value: "weaken", label: "方向：削弱" },
+                { value: "neutral", label: "方向：中性" },
+                { value: "noise", label: "方向：噪音" },
+              ]}
+              style={{ width: 120 }}
+              onChange={setDirectionFilter}
+            />
+            <Select
+              size="small"
+              value={typeFilter}
+              options={[
+                { value: "all", label: "类型：全部" },
+                { value: "source_item", label: "类型：信息流" },
+                { value: "knowledge_note", label: "类型：知识笔记" },
+              ]}
+              style={{ width: 130 }}
+              onChange={setTypeFilter}
+            />
+            <Select
+              size="small"
+              value={timeFilter}
+              options={[
+                { value: "all", label: "时间：全部" },
+                { value: "today", label: "时间：今日" },
+                { value: "3d", label: "时间：近3天" },
+                { value: "7d", label: "时间：近7天" },
+                { value: "30d", label: "时间：近30天" },
+              ]}
+              style={{ width: 120 }}
+              onChange={setTimeFilter}
+            />
             <div className="data-panel-toolbar-spacer" />
-            <span className="track-material-context">{activeTrack ? activeTrack.name : "先选择赛道"}</span>
-            <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!trackId} onClick={openCreateDrawer}>
+            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openCreateDrawer}>
               引用材料
             </Button>
           </div>,
         ]}
       >
-        {!trackId ? (
-          <EmptyAction description="请选择赛道后查看发展时间轴和待处理材料" />
-        ) : (
-          <div className="track-material-workbench">
+        <div className="track-material-workbench">
+          <div className="track-material-left-column">
+            {/* 1. Track Event Distribution Timeline Chart */}
+            <div className="track-material-chart-section">
+              <div className="track-material-section-head">
+                <Typography.Title level={5} style={{ margin: 0 }}>事件分布</Typography.Title>
+              </div>
+              <div className="track-material-chart-card">
+                {chartData.length > 0 ? (
+                  <ReactECharts
+                    option={chartOption}
+                    onEvents={onEvents}
+                    style={{ height: 130, width: "100%" }}
+                    notMerge
+                  />
+                ) : (
+                  <div className="chart-empty">暂无事件时序分布数据</div>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Event Timeline List */}
             <section className="track-material-timeline-panel">
               <div className="track-material-section-head">
-                <div>
-                  <Typography.Title level={5}>重大事件</Typography.Title>
-                  <Typography.Text type="secondary"></Typography.Text>
-                </div>
-                <span>{visibleMaterials.length} 条</span>
+                <Space size={8} align="baseline">
+                  <Typography.Title level={5} style={{ margin: 0 }}>赛道事件</Typography.Title>
+                  <span className="section-head-count">({filteredVisible.length})</span>
+                  {selectedDate && (
+                    <Button size="small" type="link" onClick={() => setSelectedDate(null)} style={{ padding: 0, marginLeft: 8 }}>
+                      清除日期筛选 ({selectedDate})
+                    </Button>
+                  )}
+                </Space>
               </div>
 
-              {timelineGroups.length ? (
+              {filteredVisible.length ? (
                 <div className="track-material-timeline">
-                  {timelineGroups.map((group) => (
-                    <div className="track-material-day" key={group.date}>
-                      <div className="track-material-day-label">{group.date}</div>
-                      {group.items.map((item) => (
-                        <article className={`track-material-event ${item.status}`} key={item.id}>
-                          <div className="track-material-event-rail" />
-                          <div className="track-material-event-body">
-                            <div className="track-material-event-head">
-                              {renderMaterialMeta(item)}
-                              <span className="track-material-time">{formatTime(item.updated_at || item.created_at)}</span>
-                            </div>
-                            {item.material_title || item.material_summary ? renderMaterialReference(item) : null}
-                            <div className="track-material-note">{item.note || "尚未填写赛道视角判断"}</div>
-                            <div className="track-material-actions">
-                              <Button size="small" icon={<EditOutlined />} onClick={() => openEditDrawer(item)}>编辑判断</Button>
-                            </div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
+                  {filteredVisible.map((item) => (
+                    <article className="track-material-card" key={item.id}>
+                      {/* Row 1: Tags & Time */}
+                      <div className="track-material-card-row-first">
+                        <Space size={6}>
+                          <DirectionTag direction={item.direction} />
+                          <span className="track-material-card-track-name">{item.track_name || activeTrack?.name}</span>
+                        </Space>
+                        <span className="track-material-card-time">
+                          {item.material_time ? formatTime(item.material_time) : formatTime(item.updated_at || item.created_at)}
+                        </span>
+                      </div>
+
+                      {/* Row 2: Title */}
+                      <div className="track-material-card-title">
+                        {item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}
+                      </div>
+
+                      {/* Row 3: Summary */}
+                      <div className="track-material-card-summary">
+                        {item.material_summary || "暂无材料摘要"}
+                      </div>
+
+                      {/* Row 4: Note */}
+                      {item.note && item.note.trim() && (
+                        <div className="track-material-card-note">
+                          <span className="note-label">赛道判断：</span>
+                          <span className="note-content">{item.note}</span>
+                        </div>
+                      )}
+
+                      {/* Row 5: Footer & Actions */}
+                      <div className="track-material-card-footer">
+                        <span className="track-material-card-source">
+                          来源：{item.material_source_name || materialTypeLabel(item.material_type)}
+                        </span>
+                        <Button
+                          size="small"
+                          className="track-material-card-edit-btn"
+                          icon={<EditOutlined />}
+                          onClick={() => openEditDrawer(item)}
+                        >
+                          编辑
+                        </Button>
+                      </div>
+                    </article>
                   ))}
                 </div>
               ) : (
                 <EmptyAction description="当前筛选下没有已处理的赛道材料" />
               )}
             </section>
+          </div>
 
-            <aside className="track-material-pending-panel">
+          <aside className="track-material-right-sidebar">
+            {/* Today Statistics */}
+            <div className="track-material-stats-section">
               <div className="track-material-section-head compact">
-                <div>
-                  <Typography.Title level={5}>待处理</Typography.Title>
-                  <Typography.Text type="secondary">先看摘要，再进入详情处理</Typography.Text>
-                </div>
-                <span>{pendingRows.length}</span>
+                <Typography.Title level={5} style={{ margin: 0 }}>今日数据统计</Typography.Title>
               </div>
-              {pendingRows.length ? (
+              <div className="track-material-stats-panel">
+                <div className="stats-grid">
+                  <div className="stats-item">
+                    <div className="stats-val">{stats.todayAdded}</div>
+                    <div className="stats-lbl">今日新增</div>
+                  </div>
+                  <div className="stats-item">
+                    <div className="stats-val color-pending">{stats.pending}</div>
+                    <div className="stats-lbl">待处理</div>
+                  </div>
+                  <div className="stats-item">
+                    <div className="stats-val color-confirmed">{stats.confirmed + stats.ignored}</div>
+                    <div className="stats-lbl">已处理</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pending Queue */}
+            <div className="track-material-pending-panel">
+              <div className="track-material-section-head compact">
+                <Space size={8} align="baseline">
+                  <Typography.Title level={5} style={{ margin: 0 }}>待处理队列</Typography.Title>
+                  <span className="section-head-count">({filteredPending.length})</span>
+                </Space>
+              </div>
+              {filteredPending.length ? (
                 <div className="track-material-pending-list">
-                  {pendingRows.map((item) => (
+                  {filteredPending.map((item) => (
                     <article className="track-material-pending-card" key={item.id}>
-                      {renderMaterialMeta(item)}
-                      <div className="track-material-pending-title">{item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}</div>
-                      <div className="track-material-pending-note">{compactMaterialSummary(item, 72)}</div>
-                      <Space size={6}>
-                        <Button size="small" icon={<EyeOutlined />} onClick={() => openEditDrawer(item)}>详情 / 处理</Button>
-                      </Space>
+                      <div className="pending-card-header">
+                        <span className="track-material-card-track-name">{item.track_name || activeTrack?.name}</span>
+                        <span className="pending-card-time">
+                          {item.material_time ? formatTime(item.material_time).slice(5, 16) : formatTime(item.updated_at || item.created_at).slice(5, 16)}
+                        </span>
+                      </div>
+                      <div className="pending-card-title">
+                        {item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}
+                      </div>
+                      <div className="pending-card-footer">
+                        <span className="pending-card-source">
+                          {item.material_source_name || materialTypeLabel(item.material_type)}
+                        </span>
+                        <Space size={4}>
+                          <Button
+                            size="small"
+                            type="text"
+                            style={{ fontSize: "12px", height: "22px", padding: "0 4px", color: "var(--ll-muted)" }}
+                            onClick={() => handleStatusChange(item, "ignored")}
+                          >
+                            忽略
+                          </Button>
+                          <Button
+                            size="small"
+                            type="text"
+                            style={{ fontSize: "12px", height: "22px", padding: "0 4px", color: "var(--ll-accent)", fontWeight: 500 }}
+                            onClick={() => openEditDrawer(item)}
+                          >
+                            处理
+                          </Button>
+                        </Space>
+                      </div>
                     </article>
                   ))}
                 </div>
               ) : (
-                <EmptyAction description="当前赛道没有待处理材料" />
+                <EmptyAction description="当前筛选下无待处理材料" />
               )}
-            </aside>
-          </div>
-        )}
+            </div>
+          </aside>
+        </div>
       </DataPanel>
 
       <Drawer
@@ -260,28 +564,73 @@ export function MaterialsSection() {
       >
         {editingMaterial ? renderMaterialReference(editingMaterial) : null}
         <Form form={form} layout="vertical" preserve={false}>
-          <Space.Compact block>
-            <Form.Item name="material_type" label="来源" style={{ width: "50%" }} rules={[{ required: true, message: "请选择来源" }]}>
-              <Select disabled={drawerMode === "edit"} options={materialTypeOptions} />
+          {drawerMode === "create" && (
+            <Form.Item
+              name="track_id"
+              label="关联赛道"
+              rules={[{ required: true, message: "请选择关联赛道" }]}
+              style={{ marginBottom: "16px" }}
+            >
+              <Select options={trackOptions} size="small" />
             </Form.Item>
-            <Form.Item name="material_id" label="材料 ID" style={{ width: "50%" }} rules={[{ required: true, message: "请输入材料 ID" }]}>
-              <InputNumber disabled={drawerMode === "edit"} min={1} style={{ width: "100%" }} />
+          )}
+
+          <div className="ll-parameter-grid">
+            {/* Row 1 Col 1: Basic Info (来源 & 材料 ID) */}
+            <div style={{ display: "flex", gap: "12px" }}>
+              <Form.Item
+                name="material_type"
+                label="来源"
+                rules={[{ required: true, message: "请选择来源" }]}
+                style={{ flex: 1 }}
+              >
+                <Select disabled={drawerMode === "edit"} options={materialTypeOptions} size="small" />
+              </Form.Item>
+              <Form.Item
+                name="material_id"
+                label="材料 ID"
+                rules={[{ required: true, message: "请输入材料 ID" }]}
+                style={{ flex: 1 }}
+              >
+                <InputNumber disabled={drawerMode === "edit"} min={1} style={{ width: "100%" }} size="small" />
+              </Form.Item>
+            </div>
+
+            {/* Row 1 Col 2: 状态 */}
+            <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+              <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
+                <Radio.Button value="pending" className="ll-radio-btn-pending">待处理</Radio.Button>
+                <Radio.Button value="confirmed" className="ll-radio-btn-confirmed">已确认</Radio.Button>
+                <Radio.Button value="ignored" className="ll-radio-btn-ignored">已忽略</Radio.Button>
+              </Radio.Group>
             </Form.Item>
-          </Space.Compact>
-          <Space.Compact block>
-            <Form.Item name="direction" label="方向" style={{ width: "34%" }}>
-              <Select allowClear options={materialDirectionOptions} />
+
+            {/* Row 2 Col 1: 方向 */}
+            <Form.Item name="direction" label="方向">
+              <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
+                <Radio.Button value={null} className="ll-radio-btn-none">无</Radio.Button>
+                <Radio.Button value="support" className="ll-radio-btn-support">支持</Radio.Button>
+                <Radio.Button value="weaken" className="ll-radio-btn-weaken">削弱</Radio.Button>
+                <Radio.Button value="neutral" className="ll-radio-btn-neutral">中性</Radio.Button>
+                <Radio.Button value="noise" className="ll-radio-btn-noise">噪音</Radio.Button>
+              </Radio.Group>
             </Form.Item>
-            <Form.Item name="importance_level" label="重要性" style={{ width: "33%" }}>
-              <Select allowClear options={materialImportanceOptions} />
+
+            {/* Row 2 Col 2: 重要性 */}
+            <Form.Item name="importance_level" label="重要性">
+              <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
+                <Radio.Button value={null} className="ll-radio-btn-none">无</Radio.Button>
+                <Radio.Button value="high" className="ll-radio-btn-high">高</Radio.Button>
+                <Radio.Button value="medium" className="ll-radio-btn-medium">中</Radio.Button>
+                <Radio.Button value="low" className="ll-radio-btn-low">低</Radio.Button>
+              </Radio.Group>
             </Form.Item>
-            <Form.Item name="status" label="状态" style={{ width: "33%" }} rules={[{ required: true, message: "请选择状态" }]}>
-              <Select options={materialStatusOptions.filter((item) => item.value !== "all")} />
-            </Form.Item>
-          </Space.Compact>
+          </div>
+
           <Form.Item name="note" label="赛道视角判断">
-            <Input.TextArea rows={5} placeholder="用一句话说明这条材料对赛道判断的影响" />
+            <Input.TextArea rows={4} placeholder="用一句话说明这条材料对赛道判断的影响" />
           </Form.Item>
+          
           <div className="track-material-drawer-hint">
             <Typography.Text type="secondary">材料原文仍归属信息流或知识库，这里只保存赛道视角下的引用和判断。</Typography.Text>
           </div>
