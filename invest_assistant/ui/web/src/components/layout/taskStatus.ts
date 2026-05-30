@@ -67,7 +67,7 @@ export function getTaskStatus(jobs: JobConfig[], requests: JobRunRequest[], load
     return { label: appendLatestJob(`待执行${namesText}`, jobs), className: "status-warn" };
   }
 
-  const failedJobs = jobs.filter((job) => job.last_status === "failed" || job.last_status === "error");
+  const failedJobs = jobs.filter((job) => (job.last_status === "failed" || job.last_status === "error") && job.config_json?.enabled !== false);
   if (failedJobs.length > 0) {
     const failedNames = Array.from(new Set(
       failedJobs.map((j) => jobDisplayName(j))
