@@ -1488,8 +1488,8 @@ body {
 
 .flash-time {
   font-family: Consolas, "SFMono-Regular", monospace;
-  color: var(--ll-text);
-  font-weight: 700;
+  color: var(--ll-muted);
+  font-weight: normal;
 }
 
 .flash-title {

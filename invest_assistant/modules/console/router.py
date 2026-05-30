@@ -56,10 +56,14 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     futu_count = db.scalar(
         text("SELECT COUNT(*) FROM source_item WHERE source_type = 'news' AND source_name = '富途牛牛'")
     ) or 0
+    eastmoney_count = db.scalar(
+        text("SELECT COUNT(*) FROM source_item WHERE source_type = 'news' AND source_name = '东方财富'")
+    ) or 0
 
     stock_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_master.sync_stock_basic").one_or_none()
     news_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one_or_none()
     futu_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one_or_none()
+    eastmoney_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_stock_news").one_or_none()
 
     latest_cls_time = db.scalar(
         db.query(func.max(SourceItem.publish_time))
@@ -69,6 +73,11 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     latest_futu_time = db.scalar(
         db.query(func.max(SourceItem.publish_time))
         .filter(SourceItem.source_type == "news", SourceItem.source_name == "富途牛牛")
+        .statement
+    )
+    latest_eastmoney_time = db.scalar(
+        db.query(func.max(SourceItem.publish_time))
+        .filter(SourceItem.source_type == "news", SourceItem.source_name == "东方财富")
         .statement
     )
 
@@ -99,6 +108,15 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
             "record_count": int(futu_count),
             "status": futu_job.last_status if futu_job is not None else "unknown",
             "last_sync_at": _format_time(futu_job.last_run_at if futu_job is not None else latest_futu_time),
+        },
+        {
+            "key": "eastmoney-news",
+            "name": "信息流（东方财富）",
+            "module": "market_radar",
+            "provider": "AkShare",
+            "record_count": int(eastmoney_count),
+            "status": eastmoney_job.last_status if eastmoney_job is not None else "unknown",
+            "last_sync_at": _format_time(eastmoney_job.last_run_at if eastmoney_job is not None else latest_eastmoney_time),
         },
     ]
 
