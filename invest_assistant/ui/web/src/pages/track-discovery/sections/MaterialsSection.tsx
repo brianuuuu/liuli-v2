@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined, AreaChartOutlined, SlidersOutlined, BulbOutlined, NotificationOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Typography, message } from "antd";
 import ReactECharts from "echarts-for-react";
 import { useCallback, useMemo, useState } from "react";
@@ -360,7 +360,7 @@ export function MaterialsSection() {
               ]}
               loading={tracks.loading}
               style={{ width: 180 }}
-              onChange={(val) => {
+              onChange={(val: any) => {
                 setTrackId(val === "all" ? undefined : val);
                 setSelectedDate(null); // Clear selected date filter on track change
               }}
@@ -413,11 +413,12 @@ export function MaterialsSection() {
         <div className="track-material-workbench">
           <div className="track-material-left-column">
             {/* 1. Track Event Distribution Timeline Chart */}
-            <div className="track-material-chart-section">
-              <div className="track-material-section-head">
-                <Typography.Title level={5} style={{ margin: 0 }}>事件分布</Typography.Title>
+            <div className="track-material-chart-card" style={{ height: "auto", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
+                <AreaChartOutlined style={{ color: "var(--ll-accent)", fontSize: "14px" }} />
+                <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>事件分布</span>
               </div>
-              <div className="track-material-chart-card">
+              <div>
                 {chartData.length > 0 ? (
                   <ReactECharts
                     option={chartOption}
@@ -432,10 +433,11 @@ export function MaterialsSection() {
             </div>
 
             {/* 2. Event Timeline List */}
-            <section className="track-material-timeline-panel">
-              <div className="track-material-section-head">
+            <section className="track-material-timeline-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
-                  <Typography.Title level={5} style={{ margin: 0 }}>赛道事件</Typography.Title>
+                  <BulbOutlined style={{ color: "var(--ll-accent)", fontSize: "14px" }} />
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>赛道事件</span>
                   <span className="section-head-count">({filteredVisible.length})</span>
                   {selectedDate && (
                     <Button size="small" type="link" onClick={() => setSelectedDate(null)} style={{ padding: 0, marginLeft: 8 }}>
@@ -503,33 +505,33 @@ export function MaterialsSection() {
 
           <aside className="track-material-right-sidebar">
             {/* Today Statistics */}
-            <div className="track-material-stats-section">
-              <div className="track-material-section-head compact">
-                <Typography.Title level={5} style={{ margin: 0 }}>今日数据统计</Typography.Title>
+            <div className="track-material-stats-panel" style={{ height: "auto", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
+                <SlidersOutlined style={{ color: "#10b981", fontSize: "14px" }} />
+                <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>今日数据统计</span>
               </div>
-              <div className="track-material-stats-panel">
-                <div className="stats-grid">
-                  <div className="stats-item">
-                    <div className="stats-val">{stats.todayAdded}</div>
-                    <div className="stats-lbl">今日新增</div>
-                  </div>
-                  <div className="stats-item">
-                    <div className="stats-val color-pending">{stats.pending}</div>
-                    <div className="stats-lbl">待处理</div>
-                  </div>
-                  <div className="stats-item">
-                    <div className="stats-val color-confirmed">{stats.confirmed + stats.ignored}</div>
-                    <div className="stats-lbl">已处理</div>
-                  </div>
+              <div className="stats-grid" style={{ minHeight: "86px" }}>
+                <div className="stats-item">
+                  <div className="stats-val">{stats.todayAdded}</div>
+                  <div className="stats-lbl">今日新增</div>
+                </div>
+                <div className="stats-item">
+                  <div className="stats-val color-pending">{stats.pending}</div>
+                  <div className="stats-lbl">待处理</div>
+                </div>
+                <div className="stats-item">
+                  <div className="stats-val color-confirmed">{stats.confirmed + stats.ignored}</div>
+                  <div className="stats-lbl">已处理</div>
                 </div>
               </div>
             </div>
 
             {/* Pending Queue */}
-            <div className="track-material-pending-panel">
-              <div className="track-material-section-head compact">
+            <div className="track-material-pending-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
-                  <Typography.Title level={5} style={{ margin: 0 }}>待处理队列</Typography.Title>
+                  <NotificationOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>待处理队列</span>
                   <span className="section-head-count">({filteredPending.length})</span>
                 </Space>
               </div>
