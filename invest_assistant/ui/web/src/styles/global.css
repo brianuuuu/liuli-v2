@@ -568,7 +568,7 @@ body {
 
 [data-theme="dark"] .data-panel-toolbar .ant-btn-primary,
 [data-theme="dark"] .workbench-card .ant-card-extra .ant-btn-primary {
-  color: #0d1117;
+  color: #ffffff;
 }
 
 .data-panel-toolbar .ant-btn-primary:hover {
