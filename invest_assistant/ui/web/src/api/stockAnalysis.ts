@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockDashboard, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { StockCompareGroup, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -51,6 +51,11 @@ export async function getStockDashboard(stockId?: number | null): Promise<StockD
   const response = await apiClient.get<StockDashboard>("/api/stock-analysis/dashboard", {
     params: stockId ? { stock_id: stockId } : undefined,
   });
+  return response.data;
+}
+
+export async function getStockDetail(stockId: number): Promise<StockDetail> {
+  const response = await apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`);
   return response.data;
 }
 

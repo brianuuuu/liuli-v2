@@ -488,6 +488,9 @@ export type StockMaterial = {
   material_source_name?: string | null;
   material_url?: string | null;
   material_time?: string | null;
+  disclosure_type?: string | null;
+  report_period?: string | null;
+  parse_status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -636,6 +639,55 @@ export type StockDashboard = {
   pending_materials: StockDashboardMaterial[];
   default_stock_id?: number | null;
   selected_stock_summary?: StockDashboardSelectedStockSummary | null;
+};
+
+export type StockDetailValuationSnapshot = {
+  id: number;
+  stock_id: number;
+  company?: string | null;
+  company_code?: string | null;
+  report_period?: string | null;
+  report_release_date?: string | null;
+  current_market_value?: number | null;
+  financial_performance_json?: string | null;
+  trend_reference_json?: string | null;
+  guidance_check_json?: string | null;
+  quarter_performance?: string | null;
+  quarter_main_reason?: string | null;
+  profit_model_json?: string | null;
+  fcf_model_json?: string | null;
+  revenue_model_json?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+  created_at?: string | null;
+};
+
+export type StockDetailSummary = {
+  track_count: number;
+  material_count: number;
+  high_importance_material_count: number;
+  note_count: number;
+  last_updated_at?: string | null;
+};
+
+export type StockDetailDisclosure = Disclosure;
+
+export type StockDetail = {
+  stock: Stock;
+  pool?: StockPoolItem | null;
+  summary: StockDetailSummary;
+  latest_score?: StockScoreSnapshot | null;
+  score_history: StockScoreSnapshot[];
+  latest_valuation?: StockDetailValuationSnapshot | null;
+  valuation_history: StockDetailValuationSnapshot[];
+  materials: StockMaterial[];
+  disclosures: StockDetailDisclosure[];
+  tracks: StockTrackRelation[];
+  notes: StockResearchNote[];
+  tags: TagBinding[];
 };
 
 

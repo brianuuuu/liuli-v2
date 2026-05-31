@@ -22,6 +22,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockMaterialUpdate,
     StockMaterialRead,
     StockDashboardRead,
+    StockDetailRead,
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
@@ -66,6 +67,14 @@ def list_candidates(db: Session = Depends(get_db)) -> list:
 @router.get("/stocks/{stock_id}")
 def stock_home(stock_id: int) -> dict[str, int]:
     return {"stock_id": stock_id}
+
+
+@router.get("/stocks/{stock_id}/detail", response_model=StockDetailRead)
+def stock_detail(stock_id: int, db: Session = Depends(get_db)) -> dict:
+    detail = service.get_stock_detail(db, stock_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="stock not found")
+    return detail
 
 
 @router.get("/stocks/{stock_id}/notes", response_model=list[StockResearchNoteRead])

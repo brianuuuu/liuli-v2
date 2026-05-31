@@ -177,9 +177,88 @@ class StockMaterialRead(StockMaterialCreate):
     material_source_name: str | None = None
     material_url: str | None = None
     material_time: datetime | str | None = None
+    disclosure_type: str | None = None
+    report_period: str | None = None
+    parse_status: str | None = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class StockDetailStock(BaseModel):
+    id: int
+    symbol: str | None = None
+    stock_code: str | None = None
+    stock_name: str | None = None
+    market: str | None = None
+    exchange: str | None = None
+    status: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class StockDetailSummary(BaseModel):
+    track_count: int = 0
+    material_count: int = 0
+    high_importance_material_count: int = 0
+    note_count: int = 0
+    last_updated_at: datetime | None = None
+
+
+class StockDetailValuationSnapshot(BaseModel):
+    id: int
+    stock_id: int
+    company: str | None = None
+    company_code: str | None = None
+    report_period: str | None = None
+    report_release_date: date | None = None
+    current_market_value: float | None = None
+    financial_performance_json: str | None = None
+    trend_reference_json: str | None = None
+    guidance_check_json: str | None = None
+    quarter_performance: str | None = None
+    quarter_main_reason: str | None = None
+    profit_model_json: str | None = None
+    fcf_model_json: str | None = None
+    revenue_model_json: str | None = None
+    primary_model: str | None = None
+    expected_market_value_3y: float | None = None
+    expectation_gap_rate: float | None = None
+    analysis_date: date | None = None
+    researcher: str | None = None
+    created_at: datetime | None = None
+
+
+class StockDetailDisclosure(BaseModel):
+    id: int
+    stock_id: int | None = None
+    source: str
+    disclosure_type: str
+    title: str
+    publish_time: datetime | None = None
+    report_period: str | None = None
+    source_url: str | None = None
+    file_path: str | None = None
+    parsed_text_path: str | None = None
+    parsed_markdown_path: str | None = None
+    parse_status: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class StockDetailRead(BaseModel):
+    stock: StockDetailStock
+    pool: StockPoolRead | None = None
+    summary: StockDetailSummary
+    latest_score: StockScoreSnapshotRead | None = None
+    score_history: list[StockScoreSnapshotRead] = Field(default_factory=list)
+    latest_valuation: StockDetailValuationSnapshot | None = None
+    valuation_history: list[StockDetailValuationSnapshot] = Field(default_factory=list)
+    materials: list[StockMaterialRead] = Field(default_factory=list)
+    disclosures: list[StockDetailDisclosure] = Field(default_factory=list)
+    tracks: list[StockTrackRelationRead] = Field(default_factory=list)
+    notes: list[StockResearchNoteRead] = Field(default_factory=list)
+    tags: list[dict] = Field(default_factory=list)
 
 
 class StockDashboardTopScoreStock(BaseModel):

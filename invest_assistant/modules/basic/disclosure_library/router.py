@@ -109,5 +109,11 @@ def to_track_material(disclosure_id: int) -> dict[str, str]:
 
 
 @router.post("/{disclosure_id}/to-stock-analysis")
-def to_stock_analysis(disclosure_id: int) -> dict[str, str]:
-    raise HTTPException(status_code=501, detail="stock analysis integration is not implemented in phase 1")
+def to_stock_analysis(disclosure_id: int, db: Session = Depends(get_db)) -> dict:
+    item = service.get_disclosure(db, disclosure_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="disclosure not found")
+    try:
+        return service.disclosure_to_stock_analysis(db, item)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

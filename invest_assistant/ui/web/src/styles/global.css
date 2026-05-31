@@ -1302,10 +1302,246 @@ body {
   color: var(--ll-text);
 }
 
+/* ── Stock Analysis: stock detail ── */
+.stock-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.stock-detail-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.stock-detail-action-label {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-detail-switcher {
+  width: 168px;
+}
+
+.stock-detail-back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--ll-accent);
+  font-size: 12px;
+}
+
+.stock-detail-identity {
+  display: grid;
+  gap: 10px;
+}
+
+.stock-detail-title-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.stock-detail-title {
+  color: var(--ll-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stock-detail-code {
+  color: var(--ll-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stock-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stock-detail-inline-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.stock-detail-inline-tags > span {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stock-detail-metric {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: baseline;
+  padding: 0;
+}
+
+.stock-detail-metric span {
+  display: inline;
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-detail-metric strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-detail-metric.track {
+  align-items: center;
+}
+
+.stock-detail-track-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stock-detail-track-tags .ant-tag {
+  margin-inline-end: 0;
+}
+
+.stock-detail-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
+.stock-detail-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 26px;
+}
+
+.stock-detail-tabs .ant-tabs-tab {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.stock-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stock-detail-panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stock-detail-panel-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.stock-detail-panel-section.first {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.stock-detail-overview-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  gap: 16px;
+}
+
+.stock-detail-overview-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.stock-detail-subtitle {
+  margin-bottom: 8px;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stock-detail-keyfacts {
+  margin: 0;
+}
+
+.stock-detail-note-summary .ant-typography {
+  margin-bottom: 8px;
+}
+
+.stock-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.stock-detail-list-item {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ll-border);
+}
+
+.stock-detail-list-item:last-child {
+  border-bottom: 0;
+}
+
+.stock-detail-list-item span,
+.stock-detail-list-item em {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.stock-detail-list-item strong {
+  overflow: hidden;
+  color: var(--ll-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-detail-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 10px;
+}
+
+.stock-detail-form-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1280px) {
   .track-dashboard-grid.main,
   .track-dashboard-grid.secondary,
   .stock-dashboard-grid.main {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-detail-overview-main {
     grid-template-columns: 1fr;
   }
 
@@ -1321,9 +1557,24 @@ body {
 @media (max-width: 860px) {
   .track-dashboard-metrics,
   .stock-dashboard-metrics,
+  .stock-detail-metrics,
   .track-focus-grid,
   .track-analysis-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stock-detail-metrics {
+    gap: 10px;
+  }
+
+  .stock-detail-form-grid,
+  .stock-detail-form-grid.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-detail-list-item {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .track-analysis-foot {

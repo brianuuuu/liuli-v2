@@ -1,9 +1,10 @@
 from collections import defaultdict
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
@@ -221,6 +222,206 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
             latest_scores.get(default_stock_id),
         ),
     }
+
+
+def get_stock_detail(db: Session, stock_id: int) -> dict | None:
+    stock = db.get(Stock, stock_id)
+    if stock is None:
+        return None
+
+    pool_item = db.scalar(select(StockPoolItem).where(StockPoolItem.stock_id == stock_id))
+    score_history = list(
+        db.scalars(
+            select(StockScoreSnapshot)
+            .where(StockScoreSnapshot.stock_id == stock_id)
+            .order_by(StockScoreSnapshot.score_date.asc(), StockScoreSnapshot.id.asc())
+        )
+    )
+    valuation_history = list(
+        db.scalars(
+            select(StockValuationSnapshot)
+            .where(StockValuationSnapshot.stock_id == stock_id)
+            .order_by(
+                StockValuationSnapshot.analysis_date.asc().nullsfirst(),
+                StockValuationSnapshot.id.asc(),
+            )
+        )
+    )
+    materials = list_stock_materials(db, stock_id)
+    disclosures = [_disclosure_dict(item) for item in _stock_disclosures(db, stock_id, materials)]
+    tracks = list_track_relations(db, stock_id)
+    notes = list_notes(db, stock_id)
+    note_rows = [_note_dict(item) for item in notes]
+    tags = _stock_tag_bindings(db, stock_id)
+    last_updated_candidates = [
+        stock.updated_at,
+        pool_item.updated_at if pool_item else None,
+        *(item.updated_at for item in notes),
+        *(item.get("updated_at") for item in materials),
+    ]
+    return {
+        "stock": _stock_dict(stock),
+        "pool": _pool_item_dict_from_stock(db, pool_item, stock) if pool_item else None,
+        "summary": {
+            "track_count": len([item for item in tracks if item.get("status") == "active"]),
+            "material_count": len(materials),
+            "high_importance_material_count": len([item for item in materials if item.get("importance_level") == "high"]),
+            "note_count": len(notes),
+            "last_updated_at": _max_datetime(last_updated_candidates),
+        },
+        "latest_score": _score_snapshot_dict(score_history[-1]) if score_history else None,
+        "score_history": [_score_snapshot_dict(item) for item in score_history],
+        "latest_valuation": _valuation_snapshot_dict(valuation_history[-1]) if valuation_history else None,
+        "valuation_history": [_valuation_snapshot_dict(item) for item in valuation_history],
+        "materials": materials,
+        "disclosures": disclosures,
+        "tracks": tracks,
+        "notes": note_rows,
+        "tags": tags,
+    }
+
+
+def _stock_dict(stock: Stock) -> dict:
+    return {
+        "id": stock.id,
+        "symbol": stock.symbol,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "market": stock.market,
+        "exchange": stock.exchange,
+        "status": stock.status,
+        "created_at": stock.created_at,
+        "updated_at": stock.updated_at,
+    }
+
+
+def _score_snapshot_dict(item: StockScoreSnapshot) -> dict:
+    return {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "score_date": item.score_date,
+        "track_id": item.track_id,
+        "growth_score": item.growth_score,
+        "valuation_score": item.valuation_score,
+        "moat_score": item.moat_score,
+        "risk_score": item.risk_score,
+        "total_score": item.total_score,
+        "created_at": item.created_at,
+    }
+
+
+def _valuation_snapshot_dict(item: StockValuationSnapshot) -> dict:
+    return {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "company": item.company,
+        "company_code": item.company_code,
+        "report_period": item.report_period,
+        "report_release_date": item.report_release_date,
+        "current_market_value": item.current_market_value,
+        "financial_performance_json": item.financial_performance_json,
+        "trend_reference_json": item.trend_reference_json,
+        "guidance_check_json": item.guidance_check_json,
+        "quarter_performance": item.quarter_performance,
+        "quarter_main_reason": item.quarter_main_reason,
+        "profit_model_json": item.profit_model_json,
+        "fcf_model_json": item.fcf_model_json,
+        "revenue_model_json": item.revenue_model_json,
+        "primary_model": item.primary_model,
+        "expected_market_value_3y": item.expected_market_value_3y,
+        "expectation_gap_rate": item.expectation_gap_rate,
+        "analysis_date": item.analysis_date,
+        "researcher": item.researcher,
+        "created_at": item.created_at,
+    }
+
+
+def _note_dict(item: StockResearchNote) -> dict:
+    return {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "note_type": item.note_type,
+        "title": item.title,
+        "content": item.content,
+        "related_track_id": item.related_track_id,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def _stock_tag_bindings(db: Session, stock_id: int) -> list[dict]:
+    rows = db.execute(
+        select(StockTagRelation, Tag)
+        .join(Tag, Tag.id == StockTagRelation.tag_id)
+        .where(StockTagRelation.stock_id == stock_id)
+        .order_by(Tag.name.asc())
+    ).all()
+    return [
+        {
+            "id": relation.id,
+            "tag": {
+                "id": tag.id,
+                "name": tag.name,
+                "type": tag.type,
+                "source": tag.source,
+                "status": tag.status,
+                "created_at": tag.created_at,
+                "updated_at": tag.updated_at,
+            },
+            "source": relation.source,
+            "status": relation.status,
+            "created_at": relation.created_at,
+            "updated_at": relation.updated_at,
+        }
+        for relation, tag in rows
+    ]
+
+
+def _stock_disclosures(db: Session, stock_id: int, materials: list[dict]) -> list[CompanyDisclosure]:
+    disclosure_ids = [
+        int(item["material_id"])
+        for item in materials
+        if item.get("material_type") == "company_disclosure" and item.get("material_id") is not None
+    ]
+    conditions = [CompanyDisclosure.stock_id == stock_id]
+    if disclosure_ids:
+        conditions.append(CompanyDisclosure.id.in_(disclosure_ids))
+    rows = list(db.scalars(select(CompanyDisclosure).where(or_(*conditions))))
+    deduped = {row.id: row for row in rows}
+    return sorted(
+        deduped.values(),
+        key=lambda item: (
+            item.publish_time or item.created_at,
+            item.id,
+        ),
+        reverse=True,
+    )
+
+
+def _disclosure_dict(item: CompanyDisclosure) -> dict:
+    return {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "source": item.source,
+        "disclosure_type": item.disclosure_type,
+        "title": item.title,
+        "publish_time": item.publish_time,
+        "report_period": item.report_period,
+        "source_url": item.source_url,
+        "file_path": item.file_path,
+        "parsed_text_path": item.parsed_text_path,
+        "parsed_markdown_path": item.parsed_markdown_path,
+        "parse_status": item.parse_status,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def _max_datetime(values) -> object | None:
+    items = [item for item in values if item is not None]
+    if not items:
+        return None
+    return max(items, key=lambda item: item.timestamp())
 
 
 def _pool_item_dict(db: Session, item: StockPoolItem) -> dict:
@@ -784,6 +985,9 @@ def _stock_material_dict(db: Session, item: "StockMaterial") -> dict:
         "material_source_name": None,
         "material_url": None,
         "material_time": None,
+        "disclosure_type": None,
+        "report_period": None,
+        "parse_status": None,
     }
     if item.material_type == "source_item":
         source = db.get(SourceItem, item.material_id)
@@ -803,6 +1007,21 @@ def _stock_material_dict(db: Session, item: "StockMaterial") -> dict:
                 material_summary=_summary(note.content),
                 material_source_name=note.note_type or "knowledge_note",
                 material_time=note.updated_at.isoformat() if note.updated_at else _isoformat(note.created_at),
+            )
+    elif item.material_type == "company_disclosure":
+        disclosure = db.get(CompanyDisclosure, item.material_id)
+        if disclosure is not None:
+            material.update(
+                material_title=disclosure.title,
+                material_summary=disclosure.title,
+                material_source_name=disclosure.source,
+                material_url=disclosure.source_url,
+                material_time=disclosure.publish_time.isoformat()
+                if disclosure.publish_time
+                else _isoformat(disclosure.created_at),
+                disclosure_type=disclosure.disclosure_type,
+                report_period=disclosure.report_period,
+                parse_status=disclosure.parse_status,
             )
     return material
 
