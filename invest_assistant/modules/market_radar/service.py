@@ -36,6 +36,7 @@ WINDOWS = {
     "24h": timedelta(days=1),
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
+    "90d": timedelta(days=90),
 }
 
 
@@ -385,7 +386,7 @@ def aggregate_heat(db: Session) -> JobResult:
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
-        db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window))
+        db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == now))
         rows = db.execute(
             select(SourceTag.tag_id, func.count(SourceTag.id), func.count(distinct(SourceTag.source_item_id)))
             .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
@@ -395,6 +396,8 @@ def aggregate_heat(db: Session) -> JobResult:
         for idx, row in enumerate(sorted(rows, key=lambda row: (-int(row[1]), int(row[0]))), start=1):
             trigger_count = int(row[1])
             source_count = int(row[2])
+            heat_score = float(trigger_count * 10 + source_count)
+            previous_score = _previous_heat_score(db, int(row[0]), window, now)
             db.add(
                 TagHeatSnapshot(
                     tag_id=int(row[0]),
@@ -402,15 +405,40 @@ def aggregate_heat(db: Session) -> JobResult:
                     stat_time=now,
                     trigger_count=trigger_count,
                     source_count=source_count,
-                    heat_score=float(trigger_count * 10 + source_count),
+                    heat_score=heat_score,
                     avg_count=float(trigger_count),
-                    change_ratio=0.0,
+                    change_ratio=_change_ratio(heat_score, previous_score),
                     rank_no=idx,
                 )
             )
             inserted += 1
     db.commit()
     return JobResult(success=True, message=f"created {inserted} heat snapshots", inserted_count=inserted)
+
+
+def _previous_heat_score(db: Session, tag_id: int, window: str, before: datetime) -> float | None:
+    previous_stat = db.scalar(
+        select(func.max(TagHeatSnapshot.stat_time)).where(
+            TagHeatSnapshot.tag_id == tag_id,
+            TagHeatSnapshot.window_type == window,
+            TagHeatSnapshot.stat_time < before,
+        )
+    )
+    if previous_stat is None:
+        return None
+    return db.scalar(
+        select(TagHeatSnapshot.heat_score).where(
+            TagHeatSnapshot.tag_id == tag_id,
+            TagHeatSnapshot.window_type == window,
+            TagHeatSnapshot.stat_time == previous_stat,
+        )
+    )
+
+
+def _change_ratio(current: float, previous: float | None) -> float:
+    if previous is None or previous == 0:
+        return 0.0
+    return round((current - previous) / previous, 4)
 
 
 def aggregate_edges(db: Session) -> JobResult:

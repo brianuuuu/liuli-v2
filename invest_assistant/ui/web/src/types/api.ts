@@ -289,6 +289,80 @@ export type TrackAnalysisSnapshot = {
   created_at?: string | null;
 };
 
+export type TrackDashboardSummary = {
+  warming_tracks_count: number;
+  focus_tracks_count: number;
+  pending_materials_count: number;
+  top_heat_track?: {
+    track_id: number;
+    name: string;
+    heat_score: number;
+  } | null;
+};
+
+export type TrackHeatTrend = {
+  track_id: number;
+  track_name: string;
+  points: {
+    window_type: "7d" | "30d" | "90d" | string;
+    stat_time?: string | null;
+    heat_score: number;
+  }[];
+};
+
+export type TrackHeatRanking = {
+  rank: number;
+  track_id: number;
+  track_name: string;
+  current_heat: number;
+  change_7d: number;
+  change_30d: number;
+  change_90d: number;
+  stage?: string | null;
+  track_score?: number | null;
+};
+
+export type TrackDashboardFocusTrack = {
+  track_id: number;
+  name: string;
+  track_score?: number | null;
+  current_view?: string | null;
+  stage?: string | null;
+  confidence_level?: string | null;
+  bound_stock_count: number;
+  recent_material_count: number;
+  current_heat: number;
+};
+
+export type TrackDashboardMaterial = TrackMaterial & {
+  track_name: string;
+};
+
+export type TrackDashboardAnalysisSummary = {
+  track_id: number;
+  track_name: string;
+  analysis_date?: string | null;
+  market_space?: string | null;
+  market_size?: string | null;
+  growth_rate?: string | null;
+  heat_summary?: string | null;
+  opportunity_points?: string | null;
+  risk_points?: string | null;
+  watch_signals?: string | null;
+  score?: number | null;
+  confidence_level?: string | null;
+};
+
+export type TrackDashboard = {
+  summary: TrackDashboardSummary;
+  heat_trends: TrackHeatTrend[];
+  heat_rankings: TrackHeatRanking[];
+  focus_tracks: TrackDashboardFocusTrack[];
+  latest_materials: TrackDashboardMaterial[];
+  default_track_id?: number | null;
+  analysis_summary?: TrackDashboardAnalysisSummary | null;
+};
+
 export type StockPoolItem = {
   id: number;
   stock_id: number;

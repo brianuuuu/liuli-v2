@@ -2,6 +2,7 @@ import type {
   StockTrackRelation,
   TagBinding,
   Track,
+  TrackDashboard,
   TrackAnalysisSnapshot,
   TrackMaterial
 } from "../types/api";
@@ -58,6 +59,11 @@ export async function listTracks(status?: string): Promise<Track[]> {
   const response = await apiClient.get<Track[]>("/api/track-discovery/tracks", {
     params: status ? { status } : undefined
   });
+  return response.data;
+}
+
+export async function getTrackDashboard(): Promise<TrackDashboard> {
+  const response = await apiClient.get<TrackDashboard>("/api/track-discovery/dashboard");
   return response.data;
 }
 
