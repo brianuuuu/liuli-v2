@@ -1235,6 +1235,24 @@ body {
   color: #f97316;
 }
 
+.graph-fullscreen-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2000 !important;
+  background: var(--ll-panel) !important;
+  padding: 24px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+[data-theme="dark"] .graph-fullscreen-overlay {
+  background: #0b0f19 !important;
+}
+
 .flash-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
