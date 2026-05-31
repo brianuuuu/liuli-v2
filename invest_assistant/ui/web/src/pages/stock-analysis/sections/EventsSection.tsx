@@ -690,7 +690,7 @@ export function EventsSection() {
                           {note.stock_name}
                         </span>
                         <span className="pending-card-time">
-                          {(note.material_time || note.created_at || "").slice(5, 16)}
+                          {note.material_time ? formatTime(note.material_time).slice(5, 16) : formatTime(note.created_at).slice(5, 16)}
                         </span>
                       </div>
                       <div className="pending-card-title">
