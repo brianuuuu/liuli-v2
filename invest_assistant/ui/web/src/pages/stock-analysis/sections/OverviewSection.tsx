@@ -6,22 +6,19 @@ import {
 } from "@ant-design/icons";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import type { EChartsOption } from "echarts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { getStockDashboard } from "../../../api/stockAnalysis";
-import { useLiuliTheme } from "../../../app/theme";
-import { ChartCard } from "../../../components/charts/ChartCard";
-import { chartGridColor, chartTextColor } from "../../../components/charts/chartTheme";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type {
+  StockDashboardHotStock,
   StockDashboardLatestValuation,
   StockDashboardScoreRanking
 } from "../../../types/api";
-import { StatusTag } from "./shared";
+import { formatTime, StatusTag } from "./shared";
 
 function formatScore(value?: number | null) {
   return value == null ? "-" : Number(value).toFixed(1);
@@ -47,105 +44,19 @@ export function OverviewSection() {
     valuation_trends: [],
     score_rankings: [],
     latest_valuations: [],
+    hot_stocks: [],
     focus_stocks: [],
     latest_materials: [],
     pending_materials: [],
     default_stock_id: null,
     selected_stock_summary: null
   });
-  const { resolvedMode } = useLiuliTheme();
 
   useEffect(() => {
     if (!selectedStockId && dashboard.data.default_stock_id) {
       setSelectedStockId(dashboard.data.default_stock_id);
     }
   }, [dashboard.data.default_stock_id, selectedStockId]);
-
-  const trendOption = useMemo<EChartsOption>(() => {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    const dates = Array.from(
-      new Set(dashboard.data.score_trends.flatMap((trend) => trend.points.map((point) => point.score_date)))
-    ).sort();
-    return {
-      tooltip: { trigger: "axis" },
-      legend: {
-        bottom: 0,
-        left: 0,
-        right: 0,
-        itemGap: 14,
-        textStyle: { color: textColor }
-      },
-      grid: { top: 18, left: 42, right: 18, bottom: 82 },
-      xAxis: {
-        type: "category",
-        boundaryGap: false,
-        axisLabel: { color: textColor },
-        axisLine: { lineStyle: { color: gridColor } },
-        data: dates
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        axisLabel: { color: textColor },
-        splitLine: { lineStyle: { color: gridColor } }
-      },
-      series: dashboard.data.score_trends.map((trend) => {
-        const pointByDate = new Map(trend.points.map((point) => [point.score_date, point.total_score]));
-        return {
-          name: trend.stock_name || trend.stock_code || `Stock ${trend.stock_id}`,
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          data: dates.map((date) => pointByDate.get(date) ?? null)
-        };
-      })
-    };
-  }, [dashboard.data.score_trends, resolvedMode]);
-
-  const valuationTrendOption = useMemo<EChartsOption>(() => {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    const dates = Array.from(
-      new Set(dashboard.data.valuation_trends.flatMap((trend) => trend.points.map((point) => point.analysis_date)))
-    ).sort();
-    return {
-      tooltip: { trigger: "axis" },
-      legend: {
-        bottom: 0,
-        left: 0,
-        right: 0,
-        itemGap: 14,
-        textStyle: { color: textColor }
-      },
-      grid: { top: 18, left: 46, right: 18, bottom: 82 },
-      xAxis: {
-        type: "category",
-        boundaryGap: false,
-        axisLabel: { color: textColor },
-        axisLine: { lineStyle: { color: gridColor } },
-        data: dates
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: textColor, formatter: (value: number) => `${value}%` },
-        splitLine: { lineStyle: { color: gridColor } }
-      },
-      series: dashboard.data.valuation_trends.map((trend) => {
-        const pointByDate = new Map(trend.points.map((point) => [point.analysis_date, point.expectation_gap_rate]));
-        return {
-          name: trend.stock_name || trend.stock_code || `Stock ${trend.stock_id}`,
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          data: dates.map((date) => {
-            const value = pointByDate.get(date);
-            return value == null ? null : Number(value) * 100;
-          })
-        };
-      })
-    };
-  }, [dashboard.data.valuation_trends, resolvedMode]);
 
   const rankingColumns: ColumnsType<StockDashboardScoreRanking> = [
     { title: "排名", dataIndex: "rank", width: 58 },
@@ -182,6 +93,25 @@ export function OverviewSection() {
     { title: "分析日", dataIndex: "analysis_date", width: 104, render: (value) => value || "-" }
   ];
 
+  const hotStockColumns: ColumnsType<StockDashboardHotStock> = [
+    { title: "排名", dataIndex: "rank", width: 58 },
+    {
+      title: "标的",
+      dataIndex: "stock_name",
+      ellipsis: true,
+      render: (_, record) => (
+        <Link to={`/stock-analysis/stocks/${record.stock_id}`} className="stock-dashboard-target-link">
+          {stockLabel(record)}
+        </Link>
+      )
+    },
+    { title: "状态", dataIndex: "status", width: 92, render: (value) => <StatusTag status={value} /> },
+    { title: "信息流", dataIndex: "source_item_count", width: 78 },
+    { title: "高重要", dataIndex: "high_importance_material_count", width: 78 },
+    { title: "材料", dataIndex: "material_count", width: 70 },
+    { title: "最近材料", dataIndex: "latest_material_time", width: 140, render: (value) => (value ? formatTime(value).slice(5, 16) : "-") }
+  ];
+
   return (
     <div className="stock-dashboard">
       <div className="stock-dashboard-metrics">
@@ -195,8 +125,21 @@ export function OverviewSection() {
         />
       </div>
 
-      <div className="stock-dashboard-grid main">
-        <ChartCard title="标的评分趋势" option={trendOption} height={310} />
+      <div className="stock-dashboard-grid tables">
+        <WorkbenchCard title="最热标的榜">
+          <Table
+            rowKey="stock_id"
+            size="small"
+            loading={dashboard.loading}
+            dataSource={dashboard.data.hot_stocks}
+            columns={hotStockColumns}
+            pagination={false}
+            rowClassName={(record) => (record.stock_id === selectedStockId ? "selected-dashboard-row" : "")}
+            onRow={(record) => ({ onClick: () => setSelectedStockId(record.stock_id) })}
+            locale={{ emptyText: <EmptyAction description="暂无标的材料热度数据" /> }}
+            scroll={{ x: 620 }}
+          />
+        </WorkbenchCard>
         <WorkbenchCard title="最新评分榜">
           <Table
             rowKey="stock_id"
@@ -211,11 +154,7 @@ export function OverviewSection() {
             scroll={{ x: 440 }}
           />
         </WorkbenchCard>
-      </div>
-
-      <div className="stock-dashboard-grid main">
-        <ChartCard title="标的估值趋势" option={valuationTrendOption} height={310} />
-        <WorkbenchCard title="最新估值记录">
+        <WorkbenchCard title="最近估值记录" style={{ gridColumn: "1 / -1" }}>
           <Table
             rowKey="stock_id"
             size="small"

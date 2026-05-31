@@ -576,6 +576,18 @@ export type StockDashboardFocusStock = {
   recent_material_count: number;
 };
 
+export type StockDashboardHotStock = {
+  rank: number;
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  source_item_count: number;
+  material_count: number;
+  high_importance_material_count: number;
+  latest_material_time?: string | null;
+};
+
 export type StockDashboardMaterial = StockMaterial & {
   stock_name?: string | null;
   stock_code?: string | null;
@@ -634,6 +646,7 @@ export type StockDashboard = {
   valuation_trends: StockDashboardValuationTrend[];
   score_rankings: StockDashboardScoreRanking[];
   latest_valuations: StockDashboardLatestValuation[];
+  hot_stocks: StockDashboardHotStock[];
   focus_stocks: StockDashboardFocusStock[];
   latest_materials: StockDashboardMaterial[];
   pending_materials: StockDashboardMaterial[];

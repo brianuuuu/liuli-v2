@@ -347,6 +347,18 @@ class StockDashboardFocusStock(BaseModel):
     recent_material_count: int
 
 
+class StockDashboardHotStock(BaseModel):
+    rank: int
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    status: str | None = None
+    source_item_count: int
+    material_count: int
+    high_importance_material_count: int
+    latest_material_time: datetime | None = None
+
+
 class StockDashboardMaterial(StockMaterialRead):
     stock_name: str | None = None
     stock_code: str | None = None
@@ -391,6 +403,7 @@ class StockDashboardRead(BaseModel):
     valuation_trends: list[StockDashboardValuationTrend] = Field(default_factory=list)
     score_rankings: list[StockDashboardScoreRanking] = Field(default_factory=list)
     latest_valuations: list[StockDashboardLatestValuation] = Field(default_factory=list)
+    hot_stocks: list[StockDashboardHotStock] = Field(default_factory=list)
     focus_stocks: list[StockDashboardFocusStock] = Field(default_factory=list)
     latest_materials: list[StockDashboardMaterial] = Field(default_factory=list)
     pending_materials: list[StockDashboardMaterial] = Field(default_factory=list)

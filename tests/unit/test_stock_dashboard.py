@@ -55,6 +55,7 @@ def test_stock_dashboard_returns_stable_empty_shape():
         "valuation_trends": [],
         "score_rankings": [],
         "latest_valuations": [],
+        "hot_stocks": [],
         "focus_stocks": [],
         "latest_materials": [],
         "pending_materials": [],
@@ -301,3 +302,79 @@ def test_stock_dashboard_selected_summary_returns_latest_10_materials():
     assert len(recent) == 10
     assert recent[0]["material_title"] == "材料 11"
     assert recent[-1]["material_title"] == "材料 2"
+
+
+def test_stock_dashboard_ranks_hot_stocks_by_material_activity():
+    db = make_session()
+    base_time = datetime(2026, 5, 31, 9, 0)
+    first = Stock(stock_code="300001", stock_name="材料科技", symbol="300001.SZ")
+    second = Stock(stock_code="600001", stock_name="信息制造", symbol="600001.SH")
+    quiet = Stock(stock_code="000001", stock_name="安静银行", symbol="000001.SZ")
+    db.add_all([first, second, quiet])
+    db.flush()
+    db.add_all(
+        [
+            StockPoolItem(stock_id=first.id, status="focused", source="manual"),
+            StockPoolItem(stock_id=second.id, status="candidate", source="manual"),
+            StockPoolItem(stock_id=quiet.id, status="watching", source="manual"),
+        ]
+    )
+    db.flush()
+
+    def add_source_material(stock_id: int, index: int, importance: str = "medium") -> None:
+        source = SourceItem(
+            source_type="news",
+            source_name="manual",
+            title=f"信息流 {index}",
+            content=f"信息流 {index} 摘要",
+            publish_time=base_time.replace(minute=index),
+        )
+        db.add(source)
+        db.flush()
+        db.add(
+            StockMaterial(
+                stock_id=stock_id,
+                material_type="source_item",
+                material_id=source.id,
+                impact_direction="positive",
+                importance_level=importance,
+                status="confirmed",
+                created_at=base_time.replace(minute=index),
+                updated_at=base_time.replace(minute=index),
+            )
+        )
+
+    add_source_material(first.id, 1, "high")
+    add_source_material(first.id, 2, "medium")
+    add_source_material(second.id, 3, "high")
+    add_source_material(second.id, 4, "high")
+    add_source_material(second.id, 5, "medium")
+    db.add(
+        StockMaterial(
+            stock_id=first.id,
+            material_type="knowledge_note",
+            material_id=101,
+            importance_level="high",
+            status="confirmed",
+            created_at=base_time.replace(minute=6),
+            updated_at=base_time.replace(minute=6),
+        )
+    )
+    db.commit()
+
+    dashboard = get_dashboard(db)
+
+    assert [row["stock_id"] for row in dashboard["hot_stocks"]] == [second.id, first.id]
+    assert dashboard["hot_stocks"][0] == {
+        "rank": 1,
+        "stock_id": second.id,
+        "stock_name": "信息制造",
+        "stock_code": "600001",
+        "status": "candidate",
+        "source_item_count": 3,
+        "material_count": 3,
+        "high_importance_material_count": 2,
+        "latest_material_time": base_time.replace(minute=5),
+    }
+    assert dashboard["hot_stocks"][1]["source_item_count"] == 2
+    assert dashboard["hot_stocks"][1]["material_count"] == 3

@@ -98,6 +98,7 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
             "valuation_trends": [],
             "score_rankings": [],
             "latest_valuations": [],
+            "hot_stocks": [],
             "focus_stocks": [],
             "latest_materials": [],
             "pending_materials": [],
@@ -185,6 +186,7 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
     latest_materials = _dashboard_materials(db, stock_ids, stock_by_id, status=None, limit=10)
     pending_materials = _dashboard_materials(db, stock_ids, stock_by_id, status="pending", limit=10)
     latest_valuations = _latest_valuations(db, stock_ids, stock_by_id)
+    hot_stocks = _hot_stocks(db, stock_ids, stock_by_id, pool_by_stock_id)
     top_score = score_rankings[0] if score_rankings and score_rankings[0]["total_score"] is not None else None
     pool_stock_ids = {item.stock_id for item, _stock in pool_rows}
     if selected_stock_id in pool_stock_ids:
@@ -209,6 +211,7 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
         "valuation_trends": _valuation_trends(db, [row["stock_id"] for row in latest_valuations[:8]], stock_by_id),
         "score_rankings": score_rankings,
         "latest_valuations": latest_valuations,
+        "hot_stocks": hot_stocks,
         "focus_stocks": focus_stocks[:8],
         "latest_materials": latest_materials,
         "pending_materials": pending_materials,
@@ -546,6 +549,68 @@ def _dashboard_materials(
     return rows
 
 
+def _hot_stocks(
+    db: Session,
+    stock_ids: list[int],
+    stock_by_id: dict[int, Stock],
+    pool_by_stock_id: dict[int, StockPoolItem],
+    limit: int = 10,
+) -> list[dict]:
+    if not stock_ids:
+        return []
+    rows = list(db.scalars(select(StockMaterial).where(StockMaterial.stock_id.in_(stock_ids))))
+    stats: dict[int, dict] = defaultdict(
+        lambda: {
+            "source_item_count": 0,
+            "material_count": 0,
+            "high_importance_material_count": 0,
+            "latest_material_time": None,
+        }
+    )
+    for item in rows:
+        row = stats[item.stock_id]
+        row["material_count"] += 1
+        if item.material_type == "source_item":
+            row["source_item_count"] += 1
+        if item.importance_level == "high":
+            row["high_importance_material_count"] += 1
+        if item.updated_at is not None and (
+            row["latest_material_time"] is None or item.updated_at.timestamp() > row["latest_material_time"].timestamp()
+        ):
+            row["latest_material_time"] = item.updated_at
+
+    result = []
+    for stock_id, stat in stats.items():
+        stock = stock_by_id.get(stock_id)
+        pool_item = pool_by_stock_id.get(stock_id)
+        result.append(
+            {
+                "rank": 0,
+                "stock_id": stock_id,
+                "stock_name": stock.stock_name if stock else None,
+                "stock_code": stock.stock_code if stock else None,
+                "status": pool_item.status if pool_item else None,
+                "source_item_count": int(stat["source_item_count"]),
+                "material_count": int(stat["material_count"]),
+                "high_importance_material_count": int(stat["high_importance_material_count"]),
+                "latest_material_time": stat["latest_material_time"],
+            }
+        )
+    result.sort(
+        key=lambda row: (
+            -row["source_item_count"],
+            -row["high_importance_material_count"],
+            -row["material_count"],
+            -(row["latest_material_time"].timestamp() if row["latest_material_time"] else 0),
+            str(row["stock_name"] or ""),
+            row["stock_id"],
+        )
+    )
+    for index, row in enumerate(result[:limit], start=1):
+        row["rank"] = index
+    return result[:limit]
+
+
 def _latest_valuation(db: Session, stock_id: int) -> dict | None:
     item = db.scalar(
         select(StockValuationSnapshot)
@@ -613,6 +678,7 @@ def _latest_valuations(db: Session, stock_ids: list[int], stock_by_id: dict[int,
     result = [_valuation_row(item, stock_by_id.get(stock_id)) for stock_id, item in latest.items()]
     result.sort(
         key=lambda row: (
+            -(row["analysis_date"].toordinal() if row["analysis_date"] is not None else 0),
             -(float(row["expectation_gap_rate"]) if row["expectation_gap_rate"] is not None else -999),
             str(row["stock_name"] or ""),
             row["stock_id"],
