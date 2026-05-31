@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding } from "../types/api";
+import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -141,3 +141,24 @@ export async function disableStockTrackRelation(relationId: number): Promise<Sto
   const response = await apiClient.delete<StockTrackRelation>(`/api/stock-analysis/track-relations/${relationId}`);
   return response.data;
 }
+
+export async function listAllStockMaterials(): Promise<StockMaterial[]> {
+  const response = await apiClient.get<StockMaterial[]>("/api/stock-analysis/materials");
+  return response.data;
+}
+
+export async function listStockMaterials(stockId: number): Promise<StockMaterial[]> {
+  const response = await apiClient.get<StockMaterial[]>(`/api/stock-analysis/stocks/${stockId}/materials`);
+  return response.data;
+}
+
+export async function createStockMaterial(stockId: number, payload: StockMaterialPayload): Promise<StockMaterial> {
+  const response = await apiClient.post<StockMaterial>(`/api/stock-analysis/stocks/${stockId}/materials`, payload);
+  return response.data;
+}
+
+export async function updateStockMaterial(materialId: number, payload: Partial<StockMaterialPayload>): Promise<StockMaterial> {
+  const response = await apiClient.put<StockMaterial>(`/api/stock-analysis/materials/${materialId}`, payload);
+  return response.data;
+}
+

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
+from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
     StockCompareGroup,
     StockPoolItem,
@@ -10,6 +11,7 @@ from invest_assistant.modules.stock_analysis.models import (
     StockScoreSnapshot,
     StockTrackRelation,
     StockValuationSnapshot,
+    StockMaterial,
 )
 from invest_assistant.modules.track_discovery.models import Track
 from invest_assistant.modules.stock_analysis.schemas import (
@@ -133,6 +135,15 @@ def _sync_stock_track_relations(db: Session, stock_id: int, track_ids: list[int]
 def create_note(db: Session, stock_id: int, payload: StockResearchNoteCreate) -> StockResearchNote:
     item = StockResearchNote(stock_id=stock_id, **payload.model_dump())
     db.add(item)
+    db.flush()
+    db.add(
+        StockMaterial(
+            stock_id=stock_id,
+            material_type="knowledge_note",
+            material_id=item.id,
+            status="confirmed",
+        )
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -375,3 +386,163 @@ def _track_dict(track: Track) -> dict:
         "name": track.name,
         "status": track.status,
     }
+
+
+def _stock_material_dict(db: Session, item: "StockMaterial") -> dict:
+    material = {
+        "id": item.id,
+        "stock_id": item.stock_id,
+        "material_type": item.material_type,
+        "material_id": item.material_id,
+        "impact_direction": item.impact_direction,
+        "importance_level": item.importance_level,
+        "status": item.status,
+        "note": item.note,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+        "material_title": None,
+        "material_summary": None,
+        "material_source_name": None,
+        "material_url": None,
+        "material_time": None,
+    }
+    if item.material_type == "source_item":
+        source = db.get(SourceItem, item.material_id)
+        if source is not None:
+            material.update(
+                material_title=source.title,
+                material_summary=_summary(source.content),
+                material_source_name=source.source_name,
+                material_url=source.source_url,
+                material_time=source.publish_time.isoformat() if source.publish_time else _isoformat(source.created_at),
+            )
+    elif item.material_type == "knowledge_note":
+        note = db.get(StockResearchNote, item.material_id)
+        if note is not None:
+            material.update(
+                material_title=note.title,
+                material_summary=_summary(note.content),
+                material_source_name=note.note_type or "knowledge_note",
+                material_time=note.updated_at.isoformat() if note.updated_at else _isoformat(note.created_at),
+            )
+    return material
+
+
+def _summary(value: str | None, limit: int = 240) -> str | None:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return None
+    return text if len(text) <= limit else f"{text[:limit]}..."
+
+
+def list_stock_materials(db: Session, stock_id: int) -> list[dict]:
+    stmt = (
+        select(StockMaterial)
+        .where(StockMaterial.stock_id == stock_id)
+        .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
+    )
+    return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+
+
+def list_all_stock_materials(db: Session) -> list[dict]:
+    stmt = (
+        select(StockMaterial)
+        .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
+    )
+    return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+
+
+
+def create_stock_material(db: Session, stock_id: int, payload: "StockMaterialCreate") -> dict:
+    existing = db.scalar(
+        select(StockMaterial).where(
+            StockMaterial.stock_id == stock_id,
+            StockMaterial.material_type == payload.material_type,
+            StockMaterial.material_id == payload.material_id,
+        )
+    )
+    if existing is not None:
+        for key, value in payload.model_dump(exclude_unset=True).items():
+            setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return _stock_material_dict(db, existing)
+
+    item = StockMaterial(stock_id=stock_id, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _stock_material_dict(db, item)
+
+
+def update_stock_material(db: Session, material_id: int, payload: "StockMaterialUpdate") -> dict | None:
+    item = db.get(StockMaterial, material_id)
+    if item is None:
+        return None
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return _stock_material_dict(db, item)
+
+
+def create_pending_stock_materials_for_source_item(
+    db: Session,
+    source_item_id: int,
+    tag_ids: list[int] | None = None,
+) -> int:
+    db.flush()
+    scoped_tag_ids = set(int(tag_id) for tag_id in tag_ids) if tag_ids is not None else None
+    if scoped_tag_ids is not None and not scoped_tag_ids:
+        return 0
+
+    source_tag_stmt = select(SourceTag.tag_id).join(Tag, Tag.id == SourceTag.tag_id).where(
+        SourceTag.source_item_id == source_item_id,
+        Tag.status == "active",
+    )
+    if scoped_tag_ids is not None:
+        source_tag_stmt = source_tag_stmt.where(SourceTag.tag_id.in_(scoped_tag_ids))
+    matched_tag_ids = {int(tag_id) for tag_id in db.scalars(source_tag_stmt)}
+    if not matched_tag_ids:
+        return 0
+
+    stock_ids = {
+        int(stock_id)
+        for stock_id in db.scalars(
+            select(StockTagRelation.stock_id)
+            .join(StockPoolItem, StockPoolItem.stock_id == StockTagRelation.stock_id)
+            .where(
+                StockTagRelation.tag_id.in_(matched_tag_ids),
+                StockTagRelation.status == "active",
+            )
+            .distinct()
+        )
+    }
+    if not stock_ids:
+        return 0
+
+    existing_stock_ids = {
+        int(stock_id)
+        for stock_id in db.scalars(
+            select(StockMaterial.stock_id).where(
+                StockMaterial.stock_id.in_(stock_ids),
+                StockMaterial.material_type == "source_item",
+                StockMaterial.material_id == source_item_id,
+            )
+        )
+    }
+    inserted = 0
+    for stock_id in sorted(stock_ids - existing_stock_ids):
+        db.add(
+            StockMaterial(
+                stock_id=stock_id,
+                material_type="source_item",
+                material_id=source_item_id,
+                status="pending",
+            )
+        )
+        inserted += 1
+    if inserted:
+        db.flush()
+    return inserted
+

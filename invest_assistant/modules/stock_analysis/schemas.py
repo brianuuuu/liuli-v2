@@ -151,3 +151,33 @@ StockTrackTagBindingCreate = StockTrackRelationCreate
 TrackTagStockBindingCreate = TrackStockRelationCreate
 StockTrackTagBindingUpdate = StockTrackRelationUpdate
 StockTrackTagBindingRead = StockTrackRelationRead
+
+
+class StockMaterialCreate(BaseModel):
+    material_type: str
+    material_id: int
+    impact_direction: str | None = None
+    importance_level: str | None = None
+    status: str = "pending"
+    note: str | None = None
+
+
+class StockMaterialUpdate(BaseModel):
+    impact_direction: str | None = None
+    importance_level: str | None = None
+    status: str | None = None
+    note: str | None = None
+
+
+class StockMaterialRead(StockMaterialCreate):
+    id: int
+    stock_id: int
+    material_title: str | None = None
+    material_summary: str | None = None
+    material_source_name: str | None = None
+    material_url: str | None = None
+    material_time: datetime | str | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+

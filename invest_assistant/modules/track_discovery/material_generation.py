@@ -7,7 +7,7 @@ from invest_assistant.modules.market_radar.models import SourceTag, Tag, TrackTa
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial
 
 
-def create_pending_materials_for_source_item(
+def create_pending_track_materials_for_source_item(
     db: Session,
     source_item_id: int,
     tag_ids: Iterable[int] | None = None,

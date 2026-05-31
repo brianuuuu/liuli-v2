@@ -112,3 +112,20 @@ class StockThesis(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class StockMaterial(Base):
+    __tablename__ = "stock_material"
+    __table_args__ = (UniqueConstraint("stock_id", "material_type", "material_id", name="uq_stock_material_ref"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    material_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # source_item / knowledge_note
+    material_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    impact_direction: Mapped[str | None] = mapped_column(String(32), nullable=True)  # positive / negative / neutral / noise
+    importance_level: Mapped[str | None] = mapped_column(String(16), nullable=True)  # high / medium / low
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)  # pending / confirmed / ignored
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+

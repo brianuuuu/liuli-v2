@@ -28,7 +28,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagCreate,
     TagUpdate,
 )
-from invest_assistant.modules.track_discovery.material_generation import create_pending_materials_for_source_item
+from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
 from invest_assistant.shared.time_utils import utc_now
 
 WINDOWS = {
@@ -245,10 +245,12 @@ def disable_hotword_tag_binding(db: Session, relation_id: int) -> dict | None:
 
 
 def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
+    from invest_assistant.modules.stock_analysis.service import create_pending_stock_materials_for_source_item
     existing = find_duplicate_source_item(db, payload)
     if existing is not None:
         persist_source_tag_matches(db, existing)
-        create_pending_materials_for_source_item(db, existing.id)
+        create_pending_track_materials_for_source_item(db, existing.id)
+        create_pending_stock_materials_for_source_item(db, existing.id)
         db.commit()
         db.refresh(existing)
         return _source_item_dict(db, existing)
@@ -257,7 +259,8 @@ def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
     db.commit()
     db.refresh(item)
     persist_source_tag_matches(db, item)
-    create_pending_materials_for_source_item(db, item.id)
+    create_pending_track_materials_for_source_item(db, item.id)
+    create_pending_stock_materials_for_source_item(db, item.id)
     db.commit()
     db.refresh(item)
     return _source_item_dict(db, item)
@@ -347,6 +350,7 @@ def backfill_source_tags(
     source_type: str | None = None,
     overwrite: bool = False,
 ) -> JobResult:
+    from invest_assistant.modules.stock_analysis.service import create_pending_stock_materials_for_source_item
     start_dt = _parse_datetime(start_time)
     end_dt = _parse_datetime(end_time)
     stmt = select(SourceItem).order_by(SourceItem.id.asc())
@@ -362,7 +366,12 @@ def backfill_source_tags(
     material_inserted = 0
     for item in items:
         inserted += persist_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id, overwrite=overwrite)
-        material_inserted += create_pending_materials_for_source_item(
+        material_inserted += create_pending_track_materials_for_source_item(
+            db,
+            item.id,
+            [tag_id] if tag_id is not None else None,
+        )
+        create_pending_stock_materials_for_source_item(
             db,
             item.id,
             [tag_id] if tag_id is not None else None,
