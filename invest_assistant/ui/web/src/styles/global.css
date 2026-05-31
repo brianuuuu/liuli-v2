@@ -439,7 +439,7 @@ body {
   margin-top: 7px;
   color: var(--ll-text);
   font-size: 27px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -710,7 +710,7 @@ body {
 
 .stats-val {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--ll-text);
   line-height: 1.2;
 }
@@ -1049,7 +1049,7 @@ body {
   overflow: hidden;
   color: var(--ll-text);
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
