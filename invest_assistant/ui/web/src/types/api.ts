@@ -501,6 +501,143 @@ export type StockMaterialPayload = {
   note?: string | null;
 };
 
+export type StockDashboardTopScoreStock = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  total_score?: number | null;
+};
+
+export type StockDashboardSummary = {
+  pool_count: number;
+  focused_count: number;
+  pending_materials_count: number;
+  top_score_stock?: StockDashboardTopScoreStock | null;
+};
+
+export type StockDashboardScorePoint = {
+  score_date: string;
+  total_score: number;
+  growth_score?: number | null;
+  valuation_score?: number | null;
+  moat_score?: number | null;
+  risk_score?: number | null;
+};
+
+export type StockDashboardScoreTrend = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  points: StockDashboardScorePoint[];
+};
+
+export type StockDashboardValuationPoint = {
+  analysis_date: string;
+  report_period?: string | null;
+  current_market_value?: number | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+};
+
+export type StockDashboardValuationTrend = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  points: StockDashboardValuationPoint[];
+};
+
+export type StockDashboardScoreRanking = {
+  rank: number;
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  score_date?: string | null;
+  growth_score?: number | null;
+  valuation_score?: number | null;
+  moat_score?: number | null;
+  risk_score?: number | null;
+  total_score?: number | null;
+};
+
+export type StockDashboardFocusStock = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status: string;
+  reason?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  latest_score?: number | null;
+  bound_track_count: number;
+  recent_material_count: number;
+};
+
+export type StockDashboardMaterial = StockMaterial & {
+  stock_name?: string | null;
+  stock_code?: string | null;
+};
+
+export type StockDashboardValuationSummary = {
+  report_period?: string | null;
+  current_market_value?: number | null;
+  quarter_performance?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+};
+
+export type StockDashboardLatestValuation = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  report_period?: string | null;
+  current_market_value?: number | null;
+  quarter_performance?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+};
+
+export type StockDashboardNoteSummary = {
+  id: number;
+  note_type: string;
+  title: string;
+  content: string;
+  related_track_id?: number | null;
+  updated_at?: string | null;
+};
+
+export type StockDashboardSelectedStockSummary = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  reason?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  latest_score?: StockDashboardScorePoint | null;
+  latest_valuation?: StockDashboardValuationSummary | null;
+  latest_note?: StockDashboardNoteSummary | null;
+  recent_materials: StockDashboardMaterial[];
+};
+
+export type StockDashboard = {
+  summary: StockDashboardSummary;
+  score_trends: StockDashboardScoreTrend[];
+  valuation_trends: StockDashboardValuationTrend[];
+  score_rankings: StockDashboardScoreRanking[];
+  latest_valuations: StockDashboardLatestValuation[];
+  focus_stocks: StockDashboardFocusStock[];
+  latest_materials: StockDashboardMaterial[];
+  pending_materials: StockDashboardMaterial[];
+  default_stock_id?: number | null;
+  selected_stock_summary?: StockDashboardSelectedStockSummary | null;
+};
+
 
 export type PortfolioGroup = {
   id: number;

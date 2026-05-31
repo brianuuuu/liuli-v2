@@ -181,3 +181,139 @@ class StockMaterialRead(StockMaterialCreate):
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+
+class StockDashboardTopScoreStock(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    total_score: float | None = None
+
+
+class StockDashboardSummary(BaseModel):
+    pool_count: int
+    focused_count: int
+    pending_materials_count: int
+    top_score_stock: StockDashboardTopScoreStock | None = None
+
+
+class StockDashboardScorePoint(BaseModel):
+    score_date: date
+    total_score: float
+    growth_score: float | None = None
+    valuation_score: float | None = None
+    moat_score: float | None = None
+    risk_score: float | None = None
+
+
+class StockDashboardScoreTrend(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    points: list[StockDashboardScorePoint] = Field(default_factory=list)
+
+
+class StockDashboardValuationPoint(BaseModel):
+    analysis_date: date
+    report_period: str | None = None
+    current_market_value: float | None = None
+    expected_market_value_3y: float | None = None
+    expectation_gap_rate: float | None = None
+
+
+class StockDashboardValuationTrend(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    points: list[StockDashboardValuationPoint] = Field(default_factory=list)
+
+
+class StockDashboardLatestValuation(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    report_period: str | None = None
+    current_market_value: float | None = None
+    quarter_performance: str | None = None
+    primary_model: str | None = None
+    expected_market_value_3y: float | None = None
+    expectation_gap_rate: float | None = None
+    analysis_date: date | None = None
+    researcher: str | None = None
+
+
+class StockDashboardScoreRanking(BaseModel):
+    rank: int
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    status: str | None = None
+    tracks: list[dict] = Field(default_factory=list)
+    score_date: date | None = None
+    growth_score: float | None = None
+    valuation_score: float | None = None
+    moat_score: float | None = None
+    risk_score: float | None = None
+    total_score: float | None = None
+
+
+class StockDashboardFocusStock(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    status: str
+    reason: str | None = None
+    tracks: list[dict] = Field(default_factory=list)
+    latest_score: float | None = None
+    bound_track_count: int
+    recent_material_count: int
+
+
+class StockDashboardMaterial(StockMaterialRead):
+    stock_name: str | None = None
+    stock_code: str | None = None
+
+
+class StockDashboardValuationSummary(BaseModel):
+    report_period: str | None = None
+    current_market_value: float | None = None
+    quarter_performance: str | None = None
+    primary_model: str | None = None
+    expected_market_value_3y: float | None = None
+    expectation_gap_rate: float | None = None
+    analysis_date: date | None = None
+    researcher: str | None = None
+
+
+class StockDashboardNoteSummary(BaseModel):
+    id: int
+    note_type: str
+    title: str
+    content: str
+    related_track_id: int | None = None
+    updated_at: datetime | None = None
+
+
+class StockDashboardSelectedStockSummary(BaseModel):
+    stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    status: str | None = None
+    reason: str | None = None
+    tracks: list[dict] = Field(default_factory=list)
+    latest_score: StockDashboardScorePoint | None = None
+    latest_valuation: StockDashboardValuationSummary | None = None
+    latest_note: StockDashboardNoteSummary | None = None
+    recent_materials: list[StockDashboardMaterial] = Field(default_factory=list)
+
+
+class StockDashboardRead(BaseModel):
+    summary: StockDashboardSummary
+    score_trends: list[StockDashboardScoreTrend] = Field(default_factory=list)
+    valuation_trends: list[StockDashboardValuationTrend] = Field(default_factory=list)
+    score_rankings: list[StockDashboardScoreRanking] = Field(default_factory=list)
+    latest_valuations: list[StockDashboardLatestValuation] = Field(default_factory=list)
+    focus_stocks: list[StockDashboardFocusStock] = Field(default_factory=list)
+    latest_materials: list[StockDashboardMaterial] = Field(default_factory=list)
+    pending_materials: list[StockDashboardMaterial] = Field(default_factory=list)
+    default_stock_id: int | None = None
+    selected_stock_summary: StockDashboardSelectedStockSummary | None = None

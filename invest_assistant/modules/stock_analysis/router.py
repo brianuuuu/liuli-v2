@@ -21,11 +21,17 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockMaterialCreate,
     StockMaterialUpdate,
     StockMaterialRead,
+    StockDashboardRead,
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
+
+
+@router.get("/dashboard", response_model=StockDashboardRead)
+def get_dashboard(stock_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+    return service.get_dashboard(db, selected_stock_id=stock_id)
 
 
 @router.get("/pool", response_model=list[StockPoolRead])
@@ -175,4 +181,3 @@ def update_stock_material(material_id: int, payload: StockMaterialUpdate, db: Se
     if material is None:
         raise HTTPException(status_code=404, detail="material not found")
     return material
-

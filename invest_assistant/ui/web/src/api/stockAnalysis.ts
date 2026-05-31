@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { StockCompareGroup, StockDashboard, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -46,6 +46,13 @@ export type TagBindingPayload = {
   source?: string | null;
   status?: string;
 };
+
+export async function getStockDashboard(stockId?: number | null): Promise<StockDashboard> {
+  const response = await apiClient.get<StockDashboard>("/api/stock-analysis/dashboard", {
+    params: stockId ? { stock_id: stockId } : undefined,
+  });
+  return response.data;
+}
 
 export async function listStockPool(): Promise<StockPoolItem[]> {
   const response = await apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool");
@@ -161,4 +168,3 @@ export async function updateStockMaterial(materialId: number, payload: Partial<S
   const response = await apiClient.put<StockMaterial>(`/api/stock-analysis/materials/${materialId}`, payload);
   return response.data;
 }
-

@@ -1064,6 +1064,7 @@ body {
 .dashboard-page .workbench-card .ant-card-head,
 .market-overview-dashboard .workbench-card .ant-card-head,
 .track-dashboard .workbench-card .ant-card-head,
+.stock-dashboard .workbench-card .ant-card-head,
 .stock-overview-dashboard .workbench-card .ant-card-head,
 .portfolio-dashboard .workbench-card .ant-card-head {
   background: var(--ll-panel);
@@ -1228,9 +1229,83 @@ body {
   border-color: rgba(88, 166, 255, 0.35);
 }
 
+/* ── Stock Analysis: overview dashboard ── */
+.stock-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stock-dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stock-metric-card {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+.stock-metric-icon {
+  display: inline-flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel-subtle);
+  color: var(--ll-accent);
+  font-size: 18px;
+}
+
+.stock-metric-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.stock-metric-copy span {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-metric-copy strong {
+  overflow: hidden;
+  color: var(--ll-text);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-dashboard-grid {
+  display: grid;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.stock-dashboard-grid.main {
+  grid-template-columns: minmax(0, 1.12fr) minmax(520px, 0.88fr);
+}
+
+.stock-dashboard-target-link {
+  color: var(--ll-text);
+}
+
 @media (max-width: 1280px) {
   .track-dashboard-grid.main,
-  .track-dashboard-grid.secondary {
+  .track-dashboard-grid.secondary,
+  .stock-dashboard-grid.main {
     grid-template-columns: 1fr;
   }
 
@@ -1241,6 +1316,20 @@ body {
   .track-analysis-foot {
     grid-column: span 2;
   }
+}
+
+@media (max-width: 860px) {
+  .track-dashboard-metrics,
+  .stock-dashboard-metrics,
+  .track-focus-grid,
+  .track-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .track-analysis-foot {
+    grid-column: span 1;
+  }
+
 }
 
 /* ── Parameters Inspector Panel Layout ── */

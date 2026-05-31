@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from collections import defaultdict
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -77,6 +79,150 @@ def list_candidates(db: Session) -> list[dict]:
     return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
 
 
+def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
+    pool_rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .order_by(StockPoolItem.updated_at.desc(), StockPoolItem.id.desc())
+    ).all()
+    if not pool_rows:
+        return {
+            "summary": {
+                "pool_count": 0,
+                "focused_count": 0,
+                "pending_materials_count": 0,
+                "top_score_stock": None,
+            },
+            "score_trends": [],
+            "valuation_trends": [],
+            "score_rankings": [],
+            "latest_valuations": [],
+            "focus_stocks": [],
+            "latest_materials": [],
+            "pending_materials": [],
+            "default_stock_id": None,
+            "selected_stock_summary": None,
+        }
+
+    stock_ids = [item.stock_id for item, _stock in pool_rows]
+    stock_by_id = {stock.id: stock for _item, stock in pool_rows}
+    pool_by_stock_id = {item.stock_id: item for item, _stock in pool_rows}
+    tracks_by_stock_id = {stock_id: _active_track_summaries_for_stock(db, stock_id) for stock_id in stock_ids}
+    latest_scores = _latest_scores_by_stock(db, stock_ids)
+    material_counts = dict(
+        db.execute(
+            select(StockMaterial.stock_id, func.count(StockMaterial.id))
+            .where(StockMaterial.stock_id.in_(stock_ids))
+            .group_by(StockMaterial.stock_id)
+        ).all()
+    )
+    pending_materials_count = int(
+        db.scalar(
+            select(func.count(StockMaterial.id)).where(
+                StockMaterial.stock_id.in_(stock_ids),
+                StockMaterial.status == "pending",
+            )
+        )
+        or 0
+    )
+
+    score_rankings = []
+    for item, stock in pool_rows:
+        score = latest_scores.get(item.stock_id)
+        score_rankings.append(
+            {
+                "rank": 0,
+                "stock_id": item.stock_id,
+                "stock_name": stock.stock_name,
+                "stock_code": stock.stock_code,
+                "status": item.status,
+                "tracks": tracks_by_stock_id.get(item.stock_id, []),
+                "score_date": score.score_date if score else None,
+                "growth_score": score.growth_score if score else None,
+                "valuation_score": score.valuation_score if score else None,
+                "moat_score": score.moat_score if score else None,
+                "risk_score": score.risk_score if score else None,
+                "total_score": score.total_score if score else None,
+            }
+        )
+    score_rankings.sort(
+        key=lambda row: (
+            -(float(row["total_score"]) if row["total_score"] is not None else -1),
+            str(row["stock_name"] or ""),
+            row["stock_id"],
+        )
+    )
+    for index, row in enumerate(score_rankings, start=1):
+        row["rank"] = index
+
+    focus_stocks = []
+    for item, stock in pool_rows:
+        if item.status != "focused":
+            continue
+        tracks = tracks_by_stock_id.get(item.stock_id, [])
+        focus_stocks.append(
+            {
+                "stock_id": item.stock_id,
+                "stock_name": stock.stock_name,
+                "stock_code": stock.stock_code,
+                "status": item.status,
+                "reason": item.reason,
+                "tracks": tracks,
+                "latest_score": latest_scores[item.stock_id].total_score if item.stock_id in latest_scores else None,
+                "bound_track_count": len(tracks),
+                "recent_material_count": int(material_counts.get(item.stock_id, 0)),
+            }
+        )
+    focus_stocks.sort(
+        key=lambda row: (
+            -(float(row["latest_score"]) if row["latest_score"] is not None else -1),
+            -int(row["recent_material_count"]),
+            str(row["stock_name"] or ""),
+        )
+    )
+
+    latest_materials = _dashboard_materials(db, stock_ids, stock_by_id, status=None, limit=10)
+    pending_materials = _dashboard_materials(db, stock_ids, stock_by_id, status="pending", limit=10)
+    latest_valuations = _latest_valuations(db, stock_ids, stock_by_id)
+    top_score = score_rankings[0] if score_rankings and score_rankings[0]["total_score"] is not None else None
+    pool_stock_ids = {item.stock_id for item, _stock in pool_rows}
+    if selected_stock_id in pool_stock_ids:
+        default_stock_id = selected_stock_id
+    else:
+        default_stock_id = top_score["stock_id"] if top_score else pool_rows[0][0].stock_id
+    return {
+        "summary": {
+            "pool_count": len(pool_rows),
+            "focused_count": len([item for item, _stock in pool_rows if item.status == "focused"]),
+            "pending_materials_count": pending_materials_count,
+            "top_score_stock": {
+                "stock_id": top_score["stock_id"],
+                "stock_name": top_score["stock_name"],
+                "stock_code": top_score["stock_code"],
+                "total_score": top_score["total_score"],
+            }
+            if top_score
+            else None,
+        },
+        "score_trends": _score_trends(db, [row["stock_id"] for row in score_rankings[:8]], stock_by_id),
+        "valuation_trends": _valuation_trends(db, [row["stock_id"] for row in latest_valuations[:8]], stock_by_id),
+        "score_rankings": score_rankings,
+        "latest_valuations": latest_valuations,
+        "focus_stocks": focus_stocks[:8],
+        "latest_materials": latest_materials,
+        "pending_materials": pending_materials,
+        "default_stock_id": default_stock_id,
+        "selected_stock_summary": _selected_stock_summary(
+            db,
+            default_stock_id,
+            stock_by_id.get(default_stock_id),
+            pool_by_stock_id.get(default_stock_id),
+            tracks_by_stock_id.get(default_stock_id, []),
+            latest_scores.get(default_stock_id),
+        ),
+    }
+
+
 def _pool_item_dict(db: Session, item: StockPoolItem) -> dict:
     stock = db.get(Stock, item.stock_id)
     return _pool_item_dict_from_stock(db, item, stock)
@@ -108,6 +254,239 @@ def _active_track_summaries_for_stock(db: Session, stock_id: int) -> list[dict]:
         .order_by(Track.name)
     ).scalars()
     return [_track_dict(track) for track in rows]
+
+
+def _latest_scores_by_stock(db: Session, stock_ids: list[int]) -> dict[int, StockScoreSnapshot]:
+    scores = list(
+        db.scalars(
+            select(StockScoreSnapshot)
+            .where(StockScoreSnapshot.stock_id.in_(stock_ids))
+            .order_by(
+                StockScoreSnapshot.stock_id.asc(),
+                StockScoreSnapshot.score_date.desc(),
+                StockScoreSnapshot.id.desc(),
+            )
+        )
+    )
+    latest: dict[int, StockScoreSnapshot] = {}
+    for score in scores:
+        if score.stock_id not in latest:
+            latest[score.stock_id] = score
+    return latest
+
+
+def _score_point(score: StockScoreSnapshot | None) -> dict | None:
+    if score is None:
+        return None
+    return {
+        "score_date": score.score_date,
+        "total_score": score.total_score,
+        "growth_score": score.growth_score,
+        "valuation_score": score.valuation_score,
+        "moat_score": score.moat_score,
+        "risk_score": score.risk_score,
+    }
+
+
+def _score_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stock]) -> list[dict]:
+    if not stock_ids:
+        return []
+    rows = list(
+        db.scalars(
+            select(StockScoreSnapshot)
+            .where(StockScoreSnapshot.stock_id.in_(stock_ids))
+            .order_by(StockScoreSnapshot.stock_id.asc(), StockScoreSnapshot.score_date.asc(), StockScoreSnapshot.id.asc())
+        )
+    )
+    points_by_stock: dict[int, list[dict]] = defaultdict(list)
+    for row in rows:
+        point = _score_point(row)
+        if point is not None:
+            points_by_stock[row.stock_id].append(point)
+    trends = []
+    for stock_id in stock_ids:
+        stock = stock_by_id.get(stock_id)
+        trends.append(
+            {
+                "stock_id": stock_id,
+                "stock_name": stock.stock_name if stock else None,
+                "stock_code": stock.stock_code if stock else None,
+                "points": points_by_stock.get(stock_id, []),
+            }
+        )
+    return trends
+
+
+def _dashboard_materials(
+    db: Session,
+    stock_ids: list[int],
+    stock_by_id: dict[int, Stock],
+    status: str | None,
+    limit: int,
+) -> list[dict]:
+    stmt = select(StockMaterial).where(StockMaterial.stock_id.in_(stock_ids))
+    if status is not None:
+        stmt = stmt.where(StockMaterial.status == status)
+    materials = sorted(
+        db.scalars(stmt),
+        key=lambda item: (
+            0 if item.status == "pending" else 1,
+            -(item.updated_at.timestamp() if item.updated_at else 0),
+            -item.id,
+        ),
+    )
+    rows = []
+    for item in materials[:limit]:
+        row = _stock_material_dict(db, item)
+        stock = stock_by_id.get(item.stock_id)
+        row["stock_name"] = stock.stock_name if stock else None
+        row["stock_code"] = stock.stock_code if stock else None
+        rows.append(row)
+    return rows
+
+
+def _latest_valuation(db: Session, stock_id: int) -> dict | None:
+    item = db.scalar(
+        select(StockValuationSnapshot)
+        .where(StockValuationSnapshot.stock_id == stock_id)
+        .order_by(StockValuationSnapshot.analysis_date.desc(), StockValuationSnapshot.id.desc())
+    )
+    if item is None:
+        return None
+    return {
+        "report_period": item.report_period,
+        "current_market_value": item.current_market_value,
+        "quarter_performance": item.quarter_performance,
+        "primary_model": item.primary_model,
+        "expected_market_value_3y": item.expected_market_value_3y,
+        "expectation_gap_rate": item.expectation_gap_rate,
+        "analysis_date": item.analysis_date,
+        "researcher": item.researcher,
+    }
+
+
+def _valuation_point(item: StockValuationSnapshot) -> dict:
+    return {
+        "analysis_date": item.analysis_date,
+        "report_period": item.report_period,
+        "current_market_value": item.current_market_value,
+        "expected_market_value_3y": item.expected_market_value_3y,
+        "expectation_gap_rate": item.expectation_gap_rate,
+    }
+
+
+def _valuation_row(item: StockValuationSnapshot, stock: Stock | None) -> dict:
+    return {
+        "stock_id": item.stock_id,
+        "stock_name": stock.stock_name if stock else None,
+        "stock_code": stock.stock_code if stock else None,
+        "report_period": item.report_period,
+        "current_market_value": item.current_market_value,
+        "quarter_performance": item.quarter_performance,
+        "primary_model": item.primary_model,
+        "expected_market_value_3y": item.expected_market_value_3y,
+        "expectation_gap_rate": item.expectation_gap_rate,
+        "analysis_date": item.analysis_date,
+        "researcher": item.researcher,
+    }
+
+
+def _latest_valuations(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stock]) -> list[dict]:
+    if not stock_ids:
+        return []
+    rows = list(
+        db.scalars(
+            select(StockValuationSnapshot)
+            .where(StockValuationSnapshot.stock_id.in_(stock_ids))
+            .order_by(
+                StockValuationSnapshot.stock_id.asc(),
+                StockValuationSnapshot.analysis_date.desc(),
+                StockValuationSnapshot.id.desc(),
+            )
+        )
+    )
+    latest: dict[int, StockValuationSnapshot] = {}
+    for row in rows:
+        if row.stock_id not in latest:
+            latest[row.stock_id] = row
+    result = [_valuation_row(item, stock_by_id.get(stock_id)) for stock_id, item in latest.items()]
+    result.sort(
+        key=lambda row: (
+            -(float(row["expectation_gap_rate"]) if row["expectation_gap_rate"] is not None else -999),
+            str(row["stock_name"] or ""),
+            row["stock_id"],
+        )
+    )
+    return result[:10]
+
+
+def _valuation_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stock]) -> list[dict]:
+    if not stock_ids:
+        return []
+    rows = list(
+        db.scalars(
+            select(StockValuationSnapshot)
+            .where(StockValuationSnapshot.stock_id.in_(stock_ids), StockValuationSnapshot.analysis_date.is_not(None))
+            .order_by(StockValuationSnapshot.stock_id.asc(), StockValuationSnapshot.analysis_date.asc(), StockValuationSnapshot.id.asc())
+        )
+    )
+    points_by_stock: dict[int, list[dict]] = defaultdict(list)
+    for row in rows:
+        points_by_stock[row.stock_id].append(_valuation_point(row))
+    trends = []
+    for stock_id in stock_ids:
+        stock = stock_by_id.get(stock_id)
+        trends.append(
+            {
+                "stock_id": stock_id,
+                "stock_name": stock.stock_name if stock else None,
+                "stock_code": stock.stock_code if stock else None,
+                "points": points_by_stock.get(stock_id, []),
+            }
+        )
+    return trends
+
+
+def _latest_note(db: Session, stock_id: int) -> dict | None:
+    item = db.scalar(
+        select(StockResearchNote)
+        .where(StockResearchNote.stock_id == stock_id)
+        .order_by(StockResearchNote.updated_at.desc(), StockResearchNote.id.desc())
+    )
+    if item is None:
+        return None
+    return {
+        "id": item.id,
+        "note_type": item.note_type,
+        "title": item.title,
+        "content": _summary(item.content, limit=180) or "",
+        "related_track_id": item.related_track_id,
+        "updated_at": item.updated_at,
+    }
+
+
+def _selected_stock_summary(
+    db: Session,
+    stock_id: int | None,
+    stock: Stock | None,
+    pool_item: StockPoolItem | None,
+    tracks: list[dict],
+    latest_score: StockScoreSnapshot | None,
+) -> dict | None:
+    if stock_id is None:
+        return None
+    return {
+        "stock_id": stock_id,
+        "stock_name": stock.stock_name if stock else None,
+        "stock_code": stock.stock_code if stock else None,
+        "status": pool_item.status if pool_item else None,
+        "reason": pool_item.reason if pool_item else None,
+        "tracks": tracks,
+        "latest_score": _score_point(latest_score),
+        "latest_valuation": _latest_valuation(db, stock_id),
+        "latest_note": _latest_note(db, stock_id),
+        "recent_materials": _dashboard_materials(db, [stock_id], {stock_id: stock} if stock else {}, status=None, limit=10),
+    }
 
 
 def _sync_stock_track_relations(db: Session, stock_id: int, track_ids: list[int]) -> None:
@@ -545,4 +924,3 @@ def create_pending_stock_materials_for_source_item(
     if inserted:
         db.flush()
     return inserted
-
