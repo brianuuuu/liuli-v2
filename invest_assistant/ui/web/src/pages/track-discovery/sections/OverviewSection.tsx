@@ -185,14 +185,13 @@ export function OverviewSection() {
   return (
     <div className="track-dashboard">
       <div className="track-dashboard-metrics">
-        <MetricCard icon={<FireOutlined />} label="升温赛道数量" value={dashboard.data.summary.warming_tracks_count} note="7/30/90日变化为正" />
-        <MetricCard icon={<StarOutlined />} label="重点跟踪赛道数量" value={dashboard.data.summary.focus_tracks_count} note="状态为跟踪中" />
-        <MetricCard icon={<AlertOutlined />} label="待确认动态数量" value={dashboard.data.summary.pending_materials_count} note="待人工确认材料" />
+        <MetricCard icon={<FireOutlined />} label="升温赛道数量" value={dashboard.data.summary.warming_tracks_count} />
+        <MetricCard icon={<StarOutlined />} label="重点跟踪赛道数量" value={dashboard.data.summary.focus_tracks_count} />
+        <MetricCard icon={<AlertOutlined />} label="待确认动态数量" value={dashboard.data.summary.pending_materials_count} />
         <MetricCard
           icon={<TrophyOutlined />}
           label="今日最高热度赛道"
           value={dashboard.data.summary.top_heat_track?.name || "-"}
-          note={dashboard.data.summary.top_heat_track ? `热度 ${Number(dashboard.data.summary.top_heat_track.heat_score || 0).toFixed(0)}` : "暂无热度"}
         />
       </div>
 
@@ -246,14 +245,13 @@ export function OverviewSection() {
   );
 }
 
-function MetricCard({ icon, label, value, note }: { icon: ReactNode; label: string; value: ReactNode; note: string }) {
+function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   return (
     <div className="track-metric-card">
       <div className="track-metric-icon">{icon}</div>
       <div className="track-metric-copy">
         <span>{label}</span>
         <strong>{value}</strong>
-        <em>{note}</em>
       </div>
     </div>
   );

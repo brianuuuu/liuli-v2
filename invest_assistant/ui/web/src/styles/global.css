@@ -1055,19 +1055,18 @@ body {
   white-space: nowrap;
 }
 
-.track-metric-copy em {
-  overflow: hidden;
-  color: var(--ll-muted);
-  font-size: 12px;
-  font-style: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .track-dashboard-grid {
   display: grid;
   gap: 10px;
   align-items: stretch;
+}
+
+.dashboard-page .workbench-card .ant-card-head,
+.market-overview-dashboard .workbench-card .ant-card-head,
+.track-dashboard .workbench-card .ant-card-head,
+.stock-overview-dashboard .workbench-card .ant-card-head,
+.portfolio-dashboard .workbench-card .ant-card-head {
+  background: var(--ll-panel);
 }
 
 .track-dashboard-grid.main {

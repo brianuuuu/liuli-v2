@@ -24,7 +24,7 @@ export function DashboardPage() {
     : alertEvents.data.filter((event) => event.status !== "handled").slice(0, 6);
 
   return (
-    <>
+    <div className="dashboard-page">
       <PageHeader title="今日看板" description="市场 / 任务 / 报告 / 系统" />
       <Row gutter={[12, 12]}>
         <Col span={6}>
@@ -99,6 +99,6 @@ export function DashboardPage() {
           </WorkbenchCard>
         </Col>
       </Row>
-    </>
+    </div>
   );
 }
