@@ -1,4 +1,4 @@
-# liuli 系统规格说明书 v24
+# liuli 系统规格说明书 v25
 
 > 项目名称：`liuli`  
 > 定位：个人投资辅助系统  
@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表。
 - v24：重构标签模型为“信息层 source_item → 语言层 tag → 业务层 stock/track/hotword”；取消 stock_alias/track_alias/hotword_alias/tag_candidate；新增 stock_tag_relation、track_tag_relation、hotword、hotword_tag_relation、ai_tag_suggestion；明确 tag 是语言入口，实体通过 relation 绑定多个 tag，source_tag 是信息流命中关系，实体热度通过绑定关系聚合；同步更新 API、表结构汇总和架构图。
 - v23：补充三类别名维护入口；明确标的别名主入口在股票基础库、辅入口在标的详情；赛道绑定标签主入口在赛道详情；市场热词别名主入口在市场热词详情、辅入口在标签索引；AI 推荐词审核页提供快捷转别名入口。
 - v22：收敛 `job_config` 表设计；任务调度参数、启停、Cron、超时、重试、参数 Schema、标签等不再摊平成字段，统一进入 `config_json / ext_json`；`job_config` 只保存任务身份、展示信息、配置 JSON 和最近运行状态。
@@ -771,7 +772,7 @@ AI 成本与失败率追踪
 
 ```text
 market_radar      标签抽取、新闻摘要
-track_discovery   赛道证据分析
+track_discovery   赛道动态分析
 stock_analysis    财报分析、标的研报
 alert_center      预警解释
 knowledge_base    Skills 提炼、Agent 编排
@@ -1898,26 +1899,59 @@ stock_track_relation = 绑定
 
 ### 18.1 定位
 
-赛道发现是判断层，用于管理投资者的赛道认知假设。
+赛道发现是判断层，用于管理投资者的赛道认知和赛道跟踪状态。
 
 它回答：
 
 ```text
 这个方向是不是值得长期跟踪？
-它是概念期、验证期、兑现期，还是过热期？
-我的赛道判断有没有被证据增强或削弱？
+它处于概念期、验证期、成长期、过热期，还是衰退期？
+哪些材料正在支持、削弱或修正我对这个赛道的判断？
+哪些赛道应该进入重点跟踪或暂停观察？
 ```
 
-### 18.2 内容
+边界：
 
 ```text
-赛道假设
-验证指标
-支持/削弱证据
-赛道阶段判断
-相关标的候选
-状态变化历史
-复盘记录
+市场雷达负责发现信号；
+赛道发现负责解释信号；
+赛道库沉淀正式 track；
+标的池承接 stock_pool；
+赛道发现不要做成另一个标签管理系统。
+```
+
+### 18.2 页面
+
+赛道发现是 Web 一级模块，二级内容页固定为：
+
+```text
+赛道看板
+赛道库
+赛道动态
+赛道对比
+```
+
+页面职责：
+
+```text
+赛道看板
+= 赛道驾驶舱，关注升温、降温、评分、AI 摘要、重要动态
+
+赛道库
+= 赛道主体管理，维护 track、状态、评分、当前判断、绑定 tag
+
+赛道动态
+= 赛道引用的信息流和笔记材料，底层读取 track_material
+
+赛道对比
+= 多赛道横向比较，展示热度、评分、市场空间、增长速度、机会、风险、AI 分析
+```
+
+动态详情页：
+
+```text
+/track-discovery/[track_id]
+= 赛道详情
 ```
 
 ### 18.3 赛道与标签绑定
@@ -1932,7 +1966,7 @@ ensure tag(name=track.name)
 写 track_tag_relation(track_id, tag_id)
 ```
 
-赛道的多个叫法不再进入 `track_alias`，而是统一表现为：
+赛道的多个叫法不进入 `track_alias`，统一表现为：
 
 ```text
 一个 track 绑定多个 tag
@@ -1951,17 +1985,39 @@ track：AI算力
 
 ### 18.4 核心表
 
+#### `track`
+
 ```sql
 track
 - id
 - name              -- 赛道正式名称
-- description       -- 可选，简要说明
+- description       -- 简要说明
 - status            -- candidate / active / paused / archived
-- priority_level    -- high / medium / low，可选
-- archive_reason    -- 可选
+- track_score       -- 0-100，第一版人工维护
+- current_view      -- 当前核心判断
+- stage             -- concept / validate / growth / overheat / decline
+- confidence_level  -- low / medium / high
+- archive_reason
 - created_at
 - updated_at
 ```
+
+说明：
+
+```text
+track_score = 赛道评分
+current_view = 当前核心判断
+stage = 当前阶段
+confidence_level = 当前判断置信度
+```
+
+不再使用：
+
+```text
+priority_level
+```
+
+#### `track_tag_relation`
 
 ```sql
 track_tag_relation
@@ -1974,77 +2030,175 @@ track_tag_relation
 - updated_at
 ```
 
+#### `track_material`
+
+`track_material` 是“赛道动态”的底层表。
+
+定位：
+
+```text
+某条材料被纳入某个赛道视角后的引用和判断。
+```
+
+材料来源只允许两类：
+
+```text
+source_item
+= 外部信息流，归市场雷达
+
+knowledge_note
+= 个人笔记 / 心得 / 复盘，归知识库
+```
+
+表结构：
+
 ```sql
-track_thesis
+track_material
 - id
 - track_id
-- user_id
-- title
-- core_thesis
-- underlying_change
-- old_bottleneck
-- new_solution
-- value_chain_shift
-- time_horizon
+- material_type      -- source_item / knowledge_note
+- material_id
+- direction          -- support / weaken / neutral / noise
+- importance_level   -- high / medium / low
+- status             -- pending / confirmed / ignored
+- note               -- 赛道视角一句话判断
+- created_at
+- updated_at
+```
+
+唯一约束：
+
+```text
+UNIQUE(track_id, material_type, material_id)
+```
+
+约束：
+
+```text
+track_material 不保存原文标题和正文。
+标题和正文从 source_item 或 knowledge_note 读取。
+```
+
+#### `track_analysis_snapshot`
+
+`track_analysis_snapshot` 用于记录 AI / 人工对赛道的阶段性分析，主要服务于赛道看板和赛道对比。
+
+```sql
+track_analysis_snapshot
+- id
+- track_id
+- analysis_date
+
+- market_space       -- 未来市场空间
+- market_size        -- 当前市场规模
+- growth_rate        -- 当前增长速度
+- heat_summary       -- 当前热度解释
+
+- ai_summary         -- AI 总结
+- opportunity_points -- 机会点，JSON 或 TEXT
+- risk_points        -- 风险点，JSON 或 TEXT
+- watch_signals      -- 后续观察信号，JSON 或 TEXT
+
+- score              -- AI / 系统评分，可选
 - confidence_level
-- status
-- created_at
-- updated_at
-```
-
-```sql
-track_validation_indicator
-- id
-- thesis_id
-- name
-- indicator_type
-- data_source
-- current_value
-- direction
-- validation_meaning
-- updated_at
-```
-
-```sql
-track_evidence
-- id
-- thesis_id
-- source_item_id
-- evidence_direction   -- support / weaken / neutral / noise
-- evidence_strength
-- summary
-- affected_segments
-- related_stock_ids
 - created_at
 ```
 
-```sql
--- 标的与赛道的确认关系统一使用 stock_track_relation(stock_id, track_id)。
--- /track-discovery/[id] 作为赛道视角的维护入口。
+赛道热度来源：
+
+```text
+track_tag_relation + tag_heat_snapshot 聚合
 ```
+
+不新增：
+
+```text
+track_heat_snapshot
+```
+
+#### `track_status_history`
 
 ```sql
 track_status_history
 - id
-- thesis_id
+- track_id
 - old_status
 - new_status
+- old_stage
+- new_stage
 - reason
+- changed_by        -- manual / system / ai
 - changed_at
 ```
 
-### 18.5 页面
+说明：
+
+```text
+track_status_history 直接绑定 track_id，不再绑定 thesis。
+```
+
+### 18.5 删除 / 不使用
+
+删除历史遗留表：
+
+```text
+track_related_stock
+```
+
+赛道绑定标的统一使用：
+
+```text
+stock_track_relation(stock_id, track_id)
+```
+
+从赛道视角看，它是“赛道绑定标的”；从标的视角看，它是“标的所属赛道”。
+
+第一版不建设：
+
+```text
+track_thesis
+track_validation_indicator
+track_evidence
+track_heat_snapshot
+```
+
+### 18.6 写入规则
+
+信息流命中赛道：
+
+```text
+source_item
+  ↓
+source_tag / tag
+  ↓
+track_tag_relation
+  ↓
+生成 track_material(status=pending)
+```
+
+用户在赛道页主动引用信息流或笔记：
+
+```text
+直接生成 track_material(status=confirmed)
+```
+
+状态流转：
+
+```text
+pending → confirmed
+pending → ignored
+```
+
+### 18.7 页面路径
 
 ```text
 /track-discovery
-/track-discovery/candidates
-/track-discovery/[id]
-/track-discovery/evidence
+/track-discovery/dashboard
+/track-discovery/tracks
+/track-discovery/[track_id]
+/track-discovery/materials
 /track-discovery/compare
 ```
-
-
----
 
 ## 19. 标的分析 stock_analysis
 
@@ -2058,23 +2212,35 @@ track_status_history
 这个公司是否真正受益？
 它在同赛道里竞争力如何？
 估值、成长性、风险如何？
-是否值得进入观察池或核心储备池？
+哪些材料正在影响我对这个标的的判断？
+是否值得进入观察池或重点跟踪？
 ```
 
-### 19.2 内容
+### 19.2 页面
+
+标的分析二级页建议：
 
 ```text
+标的看板
 标的池
-同赛道横向 PK
-公司核心逻辑
-财务质量
-估值区间
-成长性
-竞争格局
-风险点
-研究笔记
-评分快照
-冒泡排序
+标的事件
+标的对比
+```
+
+页面职责：
+
+```text
+标的看板
+= 今日值得关注的标的异动、冒泡、预警和研究状态
+
+标的池
+= 研究对象管理，维护 stock_pool
+
+标的事件
+= 标的引用的信息流和笔记材料，底层读取 stock_material
+
+标的对比
+= 多标的横向比较
 ```
 
 ### 19.3 标的与标签绑定
@@ -2101,7 +2267,7 @@ ensure tag(name=stock.stock_name)
 写 stock_tag_relation(stock_id, tag_id)
 ```
 
-标的的多个叫法不再进入 `stock_alias`，而是统一表现为：
+标的的多个叫法不进入 `stock_alias`，统一表现为：
 
 ```text
 一个 stock 绑定多个 tag
@@ -2130,6 +2296,7 @@ stock_analysis_report
 stock_pool
 stock_tag_relation
 stock_track_relation
+stock_material
 ```
 
 #### `stock_pool`
@@ -2196,18 +2363,93 @@ stock_track_relation
 stock_track_relation 表示“这只股票属于哪个赛道”。
 ```
 
-### 19.5 页面
+#### `stock_material`
+
+`stock_material` 是“标的事件”的底层表。
+
+定位：
+
+```text
+某条材料被纳入某个标的视角后的引用和判断。
+```
+
+它与 `track_material` 平行：
+
+```text
+track_material
+= 这条材料对某个赛道判断有什么影响
+
+stock_material
+= 这条材料对某个具体公司的研究判断有什么影响
+```
+
+表结构：
+
+```sql
+stock_material
+- id
+- stock_id
+- material_type       -- source_item / knowledge_note
+- material_id
+- impact_direction    -- positive / negative / neutral / noise
+- importance_level    -- high / medium / low
+- status              -- pending / confirmed / ignored
+- note                -- 标的视角一句话判断
+- created_at
+- updated_at
+```
+
+唯一约束：
+
+```text
+UNIQUE(stock_id, material_type, material_id)
+```
+
+约束：
+
+```text
+stock_material 不保存原文标题和正文。
+标题和正文从 source_item 或 knowledge_note 读取。
+```
+
+### 19.5 写入规则
+
+信息流命中标的：
+
+```text
+source_item
+  ↓
+source_tag / tag
+  ↓
+stock_tag_relation
+  ↓
+生成 stock_material(status=pending)
+```
+
+用户在标的页主动引用信息流或笔记：
+
+```text
+直接生成 stock_material(status=confirmed)
+```
+
+状态流转：
+
+```text
+pending → confirmed
+pending → ignored
+```
+
+### 19.6 页面路径
 
 ```text
 /stock-analysis
+/stock-analysis/dashboard
 /stock-analysis/pool
 /stock-analysis/candidates
 /stock-analysis/[stock_id]
+/stock-analysis/materials
 /stock-analysis/compare
 ```
-
-
----
 
 ## 20. 预警中心 alert_center
 
@@ -2394,13 +2636,13 @@ portfolio_position 只记录真实持仓；
 页面对应二级菜单：
 
 ```text
-组合总览
+组合看板
 实盘持仓
 调仓记录
 组合复盘
 ```
 
-赛道分布不单独做二级菜单，只作为组合总览、实盘持仓、组合复盘里的分析视角。
+赛道分布不单独做二级菜单，只作为组合看板、实盘持仓、组合复盘里的分析视角。
 
 
 ---
@@ -2607,6 +2849,7 @@ console/
 
 ## 24. 业务流转与 Web 两级菜单
 
+
 ### 24.1 候选对象流转原则
 
 第一版不单独建设：
@@ -2616,6 +2859,7 @@ track_candidate
 candidate_track
 stock_candidate
 candidate_stock
+tag_candidate
 ```
 
 候选状态由正式业务实体或业务池承载：
@@ -2623,6 +2867,7 @@ candidate_stock
 ```text
 候选赛道 = track.status = candidate
 候选标的 = stock_pool.status = candidate
+AI 推荐词 = ai_tag_suggestion.status = pending
 ```
 
 原因：
@@ -2630,25 +2875,43 @@ candidate_stock
 ```text
 避免候选对象升级正式对象时搬表；
 避免字段重复；
-避免 AI 编码时混淆“候选表”和“正式表”。
+避免 AI 编码时混淆“候选表”和“正式表”；
+避免恢复旧 tag_candidate 模型。
 ```
 
-候选流转：
+AI 推荐词流转：
 
 ```text
 source_item
   ↓
-AI / 规则抽取
+AI / 规则发现新词
   ↓
-tag_candidate
+ai_tag_suggestion
   ↓
-审核分流
-  ├── 市场热词 → tag(type=hotword)
-  ├── 候选赛道 → track(status=candidate) + tag(type=track)
-  ├── 候选标的 → stock_pool(status=candidate)
-  ├── 别名 → stock_alias / track_alias
-  ├── 合并 → tag_candidate.target_tag_id
-  └── 拒绝 → tag_candidate.status = rejected
+人工审核
+  ├── 创建或绑定 tag
+  ├── 绑定到 stock / track / hotword
+  └── 拒绝 / 忽略
+```
+
+赛道材料流转：
+
+```text
+source_item / knowledge_note
+  ↓
+track_material(status=pending / confirmed)
+  ↓
+人工确认或忽略
+```
+
+标的材料流转：
+
+```text
+source_item / knowledge_note
+  ↓
+stock_material(status=pending / confirmed)
+  ↓
+人工确认或忽略
 ```
 
 注意：
@@ -2658,6 +2921,7 @@ stock 是 A 股基础库，不用 stock.status 表示“候选标的”；
 stock.status 只表示股票主数据状态；
 候选标的应放 stock_pool。
 ```
+
 
 ### 24.2 报告入口原则
 
@@ -2704,13 +2968,13 @@ Android：保留报告入口
 
 ```text
 工作台
-├── 今日概览
+├── 今日看板
 ├── 重点预警
 ├── 关注对象
 └── 最新报告
 
 市场雷达
-├── 市场总览
+├── 市场看板
 ├── 信息流
 ├── 标签热度
 ├── AI 推荐词
@@ -2720,11 +2984,11 @@ Android：保留报告入口
 赛道发现
 ├── 赛道看板
 ├── 赛道库
-├── 赛道证据
+├── 赛道动态
 └── 赛道对比
 
 标的分析
-├── 标的总览
+├── 标的看板
 ├── 标的池
 ├── 标的事件
 └── 标的对比
@@ -2735,7 +2999,7 @@ Android：保留报告入口
 └── 预警复盘
 
 组合管理
-├── 组合总览
+├── 组合看板
 ├── 实盘持仓
 ├── 调仓记录
 └── 组合复盘
@@ -2786,7 +3050,7 @@ AI 推荐词在市场雷达审核分流；
 
 ```text
 赛道分布不做二级菜单；
-它作为组合总览、实盘持仓、组合复盘里的分析视角。
+它作为组合看板、实盘持仓、组合复盘里的分析视角。
 ```
 
 
@@ -3014,8 +3278,6 @@ lightweight-charts：K线、分时、成交量、价格事件标注
 查看 tag 绑定实体：stock_id / track_id
 查看标签状态
 查看热度统计是否正常
-查看别名命中情况
-查看市场热词别名
 处理异常标签
 停用标签
 合并异常重复标签
@@ -3063,7 +3325,7 @@ tag 是索引层，不是用户主要操作对象。
 解析状态
 文件归档
 重新解析
-加入赛道证据
+加入赛道动态
 加入标的分析
 ```
 
@@ -4024,7 +4286,7 @@ tag 作为市场信息流和业务实体之间的连接层。
 | GET | `/api/disclosures/{id}/file` | 读取原始文件 |
 | GET | `/api/disclosures/{id}/parsed` | 读取解析后的文本/Markdown |
 | POST | `/api/disclosures/{id}/to-source-item` | 将重大公告写入 `source_item`，供市场雷达使用 |
-| POST | `/api/disclosures/{id}/to-track-evidence` | 加入赛道证据 |
+| POST | `/api/disclosures/{id}/to-track-evidence` | 加入赛道动态 |
 | POST | `/api/disclosures/{id}/to-stock-analysis` | 加入标的分析材料 |
 
 ### 33.8 报告库 API
@@ -4039,95 +4301,56 @@ tag 作为市场信息流和业务实体之间的连接层。
 | PUT | `/api/reports/{id}` | 更新报告元数据 |
 | DELETE | `/api/reports/{id}` | 删除报告索引，可选是否删除文件 |
 
+
 ### 33.9 市场雷达 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/market-radar/overview` | 市场雷达总览 |
-| GET | `/api/market-radar/source-items` | 信息流列表，支持 source_type 筛选 |
-| GET | `/api/market-radar/source-items/{id}` | 信息源详情 |
-| GET | `/api/market-radar/tags` | 标签词索引列表 |
-| GET | `/api/market-radar/tags/{tag_id}` | 标签词详情 |
-| POST | `/api/market-radar/tags` | 创建标签词，通常由审核/绑定流程调用 |
-| POST | `/api/market-radar/tags/{tag_id}/disable` | 停用异常标签词 |
-| GET | `/api/market-radar/tags/{tag_id}/trend` | 标签词热度趋势 |
-| GET | `/api/market-radar/tags/{tag_id}/sources` | 触发该标签词的信息流条目 |
+| GET | `/api/market-radar/dashboard` | 市场看板 |
+| GET | `/api/market-radar/feed` | 信息流列表 |
+| GET | `/api/market-radar/feed/{source_item_id}` | 信息流详情 |
+| GET | `/api/market-radar/tags/heat` | 标签热度 |
+| GET | `/api/market-radar/edges` | 标签共现关系 |
 | GET | `/api/market-radar/ai-tag-suggestions` | AI 推荐词列表 |
-| POST | `/api/market-radar/ai-tag-suggestions/generate` | 基于当日信息流生成 AI 推荐词 |
-| PUT | `/api/market-radar/ai-tag-suggestions/{id}` | 修改推荐词状态、final_tag_name 等 |
-| POST | `/api/market-radar/ai-tag-suggestions/{id}/approve` | 审核通过，创建或绑定 tag |
-| POST | `/api/market-radar/ai-tag-suggestions/{id}/reject` | 拒绝推荐词 |
-| GET | `/api/market-radar/hotwords` | 市场热词实体列表 |
-| POST | `/api/market-radar/hotwords` | 新增市场热词实体，并 ensure 同名 tag 绑定 |
-| GET | `/api/market-radar/hotwords/{hotword_id}` | 市场热词详情 |
-| PUT | `/api/market-radar/hotwords/{hotword_id}` | 编辑市场热词实体 |
-| GET | `/api/market-radar/hotwords/{hotword_id}/tags` | 查询市场热词绑定标签 |
-| POST | `/api/market-radar/hotwords/{hotword_id}/tags` | 给市场热词绑定标签 |
-| DELETE | `/api/market-radar/hotwords/{hotword_id}/tags/{tag_id}` | 解除市场热词标签绑定 |
-| GET | `/api/market-radar/rankings` | 热度榜，支持 tag/stock/track/hotword 维度 |
-| GET | `/api/market-radar/graphs/tag-edges` | 标签词共现关系图 |
-| GET | `/api/market-radar/graphs/stock-track` | 标的-赛道关系图 |
-| GET | `/api/market-radar/graphs/stock-hotword` | 标的-市场热词关系图 |
-
-说明：
-
-```text
-AI 推荐词不直接决定 stock / track / hotword 类型；
-人工审核后创建或绑定 tag，再通过 relation 绑定到业务实体。
-```
-
-
+| POST | `/api/market-radar/ai-tag-suggestions/{id}/approve` | 审核通过 AI 推荐词 |
+| POST | `/api/market-radar/ai-tag-suggestions/{id}/reject` | 拒绝 AI 推荐词 |
+| GET | `/api/market-radar/hotwords` | 市场热词列表 |
+| POST | `/api/market-radar/hotwords` | 新增市场热词 |
 
 ### 33.10 赛道发现 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/track-discovery/tracks` | 赛道列表，支持 status=candidate/active/paused/archived |
-| POST | `/api/track-discovery/tracks` | 新建赛道，并 ensure 同名 tag 绑定 |
+| GET | `/api/track-discovery/dashboard` | 赛道看板 |
+| GET | `/api/track-discovery/tracks` | 赛道库列表 |
+| POST | `/api/track-discovery/tracks` | 新增赛道 |
 | GET | `/api/track-discovery/tracks/{track_id}` | 赛道详情 |
-| PUT | `/api/track-discovery/tracks/{track_id}` | 编辑赛道基础信息 |
-| POST | `/api/track-discovery/tracks/{track_id}/status` | 更新赛道状态，写入状态历史 |
-| GET | `/api/track-discovery/tracks/{track_id}/tags` | 赛道绑定标签列表 |
-| POST | `/api/track-discovery/tracks/{track_id}/tags` | 给赛道绑定标签 |
-| DELETE | `/api/track-discovery/tracks/{track_id}/tags/{tag_id}` | 解除赛道标签绑定 |
-| GET | `/api/track-discovery/tracks/{track_id}/theses` | 赛道研究假设列表 |
-| POST | `/api/track-discovery/tracks/{track_id}/theses` | 新增赛道研究假设 |
-| GET | `/api/track-discovery/tracks/{track_id}/theses/{thesis_id}` | 赛道研究假设详情 |
-| PUT | `/api/track-discovery/tracks/{track_id}/theses/{thesis_id}` | 编辑赛道研究假设 |
-| DELETE | `/api/track-discovery/tracks/{track_id}/theses/{thesis_id}` | 删除/归档赛道研究假设 |
-| GET | `/api/track-discovery/tracks/{track_id}/theses/{thesis_id}/indicators` | 验证指标 |
-| POST | `/api/track-discovery/tracks/{track_id}/theses/{thesis_id}/indicators` | 新增验证指标 |
-| GET | `/api/track-discovery/tracks/{track_id}/evidence` | 赛道证据列表 |
-| POST | `/api/track-discovery/tracks/{track_id}/evidence` | 新增赛道证据 |
-| GET | `/api/track-discovery/tracks/{track_id}/stocks` | 已确认相关标的，来自 stock_track_relation |
-| POST | `/api/track-discovery/tracks/{track_id}/stocks` | 新增标的-赛道确认关系 |
-| GET | `/api/track-discovery/candidates` | 查询候选赛道，即 track.status=candidate |
-
-
+| PUT | `/api/track-discovery/tracks/{track_id}` | 更新赛道 |
+| GET | `/api/track-discovery/tracks/{track_id}/tags` | 赛道绑定标签 |
+| POST | `/api/track-discovery/tracks/{track_id}/tags` | 新增赛道绑定标签 |
+| GET | `/api/track-discovery/tracks/{track_id}/stocks` | 赛道绑定标的，读取 stock_track_relation |
+| POST | `/api/track-discovery/tracks/{track_id}/stocks` | 新增赛道绑定标的，写 stock_track_relation |
+| GET | `/api/track-discovery/materials` | 赛道动态材料列表 |
+| POST | `/api/track-discovery/materials` | 新增赛道引用材料 |
+| PUT | `/api/track-discovery/materials/{material_id}` | 更新赛道材料判断 |
+| GET | `/api/track-discovery/analysis-snapshots` | 赛道分析快照 |
+| POST | `/api/track-discovery/analysis-snapshots` | 新增赛道分析快照 |
+| GET | `/api/track-discovery/compare` | 赛道对比 |
 
 ### 33.11 标的分析 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/stock-analysis/pool` | 标的池 |
-| GET | `/api/stock-analysis/candidates` | 查询候选标的，即 stock_pool.status=candidate |
-| POST | `/api/stock-analysis/pool` | 加入标的池，并 ensure 同名 tag 绑定 |
-| PUT | `/api/stock-analysis/pool/{id}` | 更新标的池状态 |
-| GET | `/api/stock-analysis/stocks/{stock_id}` | 标的分析主页 |
-| GET | `/api/stock-analysis/stocks/{stock_id}/tags` | 查询标的绑定标签 |
-| POST | `/api/stock-analysis/stocks/{stock_id}/tags` | 给标的绑定标签 |
-| DELETE | `/api/stock-analysis/stocks/{stock_id}/tags/{tag_id}` | 解除标的标签绑定 |
-| GET | `/api/stock-analysis/stocks/{stock_id}/notes` | 研究笔记 |
-| POST | `/api/stock-analysis/stocks/{stock_id}/notes` | 新增研究笔记 |
-| GET | `/api/stock-analysis/stocks/{stock_id}/scores` | 评分快照 |
-| POST | `/api/stock-analysis/stocks/{stock_id}/scores` | 新增评分快照 |
-| GET | `/api/stock-analysis/stocks/{stock_id}/tracks` | 查询标的绑定的赛道 |
-| POST | `/api/stock-analysis/stocks/{stock_id}/tracks` | 绑定赛道 |
-| PUT | `/api/stock-analysis/stocks/{stock_id}/tracks/{id}` | 修改赛道绑定关系 |
-| DELETE | `/api/stock-analysis/stocks/{stock_id}/tracks/{id}` | 移除赛道绑定关系 |
-| GET | `/api/stock-analysis/compare-groups` | 对比组列表 |
-| POST | `/api/stock-analysis/compare-groups` | 新建同赛道 PK 对比组 |
-| GET | `/api/stock-analysis/reports` | 标的研报列表 |
+| GET | `/api/stock-analysis/dashboard` | 标的看板 |
+| GET | `/api/stock-analysis/pool` | 标的池列表 |
+| POST | `/api/stock-analysis/pool` | 加入标的池 |
+| GET | `/api/stock-analysis/stocks/{stock_id}` | 标的详情 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/tracks` | 标的所属赛道，读取 stock_track_relation |
+| POST | `/api/stock-analysis/stocks/{stock_id}/tracks` | 新增标的赛道关系，写 stock_track_relation |
+| GET | `/api/stock-analysis/materials` | 标的事件材料列表 |
+| POST | `/api/stock-analysis/materials` | 新增标的引用材料 |
+| PUT | `/api/stock-analysis/materials/{material_id}` | 更新标的材料判断 |
+| GET | `/api/stock-analysis/compare` | 标的对比 |
 
 
 ### 33.12 预警中心 API
@@ -4559,80 +4782,88 @@ stock_track_relation 才是标的-赛道的研究确认关系。
 
 ---
 
+
 ### 34.9 track_discovery
 
-#### `track`：赛道主表，保存赛道业务实体
+#### `track`：赛道主表，保存赛道业务实体和当前判断
 
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
 | name | 赛道正式名称 |
-| description | 简要说明，可选 |
+| description | 简要说明 |
 | status | candidate/active/paused/archived |
-| priority_level | high/medium/low，可选 |
-| archive_reason | 归档原因，可选 |
+| track_score | 赛道评分，0-100，第一版人工维护 |
+| current_view | 当前核心判断 |
+| stage | concept/validate/growth/overheat/decline |
+| confidence_level | low/medium/high |
+| archive_reason | 归档原因 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
 
-#### `track_thesis`：赛道假设表，保存需要长期验证的赛道认知假设
+#### `track_material`：赛道材料表，保存赛道引用材料和赛道视角判断
 
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
 | track_id | 关联 track |
-| user_id | 用户 ID |
-| title | 赛道假设标题 |
-| core_thesis | 核心假设 |
-| underlying_change | 底层变化 |
-| old_bottleneck | 旧瓶颈 |
-| new_solution | 新解决方案 |
-| value_chain_shift | 价值链变化 |
-| time_horizon | 时间周期 |
+| material_type | source_item/knowledge_note |
+| material_id | 关联 source_item.id 或 knowledge_note.id |
+| direction | support/weaken/neutral/noise |
+| importance_level | high/medium/low |
+| status | pending/confirmed/ignored |
+| note | 赛道视角一句话判断 |
+| created_at | 创建时间 |
+| updated_at | 更新时间 |
+
+约束：
+
+```text
+UNIQUE(track_id, material_type, material_id)
+```
+
+#### `track_analysis_snapshot`：赛道分析快照表，保存 AI / 人工阶段性分析
+
+| 字段 | 说明 |
+|---|---|
+| id | 主键 |
+| track_id | 关联 track |
+| analysis_date | 分析日期 |
+| market_space | 未来市场空间 |
+| market_size | 当前市场规模 |
+| growth_rate | 当前增长速度 |
+| heat_summary | 当前热度解释 |
+| ai_summary | AI 分析摘要 |
+| opportunity_points | 机会点 |
+| risk_points | 风险点 |
+| watch_signals | 观察信号 |
+| score | AI/系统评分，可选 |
 | confidence_level | 置信度 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-#### `track_validation_indicator`：赛道验证指标表，保存判断赛道真伪和阶段的指标
-
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| thesis_id | 赛道假设 ID |
-| name | 指标名称 |
-| indicator_type | 指标类型 |
-| data_source | 数据来源 |
-| current_value | 当前值 |
-| direction | 变化方向 |
-| validation_meaning | 验证意义 |
-| updated_at | 更新时间 |
-
-#### `track_evidence`：赛道证据表，保存支持、削弱或中性的证据记录
-
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| thesis_id | 赛道假设 ID |
-| source_item_id | 信息源 ID |
-| evidence_direction | support/weaken/neutral/noise |
-| evidence_strength | 证据强度 |
-| summary | 摘要 |
-| affected_segments | 影响环节 |
-| related_stock_ids | 相关股票 |
 | created_at | 创建时间 |
 
-#### `track_status_history`：赛道状态历史表，记录赛道状态变化和原因
+#### `track_status_history`：赛道状态历史表，记录赛道状态和阶段变化
 
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| thesis_id | 赛道假设 ID |
+| track_id | 关联 track |
 | old_status | 原状态 |
 | new_status | 新状态 |
-| reason | 变更原因 |
-| changed_at | 变更时间 |
+| old_stage | 原阶段 |
+| new_stage | 新阶段 |
+| reason | 变化原因 |
+| changed_by | manual/system/ai |
+| changed_at | 变化时间 |
 
----
+不再使用：
+
+```text
+track_related_stock
+track_thesis
+track_validation_indicator
+track_evidence
+track_heat_snapshot
+```
 
 ### 34.10 stock_analysis
 
@@ -4641,27 +4872,42 @@ stock_track_relation 才是标的-赛道的研究确认关系。
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| stock_id | 股票 ID |
-| note_type | 笔记类型 |
-| title | 标题 |
-| content | 内容 |
-| related_track_id | 关联赛道 |
+| stock_id | 关联 stock |
+| title | 笔记标题 |
+| content | 笔记内容 |
+| note_type | thesis/review/risk/valuation 等 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
+
+#### `stock_material`：标的材料表，保存标的引用材料和标的视角判断
+
+| 字段 | 说明 |
+|---|---|
+| id | 主键 |
+| stock_id | 关联 stock |
+| material_type | source_item/knowledge_note |
+| material_id | 关联 source_item.id 或 knowledge_note.id |
+| impact_direction | positive/negative/neutral/noise |
+| importance_level | high/medium/low |
+| status | pending/confirmed/ignored |
+| note | 标的视角一句话判断 |
+| created_at | 创建时间 |
+| updated_at | 更新时间 |
+
+约束：
+
+```text
+UNIQUE(stock_id, material_type, material_id)
+```
 
 #### `stock_score_snapshot`：标的评分快照表，保存某时点的公司多维评分
 
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| stock_id | 股票 ID |
-| score_date | 评分日期 |
-| track_id | 关联赛道 |
-| growth_score | 成长性分 |
-| valuation_score | 估值分 |
-| moat_score | 壁垒分 |
-| risk_score | 风险分 |
-| total_score | 总分 |
+| stock_id | 关联 stock |
+| score | 综合评分 |
+| snapshot_time | 快照时间 |
 | created_at | 创建时间 |
 
 #### `stock_compare_group`：标的对比组表，用于同赛道公司横向 PK
@@ -4670,23 +4916,16 @@ stock_track_relation 才是标的-赛道的研究确认关系。
 |---|---|
 | id | 主键 |
 | name | 对比组名称 |
-| track_id | 关联赛道 |
-| stock_ids | 对比股票 |
-| description | 描述 |
 | created_at | 创建时间 |
-| updated_at | 更新时间 |
 
 #### `stock_thesis`：标的假设表，保存公司投资逻辑、验证指标和证伪条件
 
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| stock_id | 股票 ID |
-| thesis_text | 标的假设 |
-| key_logic | 核心逻辑 |
-| validation_indicators | 验证指标 |
-| falsification_conditions | 证伪条件 |
-| status | 状态 |
+| stock_id | 关联 stock |
+| thesis | 投资逻辑 |
+| status | active/archived |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
 
@@ -4695,10 +4934,10 @@ stock_track_relation 才是标的-赛道的研究确认关系。
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| stock_id | 股票 ID |
+| stock_id | 关联 stock |
 | status | candidate/watching/focused/archived |
-| source | 来源：manual/ai/market_radar/track_discovery |
-| reason | 入池原因 |
+| source | manual/ai/market_radar/track_discovery |
+| reason | 加入原因 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
 
@@ -4707,18 +4946,16 @@ stock_track_relation 才是标的-赛道的研究确认关系。
 | 字段 | 说明 |
 |---|---|
 | id | 主键 |
-| stock_id | 标的 ID |
-| track_id | 赛道 ID |
-| relation_type | 关系类型：core/related/watch |
-| source | 来源：manual/ai/market_radar |
-| confidence | 置信度，可选 |
+| stock_id | 关联 stock |
+| track_id | 关联 track |
+| relation_type | core/related/watch |
+| source | manual/ai/market_radar |
+| confidence | 置信度 |
 | note | 备注 |
-| status | active/inactive |
+| status | 状态 |
 | created_at | 创建时间 |
 | updated_at | 更新时间 |
 
-
----
 
 ### 34.11 alert_center
 
@@ -4902,7 +5139,7 @@ ai_request_log
 `liuli` 的 Agent 任务大多是垂直、可控、可审计的业务分析流程：
 
 ```text
-赛道证据分析 Agent
+赛道动态分析 Agent
 标的研报生成 Agent
 财报摘要 Agent
 预警解释 Agent

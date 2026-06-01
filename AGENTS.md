@@ -2,7 +2,7 @@
 
 ## Project Constraints
 
-- The long-term system architecture should follow the current v24 technical documentation.
+- The long-term system architecture should follow the current v25 technical documentation.
 - Do not reuse the old project's directory structure, module boundaries, table structure, or architecture design.
 - The `old/` directory is only a functional reference for implementation details such as data fetching, API calls, parsing logic, historical scripts, prompts, and sample data.
 - If old implementation details conflict with the new spec, the new spec wins.
@@ -10,12 +10,13 @@
 - Keep module boundaries clear, business logic cohesive, and code paths short.
 - Do not switch branches for the current Liuli rewrite work. Continue development in the current branch unless the user explicitly changes this instruction.
 - Before running any command or test that deletes, drops, resets, recreates, truncates, or otherwise clears database data, confirm with the user first. This includes tests or helpers that call `drop_all`, `create_all` after dropping tables, `reset_db`, migration reset commands, or any command that might point at `var/db/liuli.sqlite3`.
+- CRITICAL DATABASE BACKUP CONSTRAINT: Under all circumstances, BEFORE running any test, script, command, or helper that clears, truncates, deletes, or modifies a database table (including partial deletions like filtering on source_type), the agent MUST first create a backup copy of the database file `var/db/liuli.sqlite3` in `var/db/recovery/`. Failing to perform a backup before any table clear or delete operation is strictly UNACCEPTABLE.
 - Do not run tests that clear any database, even an apparently isolated test database, unless the user has explicitly approved that exact command in the current conversation. Treat function names such as `reset_db`, `drop_all`, `truncate`, `delete_all`, `recreate`, and migration reset helpers as destructive until proven otherwise. Prefer non-destructive tests, static checks, targeted unit tests without database resets, or explain the verification gap instead of silently clearing data.
 
 ## Web And Mobile Constraints
 
 - Web and Android must not change their technology stack without explicit user approval.
-- Backend technology choices must strictly follow the current v24 technical documentation.
+- Backend technology choices must strictly follow the current v25 technical documentation.
 - Web primary navigation is six business modules plus the Console operation panel:
   - Market Radar: `invest_assistant/modules/market_radar`
   - Track Discovery: `invest_assistant/modules/track_discovery`

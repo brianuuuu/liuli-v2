@@ -289,6 +289,80 @@ export type TrackAnalysisSnapshot = {
   created_at?: string | null;
 };
 
+export type TrackDashboardSummary = {
+  warming_tracks_count: number;
+  focus_tracks_count: number;
+  pending_materials_count: number;
+  top_heat_track?: {
+    track_id: number;
+    name: string;
+    heat_score: number;
+  } | null;
+};
+
+export type TrackHeatTrend = {
+  track_id: number;
+  track_name: string;
+  points: {
+    window_type: "7d" | "30d" | "90d" | string;
+    stat_time?: string | null;
+    heat_score: number;
+  }[];
+};
+
+export type TrackHeatRanking = {
+  rank: number;
+  track_id: number;
+  track_name: string;
+  current_heat: number;
+  change_7d: number;
+  change_30d: number;
+  change_90d: number;
+  stage?: string | null;
+  track_score?: number | null;
+};
+
+export type TrackDashboardFocusTrack = {
+  track_id: number;
+  name: string;
+  track_score?: number | null;
+  current_view?: string | null;
+  stage?: string | null;
+  confidence_level?: string | null;
+  bound_stock_count: number;
+  recent_material_count: number;
+  current_heat: number;
+};
+
+export type TrackDashboardMaterial = TrackMaterial & {
+  track_name: string;
+};
+
+export type TrackDashboardAnalysisSummary = {
+  track_id: number;
+  track_name: string;
+  analysis_date?: string | null;
+  market_space?: string | null;
+  market_size?: string | null;
+  growth_rate?: string | null;
+  heat_summary?: string | null;
+  opportunity_points?: string | null;
+  risk_points?: string | null;
+  watch_signals?: string | null;
+  score?: number | null;
+  confidence_level?: string | null;
+};
+
+export type TrackDashboard = {
+  summary: TrackDashboardSummary;
+  heat_trends: TrackHeatTrend[];
+  heat_rankings: TrackHeatRanking[];
+  focus_tracks: TrackDashboardFocusTrack[];
+  latest_materials: TrackDashboardMaterial[];
+  default_track_id?: number | null;
+  analysis_summary?: TrackDashboardAnalysisSummary | null;
+};
+
 export type StockPoolItem = {
   id: number;
   stock_id: number;
@@ -399,6 +473,236 @@ export type StockTrackRelation = {
 };
 
 export type StockTrackTagBinding = StockTrackRelation;
+
+export type StockMaterial = {
+  id: number;
+  stock_id: number;
+  material_type: "source_item" | "knowledge_note" | string;
+  material_id: number;
+  impact_direction?: "positive" | "negative" | "neutral" | "noise" | string | null;
+  importance_level?: "high" | "medium" | "low" | string | null;
+  status: "pending" | "confirmed" | "ignored" | string;
+  note?: string | null;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_url?: string | null;
+  material_time?: string | null;
+  disclosure_type?: string | null;
+  report_period?: string | null;
+  parse_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type StockMaterialPayload = {
+  material_type: string;
+  material_id: number;
+  impact_direction?: string | null;
+  importance_level?: string | null;
+  status?: string;
+  note?: string | null;
+};
+
+export type StockDashboardTopScoreStock = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  total_score?: number | null;
+};
+
+export type StockDashboardSummary = {
+  pool_count: number;
+  focused_count: number;
+  pending_materials_count: number;
+  top_score_stock?: StockDashboardTopScoreStock | null;
+};
+
+export type StockDashboardScorePoint = {
+  score_date: string;
+  total_score: number;
+  growth_score?: number | null;
+  valuation_score?: number | null;
+  moat_score?: number | null;
+  risk_score?: number | null;
+};
+
+export type StockDashboardScoreTrend = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  points: StockDashboardScorePoint[];
+};
+
+export type StockDashboardValuationPoint = {
+  analysis_date: string;
+  report_period?: string | null;
+  current_market_value?: number | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+};
+
+export type StockDashboardValuationTrend = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  points: StockDashboardValuationPoint[];
+};
+
+export type StockDashboardScoreRanking = {
+  rank: number;
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  score_date?: string | null;
+  growth_score?: number | null;
+  valuation_score?: number | null;
+  moat_score?: number | null;
+  risk_score?: number | null;
+  total_score?: number | null;
+};
+
+export type StockDashboardFocusStock = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status: string;
+  reason?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  latest_score?: number | null;
+  bound_track_count: number;
+  recent_material_count: number;
+};
+
+export type StockDashboardHotStock = {
+  rank: number;
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  source_item_count: number;
+  material_count: number;
+  high_importance_material_count: number;
+  latest_material_time?: string | null;
+};
+
+export type StockDashboardMaterial = StockMaterial & {
+  stock_name?: string | null;
+  stock_code?: string | null;
+};
+
+export type StockDashboardValuationSummary = {
+  report_period?: string | null;
+  current_market_value?: number | null;
+  quarter_performance?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+};
+
+export type StockDashboardLatestValuation = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  report_period?: string | null;
+  current_market_value?: number | null;
+  quarter_performance?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+};
+
+export type StockDashboardNoteSummary = {
+  id: number;
+  note_type: string;
+  title: string;
+  content: string;
+  related_track_id?: number | null;
+  updated_at?: string | null;
+};
+
+export type StockDashboardSelectedStockSummary = {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  status?: string | null;
+  reason?: string | null;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  latest_score?: StockDashboardScorePoint | null;
+  latest_valuation?: StockDashboardValuationSummary | null;
+  latest_note?: StockDashboardNoteSummary | null;
+  recent_materials: StockDashboardMaterial[];
+};
+
+export type StockDashboard = {
+  summary: StockDashboardSummary;
+  score_trends: StockDashboardScoreTrend[];
+  valuation_trends: StockDashboardValuationTrend[];
+  score_rankings: StockDashboardScoreRanking[];
+  latest_valuations: StockDashboardLatestValuation[];
+  hot_stocks: StockDashboardHotStock[];
+  focus_stocks: StockDashboardFocusStock[];
+  latest_materials: StockDashboardMaterial[];
+  pending_materials: StockDashboardMaterial[];
+  default_stock_id?: number | null;
+  selected_stock_summary?: StockDashboardSelectedStockSummary | null;
+};
+
+export type StockDetailValuationSnapshot = {
+  id: number;
+  stock_id: number;
+  company?: string | null;
+  company_code?: string | null;
+  report_period?: string | null;
+  report_release_date?: string | null;
+  current_market_value?: number | null;
+  financial_performance_json?: string | null;
+  trend_reference_json?: string | null;
+  guidance_check_json?: string | null;
+  quarter_performance?: string | null;
+  quarter_main_reason?: string | null;
+  profit_model_json?: string | null;
+  fcf_model_json?: string | null;
+  revenue_model_json?: string | null;
+  primary_model?: string | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+  created_at?: string | null;
+};
+
+export type StockDetailSummary = {
+  track_count: number;
+  material_count: number;
+  high_importance_material_count: number;
+  note_count: number;
+  last_updated_at?: string | null;
+};
+
+export type StockDetailDisclosure = Disclosure;
+
+export type StockDetail = {
+  stock: Stock;
+  pool?: StockPoolItem | null;
+  summary: StockDetailSummary;
+  latest_score?: StockScoreSnapshot | null;
+  score_history: StockScoreSnapshot[];
+  latest_valuation?: StockDetailValuationSnapshot | null;
+  valuation_history: StockDetailValuationSnapshot[];
+  materials: StockMaterial[];
+  disclosures: StockDetailDisclosure[];
+  tracks: StockTrackRelation[];
+  notes: StockResearchNote[];
+  tags: TagBinding[];
+};
+
 
 export type PortfolioGroup = {
   id: number;

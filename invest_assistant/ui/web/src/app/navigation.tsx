@@ -30,7 +30,7 @@ export const primaryNavItems: NavItem[] = [
 
 export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   "market-radar": [
-    { key: "overview", label: "市场总览" },
+    { key: "overview", label: "市场看板" },
     { key: "flashes", label: "信息流" },
     { key: "rankings", label: "市场热度" },
     { key: "graph", label: "关系图谱" },
@@ -38,13 +38,13 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
     { key: "hotwords", label: "市场热词" }
   ],
   "track-discovery": [
-    { key: "overview", label: "赛道总览" },
+    { key: "overview", label: "赛道看板" },
     { key: "tracks", label: "赛道库" },
     { key: "materials", label: "赛道动态" },
     { key: "compare", label: "赛道对比" }
   ],
   "stock-analysis": [
-    { key: "overview", label: "标的总览" },
+    { key: "overview", label: "标的看板" },
     { key: "pool", label: "标的池" },
     { key: "scores", label: "标的事件" },
     { key: "compare", label: "标的对比" }
@@ -55,7 +55,7 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
     { key: "handled", label: "预警复盘" }
   ],
   portfolio: [
-    { key: "portfolios", label: "组合总览" },
+    { key: "portfolios", label: "组合看板" },
     { key: "positions", label: "实盘持仓" },
     { key: "risk", label: "调仓记录" },
     { key: "review", label: "组合复盘" }

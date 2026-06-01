@@ -40,7 +40,7 @@ export function OverviewSection() {
   const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length || overview.data.ai_tag_suggestions;
 
   return (
-    <>
+    <div className="market-overview-dashboard">
       <Row gutter={[10, 10]} className="metric-grid-row">
         <Col span={6}>
           <WorkbenchCard>
@@ -78,6 +78,6 @@ export function OverviewSection() {
           <RankingList title="标的" rows={stocks.data} loading={stocks.loading} />
         </Space>
       </div>
-    </>
+    </div>
   );
 }

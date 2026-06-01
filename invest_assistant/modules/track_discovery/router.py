@@ -32,6 +32,11 @@ def list_tracks(status: str | None = None, db: Session = Depends(get_db)) -> lis
     return service.list_tracks(db, status)
 
 
+@router.get("/dashboard")
+def track_dashboard(db: Session = Depends(get_db)) -> dict:
+    return service.get_dashboard(db)
+
+
 @router.post("/tracks", response_model=TrackRead)
 def create_track(payload: TrackCreate, db: Session = Depends(get_db)):
     return service.create_track(db, payload)

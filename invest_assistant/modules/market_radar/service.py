@@ -28,7 +28,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagCreate,
     TagUpdate,
 )
-from invest_assistant.modules.track_discovery.material_generation import create_pending_materials_for_source_item
+from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
 from invest_assistant.shared.time_utils import utc_now
 
 WINDOWS = {
@@ -36,6 +36,7 @@ WINDOWS = {
     "24h": timedelta(days=1),
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
+    "90d": timedelta(days=90),
 }
 
 
@@ -244,10 +245,12 @@ def disable_hotword_tag_binding(db: Session, relation_id: int) -> dict | None:
 
 
 def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
+    from invest_assistant.modules.stock_analysis.service import create_pending_stock_materials_for_source_item
     existing = find_duplicate_source_item(db, payload)
     if existing is not None:
         persist_source_tag_matches(db, existing)
-        create_pending_materials_for_source_item(db, existing.id)
+        create_pending_track_materials_for_source_item(db, existing.id)
+        create_pending_stock_materials_for_source_item(db, existing.id)
         db.commit()
         db.refresh(existing)
         return _source_item_dict(db, existing)
@@ -256,7 +259,8 @@ def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
     db.commit()
     db.refresh(item)
     persist_source_tag_matches(db, item)
-    create_pending_materials_for_source_item(db, item.id)
+    create_pending_track_materials_for_source_item(db, item.id)
+    create_pending_stock_materials_for_source_item(db, item.id)
     db.commit()
     db.refresh(item)
     return _source_item_dict(db, item)
@@ -346,6 +350,7 @@ def backfill_source_tags(
     source_type: str | None = None,
     overwrite: bool = False,
 ) -> JobResult:
+    from invest_assistant.modules.stock_analysis.service import create_pending_stock_materials_for_source_item
     start_dt = _parse_datetime(start_time)
     end_dt = _parse_datetime(end_time)
     stmt = select(SourceItem).order_by(SourceItem.id.asc())
@@ -361,7 +366,12 @@ def backfill_source_tags(
     material_inserted = 0
     for item in items:
         inserted += persist_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id, overwrite=overwrite)
-        material_inserted += create_pending_materials_for_source_item(
+        material_inserted += create_pending_track_materials_for_source_item(
+            db,
+            item.id,
+            [tag_id] if tag_id is not None else None,
+        )
+        create_pending_stock_materials_for_source_item(
             db,
             item.id,
             [tag_id] if tag_id is not None else None,
@@ -385,7 +395,7 @@ def aggregate_heat(db: Session) -> JobResult:
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
-        db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window))
+        db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == now))
         rows = db.execute(
             select(SourceTag.tag_id, func.count(SourceTag.id), func.count(distinct(SourceTag.source_item_id)))
             .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
@@ -395,6 +405,8 @@ def aggregate_heat(db: Session) -> JobResult:
         for idx, row in enumerate(sorted(rows, key=lambda row: (-int(row[1]), int(row[0]))), start=1):
             trigger_count = int(row[1])
             source_count = int(row[2])
+            heat_score = float(trigger_count * 10 + source_count)
+            previous_score = _previous_heat_score(db, int(row[0]), window, now)
             db.add(
                 TagHeatSnapshot(
                     tag_id=int(row[0]),
@@ -402,15 +414,40 @@ def aggregate_heat(db: Session) -> JobResult:
                     stat_time=now,
                     trigger_count=trigger_count,
                     source_count=source_count,
-                    heat_score=float(trigger_count * 10 + source_count),
+                    heat_score=heat_score,
                     avg_count=float(trigger_count),
-                    change_ratio=0.0,
+                    change_ratio=_change_ratio(heat_score, previous_score),
                     rank_no=idx,
                 )
             )
             inserted += 1
     db.commit()
     return JobResult(success=True, message=f"created {inserted} heat snapshots", inserted_count=inserted)
+
+
+def _previous_heat_score(db: Session, tag_id: int, window: str, before: datetime) -> float | None:
+    previous_stat = db.scalar(
+        select(func.max(TagHeatSnapshot.stat_time)).where(
+            TagHeatSnapshot.tag_id == tag_id,
+            TagHeatSnapshot.window_type == window,
+            TagHeatSnapshot.stat_time < before,
+        )
+    )
+    if previous_stat is None:
+        return None
+    return db.scalar(
+        select(TagHeatSnapshot.heat_score).where(
+            TagHeatSnapshot.tag_id == tag_id,
+            TagHeatSnapshot.window_type == window,
+            TagHeatSnapshot.stat_time == previous_stat,
+        )
+    )
+
+
+def _change_ratio(current: float, previous: float | None) -> float:
+    if previous is None or previous == 0:
+        return 0.0
+    return round((current - previous) / previous, 4)
 
 
 def aggregate_edges(db: Session) -> JobResult:

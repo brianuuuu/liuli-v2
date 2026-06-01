@@ -7,7 +7,7 @@ import { CompareSection } from "./sections/CompareSection";
 import { OverviewSection } from "./sections/OverviewSection";
 import { PoolSection } from "./sections/PoolSection";
 import { ReportsSection } from "./sections/ReportsSection";
-import { ScoresSection } from "./sections/ScoresSection";
+import { EventsSection } from "./sections/EventsSection";
 
 export function StockAnalysisPage() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -15,7 +15,7 @@ export function StockAnalysisPage() {
   function content() {
     if (activeTab === "overview") return <OverviewSection />;
     if (activeTab === "pool") return <PoolSection />;
-    if (activeTab === "scores") return <ScoresSection />;
+    if (activeTab === "scores") return <EventsSection />;
     if (activeTab === "reports") return <ReportsSection />;
     if (activeTab === "compare") return <CompareSection />;
     return <WorkbenchCard>未知页面</WorkbenchCard>;

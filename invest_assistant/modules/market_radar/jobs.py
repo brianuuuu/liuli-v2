@@ -460,7 +460,143 @@ def extract_daily_hotwords_deepseek_job(
         db.close()
 
 
+def fetch_stock_news_job(stock_code: str | None = None, limit: int = 20, sleep_ms: int = 500, **kwargs) -> JobResult:
+    import time
+    import akshare as ak
+    import requests
+    from invest_assistant.bootstrap.database import SessionLocal
+    from invest_assistant.modules.basic.stock_master.models import Stock
+    from invest_assistant.modules.market_radar.schemas import SourceItemCreate
+    from invest_assistant.modules.market_radar import service as market_radar_service
+
+    # Force requests inside ak.stock_news_em's global namespace to decode EastMoney JSONP using UTF-8
+    try:
+        import requests
+        if not hasattr(requests, "_original_get"):
+            requests._original_get = requests.get
+            def utf8_global_get(url, *args, **kwargs):
+                res = requests._original_get(url, *args, **kwargs)
+                if isinstance(url, str) and ("eastmoney.com" in url or "search-api-web" in url):
+                    res.encoding = "utf-8"
+                return res
+            requests.get = utf8_global_get
+    except Exception:
+        pass
+
+    try:
+        fn = ak.stock_news_em
+        target_requests = fn.__globals__.get("requests")
+        if target_requests is not None:
+            if not hasattr(target_requests, "_original_get"):
+                target_requests._original_get = target_requests.get
+                def utf8_requests_get(url, *args, **kwargs):
+                    res = target_requests._original_get(url, *args, **kwargs)
+                    if isinstance(url, str) and ("eastmoney.com" in url or "search-api-web" in url):
+                        res.encoding = "utf-8"
+                    return res
+                target_requests.get = utf8_requests_get
+    except Exception:
+        pass
+
+    db = SessionLocal()
+    try:
+        # Determine the target stocks to fetch
+        if stock_code and str(stock_code).strip():
+            target_code = str(stock_code).strip()
+            stocks = list(db.scalars(select(Stock).where(Stock.stock_code == target_code)))
+            if not stocks:
+                return JobResult(success=False, message=f"Stock code {target_code} not found in database", processed_count=0)
+        else:
+            stocks = list(db.scalars(select(Stock).where(Stock.status == "active")))
+            if not stocks:
+                return JobResult(success=True, message="No active stocks found to fetch", processed_count=0)
+
+        total_fetched = 0
+        total_inserted = 0
+        total_skipped = 0
+        delay_sec = max(int(sleep_ms), 0) / 1000.0
+
+        for idx, stock in enumerate(stocks):
+            if idx > 0 and delay_sec > 0:
+                time.sleep(delay_sec)
+
+            code = stock.stock_code
+            try:
+                # Some akshare versions use symbol, some use stock
+                df = ak.stock_news_em(symbol=code)
+            except TypeError:
+                try:
+                    df = ak.stock_news_em(stock=code)
+                except Exception:
+                    continue
+            except Exception:
+                continue
+
+            if df is not None and not df.empty:
+                for _, row in df.head(int(limit)).iterrows():
+                    total_fetched += 1
+                    
+                    title = str(row.get("新闻标题") or "").strip()
+                    content = str(row.get("新闻内容") or "").strip()
+                    # Always force source_name to '东方财富' as all stock news is fetched from the EastMoney API
+                    source_name = "东方财富"
+                    source_url = str(row.get("新闻链接") or "").strip() or None
+                    
+                    pub_time_str = str(row.get("发布时间") or "").strip()
+                    publish_time = pub_time_str.replace(" ", "T") if pub_time_str else None
+
+                    if not title and not content:
+                        continue
+
+                    payload = SourceItemCreate(
+                        source_type="news",
+                        source_name=source_name,
+                        title=title[:120],
+                        content=content or title,
+                        source_url=source_url,
+                        publish_time=publish_time,
+                        related_type="stock",
+                        related_id=stock.id,
+                    )
+
+                    exists = market_radar_service.find_duplicate_source_item(db, payload)
+                    if exists is not None:
+                        total_skipped += 1
+                        continue
+                    
+                    market_radar_service.create_source_item(db, payload)
+                    total_inserted += 1
+
+        return JobResult(
+            success=True,
+            message=f"Stock news fetching complete. Fetched: {total_fetched}, Inserted: {total_inserted}, Skipped: {total_skipped}",
+            fetched_count=total_fetched,
+            processed_count=len(stocks),
+            inserted_count=total_inserted,
+            skipped_count=total_skipped,
+        )
+    finally:
+        db.close()
+
+
 JOBS = [
+    JobDefinition(
+        job_name="market_radar.fetch_stock_news",
+        module_name="market_radar",
+        display_name="抓取个股新闻",
+        description="批量抓取股票标的池中的东方财富个股新闻并写入 source_item",
+        handler=fetch_stock_news_job,
+        trigger_type="both",
+        cron_expr="0 8 * * *",
+        timeout_seconds=1200,
+        max_retries=1,
+        params_schema={
+            "stock_code": {"type": "string", "label": "特定股票代码", "placeholder": "选填，输入6位数字代码以手动抓取特定标的"},
+            "limit": {"type": "number", "label": "最多新闻条数", "default": 20, "min": 1},
+            "sleep_ms": {"type": "number", "label": "请求间隔(毫秒)", "default": 500, "min": 0},
+        },
+        tags=["news", "stock_news", "market_radar"],
+    ),
     JobDefinition(
         job_name="market_radar.fetch_news",
         module_name="market_radar",

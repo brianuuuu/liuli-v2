@@ -5,7 +5,7 @@ from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.market_radar.models import SourceTag
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate, TagBindingCreate
 from invest_assistant.modules.market_radar.service import backfill_source_tags, bind_track_tag, create_source_item
-from invest_assistant.modules.track_discovery.material_generation import create_pending_materials_for_source_item
+from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
 from invest_assistant.modules.track_discovery.models import TrackMaterial
 from invest_assistant.modules.track_discovery.schemas import TrackCreate, TrackMaterialUpdate
 from invest_assistant.modules.track_discovery.service import create_track, update_material
@@ -74,7 +74,7 @@ def test_material_generation_is_idempotent_and_does_not_overwrite_manual_status(
         material = material_rows(db)[0]
         update_material(db, material.id, TrackMaterialUpdate(status="confirmed", note="manual confirmed"))
 
-        inserted = create_pending_materials_for_source_item(db, item["id"])
+        inserted = create_pending_track_materials_for_source_item(db, item["id"])
         db.commit()
 
         rows = material_rows(db)

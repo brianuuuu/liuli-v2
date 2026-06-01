@@ -23,7 +23,7 @@ export const materialDirectionOptions = [
   { value: "support", label: "支持" },
   { value: "weaken", label: "削弱" },
   { value: "neutral", label: "中性" },
-  { value: "noise", label: "噪声" },
+  { value: "noise", label: "噪音" },
 ];
 
 export const materialImportanceOptions = [

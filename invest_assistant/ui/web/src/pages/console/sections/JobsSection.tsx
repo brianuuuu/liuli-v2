@@ -94,24 +94,39 @@ export function JobsSection() {
     editForm.setFieldsValue(editInitialValues);
   }, [editForm, editInitialValues, editOpen, selectedJob]);
 
+  const jobMap = useMemo(() => {
+    const map = new Map<string, string>();
+    jobs.data.forEach((job) => {
+      if (job.display_name) {
+        map.set(job.job_name, job.display_name);
+      }
+    });
+    return map;
+  }, [jobs.data]);
+
   const requestRows = useMemo(
     () => logDrawerMode === "all" ? requests.data : requests.data.filter((item) => !selectedJob || item.job_name === selectedJob.job_name),
     [logDrawerMode, requests.data, selectedJob]
   );
 
   const jobSummary = useMemo(() => {
+    const total = jobs.data.length;
     const failed = jobs.data.filter((job) => job.last_status === "failed" || job.last_status === "error").length;
     const running = jobs.data.filter((job) => job.last_status === "running").length;
+    const idle = jobs.data.filter((job) => !job.last_status || job.last_status === "未运行").length;
+    const completed = jobs.data.filter((job) => job.last_status === "success" || job.last_status === "completed").length;
     const enabled = jobs.data.filter(getJobConfigEnabled).length;
     const lastRun = jobs.data
       .map((job) => job.last_run_at)
       .filter(Boolean)
       .sort((a, b) => String(b).localeCompare(String(a)))[0];
     return {
-      total: jobs.data.length,
+      total,
       enabled,
       running,
       failed,
+      idle,
+      completed,
       lastRun: lastRun ? formatTime(lastRun) : "-"
     };
   }, [jobs.data]);
@@ -362,62 +377,43 @@ export function JobsSection() {
   return (
     <>
       <div className="job-center-layout">
-        <div className="job-summary-strip">
-          <div className="job-summary-item">
-            <span>全部任务</span>
-            <strong>{jobSummary.total}</strong>
-          </div>
-          <div className="job-summary-item">
-            <span>启用</span>
-            <strong>{jobSummary.enabled}</strong>
-          </div>
-          <div className="job-summary-item">
-            <span>运行中</span>
-            <strong>{jobSummary.running}</strong>
-          </div>
-          <div className="job-summary-item danger">
-            <span>异常</span>
-            <strong>{jobSummary.failed}</strong>
-          </div>
-          <div className="job-summary-item wide">
-            <span>最近运行</span>
-            <strong>{jobSummary.lastRun}</strong>
-          </div>
-        </div>
         <div className="data-panel-toolbar job-center-toolbar">
           <Segmented
             size="small"
             value={statusFilter}
             options={[
-              { value: "all", label: "全部" },
-              { value: "failed", label: "异常" },
-              { value: "running", label: "运行中" },
-              { value: "idle", label: "未运行" },
-              { value: "completed", label: "已完成" }
+              { value: "all", label: `全部 (${jobSummary.total})` },
+              { value: "failed", label: `异常 (${jobSummary.failed})` },
+              { value: "running", label: `运行中 (${jobSummary.running})` },
+              { value: "idle", label: `未运行 (${jobSummary.idle})` },
+              { value: "completed", label: `已完成 (${jobSummary.completed})` }
             ]}
             onChange={(value) => setStatusFilter(String(value))}
           />
-          <Input
+          <Input.Search
             allowClear
             size="small"
-            prefix={<SearchOutlined />}
             placeholder="搜索任务名 / 描述"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            className="job-center-search"
+            style={{ width: 210 }}
           />
           <Select
             size="small"
             value={enabledFilter}
             options={[
-              { value: "all", label: "全部" },
-              { value: "true", label: "启用" },
-              { value: "false", label: "停用" }
+              { value: "all", label: "显示全部" },
+              { value: "true", label: `启用 (${jobSummary.enabled})` },
+              { value: "false", label: `停用 (${jobSummary.total - jobSummary.enabled})` }
             ]}
             onChange={setEnabledFilter}
-            className="job-center-filter"
+            style={{ width: 110 }}
           />
           <div className="data-panel-toolbar-spacer" />
+          <span style={{ fontSize: "13px", color: "var(--ll-muted)", whiteSpace: "nowrap" }}>
+            最近运行: <span style={{ color: "var(--ll-text)" }}>{jobSummary.lastRun}</span>
+          </span>
+          <div className="data-panel-toolbar-divider" />
           <Button size="small" onClick={sync}>同步任务定义</Button>
           <Button size="small" onClick={openAllLogs}>查看所有日志</Button>
         </div>
@@ -662,12 +658,12 @@ export function JobsSection() {
             {
               key: "requests",
               label: "运行请求",
-              children: <JobRequestEventList rows={requestRows} loading={requests.loading} />
+              children: <JobRequestEventList rows={requestRows} loading={requests.loading} jobMap={jobMap} />
             },
             {
               key: "logs",
               label: "执行日志",
-              children: <JobLogEventList rows={logDrawerMode === "all" ? allLogs : logs} loading={logsLoading} />
+              children: <JobLogEventList rows={logDrawerMode === "all" ? allLogs : logs} loading={logsLoading} jobMap={jobMap} />
             }
           ]}
         />

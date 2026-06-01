@@ -13,10 +13,6 @@ type TrackFormValues = {
   name: string;
   description?: string;
   status: string;
-  track_score?: number;
-  current_view?: string;
-  stage?: string;
-  confidence_level?: string;
 };
 
 export function TracksSection() {
@@ -41,11 +37,7 @@ export function TracksSection() {
       form.setFieldsValue({
         name: editing.name,
         description: editing.description || undefined,
-        status: editing.status,
-        track_score: editing.track_score ?? undefined,
-        current_view: editing.current_view || undefined,
-        stage: editing.stage || undefined,
-        confidence_level: editing.confidence_level || undefined
+        status: editing.status
       });
     } else {
       form.setFieldsValue({ status: "candidate" });
@@ -68,10 +60,10 @@ export function TracksSection() {
       name: values.name,
       description: values.description || null,
       status: values.status,
-      track_score: values.track_score ?? null,
-      current_view: values.current_view || null,
-      stage: values.stage || null,
-      confidence_level: values.confidence_level || null
+      track_score: null,
+      current_view: null,
+      stage: null,
+      confidence_level: null
     };
     if (editing) {
       await updateTrack(editing.id, payload);
@@ -188,20 +180,6 @@ export function TracksSection() {
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={thesisStatusOptions} />
-          </Form.Item>
-          <Space.Compact block>
-            <Form.Item name="track_score" label="评分" style={{ width: "34%" }}>
-              <InputNumber min={0} max={100} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="stage" label="阶段" style={{ width: "33%" }}>
-              <Select allowClear options={stageOptions} />
-            </Form.Item>
-            <Form.Item name="confidence_level" label="置信度" style={{ width: "33%" }}>
-              <Select allowClear options={confidenceOptions} />
-            </Form.Item>
-          </Space.Compact>
-          <Form.Item name="current_view" label="当前判断">
-            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>

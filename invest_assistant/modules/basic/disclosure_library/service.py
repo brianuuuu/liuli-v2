@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.disclosure_library import cninfo_client, parser, repository
@@ -10,6 +11,7 @@ from invest_assistant.modules.basic.disclosure_library.schemas import (
 )
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.market_radar.service import create_source_item
+from invest_assistant.modules.stock_analysis.models import StockMaterial
 
 
 def list_disclosures(db: Session) -> list[CompanyDisclosure]:
@@ -79,3 +81,40 @@ def disclosure_to_source_item(db: Session, item: CompanyDisclosure):
             publish_time=item.publish_time,
         ),
     )
+
+
+def disclosure_to_stock_analysis(db: Session, item: CompanyDisclosure) -> dict:
+    if item.stock_id is None:
+        raise ValueError("stock_id is required")
+    material = db.scalar(
+        select(StockMaterial).where(
+            StockMaterial.stock_id == item.stock_id,
+            StockMaterial.material_type == "company_disclosure",
+            StockMaterial.material_id == item.id,
+        )
+    )
+    if material is None:
+        material = StockMaterial(
+            stock_id=item.stock_id,
+            material_type="company_disclosure",
+            material_id=item.id,
+            importance_level="high"
+            if item.disclosure_type in {"annual_report", "quarterly_report", "interim_report"}
+            else None,
+            status="pending",
+        )
+        db.add(material)
+    db.commit()
+    db.refresh(material)
+    return {
+        "id": material.id,
+        "stock_id": material.stock_id,
+        "material_type": material.material_type,
+        "material_id": material.material_id,
+        "impact_direction": material.impact_direction,
+        "importance_level": material.importance_level,
+        "status": material.status,
+        "note": material.note,
+        "created_at": material.created_at,
+        "updated_at": material.updated_at,
+    }

@@ -13,7 +13,6 @@ import { formatTime, trendLineOption } from "./shared";
 
 type HotwordFormValues = {
   name: string;
-  description?: string;
   status: string;
 };
 
@@ -52,7 +51,7 @@ export function TagsSection() {
     const values = await form.validateFields();
     await createHotword({
       name: values.name,
-      description: values.description || null,
+      description: null,
       status: values.status
     });
     message.success("市场热词已新增");
@@ -121,13 +120,10 @@ export function TagsSection() {
         />
       </DataPanel>
 
-      <Modal title="新增市场热词" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} onOk={submitCreate} destroyOnHidden forceRender>
+      <Modal title="新增市场热词" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} onOk={submitCreate} destroyOnHidden forceRender width={480}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="name" label="市场热词名称" rules={[{ required: true, message: "请输入市场热词名称" }]}>
             <Input />
-          </Form.Item>
-          <Form.Item name="description" label="说明">
-            <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
             <Select options={hotwordStatusOptions.filter((item) => item.value !== "candidate")} />

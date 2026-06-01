@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
@@ -45,6 +47,174 @@ def list_tracks(db: Session, status: str | None = None) -> list[dict]:
         stmt = stmt.where(Track.status == status)
     tracks = list(db.scalars(stmt))
     return [_track_dict(db, track) for track in tracks]
+
+
+def get_dashboard(db: Session) -> dict:
+    tracks = list(db.scalars(select(Track).order_by(Track.updated_at.desc(), Track.id.desc())))
+    track_ids = [track.id for track in tracks]
+    if not track_ids:
+        return {
+            "summary": {
+                "warming_tracks_count": 0,
+                "focus_tracks_count": 0,
+                "pending_materials_count": 0,
+                "top_heat_track": None,
+            },
+            "heat_trends": [],
+            "heat_rankings": [],
+            "focus_tracks": [],
+            "latest_materials": [],
+            "default_track_id": None,
+            "analysis_summary": None,
+        }
+
+    track_by_id = {track.id: track for track in tracks}
+    tag_rows = db.execute(
+        select(TrackTagRelation.track_id, TrackTagRelation.tag_id).where(
+            TrackTagRelation.track_id.in_(track_ids),
+            TrackTagRelation.status == "active",
+        )
+    ).all()
+    tag_to_tracks: dict[int, list[int]] = defaultdict(list)
+    for track_id, tag_id in tag_rows:
+        tag_to_tracks[int(tag_id)].append(int(track_id))
+
+    heat_by_track_window_time: dict[tuple[int, str, object], float] = defaultdict(float)
+    change_by_track_window_time: dict[tuple[int, str, object], float] = defaultdict(float)
+    latest_stat_by_window: dict[str, object] = {}
+    if tag_to_tracks:
+        heat_rows = list(db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_to_tracks.keys()))))
+        for row in heat_rows:
+            for track_id in tag_to_tracks.get(row.tag_id, []):
+                heat_by_track_window_time[(track_id, row.window_type, row.stat_time)] += float(row.heat_score or 0)
+                change_by_track_window_time[(track_id, row.window_type, row.stat_time)] += float(row.change_ratio or 0)
+            if row.stat_time is not None and (row.window_type not in latest_stat_by_window or row.stat_time > latest_stat_by_window[row.window_type]):
+                latest_stat_by_window[row.window_type] = row.stat_time
+
+    def latest_heat(track_id: int, window: str) -> float:
+        stat_time = latest_stat_by_window.get(window)
+        if stat_time is None:
+            return 0.0
+        return round(heat_by_track_window_time.get((track_id, window, stat_time), 0.0), 2)
+
+    def latest_change(track_id: int, window: str) -> float:
+        stat_time = latest_stat_by_window.get(window)
+        if stat_time is None:
+            return 0.0
+        change = change_by_track_window_time.get((track_id, window, stat_time), 0.0)
+        if change:
+            return round(change, 4)
+        points = sorted(
+            (stat_time, value)
+            for (candidate_track_id, candidate_window, stat_time), value in heat_by_track_window_time.items()
+            if candidate_track_id == track_id and candidate_window == window
+        )
+        if len(points) < 2 or points[-2][1] == 0:
+            return 0.0
+        return round((points[-1][1] - points[-2][1]) / points[-2][1], 4)
+
+    material_counts = dict(
+        db.execute(
+            select(TrackMaterial.track_id, func.count(TrackMaterial.id))
+            .where(TrackMaterial.track_id.in_(track_ids))
+            .group_by(TrackMaterial.track_id)
+        ).all()
+    )
+    stock_counts = dict(
+        db.execute(
+            select(StockTrackRelation.track_id, func.count(StockTrackRelation.id))
+            .where(StockTrackRelation.track_id.in_(track_ids), StockTrackRelation.status == "active")
+            .group_by(StockTrackRelation.track_id)
+        ).all()
+    )
+    pending_materials_count = int(
+        db.scalar(select(func.count(TrackMaterial.id)).where(TrackMaterial.track_id.in_(track_ids), TrackMaterial.status == "pending")) or 0
+    )
+
+    rankings = []
+    for track in tracks:
+        rankings.append(
+            {
+                "track_id": track.id,
+                "track_name": track.name,
+                "current_heat": latest_heat(track.id, "24h"),
+                "change_7d": latest_change(track.id, "7d"),
+                "change_30d": latest_change(track.id, "30d"),
+                "change_90d": latest_change(track.id, "90d"),
+                "stage": track.stage,
+                "track_score": track.track_score,
+            }
+        )
+    rankings.sort(key=lambda item: (-float(item["current_heat"] or 0), -float(item["track_score"] or 0), item["track_id"]))
+    for index, item in enumerate(rankings, start=1):
+        item["rank"] = index
+
+    focus_tracks = sorted(
+        [
+            {
+                "track_id": track.id,
+                "name": track.name,
+                "track_score": track.track_score,
+                "current_view": track.current_view,
+                "stage": track.stage,
+                "confidence_level": track.confidence_level,
+                "bound_stock_count": int(stock_counts.get(track.id, 0)),
+                "recent_material_count": int(material_counts.get(track.id, 0)),
+                "current_heat": latest_heat(track.id, "24h"),
+            }
+            for track in tracks
+        ],
+        key=lambda item: (0 if track_by_id[item["track_id"]].status == "active" else 1, -float(item["track_score"] or 0), -float(item["current_heat"] or 0)),
+    )[:6]
+
+    trend_track_ids = [item["track_id"] for item in rankings[:10]]
+    heat_trends = []
+    for track_id in trend_track_ids:
+        points = [
+            {"window_type": window, "stat_time": _isoformat(stat_time), "heat_score": round(value, 2)}
+            for (candidate_track_id, window, stat_time), value in heat_by_track_window_time.items()
+            if candidate_track_id == track_id and window in {"7d", "30d", "90d"}
+        ]
+        points.sort(key=lambda item: (item["window_type"], item["stat_time"] or ""))
+        heat_trends.append({"track_id": track_id, "track_name": track_by_id[track_id].name, "points": points})
+
+    latest_materials = []
+    material_rows = sorted(
+        db.scalars(select(TrackMaterial).where(TrackMaterial.track_id.in_(track_ids))),
+        key=lambda item: (
+            0 if item.status == "pending" else 1,
+            -(item.updated_at.timestamp() if item.updated_at else 0),
+            -item.id,
+        ),
+    )
+    for item in material_rows[:10]:
+        row = _material_dict(db, item)
+        row["track_name"] = track_by_id.get(item.track_id).name if track_by_id.get(item.track_id) else f"#{item.track_id}"
+        latest_materials.append(row)
+
+    default_track_id = rankings[0]["track_id"] if rankings else tracks[0].id
+    analysis_summary = _latest_analysis_summary(db, track_by_id.get(default_track_id))
+    top_heat = rankings[0] if rankings else None
+    return {
+        "summary": {
+            "warming_tracks_count": len([item for item in rankings if any(float(item[f"change_{window}"] or 0) > 0 for window in ("7d", "30d", "90d"))]),
+            "focus_tracks_count": len([track for track in tracks if track.status == "active"]),
+            "pending_materials_count": pending_materials_count,
+            "top_heat_track": {
+                "track_id": top_heat["track_id"],
+                "name": top_heat["track_name"],
+                "heat_score": top_heat["current_heat"],
+            }
+            if top_heat
+            else None,
+        },
+        "heat_trends": heat_trends,
+        "heat_rankings": rankings,
+        "focus_tracks": focus_tracks,
+        "latest_materials": latest_materials,
+        "default_track_id": default_track_id,
+        "analysis_summary": analysis_summary,
+    }
 
 
 def get_track(db: Session, track_id: int) -> dict | None:
@@ -133,6 +303,52 @@ def list_analysis_snapshots(db: Session, track_id: int | None = None) -> list[Tr
     if track_id is not None:
         stmt = stmt.where(TrackAnalysisSnapshot.track_id == track_id)
     return list(db.scalars(stmt))
+
+
+def _latest_analysis_summary(db: Session, track: Track | None) -> dict | None:
+    if track is None:
+        return None
+    snapshot = db.scalar(
+        select(TrackAnalysisSnapshot)
+        .where(TrackAnalysisSnapshot.track_id == track.id)
+        .order_by(TrackAnalysisSnapshot.analysis_date.desc(), TrackAnalysisSnapshot.id.desc())
+    )
+    if snapshot is None:
+        return {
+            "track_id": track.id,
+            "track_name": track.name,
+            "analysis_date": None,
+            "market_space": None,
+            "market_size": None,
+            "growth_rate": None,
+            "heat_summary": None,
+            "opportunity_points": None,
+            "risk_points": None,
+            "watch_signals": None,
+            "score": track.track_score,
+            "confidence_level": track.confidence_level,
+        }
+    return {
+        "track_id": track.id,
+        "track_name": track.name,
+        "analysis_date": snapshot.analysis_date.isoformat() if snapshot.analysis_date else None,
+        "market_space": snapshot.market_space,
+        "market_size": snapshot.market_size,
+        "growth_rate": snapshot.growth_rate,
+        "heat_summary": snapshot.heat_summary,
+        "opportunity_points": snapshot.opportunity_points,
+        "risk_points": snapshot.risk_points,
+        "watch_signals": snapshot.watch_signals,
+        "score": snapshot.score,
+        "confidence_level": snapshot.confidence_level,
+    }
+
+
+def _isoformat(value: object) -> str | None:
+    if value is None:
+        return None
+    formatter = getattr(value, "isoformat", None)
+    return formatter() if callable(formatter) else str(value)
 
 
 def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) -> dict | None:

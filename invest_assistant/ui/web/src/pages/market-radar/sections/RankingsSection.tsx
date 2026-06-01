@@ -12,11 +12,11 @@ import { formatTime, rankingTypeOptions, tagName, TagTypeTag, trendLineOption, w
 
 export function RankingsSection() {
   const [type, setType] = useState<RankingType>("all");
-  const [window, setWindow] = useState<RankingWindow>("24h");
+  const [timeWindow, setTimeWindow] = useState<RankingWindow>("24h");
   const [selected, setSelected] = useState<TagHeat | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
-  const rankings = useAsyncData(useCallback(() => listRankings(type, window), [type, window]), []);
+  const rankings = useAsyncData(useCallback(() => listRankings(type, timeWindow), [type, timeWindow]), []);
 
   async function showTrend(record: TagHeat) {
     setSelected(record);
@@ -63,8 +63,8 @@ export function RankingsSection() {
                 <Button
                   key={item.value}
                   size="small"
-                  className={window === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                  onClick={() => setWindow(item.value as RankingWindow)}
+                  className={timeWindow === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setTimeWindow(item.value as RankingWindow)}
                 >
                   {item.label}
                 </Button>

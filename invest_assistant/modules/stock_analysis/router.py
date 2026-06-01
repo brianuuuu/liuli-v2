@@ -18,11 +18,21 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationRead,
     StockTrackRelationUpdate,
     StockValuationComparisonRead,
+    StockMaterialCreate,
+    StockMaterialUpdate,
+    StockMaterialRead,
+    StockDashboardRead,
+    StockDetailRead,
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
+
+
+@router.get("/dashboard", response_model=StockDashboardRead)
+def get_dashboard(stock_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+    return service.get_dashboard(db, selected_stock_id=stock_id)
 
 
 @router.get("/pool", response_model=list[StockPoolRead])
@@ -57,6 +67,14 @@ def list_candidates(db: Session = Depends(get_db)) -> list:
 @router.get("/stocks/{stock_id}")
 def stock_home(stock_id: int) -> dict[str, int]:
     return {"stock_id": stock_id}
+
+
+@router.get("/stocks/{stock_id}/detail", response_model=StockDetailRead)
+def stock_detail(stock_id: int, db: Session = Depends(get_db)) -> dict:
+    detail = service.get_stock_detail(db, stock_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="stock not found")
+    return detail
 
 
 @router.get("/stocks/{stock_id}/notes", response_model=list[StockResearchNoteRead])
@@ -149,3 +167,26 @@ def disable_stock_track_relation(relation_id: int, db: Session = Depends(get_db)
     if binding is None:
         raise HTTPException(status_code=404, detail="binding not found")
     return binding
+
+
+@router.get("/materials", response_model=list[StockMaterialRead])
+def list_all_stock_materials(db: Session = Depends(get_db)) -> list:
+    return service.list_all_stock_materials(db)
+
+
+@router.get("/stocks/{stock_id}/materials", response_model=list[StockMaterialRead])
+def list_stock_materials(stock_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_stock_materials(db, stock_id)
+
+
+@router.post("/stocks/{stock_id}/materials", response_model=StockMaterialRead)
+def add_stock_material(stock_id: int, payload: StockMaterialCreate, db: Session = Depends(get_db)):
+    return service.create_stock_material(db, stock_id, payload)
+
+
+@router.put("/materials/{material_id}", response_model=StockMaterialRead)
+def update_stock_material(material_id: int, payload: StockMaterialUpdate, db: Session = Depends(get_db)):
+    material = service.update_stock_material(db, material_id, payload)
+    if material is None:
+        raise HTTPException(status_code=404, detail="material not found")
+    return material

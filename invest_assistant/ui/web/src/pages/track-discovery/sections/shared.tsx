@@ -41,8 +41,9 @@ export function StatusTag({ status }: { status?: string | null }) {
 }
 
 export function DirectionTag({ direction }: { direction?: string | null }) {
-  const color = direction === "support" ? "green" : direction === "weaken" ? "red" : direction === "noise" ? "default" : "gold";
-  return <Tag color={color}>{direction || "neutral"}</Tag>;
+  const color = direction === "support" ? "green" : direction === "weaken" ? "red" : direction === "noise" ? "default" : "blue";
+  const label = direction === "support" ? "支持" : direction === "weaken" ? "削弱" : direction === "noise" ? "噪音" : "中性";
+  return <Tag color={color}>{label}</Tag>;
 }
 
 export function candidateTitle(candidate: TrackCandidate) {
