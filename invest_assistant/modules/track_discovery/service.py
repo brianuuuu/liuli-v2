@@ -4,6 +4,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
+from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate
@@ -224,6 +225,46 @@ def get_track(db: Session, track_id: int) -> dict | None:
     return _track_dict(db, track)
 
 
+def get_track_detail(db: Session, track_id: int) -> dict | None:
+    track = db.get(Track, track_id)
+    if track is None:
+        return None
+
+    tags = [item for item in list_track_tag_bindings(db, track.id) if item.get("status") == "active"]
+    materials = list_materials(db, track.id)
+    snapshots = [_analysis_snapshot_dict(item) for item in list_analysis_snapshots(db, track.id)]
+    stocks = _track_detail_stocks(db, track.id)
+    heat_trends = _track_detail_heat_trends(db, [int(item["tag"]["id"]) for item in tags if item.get("tag")])
+    active_stock_count = len([item for item in stocks if item["status"] == "active"])
+    latest_heat_score = _latest_heat_score(heat_trends)
+    last_updated_candidates = [
+        track.updated_at,
+        *(item.get("updated_at") for item in materials),
+        *(item.get("created_at") for item in snapshots),
+        *(item.get("updated_at") for item in stocks),
+        *(item.get("updated_at") for item in tags),
+    ]
+
+    return {
+        "track": _track_dict(db, track),
+        "summary": {
+            "tag_count": len(tags),
+            "material_count": len(materials),
+            "pending_material_count": len([item for item in materials if item["status"] == "pending"]),
+            "high_importance_material_count": len([item for item in materials if item.get("importance_level") == "high"]),
+            "bound_stock_count": active_stock_count,
+            "latest_heat_score": latest_heat_score,
+            "last_updated_at": _max_datetime(last_updated_candidates),
+        },
+        "heat_trends": heat_trends,
+        "latest_snapshot": snapshots[0] if snapshots else None,
+        "analysis_snapshots": snapshots,
+        "materials": materials,
+        "stocks": stocks,
+        "tags": tags,
+    }
+
+
 def update_track(db: Session, track_id: int, payload: TrackUpdate) -> dict | None:
     track = db.get(Track, track_id)
     if track is None:
@@ -344,11 +385,116 @@ def _latest_analysis_summary(db: Session, track: Track | None) -> dict | None:
     }
 
 
+def _analysis_snapshot_dict(snapshot: TrackAnalysisSnapshot) -> dict:
+    return {
+        "id": snapshot.id,
+        "track_id": snapshot.track_id,
+        "analysis_date": snapshot.analysis_date,
+        "market_space": snapshot.market_space,
+        "market_size": snapshot.market_size,
+        "growth_rate": snapshot.growth_rate,
+        "heat_summary": snapshot.heat_summary,
+        "ai_summary": snapshot.ai_summary,
+        "opportunity_points": snapshot.opportunity_points,
+        "risk_points": snapshot.risk_points,
+        "watch_signals": snapshot.watch_signals,
+        "score": snapshot.score,
+        "confidence_level": snapshot.confidence_level,
+        "created_at": snapshot.created_at,
+    }
+
+
 def _isoformat(value: object) -> str | None:
     if value is None:
         return None
     formatter = getattr(value, "isoformat", None)
     return formatter() if callable(formatter) else str(value)
+
+
+def _max_datetime(values) -> object | None:
+    items = [item for item in values if item is not None]
+    if not items:
+        return None
+    return max(items, key=lambda item: item.timestamp())
+
+
+def _track_detail_stocks(db: Session, track_id: int) -> list[dict]:
+    rows = db.execute(
+        select(StockTrackRelation, Stock)
+        .join(Stock, Stock.id == StockTrackRelation.stock_id)
+        .where(StockTrackRelation.track_id == track_id)
+        .order_by(
+            StockTrackRelation.status.asc(),
+            StockTrackRelation.updated_at.desc(),
+            StockTrackRelation.id.desc(),
+        )
+    ).all()
+    return [
+        {
+            "id": relation.id,
+            "stock_id": relation.stock_id,
+            "track_id": relation.track_id,
+            "stock_name": stock.stock_name,
+            "stock_code": stock.stock_code,
+            "symbol": stock.symbol,
+            "relation_type": relation.relation_type,
+            "conviction": relation.conviction,
+            "reason": relation.reason,
+            "status": relation.status,
+            "created_at": relation.created_at,
+            "updated_at": relation.updated_at,
+        }
+        for relation, stock in rows
+    ]
+
+
+def _track_detail_heat_trends(db: Session, active_tag_ids: list[int]) -> list[dict]:
+    if not active_tag_ids:
+        return []
+    rows = list(
+        db.scalars(
+            select(TagHeatSnapshot)
+            .where(TagHeatSnapshot.tag_id.in_(active_tag_ids))
+            .order_by(TagHeatSnapshot.window_type.asc(), TagHeatSnapshot.stat_time.asc(), TagHeatSnapshot.id.asc())
+        )
+    )
+    grouped: dict[tuple[str, object], dict] = {}
+    for row in rows:
+        key = (row.window_type, row.stat_time)
+        item = grouped.setdefault(
+            key,
+            {
+                "stat_time": row.stat_time,
+                "heat_score": 0.0,
+                "trigger_count": 0,
+                "source_count": 0,
+                "change_ratio": 0.0,
+                "rank_no": row.rank_no,
+            },
+        )
+        item["heat_score"] = round(float(item["heat_score"]) + float(row.heat_score or 0), 2)
+        item["trigger_count"] = int(item["trigger_count"]) + int(row.trigger_count or 0)
+        item["source_count"] = int(item["source_count"]) + int(row.source_count or 0)
+        item["change_ratio"] = round(float(item["change_ratio"] or 0) + float(row.change_ratio or 0), 4)
+        if row.rank_no is not None:
+            item["rank_no"] = min(int(item["rank_no"] or row.rank_no), int(row.rank_no))
+
+    points_by_window: dict[str, list[dict]] = defaultdict(list)
+    for (window_type, _stat_time), point in grouped.items():
+        points_by_window[window_type].append(point)
+    trends = []
+    for window_type in sorted(points_by_window.keys()):
+        points = sorted(points_by_window[window_type], key=lambda item: item["stat_time"])
+        trends.append({"window_type": window_type, "points": points})
+    return trends
+
+
+def _latest_heat_score(heat_trends: list[dict]) -> float | None:
+    preferred = next((item for item in heat_trends if item["window_type"] == "24h"), None)
+    trend = preferred or (heat_trends[0] if heat_trends else None)
+    if not trend or not trend["points"]:
+        return None
+    return trend["points"][-1]["heat_score"]
 
 
 def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) -> dict | None:

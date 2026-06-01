@@ -3,6 +3,7 @@ import type {
   TagBinding,
   Track,
   TrackDashboard,
+  TrackDetail,
   TrackAnalysisSnapshot,
   TrackMaterial
 } from "../types/api";
@@ -74,6 +75,11 @@ export async function createTrack(payload: TrackPayload): Promise<Track> {
 
 export async function getTrack(trackId: number): Promise<Track> {
   const response = await apiClient.get<Track>(`/api/track-discovery/tracks/${trackId}`);
+  return response.data;
+}
+
+export async function getTrackDetail(trackId: number): Promise<TrackDetail> {
+  const response = await apiClient.get<TrackDetail>(`/api/track-discovery/tracks/${trackId}/detail`);
   return response.data;
 }
 
