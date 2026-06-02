@@ -7,6 +7,7 @@ from invest_assistant.modules.track_discovery import service
 from invest_assistant.modules.track_discovery.schemas import (
     TrackAnalysisSnapshotCreate,
     TrackAnalysisSnapshotRead,
+    TrackDetailRead,
     TrackCreate,
     TrackMaterialCreate,
     TrackMaterialRead,
@@ -48,6 +49,14 @@ def get_track(track_id: int, db: Session = Depends(get_db)):
     if track is None:
         raise HTTPException(status_code=404, detail="track not found")
     return track
+
+
+@router.get("/tracks/{track_id}/detail", response_model=TrackDetailRead)
+def get_track_detail(track_id: int, db: Session = Depends(get_db)):
+    detail = service.get_track_detail(db, track_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="track not found")
+    return detail
 
 
 @router.put("/tracks/{track_id}", response_model=TrackRead)

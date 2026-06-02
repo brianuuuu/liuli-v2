@@ -1538,6 +1538,199 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* ── Track Discovery: track detail ── */
+.track-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.track-detail-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.track-detail-action-label {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.track-detail-switcher {
+  width: 168px;
+}
+
+.track-detail-back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--ll-accent);
+  font-size: 12px;
+}
+
+.track-detail-identity {
+  display: grid;
+  gap: 10px;
+}
+
+.track-detail-title-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.track-detail-title {
+  overflow: hidden;
+  color: var(--ll-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.track-detail-tags .ant-tag {
+  margin-inline-end: 0;
+}
+
+.track-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.track-detail-metric {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.track-detail-metric.tags {
+  align-items: center;
+}
+
+.track-detail-metric span {
+  display: inline;
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.track-detail-metric strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-detail-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
+.track-detail-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 26px;
+}
+
+.track-detail-tabs .ant-tabs-tab {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.track-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.track-detail-panel-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.track-detail-panel-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.track-detail-overview-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.track-detail-subtitle {
+  margin-bottom: 8px;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.track-detail-keyfacts {
+  margin: 0;
+}
+
+.track-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.track-detail-list-item {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 150px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ll-border);
+}
+
+.track-detail-list-item:last-child {
+  border-bottom: 0;
+}
+
+.track-detail-list-item span,
+.track-detail-list-item em {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.track-detail-list-item strong {
+  overflow: hidden;
+  color: var(--ll-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-detail-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 10px;
+}
+
+.track-detail-form-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1280px) {
   .track-dashboard-grid.main,
   .track-dashboard-grid.secondary,
@@ -1546,7 +1739,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .stock-detail-overview-main {
+  .stock-detail-overview-main,
+  .track-detail-overview-main {
     grid-template-columns: 1fr;
   }
 
@@ -1563,21 +1757,26 @@ body {
   .track-dashboard-metrics,
   .stock-dashboard-metrics,
   .stock-detail-metrics,
+  .track-detail-metrics,
   .track-focus-grid,
   .track-analysis-grid {
     grid-template-columns: 1fr;
   }
 
-  .stock-detail-metrics {
+  .stock-detail-metrics,
+  .track-detail-metrics {
     gap: 10px;
   }
 
   .stock-detail-form-grid,
-  .stock-detail-form-grid.compact {
+  .stock-detail-form-grid.compact,
+  .track-detail-form-grid,
+  .track-detail-form-grid.compact {
     grid-template-columns: 1fr;
   }
 
-  .stock-detail-list-item {
+  .stock-detail-list-item,
+  .track-detail-list-item {
     grid-template-columns: 1fr;
     gap: 3px;
   }

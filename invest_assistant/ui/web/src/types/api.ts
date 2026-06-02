@@ -289,6 +289,56 @@ export type TrackAnalysisSnapshot = {
   created_at?: string | null;
 };
 
+export type TrackDetailSummary = {
+  tag_count: number;
+  material_count: number;
+  pending_material_count: number;
+  high_importance_material_count: number;
+  bound_stock_count: number;
+  latest_heat_score?: number | null;
+  last_updated_at?: string | null;
+};
+
+export type TrackDetailHeatPoint = {
+  stat_time: string;
+  heat_score: number;
+  trigger_count: number;
+  source_count: number;
+  change_ratio?: number | null;
+  rank_no?: number | null;
+};
+
+export type TrackDetailHeatTrend = {
+  window_type: string;
+  points: TrackDetailHeatPoint[];
+};
+
+export type TrackDetailStockRelation = {
+  id: number;
+  stock_id: number;
+  track_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  symbol?: string | null;
+  relation_type?: string | null;
+  conviction: number;
+  reason?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrackDetail = {
+  track: Track;
+  summary: TrackDetailSummary;
+  heat_trends: TrackDetailHeatTrend[];
+  latest_snapshot?: TrackAnalysisSnapshot | null;
+  analysis_snapshots: TrackAnalysisSnapshot[];
+  materials: TrackMaterial[];
+  stocks: TrackDetailStockRelation[];
+  tags: TagBinding[];
+};
+
 export type TrackDashboardSummary = {
   warming_tracks_count: number;
   focus_tracks_count: number;

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 MATERIAL_TYPES = {"source_item", "knowledge_note"}
@@ -190,3 +190,53 @@ class TrackAnalysisSnapshotRead(TrackAnalysisSnapshotCreate):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TrackDetailSummary(BaseModel):
+    tag_count: int = 0
+    material_count: int = 0
+    pending_material_count: int = 0
+    high_importance_material_count: int = 0
+    bound_stock_count: int = 0
+    latest_heat_score: float | None = None
+    last_updated_at: datetime | None = None
+
+
+class TrackDetailHeatPoint(BaseModel):
+    stat_time: datetime
+    heat_score: float
+    trigger_count: int
+    source_count: int
+    change_ratio: float | None = None
+    rank_no: int | None = None
+
+
+class TrackDetailHeatTrend(BaseModel):
+    window_type: str
+    points: list[TrackDetailHeatPoint] = Field(default_factory=list)
+
+
+class TrackDetailStockRelation(BaseModel):
+    id: int
+    stock_id: int
+    track_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
+    symbol: str | None = None
+    relation_type: str | None = None
+    conviction: float
+    reason: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class TrackDetailRead(BaseModel):
+    track: TrackRead
+    summary: TrackDetailSummary
+    heat_trends: list[TrackDetailHeatTrend] = Field(default_factory=list)
+    latest_snapshot: TrackAnalysisSnapshotRead | None = None
+    analysis_snapshots: list[TrackAnalysisSnapshotRead] = Field(default_factory=list)
+    materials: list[TrackMaterialRead] = Field(default_factory=list)
+    stocks: list[TrackDetailStockRelation] = Field(default_factory=list)
+    tags: list[dict] = Field(default_factory=list)
