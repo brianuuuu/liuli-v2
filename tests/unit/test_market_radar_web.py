@@ -45,6 +45,18 @@ def test_stock_event_ai_review_buttons_are_wired_to_job():
     assert "AI审核全部" in events
 
 
+def test_track_event_ai_review_buttons_are_wired_to_job():
+    dashboard = Path("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx").read_text(encoding="utf-8")
+    materials = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/MaterialsSection.tsx").read_text(encoding="utf-8")
+    jobs_api = Path("invest_assistant/ui/web/src/api/jobs.ts").read_text(encoding="utf-8")
+
+    assert 'TRACK_EVENT_REVIEW_JOB_NAME = "track_discovery.review_track_events_deepseek"' in jobs_api
+    assert "TRACK_EVENT_REVIEW_JOB_NAME" in dashboard
+    assert "一键 AI 审核赛道材料" in dashboard
+    assert "TRACK_EVENT_REVIEW_JOB_NAME" in materials
+    assert "AI审核全部" in materials
+
+
 def test_system_config_section_supports_delete_and_typed_value_editor():
     source = Path("invest_assistant/ui/web/src/pages/console/sections/SystemConfigSection.tsx").read_text(encoding="utf-8")
     api_source = Path("invest_assistant/ui/web/src/api/systemConfig.ts").read_text(encoding="utf-8")

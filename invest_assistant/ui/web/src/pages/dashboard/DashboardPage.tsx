@@ -10,7 +10,7 @@ import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import { listAlertEvents } from "../../api/alerts";
 import { getAiLogs } from "../../api/console";
-import { STOCK_EVENT_REVIEW_JOB_NAME, listJobs, listRunRequests, runJob } from "../../api/jobs";
+import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, listJobs, listRunRequests, runJob } from "../../api/jobs";
 import {
   listAiTagSuggestions,
   listHotwords,
@@ -263,8 +263,8 @@ function OperationsPanelSection() {
       key: "track-material-review",
       name: "一键 AI 审核赛道材料",
       pending: trackDashboard.data.summary.pending_materials_count,
-      jobName: null,
-      lastRunAt: null
+      jobName: TRACK_EVENT_REVIEW_JOB_NAME,
+      lastRunAt: jobByName.get(TRACK_EVENT_REVIEW_JOB_NAME)?.last_run_at
     },
     {
       key: "stock-material-review",
@@ -328,7 +328,9 @@ function OperationsPanelSection() {
         <WorkbenchCard title="AI 控制面板">
           <div className="workbench-control-grid">
             {operations.map((item) => {
-              const jobExists = item.jobName ? jobByName.has(item.jobName) || item.jobName === STOCK_EVENT_REVIEW_JOB_NAME : false;
+              const jobExists = item.jobName
+                ? jobByName.has(item.jobName) || [STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME].includes(item.jobName)
+                : false;
               const disabled = !item.jobName || !jobExists;
               return (
                 <div className="workbench-control-card" key={item.key}>

@@ -19,6 +19,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY = "market_radar.suggest_hotword_merges_deepseek"
 DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
+DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -80,6 +81,31 @@ DEFAULT_KNOWLEDGE_PROMPTS = [
             "只输出JSON：{\"reviews\":[{\"stock_material_id\":1,\"decision\":\"confirmed\","
             "\"impact_direction\":\"positive\",\"importance_level\":\"high\",\"note\":\"一句话判断\"},"
             "{\"stock_material_id\":2,\"decision\":\"ignored\",\"reason\":\"忽略原因\"}]}。"
+        ),
+        response_format="json_object",
+        status="active",
+    ),
+    KnowledgePromptCreate(
+        prompt_key=DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY,
+        title="DeepSeek 赛道事件审核",
+        target_task=DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        system_prompt=(
+            "你是A股赛道事件审核助手。只返回合法JSON，不要返回Markdown。"
+            "你的任务是判断待处理赛道事件是否值得纳入赛道材料库，作为长期分析素材。"
+        ),
+        user_prompt=(
+            "审核以下待处理赛道事件。只有对赛道长期景气度、产业趋势、供需格局、政策催化、"
+            "竞争结构、商业化进展、风险暴露或核心投资假设有持续分析价值的事件，才确认纳入材料库。"
+            "判断标准是它是否适合作为长期分析素材。"
+            "日常活动、重复消息、无实质产业影响、泛化噪音或无法形成赛道判断的事件应忽略。"
+            "confirmed 必须给出 direction=support/weaken/neutral/noise、"
+            "importance_level=high/medium/low 和一句赛道视角 note。"
+            "ignored 可给出 reason。"
+            "只输出JSON：{\"reviews\":[{\"track_material_id\":1,\"decision\":\"confirmed\","
+            "\"direction\":\"support\",\"importance_level\":\"high\",\"note\":\"一句话判断\"},"
+            "{\"track_material_id\":2,\"decision\":\"ignored\",\"reason\":\"忽略原因\"}]}。"
         ),
         response_format="json_object",
         status="active",

@@ -106,3 +106,7 @@ def suggest_hotword_merges(candidates: list[dict], existing_hotwords: list[dict]
 
 def review_stock_materials(materials: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
     return _chat_json(prompt, model, {"materials": materials})
+
+
+def review_track_materials(materials: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
+    return _chat_json(prompt, model, {"materials": materials})
