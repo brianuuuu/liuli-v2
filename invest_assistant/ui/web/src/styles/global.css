@@ -392,6 +392,12 @@ body {
   font-weight: 700;
 }
 
+.workbench-card .ant-card-head-title {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--ll-text) !important;
+}
+
 .workbench-card .ant-card-body {
   background: var(--ll-panel);
 }
@@ -2395,11 +2401,19 @@ body {
   background: var(--ll-panel);
   border-bottom-color: var(--ll-border);
   color: var(--ll-text);
-  font-weight: 700;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 8px 10px !important;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
   border-bottom-color: var(--ll-border-soft);
+  font-size: 13px !important;
+  padding: 8px 10px !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td strong {
+  font-weight: 600 !important;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr:hover > td {
