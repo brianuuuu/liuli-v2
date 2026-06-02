@@ -1,7 +1,7 @@
 import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined, AreaChartOutlined, SlidersOutlined, BulbOutlined, NotificationOutlined, RobotOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Typography, message } from "antd";
 import ReactECharts from "echarts-for-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
 import { createTrackMaterial, listTrackMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
 import type { TrackMaterialPayload } from "../../../api/trackDiscovery";
@@ -45,6 +45,52 @@ export function MaterialsSection() {
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [form] = Form.useForm<MaterialFormValues>();
+
+  const formKey = useMemo(() => {
+    if (!drawerOpen) return "closed";
+    if (drawerMode === "edit" && editingMaterial) {
+      return `edit-${editingMaterial.id}-${editingMaterial.updated_at || editingMaterial.created_at}`;
+    }
+    return "create";
+  }, [drawerOpen, drawerMode, editingMaterial]);
+
+  const formInitialValues = useMemo(() => {
+    if (drawerMode === "edit" && editingMaterial) {
+      return {
+        material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+        material_id: editingMaterial.material_id,
+        direction: editingMaterial.direction || null,
+        importance_level: editingMaterial.importance_level || null,
+        status: editingMaterial.status,
+        note: editingMaterial.note || null,
+      };
+    }
+    return {
+      material_type: "source_item",
+      status: "confirmed",
+      direction: null,
+      importance_level: null,
+      note: null,
+    };
+  }, [drawerMode, editingMaterial]);
+
+  useEffect(() => {
+    if (drawerOpen) {
+      if (drawerMode === "edit" && editingMaterial) {
+        form.setFieldsValue({
+          material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+          material_id: editingMaterial.material_id,
+          direction: editingMaterial.direction || null,
+          importance_level: editingMaterial.importance_level || null,
+          status: editingMaterial.status,
+          note: editingMaterial.note || null,
+        });
+      } else {
+        form.resetFields();
+        form.setFieldsValue({ material_type: "source_item", status: "confirmed" });
+      }
+    }
+  }, [drawerOpen, drawerMode, editingMaterial, form]);
 
   // Fetch materials dynamically based on selected trackId (or fetch all in parallel if undefined)
   const materials = useAsyncData(
@@ -249,8 +295,6 @@ export function MaterialsSection() {
     setDrawerMode("create");
     setEditingMaterial(null);
     setIsSummaryExpanded(false);
-    form.resetFields();
-    form.setFieldsValue({ material_type: "source_item", status: "confirmed" });
     setDrawerOpen(true);
   }
 
@@ -258,15 +302,6 @@ export function MaterialsSection() {
     setDrawerMode("edit");
     setEditingMaterial(record);
     setIsSummaryExpanded(false);
-    form.resetFields();
-    form.setFieldsValue({
-      material_type: record.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
-      material_id: record.material_id,
-      direction: record.direction || null,
-      importance_level: record.importance_level || null,
-      status: record.status,
-      note: record.note || null,
-    });
     setDrawerOpen(true);
   }
 
@@ -610,6 +645,7 @@ export function MaterialsSection() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         size="large"
+        destroyOnClose
         extra={
           drawerMode === "edit" && editingMaterial?.status === "pending" ? (
             <Space size={6}>
@@ -622,7 +658,13 @@ export function MaterialsSection() {
         }
       >
         {editingMaterial ? renderMaterialReference(editingMaterial) : null}
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form
+          key={formKey}
+          form={form}
+          initialValues={formInitialValues}
+          layout="vertical"
+          preserve={false}
+        >
           {drawerMode === "create" && (
             <Form.Item
               name="track_id"
