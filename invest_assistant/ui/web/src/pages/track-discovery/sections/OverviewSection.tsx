@@ -217,7 +217,7 @@ export function OverviewSection() {
         </WorkbenchCard>
       </div>
 
-      <WorkbenchCard title="最新赛道动态" style={{ marginTop: "10px" }}>
+      <WorkbenchCard title="最新赛道动态">
         <Table
           rowKey="id"
           size="small"
