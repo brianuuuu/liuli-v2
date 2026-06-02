@@ -1,7 +1,23 @@
 import {
   FileTextOutlined,
   PlayCircleOutlined,
-  RobotOutlined
+  RobotOutlined,
+  DatabaseOutlined,
+  GlobalOutlined,
+  NotificationOutlined,
+  MessageOutlined,
+  FileSearchOutlined,
+  FireOutlined,
+  TagOutlined,
+  AimOutlined,
+  RadarChartOutlined,
+  ThunderboltOutlined,
+  CarryOutOutlined,
+  WarningOutlined,
+  HistoryOutlined,
+  AuditOutlined,
+  FilterOutlined,
+  BranchesOutlined
 } from "@ant-design/icons";
 import { Button, Drawer, Space, Statistic, Table, Tag, Typography, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
@@ -105,22 +121,41 @@ type MetricItem = {
   label: string;
   value: number | string;
   loading?: boolean;
+  icon?: React.ReactNode;
+  color?: string;
 };
 
-function MetricTile({ label, value, loading }: Omit<MetricItem, "key">) {
+function MetricTile({ label, value, loading, icon, color }: Omit<MetricItem, "key">) {
   return (
-    <div className="workbench-metric-tile">
-      <Statistic title={label} value={value} loading={loading} />
+    <div className="workbench-metric-tile-premium">
+      {icon && (
+        <div className="workbench-metric-icon-wrapper" style={{ backgroundColor: `${color}12`, color: color }}>
+          {icon}
+        </div>
+      )}
+      <div className="workbench-metric-content">
+        <div className="workbench-metric-label">{label}</div>
+        <div className="workbench-metric-value">
+          {loading ? <span className="workbench-metric-loading">...</span> : value}
+        </div>
+      </div>
     </div>
   );
 }
 
-function MetricGroup({ title, items }: { title: string; items: MetricItem[] }) {
+function MetricGroup({ title, items, columns = 3 }: { title: string; items: MetricItem[]; columns?: number }) {
   return (
     <WorkbenchCard title={title}>
-      <div className="workbench-metric-grid">
+      <div className={`workbench-metric-grid cols-${columns}`}>
         {items.map((item) => (
-          <MetricTile key={item.key} label={item.label} value={item.value} loading={item.loading} />
+          <MetricTile
+            key={item.key}
+            label={item.label}
+            value={item.value}
+            loading={item.loading}
+            icon={item.icon}
+            color={item.color}
+          />
         ))}
       </div>
     </WorkbenchCard>
@@ -195,52 +230,58 @@ function TodayDashboardSection() {
       <div className="workbench-metric-sections">
         <MetricGroup
           title="新增"
+          columns={3}
           items={[
-            { key: "source", label: "信息流", value: todayItems.length, loading: sourceItems.loading },
-            { key: "news", label: "新闻", value: todaySourceCounts.news, loading: sourceItems.loading },
-            { key: "announcement", label: "公告", value: todaySourceCounts.announcement, loading: sourceItems.loading },
-            { key: "sentiment", label: "舆情", value: todaySourceCounts.sentiment, loading: sourceItems.loading },
-            { key: "report", label: "研报摘要", value: todaySourceCounts.report, loading: sourceItems.loading },
-            { key: "hotword-new", label: "热词", value: hotwords.data.filter((item) => isToday(item.created_at)).length, loading: hotwords.loading }
+            { key: "source", label: "信息流", value: todayItems.length, loading: sourceItems.loading, icon: <DatabaseOutlined />, color: "#2563eb" },
+            { key: "news", label: "新闻", value: todaySourceCounts.news, loading: sourceItems.loading, icon: <GlobalOutlined />, color: "#0891b2" },
+            { key: "announcement", label: "公告", value: todaySourceCounts.announcement, loading: sourceItems.loading, icon: <NotificationOutlined />, color: "#7c3aed" },
+            { key: "sentiment", label: "舆情", value: todaySourceCounts.sentiment, loading: sourceItems.loading, icon: <MessageOutlined />, color: "#ea580c" },
+            { key: "report", label: "研报摘要", value: todaySourceCounts.report, loading: sourceItems.loading, icon: <FileSearchOutlined />, color: "#db2777" },
+            { key: "hotword-new", label: "热词", value: hotwords.data.filter((item) => isToday(item.created_at)).length, loading: hotwords.loading, icon: <FireOutlined />, color: "#dc2626" }
           ]}
         />
         <MetricGroup
           title="活跃"
+          columns={2}
           items={[
-            { key: "tags", label: "标签", value: tags.data.filter((item) => item.status === "active").length, loading: tags.loading },
-            { key: "hotwords", label: "热词", value: hotwords.data.filter((item) => item.status === "active").length, loading: hotwords.loading },
-            { key: "stocks", label: "标的", value: stockPool.data.filter((item) => isActiveStatus(item.status)).length, loading: stockPool.loading },
-            { key: "tracks", label: "赛道", value: tracks.data.filter((item) => isActiveStatus(item.status)).length, loading: tracks.loading }
+            { key: "tags", label: "标签", value: tags.data.filter((item) => item.status === "active").length, loading: tags.loading, icon: <TagOutlined />, color: "#64748b" },
+            { key: "hotwords", label: "热词", value: hotwords.data.filter((item) => item.status === "active").length, loading: hotwords.loading, icon: <FireOutlined />, color: "#d97706" },
+            { key: "stocks", label: "标的", value: stockPool.data.filter((item) => isActiveStatus(item.status)).length, loading: stockPool.loading, icon: <AimOutlined />, color: "#4f46e5" },
+            { key: "tracks", label: "赛道", value: tracks.data.filter((item) => isActiveStatus(item.status)).length, loading: tracks.loading, icon: <RadarChartOutlined />, color: "#059669" }
           ]}
         />
         <MetricGroup
           title="统计"
+          columns={2}
           items={[
-            { key: "ai-count", label: "AI 操作", value: todayAiLogs.length, loading: aiLogs.loading },
-            { key: "ai-token", label: "Token", value: todayTokenCount, loading: aiLogs.loading },
-            { key: "todo-total", label: "待办队列", value: todoTotalCount, loading: suggestions.loading || trackDashboard.loading || stockMaterials.loading || alertEvents.loading || jobs.loading }
+            { key: "ai-count", label: "AI 操作", value: todayAiLogs.length, loading: aiLogs.loading, icon: <RobotOutlined />, color: "#0284c7" },
+            { key: "ai-token", label: "Token", value: todayTokenCount, loading: aiLogs.loading, icon: <ThunderboltOutlined />, color: "#8b5cf6" },
+            { key: "todo-alert", label: "未读预警", value: unreadAlertCount, loading: alertEvents.loading, icon: <WarningOutlined />, color: "#e11d48" },
+            { key: "todo-total", label: "待办队列", value: todoTotalCount, loading: suggestions.loading || trackDashboard.loading || stockMaterials.loading || alertEvents.loading || jobs.loading, icon: <CarryOutOutlined />, color: "#d97706" }
           ]}
         />
       </div>
 
-      <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
+      <div className="workbench-dashboard-grid">
+        <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
 
-      <WorkbenchCard title="最近执行记录">
-        <Table
-          rowKey="id"
-          size="small"
-          loading={requests.loading}
-          dataSource={requests.data.slice(0, 8)}
-          pagination={false}
-          columns={[
-            { title: "任务", dataIndex: "job_name", ellipsis: true },
-            { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
-            { title: "提交时间", dataIndex: "requested_at", width: 170, render: formatTime },
-            { title: "完成时间", dataIndex: "finished_at", width: 170, render: formatTime }
-          ]}
-          locale={{ emptyText: <EmptyAction description="暂无执行记录" /> }}
-        />
-      </WorkbenchCard>
+        <WorkbenchCard title="最近执行记录">
+          <Table
+            rowKey="id"
+            size="small"
+            loading={requests.loading}
+            dataSource={requests.data.slice(0, 8)}
+            pagination={false}
+            columns={[
+              { title: "任务", dataIndex: "job_name", ellipsis: true },
+              { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
+              { title: "提交时间", dataIndex: "requested_at", width: 170, render: formatTime },
+              { title: "完成时间", dataIndex: "finished_at", width: 170, render: formatTime }
+            ]}
+            locale={{ emptyText: <EmptyAction description="暂无执行记录" /> }}
+          />
+        </WorkbenchCard>
+      </div>
     </div>
   );
 }
@@ -264,37 +305,45 @@ function OperationsPanelSection() {
       name: "一键 AI 审核赛道材料",
       pending: trackDashboard.data.summary.pending_materials_count,
       jobName: TRACK_EVENT_REVIEW_JOB_NAME,
-      lastRunAt: jobByName.get(TRACK_EVENT_REVIEW_JOB_NAME)?.last_run_at
+      lastRunAt: jobByName.get(TRACK_EVENT_REVIEW_JOB_NAME)?.last_run_at,
+      icon: <AuditOutlined />,
+      color: "#059669"
     },
     {
       key: "stock-material-review",
       name: "一键 AI 审核标的材料",
       pending: stockPendingCount,
       jobName: STOCK_EVENT_REVIEW_JOB_NAME,
-      lastRunAt: jobByName.get(STOCK_EVENT_REVIEW_JOB_NAME)?.last_run_at
+      lastRunAt: jobByName.get(STOCK_EVENT_REVIEW_JOB_NAME)?.last_run_at,
+      icon: <AuditOutlined />,
+      color: "#4f46e5"
     },
     {
       key: "ai-hotword-screen",
       name: "AI 筛选热词",
       pending: pendingSuggestionCount,
       jobName: "market_radar.extract_daily_hotwords_deepseek",
-      lastRunAt: jobByName.get("market_radar.extract_daily_hotwords_deepseek")?.last_run_at
+      lastRunAt: jobByName.get("market_radar.extract_daily_hotwords_deepseek")?.last_run_at,
+      icon: <FilterOutlined />,
+      color: "#d97706"
     },
     {
       key: "ai-hotword-merge",
       name: "AI 热词合并建议",
       pending: pendingSuggestionCount,
       jobName: "market_radar.suggest_hotword_merges_deepseek",
-      lastRunAt: jobByName.get("market_radar.suggest_hotword_merges_deepseek")?.last_run_at
+      lastRunAt: jobByName.get("market_radar.suggest_hotword_merges_deepseek")?.last_run_at,
+      icon: <BranchesOutlined />,
+      color: "#7c3aed"
     }
   ];
 
   const todoEntries = [
-    { key: "suggestions", label: "AI 推荐词审核", count: pendingSuggestionCount, path: "/market-radar" },
-    { key: "track-materials", label: "赛道材料处理", count: trackDashboard.data.summary.pending_materials_count, path: "/track-discovery" },
-    { key: "stock-materials", label: "标的材料处理", count: stockPendingCount, path: "/stock-analysis" },
-    { key: "alerts", label: "未读预警处理", count: alertEvents.data.filter(isUnhandledAlertEvent).length, path: "/alerts" },
-    { key: "jobs", label: "失败任务排查", count: failedTaskCount(jobs.data), path: "/console" }
+    { key: "suggestions", label: "AI 推荐词审核", count: pendingSuggestionCount, path: "/market-radar", icon: <TagOutlined />, color: "#2563eb" },
+    { key: "track-materials", label: "赛道材料处理", count: trackDashboard.data.summary.pending_materials_count, path: "/track-discovery", icon: <RadarChartOutlined />, color: "#059669" },
+    { key: "stock-materials", label: "标的材料处理", count: stockPendingCount, path: "/stock-analysis", icon: <AimOutlined />, color: "#4f46e5" },
+    { key: "alerts", label: "未读预警处理", count: alertEvents.data.filter(isUnhandledAlertEvent).length, path: "/alerts", icon: <WarningOutlined />, color: "#e11d48" },
+    { key: "jobs", label: "失败任务排查", count: failedTaskCount(jobs.data), path: "/console", icon: <HistoryOutlined />, color: "#dc2626" }
   ];
 
   async function runOperation(operation: { key: string; jobName: string | null }) {
@@ -314,12 +363,19 @@ function OperationsPanelSection() {
   return (
     <div className="workbench-dashboard">
       <div className="workbench-action-grid">
-        <WorkbenchCard title="待办事件">
-          <div className="workbench-entry-grid">
+        <WorkbenchCard title="待办入口">
+          <div className="workbench-entry-column">
             {todoEntries.map((item) => (
-              <button className="workbench-entry-card" key={item.key} type="button" onClick={() => navigate(item.path)}>
-                <span>{item.label}</span>
-                <strong>{item.count}</strong>
+              <button className="workbench-entry-card-premium" key={item.key} type="button" onClick={() => navigate(item.path)}>
+                <div className="entry-left">
+                  {item.icon && (
+                    <div className="entry-icon-wrapper" style={{ backgroundColor: `${item.color}12`, color: item.color }}>
+                      {item.icon}
+                    </div>
+                  )}
+                  <span>{item.label}</span>
+                </div>
+                <span className="entry-count">{item.count}</span>
               </button>
             ))}
           </div>
@@ -332,16 +388,23 @@ function OperationsPanelSection() {
                 ? jobByName.has(item.jobName) || [STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME].includes(item.jobName)
                 : false;
               const disabled = !item.jobName || !jobExists;
+              const hasPending = item.pending > 0;
               return (
-                <div className="workbench-control-card" key={item.key}>
-                  <div className="workbench-control-title">
-                    <RobotOutlined />
-                    <span>{item.name}</span>
+                <div className="workbench-control-card-premium" key={item.key}>
+                  <div className="workbench-control-header">
+                    <div className="workbench-control-title-premium">
+                      <span style={{ color: item.color }}>{item.icon}</span>
+                      <span>{item.name}</span>
+                    </div>
+                    <div className={`workbench-control-status-badge ${hasPending ? 'pending' : 'clean'}`}>
+                      {hasPending ? `待处理 ${item.pending}` : '已清空'}
+                    </div>
                   </div>
-                  <div className="workbench-control-foot">
-                    <div className="workbench-control-meta">
-                      <span>待处理 {item.pending}</span>
-                      <span>最近 {formatTime(item.lastRunAt)}</span>
+                  <div className="workbench-control-footer-premium">
+                    <div className="workbench-control-metadata-premium">
+                      <div className="meta-item">
+                        最近运行: <span>{formatTime(item.lastRunAt)}</span>
+                      </div>
                     </div>
                     <Button
                       size="small"
