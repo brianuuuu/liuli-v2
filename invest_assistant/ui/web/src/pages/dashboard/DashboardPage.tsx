@@ -507,11 +507,10 @@ function LatestReportsSection() {
 
 export function DashboardPage() {
   const [activeTab, setActiveTab] = useState("today");
-  const activeLabel = moduleTabs.dashboard.find((item) => item.key === activeTab)?.label || "今日看板";
 
   return (
     <>
-      <PageHeader title="工作台" description={activeLabel} />
+      <PageHeader title="工作台" description="看板 · 操作 · 报告" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.dashboard} onChange={setActiveTab} />
       {activeTab === "actions" ? (
         <OperationsPanelSection />
