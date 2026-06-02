@@ -30,16 +30,20 @@ function HotwordStatusTag({ status }: { status?: string }) {
 export function TagsSection() {
   const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Hotword | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<HotwordFormValues>();
 
-  const rows = useMemo(
-    () => hotwords.data.filter((item) => !statusFilter || item.status === statusFilter),
-    [hotwords.data, statusFilter]
-  );
+  const rows = useMemo(() => {
+    return hotwords.data.filter((item) => {
+      const matchesStatus = !statusFilter || item.status === statusFilter;
+      const matchesSearch = !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [hotwords.data, statusFilter, searchQuery]);
   const statusButtons = [{ value: undefined, label: "全部" }, ...hotwordStatusOptions];
 
   function openCreate() {
@@ -104,6 +108,15 @@ export function TagsSection() {
                 </Button>
               ))}
             </Space>
+            <Input.Search
+              placeholder="搜索热词名称..."
+              allowClear
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onSearch={setSearchQuery}
+              style={{ width: 180, marginLeft: 10 }}
+            />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>新增市场热词</Button>
           </>

@@ -61,6 +61,7 @@ export function CandidatesSection() {
   const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("pending");
+  const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [approving, setApproving] = useState<AiTagSuggestion | null>(null);
   const [stockOptions, setStockOptions] = useState<Stock[]>([]);
@@ -69,10 +70,13 @@ export function CandidatesSection() {
   const [approveForm] = Form.useForm<ApproveFormValues>();
   const targetType = Form.useWatch("target_type", approveForm) || "hotword";
 
-  const rows = useMemo(
-    () => suggestions.data.filter((item) => !statusFilter || item.status === statusFilter),
-    [suggestions.data, statusFilter]
-  );
+  const rows = useMemo(() => {
+    return suggestions.data.filter((item) => {
+      const matchesStatus = !statusFilter || item.status === statusFilter;
+      const matchesSearch = !searchQuery || item.suggested_text.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [suggestions.data, statusFilter, searchQuery]);
   const statusButtons = [{ value: undefined, label: "全部" }, ...statusOptions];
   const targetObjectOptions = useMemo(() => getTargetOptions(targetType, hotwords.data, tracks.data, stockOptions), [hotwords.data, stockOptions, targetType, tracks.data]);
   const targetObjectLoading = targetType === "stock" ? stockSearchLoading : targetType === "track" ? tracks.loading : hotwords.loading;
@@ -193,6 +197,15 @@ export function CandidatesSection() {
                 </Button>
               ))}
             </Space>
+            <Input.Search
+              placeholder="搜索推荐词..."
+              allowClear
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onSearch={setSearchQuery}
+              style={{ width: 180, marginLeft: 10 }}
+            />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={() => setCreateOpen(true)}>新增推荐词</Button>
           </>
