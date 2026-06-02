@@ -74,7 +74,7 @@ fi
 
 # 5. Start API
 echo "[INFO] Starting Liuli API on port 8000..."
-nohup "$PYTHON" -m uvicorn invest_assistant.main:app --host 127.0.0.1 --port 8000 > "$LOG_DIR/api.log" 2>&1 &
+nohup "$PYTHON" -m uvicorn invest_assistant.main:app --host 0.0.0.0 --port 8000 > "$LOG_DIR/api.log" 2>&1 &
 echo $! > "$PID_DIR/api.pid"
 
 # 6. Start Worker
@@ -85,7 +85,7 @@ echo $! > "$PID_DIR/worker.pid"
 # 7. Start Web Frontend
 echo "[INFO] Starting Liuli Web on port 5173..."
 pushd "$WEB_DIR" >/dev/null
-nohup npm run dev -- --host 127.0.0.1 --port 5173 > "$LOG_DIR/web.log" 2>&1 &
+nohup npm run dev -- --host 0.0.0.0 --port 5173 > "$LOG_DIR/web.log" 2>&1 &
 echo $! > "$PID_DIR/web.pid"
 popd >/dev/null
 
