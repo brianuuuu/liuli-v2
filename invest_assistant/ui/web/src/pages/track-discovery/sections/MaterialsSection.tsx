@@ -1,7 +1,8 @@
-import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined, AreaChartOutlined, SlidersOutlined, BulbOutlined, NotificationOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined, AreaChartOutlined, SlidersOutlined, BulbOutlined, NotificationOutlined, RobotOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Typography, message } from "antd";
 import ReactECharts from "echarts-for-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
 import { createTrackMaterial, listTrackMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
 import type { TrackMaterialPayload } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -42,7 +43,54 @@ export function MaterialsSection() {
   const [editingMaterial, setEditingMaterial] = useState<ExtendedTrackMaterial | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [form] = Form.useForm<MaterialFormValues>();
+
+  const formKey = useMemo(() => {
+    if (!drawerOpen) return "closed";
+    if (drawerMode === "edit" && editingMaterial) {
+      return `edit-${editingMaterial.id}-${editingMaterial.updated_at || editingMaterial.created_at}`;
+    }
+    return "create";
+  }, [drawerOpen, drawerMode, editingMaterial]);
+
+  const formInitialValues = useMemo(() => {
+    if (drawerMode === "edit" && editingMaterial) {
+      return {
+        material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+        material_id: editingMaterial.material_id,
+        direction: editingMaterial.direction || null,
+        importance_level: editingMaterial.importance_level || null,
+        status: editingMaterial.status,
+        note: editingMaterial.note || null,
+      };
+    }
+    return {
+      material_type: "source_item",
+      status: "confirmed",
+      direction: null,
+      importance_level: null,
+      note: null,
+    };
+  }, [drawerMode, editingMaterial]);
+
+  useEffect(() => {
+    if (drawerOpen) {
+      if (drawerMode === "edit" && editingMaterial) {
+        form.setFieldsValue({
+          material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+          material_id: editingMaterial.material_id,
+          direction: editingMaterial.direction || null,
+          importance_level: editingMaterial.importance_level || null,
+          status: editingMaterial.status,
+          note: editingMaterial.note || null,
+        });
+      } else {
+        form.resetFields();
+        form.setFieldsValue({ material_type: "source_item", status: "confirmed" });
+      }
+    }
+  }, [drawerOpen, drawerMode, editingMaterial, form]);
 
   // Fetch materials dynamically based on selected trackId (or fetch all in parallel if undefined)
   const materials = useAsyncData(
@@ -247,8 +295,6 @@ export function MaterialsSection() {
     setDrawerMode("create");
     setEditingMaterial(null);
     setIsSummaryExpanded(false);
-    form.resetFields();
-    form.setFieldsValue({ material_type: "source_item", status: "confirmed" });
     setDrawerOpen(true);
   }
 
@@ -256,15 +302,6 @@ export function MaterialsSection() {
     setDrawerMode("edit");
     setEditingMaterial(record);
     setIsSummaryExpanded(false);
-    form.resetFields();
-    form.setFieldsValue({
-      material_type: record.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
-      material_id: record.material_id,
-      direction: record.direction || null,
-      importance_level: record.importance_level || null,
-      status: record.status,
-      note: record.note || null,
-    });
     setDrawerOpen(true);
   }
 
@@ -280,6 +317,18 @@ export function MaterialsSection() {
       await materials.refresh();
     } catch (err) {
       message.error("更新状态失败");
+    }
+  }
+
+  async function submitAiReviewAll() {
+    setAiReviewLoading(true);
+    try {
+      await runJob(TRACK_EVENT_REVIEW_JOB_NAME, {});
+      message.success("已提交 AI 审核全部赛道事件任务");
+    } catch (err) {
+      message.error("AI 审核任务提交失败");
+    } finally {
+      setAiReviewLoading(false);
     }
   }
 
@@ -528,12 +577,21 @@ export function MaterialsSection() {
 
             {/* Pending Queue */}
             <div className="track-material-pending-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
                   <NotificationOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>待处理队列</span>
                   <span className="section-head-count">({filteredPending.length})</span>
                 </Space>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<RobotOutlined />}
+                  loading={aiReviewLoading}
+                  onClick={submitAiReviewAll}
+                >
+                  AI审核全部
+                </Button>
               </div>
               {filteredPending.length ? (
                 <div className="track-material-pending-list">
@@ -587,6 +645,7 @@ export function MaterialsSection() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         size="large"
+        destroyOnClose
         extra={
           drawerMode === "edit" && editingMaterial?.status === "pending" ? (
             <Space size={6}>
@@ -599,7 +658,13 @@ export function MaterialsSection() {
         }
       >
         {editingMaterial ? renderMaterialReference(editingMaterial) : null}
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form
+          key={formKey}
+          form={form}
+          initialValues={formInitialValues}
+          layout="vertical"
+          preserve={false}
+        >
           {drawerMode === "create" && (
             <Form.Item
               name="track_id"

@@ -1,19 +1,24 @@
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   approveAiTagSuggestion,
   createAiTagSuggestion,
+  listHotwords,
   listAiTagSuggestions,
   rejectAiTagSuggestion,
   restoreAiTagSuggestion
 } from "../../../api/marketRadar";
+import { searchStocks } from "../../../api/stocks";
+import { listTracks } from "../../../api/trackDiscovery";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { AiTagSuggestion } from "../../../types/api";
+import type { AiTagSuggestion, Hotword, Stock, Track } from "../../../types/api";
 import { formatTime } from "./shared";
+
+type TargetType = "stock" | "track" | "hotword";
 
 type SuggestionFormValues = {
   suggested_text: string;
@@ -23,9 +28,15 @@ type SuggestionFormValues = {
 
 type ApproveFormValues = {
   final_tag_name?: string;
-  target_type: "stock" | "track" | "hotword";
+  target_type: TargetType;
   target_id?: number;
   target_name?: string;
+};
+
+type TargetSelectOption = {
+  value: number;
+  label: string;
+  searchText: string;
 };
 
 const statusOptions = [
@@ -47,17 +58,37 @@ function SuggestionStatusTag({ status }: { status?: string }) {
 
 export function CandidatesSection() {
   const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
+  const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("pending");
+  const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [approving, setApproving] = useState<AiTagSuggestion | null>(null);
+  const [stockOptions, setStockOptions] = useState<Stock[]>([]);
+  const [stockSearchLoading, setStockSearchLoading] = useState(false);
   const [form] = Form.useForm<SuggestionFormValues>();
   const [approveForm] = Form.useForm<ApproveFormValues>();
+  const targetType = Form.useWatch("target_type", approveForm) || "hotword";
 
-  const rows = useMemo(
-    () => suggestions.data.filter((item) => !statusFilter || item.status === statusFilter),
-    [suggestions.data, statusFilter]
-  );
+  const rows = useMemo(() => {
+    return suggestions.data.filter((item) => {
+      const matchesStatus = !statusFilter || item.status === statusFilter;
+      const matchesSearch = !searchQuery || item.suggested_text.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [suggestions.data, statusFilter, searchQuery]);
   const statusButtons = [{ value: undefined, label: "全部" }, ...statusOptions];
+  const targetObjectOptions = useMemo(() => getTargetOptions(targetType, hotwords.data, tracks.data, stockOptions), [hotwords.data, stockOptions, targetType, tracks.data]);
+  const targetObjectLoading = targetType === "stock" ? stockSearchLoading : targetType === "track" ? tracks.loading : hotwords.loading;
+  const targetObjectPlaceholder = targetType === "stock" ? "搜索标的名称 / 代码 / 拼音" : `搜索${targetTypeOptions.find((item) => item.value === targetType)?.label || "对象"}名称`;
+  const targetObjectExtra = targetType === "stock" ? "标的必须从已有主数据中选择。" : "选择已有对象则绑定到该对象；不选择则按下方新对象名称创建。";
+
+  useEffect(() => {
+    approveForm.setFieldValue("target_id", undefined);
+    if (targetType !== "stock") {
+      setStockOptions([]);
+    }
+  }, [approveForm, targetType]);
 
   async function submitCreate() {
     const values = await form.validateFields();
@@ -94,7 +125,23 @@ export function CandidatesSection() {
     message.success("AI 推荐词已通过");
     setApproving(null);
     approveForm.resetFields();
+    setStockOptions([]);
     await suggestions.refresh();
+  }
+
+  async function searchTargetObjects(keyword: string) {
+    if (targetType !== "stock") return;
+    const value = keyword.trim();
+    if (!value) {
+      setStockOptions([]);
+      return;
+    }
+    setStockSearchLoading(true);
+    try {
+      setStockOptions(await searchStocks(value));
+    } finally {
+      setStockSearchLoading(false);
+    }
   }
 
   async function reject(record: AiTagSuggestion) {
@@ -150,6 +197,15 @@ export function CandidatesSection() {
                 </Button>
               ))}
             </Space>
+            <Input.Search
+              placeholder="搜索推荐词..."
+              allowClear
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onSearch={setSearchQuery}
+              style={{ width: 180, marginLeft: 10 }}
+            />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={() => setCreateOpen(true)}>新增推荐词</Button>
           </>
@@ -184,7 +240,7 @@ export function CandidatesSection() {
       <Modal
         title="通过 AI 推荐词"
         open={Boolean(approving)}
-        onCancel={() => { setApproving(null); approveForm.resetFields(); }}
+        onCancel={() => { setApproving(null); approveForm.resetFields(); setStockOptions([]); }}
         onOk={submitApprove}
         destroyOnHidden
       >
@@ -193,16 +249,63 @@ export function CandidatesSection() {
             <Input />
           </Form.Item>
           <Form.Item name="target_type" label="绑定对象" rules={[{ required: true, message: "请选择绑定对象" }]}>
-            <Select options={targetTypeOptions} />
+            <Select
+              options={targetTypeOptions}
+              onChange={() => {
+                approveForm.setFieldValue("target_id", undefined);
+                setStockOptions([]);
+              }}
+            />
           </Form.Item>
-          <Form.Item name="target_id" label="已有对象 ID">
-            <InputNumber min={1} style={{ width: "100%" }} />
+          <Form.Item
+            name="target_id"
+            label="已有对象"
+            extra={targetObjectExtra}
+            rules={[{ required: targetType === "stock", message: "请搜索并选择已有标的" }]}
+          >
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="searchText"
+              filterOption={targetType === "stock" ? false : undefined}
+              placeholder={targetObjectPlaceholder}
+              options={targetObjectOptions}
+              loading={targetObjectLoading}
+              onSearch={searchTargetObjects}
+              notFoundContent={targetType === "stock" ? (stockSearchLoading ? "搜索中" : "请输入名称或代码搜索") : "暂无可选对象"}
+              popupMatchSelectWidth={360}
+            />
           </Form.Item>
           <Form.Item name="target_name" label="新对象名称">
-            <Input />
+            <Input disabled={targetType === "stock"} placeholder={targetType === "stock" ? "标的需从已有主数据中选择" : undefined} />
           </Form.Item>
         </Form>
       </Modal>
     </>
   );
+}
+
+function getTargetOptions(targetType: TargetType, hotwords: Hotword[], tracks: Track[], stocks: Stock[]): TargetSelectOption[] {
+  if (targetType === "track") {
+    return tracks.map((item) => ({
+      value: item.id,
+      label: item.name || "未命名赛道",
+      searchText: [item.name, item.description, item.stage, item.status].filter(Boolean).join(" ")
+    }));
+  }
+  if (targetType === "stock") {
+    return stocks.map((item) => {
+      const name = item.stock_name || item.name || item.stock_code || item.symbol || "未命名标的";
+      return {
+        value: item.id,
+        label: name,
+        searchText: [name, item.symbol, item.stock_code, item.name_pinyin, item.name_abbr, item.market, item.exchange].filter(Boolean).join(" ")
+      };
+    });
+  }
+  return hotwords.map((item) => ({
+    value: item.id,
+    label: item.name || "未命名热词",
+    searchText: [item.name, item.description, item.status].filter(Boolean).join(" ")
+  }));
 }

@@ -1,6 +1,9 @@
 import type { JobConfig, JobRunLog, JobRunRequest } from "../types/api";
 import { apiClient } from "./client";
 
+export const STOCK_EVENT_REVIEW_JOB_NAME = "stock_analysis.review_stock_events_deepseek";
+export const TRACK_EVENT_REVIEW_JOB_NAME = "track_discovery.review_track_events_deepseek";
+
 export type JobConfigUpdate = Partial<Pick<JobConfig, "config_json" | "ext_json">>;
 
 export async function listJobs(): Promise<JobConfig[]> {

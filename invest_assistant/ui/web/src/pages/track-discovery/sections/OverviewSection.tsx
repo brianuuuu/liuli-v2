@@ -217,29 +217,16 @@ export function OverviewSection() {
         </WorkbenchCard>
       </div>
 
-      <div className="track-dashboard-grid secondary">
-        <WorkbenchCard title="重点赛道卡片">
-          <div className="track-focus-grid">
-            {dashboard.data.focus_tracks.length ? dashboard.data.focus_tracks.map((track) => (
-              <TrackFocusCard key={track.track_id} track={track} selected={track.track_id === selectedTrackId} onSelect={() => setSelectedTrackId(track.track_id)} />
-            )) : <EmptyAction description="暂无重点跟踪赛道" />}
-          </div>
-        </WorkbenchCard>
-        <WorkbenchCard title="最新赛道动态">
-          <Table
-            rowKey="id"
-            size="small"
-            loading={dashboard.loading}
-            dataSource={dashboard.data.latest_materials}
-            columns={materialColumns}
-            pagination={false}
-            locale={{ emptyText: <EmptyAction description="暂无赛道动态" /> }}
-          />
-        </WorkbenchCard>
-      </div>
-
-      <WorkbenchCard title={`AI 赛道分析摘要${selectedTrackName && selectedTrackName !== "-" ? `（当前选中：${selectedTrackName}）` : ""}`}>
-        {selectedAnalysis ? <AnalysisSummary summary={selectedAnalysis} loading={selectedSnapshots.loading && selectedTrackId !== dashboard.data.analysis_summary?.track_id} /> : <EmptyAction description="暂无 AI 赛道分析摘要" />}
+      <WorkbenchCard title="最新赛道动态">
+        <Table
+          rowKey="id"
+          size="small"
+          loading={dashboard.loading}
+          dataSource={dashboard.data.latest_materials}
+          columns={materialColumns}
+          pagination={false}
+          locale={{ emptyText: <EmptyAction description="暂无赛道动态" /> }}
+        />
       </WorkbenchCard>
     </div>
   );
@@ -257,49 +244,4 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
   );
 }
 
-function TrackFocusCard({ track, selected, onSelect }: { track: TrackDashboardFocusTrack; selected: boolean; onSelect: () => void }) {
-  return (
-    <button className={`track-focus-card ${selected ? "selected" : ""}`} onClick={onSelect} type="button">
-      <div className="track-focus-head">
-        <strong>{track.name}</strong>
-        <Tag>评分 {track.track_score ?? "-"}</Tag>
-      </div>
-      <p>{track.current_view || "暂无当前判断"}</p>
-      <div className="track-focus-meta">
-        <span>阶段 <b>{stageLabel(track.stage)}</b></span>
-        <span>置信度 <b>{confidenceLabel[String(track.confidence_level || "")] || track.confidence_level || "-"}</b></span>
-        <span>绑定标的 <b>{track.bound_stock_count}</b></span>
-        <span>最近动态 <b>{track.recent_material_count}</b></span>
-      </div>
-    </button>
-  );
-}
 
-function AnalysisSummary({ summary, loading }: { summary: TrackDashboardAnalysisSummary; loading: boolean }) {
-  const items = [
-    ["未来市场空间", summary.market_space],
-    ["当前市场规模", summary.market_size],
-    ["当前增长速度", summary.growth_rate],
-    ["当前热度解释", summary.heat_summary],
-    ["主要机会", summary.opportunity_points],
-    ["主要风险", summary.risk_points],
-    ["观察信号", summary.watch_signals]
-  ];
-  return (
-    <div className={`track-analysis-grid ${loading ? "loading" : ""}`}>
-      {items.map(([label, value]) => (
-        <div className="track-analysis-item" key={label}>
-          <span>{label}</span>
-          <strong>{value || "暂无"}</strong>
-        </div>
-      ))}
-      <div className="track-analysis-foot">
-        <Space size={8}>
-          <Tag>评分 {summary.score ?? "-"}</Tag>
-          <Tag>置信度 {confidenceLabel[String(summary.confidence_level || "")] || summary.confidence_level || "-"}</Tag>
-          <Tag>{summary.analysis_date || "暂无日期"}</Tag>
-        </Space>
-      </div>
-    </div>
-  );
-}

@@ -18,7 +18,7 @@ export type NavItem = {
 };
 
 export const primaryNavItems: NavItem[] = [
-  { key: "dashboard", label: "总览", path: "/", icon: <DashboardOutlined /> },
+  { key: "dashboard", label: "工作台", path: "/", icon: <DashboardOutlined /> },
   { key: "market-radar", label: "市场雷达", path: "/market-radar", icon: <BarChartOutlined /> },
   { key: "track-discovery", label: "赛道发现", path: "/track-discovery", icon: <ApartmentOutlined /> },
   { key: "stock-analysis", label: "标的分析", path: "/stock-analysis", icon: <LineChartOutlined /> },
@@ -29,6 +29,11 @@ export const primaryNavItems: NavItem[] = [
 ];
 
 export const moduleTabs: Record<string, { key: string; label: string }[]> = {
+  dashboard: [
+    { key: "today", label: "今日看板" },
+    { key: "actions", label: "操作面板" },
+    { key: "reports", label: "最新报告" }
+  ],
   "market-radar": [
     { key: "overview", label: "市场看板" },
     { key: "flashes", label: "信息流" },
