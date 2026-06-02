@@ -10,7 +10,7 @@ import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import { listAlertEvents } from "../../api/alerts";
 import { getAiLogs } from "../../api/console";
-import { listJobs, listRunRequests, runJob } from "../../api/jobs";
+import { STOCK_EVENT_REVIEW_JOB_NAME, listJobs, listRunRequests, runJob } from "../../api/jobs";
 import {
   listAiTagSuggestions,
   listHotwords,
@@ -75,6 +75,10 @@ function isToday(value?: string | null) {
 
 function isActiveStatus(status?: string | null) {
   return !["disabled", "archived", "ignored", "rejected", "inactive"].includes(String(status || "").toLowerCase());
+}
+
+function isUnhandledAlertEvent(item: Record<string, unknown>) {
+  return item.status !== "handled" && item.status === "unread";
 }
 
 function countSourceTypes(items: Awaited<ReturnType<typeof listSourceItems>>) {
@@ -150,7 +154,7 @@ function TodayDashboardSection() {
   );
   const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length;
   const stockPendingCount = stockMaterials.data.filter((item) => item.status === "pending").length;
-  const unreadAlertCount = alertEvents.data.filter((item) => item.status === "unread").length;
+  const unreadAlertCount = alertEvents.data.filter(isUnhandledAlertEvent).length;
 
   const todoTotalCount = pendingSuggestionCount
     + Number(trackDashboard.data.summary.pending_materials_count || 0)
@@ -266,8 +270,8 @@ function OperationsPanelSection() {
       key: "stock-material-review",
       name: "一键 AI 审核标的材料",
       pending: stockPendingCount,
-      jobName: null,
-      lastRunAt: null
+      jobName: STOCK_EVENT_REVIEW_JOB_NAME,
+      lastRunAt: jobByName.get(STOCK_EVENT_REVIEW_JOB_NAME)?.last_run_at
     },
     {
       key: "ai-hotword-screen",
@@ -289,7 +293,7 @@ function OperationsPanelSection() {
     { key: "suggestions", label: "AI 推荐词审核", count: pendingSuggestionCount, path: "/market-radar" },
     { key: "track-materials", label: "赛道材料处理", count: trackDashboard.data.summary.pending_materials_count, path: "/track-discovery" },
     { key: "stock-materials", label: "标的材料处理", count: stockPendingCount, path: "/stock-analysis" },
-    { key: "alerts", label: "未读预警处理", count: alertEvents.data.filter((item) => item.status === "unread").length, path: "/alerts" },
+    { key: "alerts", label: "未读预警处理", count: alertEvents.data.filter(isUnhandledAlertEvent).length, path: "/alerts" },
     { key: "jobs", label: "失败任务排查", count: failedTaskCount(jobs.data), path: "/console" }
   ];
 
@@ -310,7 +314,7 @@ function OperationsPanelSection() {
   return (
     <div className="workbench-dashboard">
       <div className="workbench-action-grid">
-        <WorkbenchCard title="待办入口">
+        <WorkbenchCard title="待办事件">
           <div className="workbench-entry-grid">
             {todoEntries.map((item) => (
               <button className="workbench-entry-card" key={item.key} type="button" onClick={() => navigate(item.path)}>
@@ -324,7 +328,7 @@ function OperationsPanelSection() {
         <WorkbenchCard title="AI 控制面板">
           <div className="workbench-control-grid">
             {operations.map((item) => {
-              const jobExists = item.jobName ? jobByName.has(item.jobName) : false;
+              const jobExists = item.jobName ? jobByName.has(item.jobName) || item.jobName === STOCK_EVENT_REVIEW_JOB_NAME : false;
               const disabled = !item.jobName || !jobExists;
               return (
                 <div className="workbench-control-card" key={item.key}>

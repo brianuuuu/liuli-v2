@@ -18,6 +18,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY = "market_radar.suggest_hotword_merges_deepseek"
+DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -54,6 +55,31 @@ DEFAULT_KNOWLEDGE_PROMPTS = [
             "根据候选词和已有热点词列表，找出语义上可归并为同一标签的候选词。"
             "只有候选词与目标词可互作别名时才返回建议；仅相关、上下游、同赛道、同事件背景但不是同义表达时不要建议。"
             "返回JSON：{\"suggestions\":[{\"candidate_name\":\"候选词\",\"target_tag_id\":1,\"similarity\":0.0,\"reason\":\"简短原因\"}]}。"
+        ),
+        response_format="json_object",
+        status="active",
+    ),
+    KnowledgePromptCreate(
+        prompt_key=DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY,
+        title="DeepSeek 标的事件审核",
+        target_task=DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY,
+        provider="deepseek",
+        model="deepseek-v4-pro",
+        system_prompt=(
+            "你是A股标的事件审核助手。只返回合法JSON，不要返回Markdown。"
+            "你的任务是判断待处理标的事件是否值得纳入标的材料库，作为长期分析素材。"
+        ),
+        user_prompt=(
+            "审核以下待处理标的事件。只有对公司长期经营、竞争格局、业绩兑现、估值逻辑、风险暴露、"
+            "产业链地位或核心投资假设有持续分析价值的事件，才确认纳入材料库。"
+            "判断标准是它是否适合作为长期分析素材。"
+            "日常行政、无实质业务影响、重复、噪音或无法形成投资判断的事件应忽略。"
+            "confirmed 必须给出 impact_direction=positive/negative/neutral/noise、"
+            "importance_level=high/medium/low 和一句标的视角 note。"
+            "ignored 可给出 reason。"
+            "只输出JSON：{\"reviews\":[{\"stock_material_id\":1,\"decision\":\"confirmed\","
+            "\"impact_direction\":\"positive\",\"importance_level\":\"high\",\"note\":\"一句话判断\"},"
+            "{\"stock_material_id\":2,\"decision\":\"ignored\",\"reason\":\"忽略原因\"}]}。"
         ),
         response_format="json_object",
         status="active",

@@ -12,7 +12,8 @@ import {
   ArrowRightOutlined,
   TagsOutlined,
   FileTextOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  RobotOutlined
 } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Select, Space, Tag, Typography, message, Radio } from "antd";
 import ReactECharts from "echarts-for-react";
@@ -26,6 +27,7 @@ import {
   updateStockMaterial,
   createStockMaterial
 } from "../../../api/stockAnalysis";
+import { STOCK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
 import { listTracks } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -110,6 +112,7 @@ export function EventsSection() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<CurationDrawerMode>("write_note");
   const [editingMaterial, setEditingMaterial] = useState<ExtendedStockMaterial | null>(null);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [form] = Form.useForm();
 
   // 4. Fetch stock-specific materials: if stockId is selected, fetch for it; if undefined (All Stocks), fetch in parallel
@@ -456,6 +459,18 @@ export function EventsSection() {
     setDrawerOpen(true);
   }
 
+  async function submitAiReviewAll() {
+    setAiReviewLoading(true);
+    try {
+      await runJob(STOCK_EVENT_REVIEW_JOB_NAME, {});
+      message.success("已提交 AI 审核全部标的事件任务");
+    } catch (err) {
+      message.error("AI 审核任务提交失败");
+    } finally {
+      setAiReviewLoading(false);
+    }
+  }
+
   return (
     <>
       <DataPanel
@@ -673,12 +688,21 @@ export function EventsSection() {
 
             {/* Pending curation Queue */}
             <div className="track-material-pending-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
                   <NotificationOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>待处理队列</span>
                   <span className="section-head-count">({pendingEvents.length})</span>
                 </Space>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<RobotOutlined />}
+                  loading={aiReviewLoading}
+                  onClick={submitAiReviewAll}
+                >
+                  AI审核全部
+                </Button>
               </div>
 
               {displayedPending.length ? (
