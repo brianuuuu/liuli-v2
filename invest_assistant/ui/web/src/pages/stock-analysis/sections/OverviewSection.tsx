@@ -137,7 +137,6 @@ export function OverviewSection() {
             rowClassName={(record) => (record.stock_id === selectedStockId ? "selected-dashboard-row" : "")}
             onRow={(record) => ({ onClick: () => setSelectedStockId(record.stock_id) })}
             locale={{ emptyText: <EmptyAction description="暂无标的材料热度数据" /> }}
-            scroll={{ x: 620 }}
           />
         </WorkbenchCard>
         <WorkbenchCard title="最新评分榜">
@@ -151,7 +150,6 @@ export function OverviewSection() {
             rowClassName={(record) => (record.stock_id === selectedStockId ? "selected-dashboard-row" : "")}
             onRow={(record) => ({ onClick: () => setSelectedStockId(record.stock_id) })}
             locale={{ emptyText: <EmptyAction description="暂无标的评分数据" /> }}
-            scroll={{ x: 440 }}
           />
         </WorkbenchCard>
         <WorkbenchCard title="最近估值记录" style={{ gridColumn: "1 / -1" }}>
@@ -163,7 +161,6 @@ export function OverviewSection() {
             columns={valuationColumns}
             pagination={false}
             locale={{ emptyText: <EmptyAction description="暂无标的估值数据" /> }}
-            scroll={{ x: 620 }}
           />
         </WorkbenchCard>
       </div>
