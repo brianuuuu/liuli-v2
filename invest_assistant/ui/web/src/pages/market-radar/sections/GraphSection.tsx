@@ -180,7 +180,7 @@ export function GraphSection() {
           data,
           links,
           center: center,
-          force: { repulsion: 500, edgeLength: 140 },
+          force: { repulsion: 350, edgeLength: 120, gravity: 0.15 },
            label: {
             show: true,
             position: "bottom",
