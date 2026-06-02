@@ -136,6 +136,7 @@ function TodayDashboardSection() {
   const stockMaterials = useAsyncData(useCallback(listAllStockMaterials, []), []);
   const alertEvents = useAsyncData(useCallback(listAlertEvents, []), []);
   const jobs = useAsyncData(useCallback(listJobs, []), []);
+  const requests = useAsyncData(useCallback(listRunRequests, []), []);
 
   const todayItems = useMemo(
     () => sourceItems.data.filter((item) => isToday(item.publish_time || item.created_at)),
@@ -151,14 +152,11 @@ function TodayDashboardSection() {
   const stockPendingCount = stockMaterials.data.filter((item) => item.status === "pending").length;
   const unreadAlertCount = alertEvents.data.filter((item) => item.status === "unread").length;
 
-  const todoRows = [
-    { key: "ai-suggestion", name: "AI 推荐词待审核", count: pendingSuggestionCount, target: "市场雷达 / AI 推荐词" },
-    { key: "track-material", name: "赛道材料 pending", count: trackDashboard.data.summary.pending_materials_count, target: "赛道发现 / 赛道动态" },
-    { key: "stock-material", name: "标的材料 pending", count: stockPendingCount, target: "标的分析 / 标的事件" },
-    { key: "alert-unread", name: "未读预警事件", count: unreadAlertCount, target: "预警中心 / 预警事件" },
-    { key: "failed-task", name: "失败任务", count: failedTaskCount(jobs.data), target: "控制台 / 任务中心" }
-  ];
-  const todoTotalCount = todoRows.reduce((sum, item) => sum + Number(item.count || 0), 0);
+  const todoTotalCount = pendingSuggestionCount
+    + Number(trackDashboard.data.summary.pending_materials_count || 0)
+    + stockPendingCount
+    + unreadAlertCount
+    + failedTaskCount(jobs.data);
 
   const sourceChartOption = useMemo(() => {
     const labels = Object.keys(sourceTypeGroups) as Array<keyof typeof sourceTypeGroups>;
@@ -221,24 +219,24 @@ function TodayDashboardSection() {
         />
       </div>
 
-      <div className="workbench-dashboard-grid">
-        <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
-        <WorkbenchCard title="待办队列摘要">
-          <Table
-            rowKey="key"
-            size="small"
-            dataSource={todoRows}
-            pagination={false}
-            loading={suggestions.loading || trackDashboard.loading || stockMaterials.loading || alertEvents.loading || jobs.loading}
-            columns={[
-              { title: "队列", dataIndex: "name" },
-              { title: "数量", dataIndex: "count", width: 90 },
-              { title: "入口", dataIndex: "target", width: 170 }
-            ]}
-            locale={{ emptyText: <EmptyAction description="暂无待办队列" /> }}
-          />
-        </WorkbenchCard>
-      </div>
+      <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
+
+      <WorkbenchCard title="最近执行记录">
+        <Table
+          rowKey="id"
+          size="small"
+          loading={requests.loading}
+          dataSource={requests.data.slice(0, 8)}
+          pagination={false}
+          columns={[
+            { title: "任务", dataIndex: "job_name", ellipsis: true },
+            { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
+            { title: "提交时间", dataIndex: "requested_at", width: 170, render: formatTime },
+            { title: "完成时间", dataIndex: "finished_at", width: 170, render: formatTime }
+          ]}
+          locale={{ emptyText: <EmptyAction description="暂无执行记录" /> }}
+        />
+      </WorkbenchCard>
     </div>
   );
 }
@@ -246,7 +244,6 @@ function TodayDashboardSection() {
 function OperationsPanelSection() {
   const navigate = useNavigate();
   const jobs = useAsyncData(useCallback(listJobs, []), []);
-  const requests = useAsyncData(useCallback(listRunRequests, []), []);
   const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
   const trackDashboard = useAsyncData(useCallback(getTrackDashboard, []), todayLoaderInitialTrackDashboard);
   const stockMaterials = useAsyncData(useCallback(listAllStockMaterials, []), []);
@@ -302,7 +299,7 @@ function OperationsPanelSection() {
     try {
       await runJob(operation.jobName, {});
       message.success("已提交执行请求");
-      await Promise.all([jobs.refresh(), requests.refresh()]);
+      await jobs.refresh();
     } catch {
       message.error("执行请求提交失败");
     } finally {
@@ -357,22 +354,6 @@ function OperationsPanelSection() {
         </WorkbenchCard>
       </div>
 
-      <WorkbenchCard title="最近执行记录">
-        <Table
-          rowKey="id"
-          size="small"
-          loading={requests.loading}
-          dataSource={requests.data.slice(0, 8)}
-          pagination={false}
-          columns={[
-            { title: "任务", dataIndex: "job_name", ellipsis: true },
-            { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
-            { title: "提交时间", dataIndex: "requested_at", width: 170, render: formatTime },
-            { title: "完成时间", dataIndex: "finished_at", width: 170, render: formatTime }
-          ]}
-          locale={{ emptyText: <EmptyAction description="暂无执行记录" /> }}
-        />
-      </WorkbenchCard>
     </div>
   );
 }
