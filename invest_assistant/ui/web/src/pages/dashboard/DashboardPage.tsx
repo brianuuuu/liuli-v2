@@ -335,19 +335,21 @@ function OperationsPanelSection() {
                     <RobotOutlined />
                     <span>{item.name}</span>
                   </div>
-                  <div className="workbench-control-meta">
-                    <span>待处理 {item.pending}</span>
-                    <span>最近 {formatTime(item.lastRunAt)}</span>
+                  <div className="workbench-control-foot">
+                    <div className="workbench-control-meta">
+                      <span>待处理 {item.pending}</span>
+                      <span>最近 {formatTime(item.lastRunAt)}</span>
+                    </div>
+                    <Button
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      loading={runningKey === item.key}
+                      disabled={disabled}
+                      onClick={() => runOperation(item)}
+                    >
+                      {!item.jobName ? "待实现" : jobExists ? "执行" : "未接入"}
+                    </Button>
                   </div>
-                  <Button
-                    size="small"
-                    icon={<PlayCircleOutlined />}
-                    loading={runningKey === item.key}
-                    disabled={disabled}
-                    onClick={() => runOperation(item)}
-                  >
-                    {!item.jobName ? "待实现" : jobExists ? "执行" : "未接入"}
-                  </Button>
                 </div>
               );
             })}

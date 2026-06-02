@@ -507,32 +507,42 @@ body {
   align-items: start;
 }
 
+.workbench-action-grid .workbench-card {
+  margin-bottom: 0;
+}
+
+.workbench-action-grid .workbench-card .ant-card-body {
+  padding: 10px 20px 16px;
+}
+
 .workbench-entry-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
 }
 
 .workbench-control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .workbench-entry-card,
 .workbench-control-card {
   display: flex;
-  min-height: 92px;
-  padding: 12px;
+  min-height: auto;
+  padding: 8px 10px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--ll-panel-subtle);
 }
 
 .workbench-entry-card {
   align-items: center;
   justify-content: space-between;
+  min-height: 46px;
   width: 100%;
+  appearance: none;
   color: var(--ll-text);
   font: inherit;
   text-align: left;
@@ -544,14 +554,23 @@ body {
   color: var(--ll-accent);
 }
 
+.workbench-entry-card:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.workbench-entry-card:focus-visible {
+  outline: 2px solid var(--ll-accent);
+  outline-offset: 1px;
+}
+
 .workbench-entry-card span {
   min-width: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .workbench-entry-card strong {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1;
 }
@@ -559,13 +578,14 @@ body {
 .workbench-control-card {
   flex-direction: column;
   justify-content: space-between;
-  gap: 10px;
+  min-height: 72px;
+  gap: 7px;
 }
 
 .workbench-control-title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
   color: var(--ll-text);
   font-size: 13px;
@@ -582,11 +602,27 @@ body {
   color: var(--ll-accent);
 }
 
+.workbench-control-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .workbench-control-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 2px 10px;
+  min-width: 0;
   color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.workbench-control-card .ant-btn {
+  flex: 0 0 auto;
+  height: 24px;
+  padding-inline: 9px;
   font-size: 12px;
 }
 
