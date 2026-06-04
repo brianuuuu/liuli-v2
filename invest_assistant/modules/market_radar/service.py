@@ -267,6 +267,16 @@ def create_source_item(db: Session, payload: SourceItemCreate) -> dict:
 
 
 def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> SourceItem | None:
+    if payload.source_url:
+        existing_by_url = db.scalar(
+            select(SourceItem).where(
+                SourceItem.source_type == payload.source_type,
+                SourceItem.source_name == payload.source_name,
+                SourceItem.source_url == payload.source_url,
+            )
+        )
+        if existing_by_url is not None:
+            return existing_by_url
     if payload.publish_time is None:
         return db.scalar(
             select(SourceItem).where(

@@ -13,8 +13,9 @@ from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB
 from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
+from invest_assistant.modules.stock_analysis.models import StockPoolItem
 from invest_assistant.modules.track_discovery.models import Track
-from invest_assistant.services.akshare.client import fetch_cls_news_rows, fetch_futu_news_rows
+from invest_assistant.services.akshare.client import fetch_cls_news_rows, fetch_eastmoney_stock_news_rows, fetch_futu_news_rows
 from invest_assistant.services.deepseek import client as deepseek_client
 from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
 from invest_assistant.shared.time_utils import utc_now
@@ -30,6 +31,10 @@ def _fetch_cls_rows(limit: int) -> list[dict]:
 
 def _fetch_futu_rows(limit: int) -> list[dict]:
     return fetch_futu_news_rows(limit)
+
+
+def _fetch_eastmoney_stock_news_rows(stock_code: str, limit: int) -> list[dict]:
+    return fetch_eastmoney_stock_news_rows(stock_code, limit)
 
 
 def _normalize_cls_row(row: dict) -> SourceItemCreate | None:
@@ -63,6 +68,25 @@ def _normalize_futu_row(row: dict) -> SourceItemCreate | None:
         content=content,
         source_url=source_url,
         publish_time=publish_time,
+    )
+
+
+def _normalize_eastmoney_stock_news_row(row: dict, stock_id: int) -> SourceItemCreate | None:
+    title = str(row.get("新闻标题") or "").strip()
+    content = str(row.get("新闻内容") or title or "").strip()
+    source_url = str(row.get("新闻链接") or "").strip() or None
+    publish_time = str(row.get("发布时间") or "").strip() or None
+    if not title and not content:
+        return None
+    return SourceItemCreate(
+        source_type="news",
+        source_name="东方财富",
+        title=(title or content)[:120],
+        content=content or title,
+        source_url=source_url,
+        publish_time=publish_time.replace(" ", "T") if publish_time else None,
+        related_type="stock",
+        related_id=stock_id,
     )
 
 
@@ -460,60 +484,50 @@ def extract_daily_hotwords_deepseek_job(
         db.close()
 
 
-def fetch_stock_news_job(stock_code: str | None = None, limit: int = 20, sleep_ms: int = 500, **kwargs) -> JobResult:
+def fetch_stock_news_job(stock_code: str | None = None, limit: int = 50, sleep_ms: int = 500, **kwargs) -> JobResult:
     import time
-    import akshare as ak
-    import requests
-    from invest_assistant.bootstrap.database import SessionLocal
-    from invest_assistant.modules.basic.stock_master.models import Stock
-    from invest_assistant.modules.market_radar.schemas import SourceItemCreate
-    from invest_assistant.modules.market_radar import service as market_radar_service
-
-    # Force requests inside ak.stock_news_em's global namespace to decode EastMoney JSONP using UTF-8
-    try:
-        import requests
-        if not hasattr(requests, "_original_get"):
-            requests._original_get = requests.get
-            def utf8_global_get(url, *args, **kwargs):
-                res = requests._original_get(url, *args, **kwargs)
-                if isinstance(url, str) and ("eastmoney.com" in url or "search-api-web" in url):
-                    res.encoding = "utf-8"
-                return res
-            requests.get = utf8_global_get
-    except Exception:
-        pass
-
-    try:
-        fn = ak.stock_news_em
-        target_requests = fn.__globals__.get("requests")
-        if target_requests is not None:
-            if not hasattr(target_requests, "_original_get"):
-                target_requests._original_get = target_requests.get
-                def utf8_requests_get(url, *args, **kwargs):
-                    res = target_requests._original_get(url, *args, **kwargs)
-                    if isinstance(url, str) and ("eastmoney.com" in url or "search-api-web" in url):
-                        res.encoding = "utf-8"
-                    return res
-                target_requests.get = utf8_requests_get
-    except Exception:
-        pass
 
     db = SessionLocal()
     try:
-        # Determine the target stocks to fetch
+        target_scope = "stock_pool"
         if stock_code and str(stock_code).strip():
+            target_scope = "stock_code"
             target_code = str(stock_code).strip()
             stocks = list(db.scalars(select(Stock).where(Stock.stock_code == target_code)))
             if not stocks:
-                return JobResult(success=False, message=f"Stock code {target_code} not found in database", processed_count=0)
+                return JobResult(
+                    success=False,
+                    message=f"Stock code {target_code} not found in database",
+                    processed_count=0,
+                    extra={"target_scope": target_scope, "per_stock": []},
+                )
         else:
-            stocks = list(db.scalars(select(Stock).where(Stock.status == "active")))
+            stock_rows = db.scalars(
+                select(Stock)
+                .join(StockPoolItem, StockPoolItem.stock_id == Stock.id)
+                .where(Stock.status == "active")
+                .order_by(StockPoolItem.updated_at.desc(), StockPoolItem.id.desc())
+            )
+            stocks = []
+            seen_stock_ids = set()
+            for stock in stock_rows:
+                if stock.id in seen_stock_ids:
+                    continue
+                seen_stock_ids.add(stock.id)
+                stocks.append(stock)
             if not stocks:
-                return JobResult(success=True, message="No active stocks found to fetch", processed_count=0)
+                return JobResult(
+                    success=True,
+                    message="No stock pool items found to fetch",
+                    processed_count=0,
+                    extra={"target_scope": target_scope, "per_stock": []},
+                )
 
         total_fetched = 0
         total_inserted = 0
         total_skipped = 0
+        per_stock = []
+        row_limit = max(int(limit), 1)
         delay_sec = max(int(sleep_ms), 0) / 1000.0
 
         for idx, stock in enumerate(stocks):
@@ -521,51 +535,38 @@ def fetch_stock_news_job(stock_code: str | None = None, limit: int = 20, sleep_m
                 time.sleep(delay_sec)
 
             code = stock.stock_code
+            stock_summary = {
+                "stock_code": code,
+                "stock_name": stock.stock_name,
+                "fetched": 0,
+                "inserted": 0,
+                "skipped": 0,
+                "error": None,
+            }
             try:
-                # Some akshare versions use symbol, some use stock
-                df = ak.stock_news_em(symbol=code)
-            except TypeError:
-                try:
-                    df = ak.stock_news_em(stock=code)
-                except Exception:
-                    continue
-            except Exception:
+                rows = _fetch_eastmoney_stock_news_rows(code, row_limit)
+            except Exception as exc:
+                stock_summary["error"] = str(exc)
+                per_stock.append(stock_summary)
                 continue
 
-            if df is not None and not df.empty:
-                for _, row in df.head(int(limit)).iterrows():
-                    total_fetched += 1
-                    
-                    title = str(row.get("新闻标题") or "").strip()
-                    content = str(row.get("新闻内容") or "").strip()
-                    # Always force source_name to '东方财富' as all stock news is fetched from the EastMoney API
-                    source_name = "东方财富"
-                    source_url = str(row.get("新闻链接") or "").strip() or None
-                    
-                    pub_time_str = str(row.get("发布时间") or "").strip()
-                    publish_time = pub_time_str.replace(" ", "T") if pub_time_str else None
-
-                    if not title and not content:
-                        continue
-
-                    payload = SourceItemCreate(
-                        source_type="news",
-                        source_name=source_name,
-                        title=title[:120],
-                        content=content or title,
-                        source_url=source_url,
-                        publish_time=publish_time,
-                        related_type="stock",
-                        related_id=stock.id,
-                    )
-
-                    exists = market_radar_service.find_duplicate_source_item(db, payload)
-                    if exists is not None:
-                        total_skipped += 1
-                        continue
-                    
-                    market_radar_service.create_source_item(db, payload)
-                    total_inserted += 1
+            stock_summary["fetched"] = len(rows)
+            total_fetched += len(rows)
+            for row in rows:
+                payload = _normalize_eastmoney_stock_news_row(row, stock.id)
+                if payload is None:
+                    total_skipped += 1
+                    stock_summary["skipped"] += 1
+                    continue
+                exists = service.find_duplicate_source_item(db, payload)
+                if exists is not None:
+                    total_skipped += 1
+                    stock_summary["skipped"] += 1
+                    continue
+                service.create_source_item(db, payload)
+                total_inserted += 1
+                stock_summary["inserted"] += 1
+            per_stock.append(stock_summary)
 
         return JobResult(
             success=True,
@@ -574,6 +575,7 @@ def fetch_stock_news_job(stock_code: str | None = None, limit: int = 20, sleep_m
             processed_count=len(stocks),
             inserted_count=total_inserted,
             skipped_count=total_skipped,
+            extra={"target_scope": target_scope, "per_stock": per_stock},
         )
     finally:
         db.close()
@@ -592,7 +594,7 @@ JOBS = [
         max_retries=1,
         params_schema={
             "stock_code": {"type": "string", "label": "特定股票代码", "placeholder": "选填，输入6位数字代码以手动抓取特定标的"},
-            "limit": {"type": "number", "label": "最多新闻条数", "default": 20, "min": 1},
+            "limit": {"type": "number", "label": "每只股票最多新闻条数", "default": 50, "min": 1},
             "sleep_ms": {"type": "number", "label": "请求间隔(毫秒)", "default": 500, "min": 0},
         },
         tags=["news", "stock_news", "market_radar"],
