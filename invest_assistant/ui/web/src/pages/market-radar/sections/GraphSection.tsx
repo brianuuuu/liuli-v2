@@ -3,7 +3,7 @@ import { Button, Select } from "antd";
 import { FullscreenExitOutlined, FullscreenOutlined } from "@ant-design/icons";
 import ReactECharts from "echarts-for-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getStockHotwordGraph, getStockTrackGraph, type GraphType, type RankingWindow } from "../../../api/marketRadar";
+import { getStockHotwordGraph, getStockTrackGraph, getTrackHotwordGraph, type GraphType, type RankingWindow } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { ChartCard } from "../../../components/charts/ChartCard";
@@ -14,7 +14,8 @@ import { tagKey, windowOptions } from "./shared";
 
 const graphTypeOptions = [
   { value: "track", label: "标的-赛道" },
-  { value: "hotword", label: "标的-市场热词" }
+  { value: "hotword", label: "标的-市场热词" },
+  { value: "track_hotword", label: "赛道-市场热词" }
 ];
 
 export function GraphSection() {
@@ -27,7 +28,11 @@ export function GraphSection() {
   const [windowWidth, setWindowWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
 
   const graph = useAsyncData(
-    useCallback(() => (type === "track" ? getStockTrackGraph(timeWindow) : getStockHotwordGraph(timeWindow)), [type, timeWindow]),
+    useCallback(() => {
+      if (type === "track") return getStockTrackGraph(timeWindow);
+      if (type === "hotword") return getStockHotwordGraph(timeWindow);
+      return getTrackHotwordGraph(timeWindow);
+    }, [type, timeWindow]),
     { nodes: [], edges: [] }
   );
 
@@ -87,9 +92,12 @@ export function GraphSection() {
     
     // Modern tech-palette colors
     const stockColor = "#2563eb"; 
-    const relatedColor = type === "track" 
-      ? (isDark ? "#bc8cff" : "#8b5cf6") 
-      : (isDark ? "#34d399" : "#10b981");
+    const trackColor = isDark ? "#ffaf40" : "#f97316";
+    const hotwordColor = "#10b981";
+
+    const stockShadowColor = isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.12)";
+    const trackShadowColor = isDark ? "rgba(255, 175, 64, 0.2)" : "rgba(249, 115, 22, 0.12)";
+    const hotwordShadowColor = isDark ? "rgba(16, 185, 129, 0.2)" : "rgba(16, 185, 129, 0.12)";
       
     // 1. Calculate aggregated edge weights for each node to represent its co-occurrence heat
     const nodeWeights = new Map<string, number>();
@@ -121,30 +129,35 @@ export function GraphSection() {
       const scale = range > 0 ? (weight - minWeight) / range : 0;
       
       // Scale node size dynamically:
-      // Stock size ranges from 38 to 68 based on relative heat
-      // Track/Hotword size ranges from 28 to 54
-      const baseSize = node.type === "stock" ? 38 : 28;
-      const maxSize = node.type === "stock" ? 68 : 54;
+      const baseSize = 20;
+      const maxSize = 68;
       const symbolSize = Math.round(baseSize + scale * (maxSize - baseSize));
 
-      const color = node.type === "stock" ? stockColor : relatedColor;
+      let color = stockColor;
+      let shadowColor = stockShadowColor;
+      let category = 0;
+
+      if (node.type === "track") {
+        color = trackColor;
+        shadowColor = trackShadowColor;
+        category = 1;
+      } else if (node.type === "hotword") {
+        color = hotwordColor;
+        shadowColor = hotwordShadowColor;
+        category = 2;
+      }
 
       return {
         id: key,
         name: node.name,
         symbolSize,
-        category: node.type === "stock" ? 0 : 1,
+        category,
         itemStyle: {
           color: color,
           borderWidth: 2,
           borderColor: color,
           shadowBlur: 8,
-          shadowColor: node.type === "stock" 
-            ? (isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.12)")
-            : (type === "track"
-                ? (isDark ? "rgba(188, 140, 255, 0.2)" : "rgba(139, 92, 246, 0.12)")
-                : (isDark ? "rgba(52, 211, 153, 0.2)" : "rgba(16, 185, 129, 0.12)")
-              )
+          shadowColor: shadowColor
         }
       };
     });
@@ -168,7 +181,9 @@ export function GraphSection() {
         textStyle: { color: isDark ? "#f3f4f6" : "#1f2937" }
       },
       legend: {
-        data: ["标的", type === "track" ? "赛道" : "市场热词"],
+        data: type === "track" 
+          ? ["标的", "赛道"] 
+          : (type === "hotword" ? ["标的", "市场热词"] : ["赛道", "市场热词"]),
         left: "left",
         top: "top",
         textStyle: { color: isDark ? "#9ca3af" : "#475569" }
@@ -180,7 +195,8 @@ export function GraphSection() {
           roam: true,
           categories: [
             { name: "标的", itemStyle: { color: stockColor } },
-            { name: type === "track" ? "赛道" : "市场热词", itemStyle: { color: relatedColor } }
+            { name: "赛道", itemStyle: { color: trackColor } },
+            { name: "市场热词", itemStyle: { color: hotwordColor } }
           ],
           data,
           links,

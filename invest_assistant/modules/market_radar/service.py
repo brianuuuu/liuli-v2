@@ -520,14 +520,27 @@ def aggregate_edges(db: Session) -> JobResult:
             for stock_tag_id in stock_tags:
                 for related_tag_id in related_tags:
                     edge_sources[(stock_tag_id, related_tag_id)].add(source_id)
+            
+            # Pair track and hotword tags
+            track_tags = [tag_id for tag_id in tag_ids if tags_by_id.get(tag_id) and tags_by_id[tag_id].type == "track"]
+            hotword_tags = [tag_id for tag_id in tag_ids if tags_by_id.get(tag_id) and tags_by_id[tag_id].type == "hotword"]
+            for track_tag_id in track_tags:
+                for hotword_tag_id in hotword_tags:
+                    edge_sources[(track_tag_id, hotword_tag_id)].add(source_id)
+
         for (stock_tag_id, related_tag_id), source_ids in edge_sources.items():
             related = tags_by_id[related_tag_id]
+            stock_tag = tags_by_id[stock_tag_id]
             count = len(source_ids)
+            if stock_tag.type == "track" and related.type == "hotword":
+                rel_type = "track_hotword"
+            else:
+                rel_type = related.type or "general"
             db.add(
                 TagEdgeSnapshot(
                     stock_tag_id=stock_tag_id,
                     related_tag_id=related_tag_id,
-                    related_tag_type=related.type or "general",
+                    related_tag_type=rel_type,
                     window_type=window,
                     stat_time=now,
                     cooccur_count=count,

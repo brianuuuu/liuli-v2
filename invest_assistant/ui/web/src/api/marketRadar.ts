@@ -71,7 +71,7 @@ export type TagBindingPayload = {
 
 export type RankingType = "all" | "stock" | "track" | "hotword";
 export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d";
-export type GraphType = "track" | "hotword";
+export type GraphType = "track" | "hotword" | "track_hotword";
 
 export async function getMarketOverview(): Promise<MarketOverview> {
   const response = await apiClient.get<MarketOverview>("/api/market-radar/overview");
@@ -191,6 +191,13 @@ export async function getStockTrackGraph(window: RankingWindow = "24h"): Promise
 
 export async function getStockHotwordGraph(window: RankingWindow = "24h"): Promise<MarketGraph> {
   const response = await apiClient.get<MarketGraph>("/api/market-radar/graphs/stock-hotword", {
+    params: { window }
+  });
+  return response.data;
+}
+
+export async function getTrackHotwordGraph(window: RankingWindow = "24h"): Promise<MarketGraph> {
+  const response = await apiClient.get<MarketGraph>("/api/market-radar/graphs/track-hotword", {
     params: { window }
   });
   return response.data;

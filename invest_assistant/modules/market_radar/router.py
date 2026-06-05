@@ -165,6 +165,11 @@ def stock_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> d
     return service.graph_edges(db, "hotword", window)
 
 
+@router.get("/graphs/track-hotword")
+def track_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> dict:
+    return service.graph_edges(db, "track_hotword", window)
+
+
 @router.get("/ai-tag-suggestions", response_model=list[AiTagSuggestionRead])
 def list_ai_tag_suggestions(db: Session = Depends(get_db)) -> list:
     return service.list_ai_tag_suggestions(db)

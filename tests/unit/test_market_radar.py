@@ -198,3 +198,20 @@ def test_deepseek_daily_hotword_job_writes_ai_tag_suggestions(monkeypatch):
         assert db.query(Tag).filter(Tag.name == "商业航天").count() == 0
     finally:
         db.close()
+
+
+def test_track_hotword_graph_endpoint(monkeypatch):
+    app = FastAPI()
+    app.include_router(market_radar_router)
+    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_db] = lambda: object()
+
+    mock_data = {
+        "nodes": [{"id": 1, "name": "AI算力", "type": "track", "status": "active"}],
+        "edges": [],
+    }
+    monkeypatch.setattr(market_radar_service, "graph_edges", lambda db, related_type, window: mock_data)
+
+    response = TestClient(app, raise_server_exceptions=False).get("/api/market-radar/graphs/track-hotword?window=24h")
+    assert response.status_code == 200
+    assert response.json() == mock_data
