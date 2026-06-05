@@ -1,11 +1,17 @@
+from datetime import datetime
+
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from invest_assistant.bootstrap.app import create_app
-from invest_assistant.bootstrap.database import Base, SessionLocal, engine
+from invest_assistant.bootstrap.database import Base, SessionLocal, engine, get_db
+from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
+from invest_assistant.modules.market_radar import service as market_radar_service
 from invest_assistant.modules.market_radar import jobs as market_radar_jobs
-from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, HotwordTagRelation, SourceItem, SourceTag, Tag
+from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, HotwordTagRelation, SourceItem, SourceTag, Tag, TagHeatSnapshot
+from invest_assistant.modules.market_radar.router import router as market_radar_router
 from invest_assistant.modules.track_discovery.schemas import TrackCreate
 from invest_assistant.modules.track_discovery.service import create_track
 
@@ -30,6 +36,47 @@ def seed_stock() -> int:
         return stock.id
     finally:
         db.close()
+
+
+def test_tag_trend_endpoint_serializes_heat_snapshots(monkeypatch):
+    app = FastAPI()
+    app.include_router(market_radar_router)
+    app.dependency_overrides[get_current_user] = lambda: object()
+    app.dependency_overrides[get_db] = lambda: object()
+    snapshot = TagHeatSnapshot(
+        id=10912,
+        tag_id=4,
+        window_type="24h",
+        stat_time=datetime(2026, 6, 5, 21, 18, 48),
+        trigger_count=6,
+        source_count=3,
+        heat_score=63.0,
+        avg_count=6.0,
+        change_ratio=0.12,
+        rank_no=1,
+        created_at=datetime(2026, 6, 5, 21, 18, 49),
+    )
+    monkeypatch.setattr(market_radar_service, "tag_trend", lambda db, tag_id: [snapshot])
+
+    response = TestClient(app, raise_server_exceptions=False).get("/api/market-radar/tags/4/trend")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": 10912,
+            "tag_id": 4,
+            "window_type": "24h",
+            "stat_time": "2026-06-05T21:18:48",
+            "trigger_count": 6,
+            "source_count": 3,
+            "heat_score": 63.0,
+            "avg_count": 6.0,
+            "change_ratio": 0.12,
+            "rank_no": 1,
+            "created_at": "2026-06-05T21:18:49",
+            "tag": None,
+        }
+    ]
 
 
 def test_market_radar_source_item_hotword_and_ai_suggestion_flow():

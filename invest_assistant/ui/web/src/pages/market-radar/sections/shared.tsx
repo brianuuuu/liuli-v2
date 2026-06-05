@@ -21,6 +21,11 @@ export function formatTime(value?: string | null) {
   return value.replace("T", " ").slice(0, 19);
 }
 
+export function formatDateLabel(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(5, 10);
+}
+
 export function tagTypeLabel(type?: string | null) {
   if (type === "stock") return "标的";
   if (type === "track") return "赛道";
@@ -55,18 +60,36 @@ export function heatBarOption(rows: TagHeat[]): EChartsOption {
   };
 }
 
-export function trendLineOption(rows: TagHeat[], title?: string): EChartsOption {
+export function trendLineOption(rows: TagHeat[], title?: string, windowType?: string): EChartsOption {
+  const visibleRows = rows.filter((item) => !windowType || item.window_type === windowType);
+  const dateAxisLabels = visibleRows.map((item, index) => {
+    const dateLabel = formatDateLabel(item.stat_time);
+    const previousDateLabel = formatDateLabel(visibleRows[index - 1]?.stat_time);
+    return index === 0 || dateLabel !== previousDateLabel ? dateLabel : "";
+  });
   return {
-    tooltip: { trigger: "axis" },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: unknown) => {
+        const points = Array.isArray(params) ? params : [params];
+        const first = points[0] as { dataIndex?: number } | undefined;
+        const row = visibleRows[Number(first?.dataIndex ?? 0)];
+        const values = points.map((point) => {
+          const item = point as { marker?: string; seriesName?: string; value?: unknown };
+          return `${item.marker || ""}${item.seriesName || "热度"}: ${Number(item.value || 0).toFixed(1)}`;
+        });
+        return [formatTime(row?.stat_time), ...values].join("<br/>");
+      }
+    },
     grid: { left: 42, right: 18, top: 26, bottom: 28 },
-    xAxis: { type: "category", data: rows.map((item) => formatTime(item.stat_time).slice(5, 16)) },
+    xAxis: { type: "category", data: dateAxisLabels },
     yAxis: { type: "value" },
     series: [
       {
         name: title || "热度",
         type: "line",
         smooth: true,
-        data: rows.map((item) => Number(item.heat_score || 0)),
+        data: visibleRows.map((item) => Number(item.heat_score || 0)),
         areaStyle: {}
       }
     ]

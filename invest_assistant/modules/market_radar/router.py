@@ -19,6 +19,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagBindingCreate,
     TagBindingRead,
     TagCreate,
+    TagHeatRead,
     TagRead,
     TagUpdate,
 )
@@ -109,7 +110,7 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     return service.disable_tag(db, tag)
 
 
-@router.get("/tags/{tag_id}/trend")
+@router.get("/tags/{tag_id}/trend", response_model=list[TagHeatRead])
 def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
     return service.tag_trend(db, tag_id)
 
