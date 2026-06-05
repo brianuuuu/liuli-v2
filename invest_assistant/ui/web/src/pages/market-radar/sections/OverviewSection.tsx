@@ -1,4 +1,4 @@
-import { Col, Row, Segmented, Statistic } from "antd";
+import { Button, Col, Row, Space, Statistic } from "antd";
 import { useCallback, useState } from "react";
 import { getMarketOverview, listAiTagSuggestions, listMarketTags, listRankings } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -36,12 +36,18 @@ function HeatMovementBoard({ title, activeWindow, rowsByType, loading, emptyDesc
     <WorkbenchCard
       title={title}
       extra={
-        <Segmented
-          size="small"
-          value={activeWindow}
-          options={risingWindows.map((item) => ({ label: item.label, value: item.value }))}
-          onChange={(value) => onWindowChange(value as RisingRankingWindow)}
-        />
+        <Space size={4} className="toolbar-status-buttons heat-board-segmented">
+          {risingWindows.map((item) => (
+            <Button
+              key={item.value}
+              size="small"
+              className={activeWindow === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+              onClick={() => onWindowChange(item.value)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </Space>
       }
     >
       <div className="market-rising-card-body">

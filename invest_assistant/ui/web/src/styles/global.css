@@ -933,6 +933,34 @@ body {
   white-space: nowrap;
 }
 
+.workbench-card .ant-card-extra .heat-board-segmented {
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--ll-panel);
+}
+
+.workbench-card .ant-card-extra .heat-board-segmented .toolbar-filter-button {
+  min-width: 64px;
+  padding-inline: 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ll-muted);
+  box-shadow: none;
+}
+
+.workbench-card .ant-card-extra .heat-board-segmented .toolbar-filter-button:hover {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-text);
+}
+
+.workbench-card .ant-card-extra .heat-board-segmented .toolbar-filter-button.active,
+.workbench-card .ant-card-extra .heat-board-segmented .toolbar-filter-button.active:hover {
+  border-color: var(--ll-border-soft);
+  background: var(--ll-accent-soft);
+  color: var(--ll-accent);
+}
+
 .compact-list {
   display: grid;
   gap: 8px;

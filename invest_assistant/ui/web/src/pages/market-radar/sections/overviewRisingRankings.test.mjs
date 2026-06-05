@@ -5,6 +5,7 @@ import ts from "../../../../node_modules/typescript/lib/typescript.js";
 const overviewPath = "invest_assistant/ui/web/src/pages/market-radar/sections/OverviewSection.tsx";
 const helperPath = "invest_assistant/ui/web/src/pages/market-radar/sections/overviewRisingRankings.ts";
 const apiPath = "invest_assistant/ui/web/src/api/marketRadar.ts";
+const cssPath = "invest_assistant/ui/web/src/styles/global.css";
 
 if (!existsSync(helperPath)) {
   throw new Error("Overview rising ranking helper must exist");
@@ -12,6 +13,7 @@ if (!existsSync(helperPath)) {
 
 const overview = readFileSync(overviewPath, "utf8");
 const api = readFileSync(apiPath, "utf8");
+const css = readFileSync(cssPath, "utf8");
 const helperSource = readFileSync(helperPath, "utf8");
 
 const compiled = ts.transpileModule(helperSource, {
@@ -74,8 +76,17 @@ if (!overview.includes("risingWindows") || !overview.includes("risingTypes")) {
   throw new Error("Overview should render rising ranking groups by window and type");
 }
 
-if (!overview.includes("Segmented")) {
-  throw new Error("Overview should use one segmented time control for rising ranking windows");
+if (overview.includes("Segmented")) {
+  throw new Error("Overview heat boards should use the shared toolbar button segmented style instead of raw Segmented");
+}
+
+if (!overview.includes("heat-board-segmented") || !overview.includes("toolbar-status-buttons") || !overview.includes("toolbar-filter-button")) {
+  throw new Error("Overview heat boards should use the shared segmented button classes");
+}
+
+const heatSegmentedContainerRule = css.match(/\.workbench-card \.ant-card-extra \.heat-board-segmented \{[\s\S]*?\}/)?.[0] || "";
+if (heatSegmentedContainerRule.includes("border:")) {
+  throw new Error("Heat board segmented container should not render an outer border");
 }
 
 if (!overview.includes("activeRisingWindow")) {
