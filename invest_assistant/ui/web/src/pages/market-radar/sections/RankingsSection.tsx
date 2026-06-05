@@ -87,7 +87,7 @@ export function RankingsSection() {
 
       <Drawer title={selected ? `${tagName(selected)} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
         {trend.length ? (
-          <ChartCard title="历史热度" option={trendLineOption(trend, selected ? tagName(selected) : undefined)} height={300} />
+          <ChartCard title="历史热度" option={trendLineOption(trend, selected ? tagName(selected) : undefined, selected?.window_type)} height={300} />
         ) : (
           <WorkbenchCard title="历史热度">
             <EmptyAction description={trendLoading ? "加载中" : "暂无趋势数据"} />

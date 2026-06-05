@@ -7,6 +7,14 @@ export type MarketOverview = {
   ai_tag_suggestions: number;
 };
 
+export type SourceItemDailyStats = {
+  total: number;
+  news: number;
+  announcement: number;
+  sentiment: number;
+  report: number;
+};
+
 export type MarketTagPayload = {
   name: string;
   type?: string | null;
@@ -62,8 +70,8 @@ export type TagBindingPayload = {
 };
 
 export type RankingType = "all" | "stock" | "track" | "hotword";
-export type RankingWindow = "1h" | "24h" | "7d" | "30d";
-export type GraphType = "track" | "hotword";
+export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d";
+export type GraphType = "track" | "hotword" | "track_hotword";
 
 export async function getMarketOverview(): Promise<MarketOverview> {
   const response = await apiClient.get<MarketOverview>("/api/market-radar/overview");
@@ -145,6 +153,13 @@ export async function listSourceItems(params: SourceItemListParams = {}): Promis
   return response.data;
 }
 
+export async function getSourceItemDailyStats(targetDate?: string): Promise<SourceItemDailyStats> {
+  const response = await apiClient.get<SourceItemDailyStats>("/api/market-radar/source-items/daily-stats", {
+    params: targetDate ? { target_date: targetDate } : undefined
+  });
+  return response.data;
+}
+
 export async function createSourceItem(payload: SourceItemPayload): Promise<SourceItem> {
   const response = await apiClient.post<SourceItem>("/api/market-radar/source-items", payload);
   return response.data;
@@ -176,6 +191,13 @@ export async function getStockTrackGraph(window: RankingWindow = "24h"): Promise
 
 export async function getStockHotwordGraph(window: RankingWindow = "24h"): Promise<MarketGraph> {
   const response = await apiClient.get<MarketGraph>("/api/market-radar/graphs/stock-hotword", {
+    params: { window }
+  });
+  return response.data;
+}
+
+export async function getTrackHotwordGraph(window: RankingWindow = "24h"): Promise<MarketGraph> {
+  const response = await apiClient.get<MarketGraph>("/api/market-radar/graphs/track-hotword", {
     params: { window }
   });
   return response.data;

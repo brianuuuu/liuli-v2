@@ -157,3 +157,15 @@ def test_ai_suggestion_ui_uses_status_specific_actions():
     assert "AI 推荐词已恢复" in section
     assert "restoreAiTagSuggestion" in section
     assert "restore" in api
+
+
+def test_heat_trend_chart_uses_selected_window_and_date_axis():
+    rankings = Path("invest_assistant/ui/web/src/pages/market-radar/sections/RankingsSection.tsx").read_text(encoding="utf-8")
+    shared = Path("invest_assistant/ui/web/src/pages/market-radar/sections/shared.tsx").read_text(encoding="utf-8")
+
+    assert "selected?.window_type" in rankings
+    assert "windowType?: string" in shared
+    assert "rows.filter((item) => !windowType || item.window_type === windowType)" in shared
+    assert "dateAxisLabels" in shared
+    assert "previousDateLabel" in shared
+    assert "formatDateLabel(item.stat_time)" in shared

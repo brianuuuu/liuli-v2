@@ -1,8 +1,8 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from json import dumps
 
-from sqlalchemy import delete, distinct, func, or_, select
+from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
@@ -29,7 +29,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagUpdate,
 )
 from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
-from invest_assistant.shared.time_utils import utc_now
+from invest_assistant.shared.time_utils import beijing_now, utc_now
 
 WINDOWS = {
     "1h": timedelta(hours=1),
@@ -37,6 +37,13 @@ WINDOWS = {
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
     "90d": timedelta(days=90),
+}
+
+SOURCE_ITEM_DAILY_TYPE_GROUPS = {
+    "news": {"news"},
+    "announcement": {"announcement", "financial"},
+    "sentiment": {"sentiment"},
+    "report": {"research", "research_report", "report", "report_summary"},
 }
 
 
@@ -310,6 +317,37 @@ def count_source_items(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(SourceItem)) or 0)
 
 
+def count_source_items_by_day(db: Session, target_date: date | None = None) -> dict[str, int]:
+    day = target_date or beijing_now().date()
+    start_at = datetime.combine(day, time.min)
+    end_at = start_at + timedelta(days=1)
+    rows = db.execute(
+        select(SourceItem.source_type, func.count())
+        .where(
+            or_(
+                and_(SourceItem.publish_time >= start_at, SourceItem.publish_time < end_at),
+                and_(
+                    SourceItem.publish_time.is_(None),
+                    SourceItem.created_at >= start_at,
+                    SourceItem.created_at < end_at,
+                ),
+            )
+        )
+        .group_by(SourceItem.source_type)
+    ).all()
+
+    stats = {key: 0 for key in SOURCE_ITEM_DAILY_TYPE_GROUPS}
+    stats["total"] = 0
+    for source_type, count in rows:
+        next_count = int(count or 0)
+        stats["total"] += next_count
+        for group_key, source_types in SOURCE_ITEM_DAILY_TYPE_GROUPS.items():
+            if source_type in source_types:
+                stats[group_key] += next_count
+                break
+    return stats
+
+
 def get_source_item(db: Session, source_item_id: int) -> dict | None:
     item = db.get(SourceItem, source_item_id)
     return _source_item_dict(db, item) if item is not None else None
@@ -482,14 +520,27 @@ def aggregate_edges(db: Session) -> JobResult:
             for stock_tag_id in stock_tags:
                 for related_tag_id in related_tags:
                     edge_sources[(stock_tag_id, related_tag_id)].add(source_id)
+            
+            # Pair track and hotword tags
+            track_tags = [tag_id for tag_id in tag_ids if tags_by_id.get(tag_id) and tags_by_id[tag_id].type == "track"]
+            hotword_tags = [tag_id for tag_id in tag_ids if tags_by_id.get(tag_id) and tags_by_id[tag_id].type == "hotword"]
+            for track_tag_id in track_tags:
+                for hotword_tag_id in hotword_tags:
+                    edge_sources[(track_tag_id, hotword_tag_id)].add(source_id)
+
         for (stock_tag_id, related_tag_id), source_ids in edge_sources.items():
             related = tags_by_id[related_tag_id]
+            stock_tag = tags_by_id[stock_tag_id]
             count = len(source_ids)
+            if stock_tag.type == "track" and related.type == "hotword":
+                rel_type = "track_hotword"
+            else:
+                rel_type = related.type or "general"
             db.add(
                 TagEdgeSnapshot(
                     stock_tag_id=stock_tag_id,
                     related_tag_id=related_tag_id,
-                    related_tag_type=related.type or "general",
+                    related_tag_type=rel_type,
                     window_type=window,
                     stat_time=now,
                     cooccur_count=count,

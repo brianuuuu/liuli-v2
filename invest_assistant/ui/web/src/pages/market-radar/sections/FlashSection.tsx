@@ -1,7 +1,7 @@
-import { ReloadOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { Button, Drawer, Input, Select, Space, Tag, Typography, message } from "antd";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { listSourceItems, syncClsMarketFlashes, syncFutuMarketFlashes } from "../../../api/marketRadar";
+import { listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import type { SourceItem } from "../../../types/api";
 import { filterFlashRows } from "./flashFilters";
@@ -47,8 +47,6 @@ export function FlashSection() {
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [importantOnly, setImportantOnly] = useState(false);
   const [activeTagId, setActiveTagId] = useState<number | null>(null);
-  const [syncingCls, setSyncingCls] = useState(false);
-  const [syncingFutu, setSyncingFutu] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
 
   const loadSourcePage = useCallback(async (offset: number, replace: boolean) => {
@@ -114,32 +112,6 @@ export function FlashSection() {
     return result;
   }, [rows]);
 
-  async function syncCls() {
-    setSyncingCls(true);
-    try {
-      const result = await syncClsMarketFlashes(100);
-      if (!result.success) {
-        message.error(result.message || "同步财联社快讯失败");
-        return;
-      }
-      message.success(`新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条`);
-      await refreshFirstPage();
-    } finally {
-      setSyncingCls(false);
-    }
-  }
-
-  async function syncFutu() {
-    setSyncingFutu(true);
-    try {
-      await syncFutuMarketFlashes(100);
-      message.success("已提交富途同步任务");
-      await refreshFirstPage();
-    } finally {
-      setSyncingFutu(false);
-    }
-  }
-
   function resetFilters() {
     setKeyword("");
     setSourceName(undefined);
@@ -179,8 +151,6 @@ export function FlashSection() {
                 </div>
               </div>
               <Space className="flash-command-actions" size={8}>
-                <Button size="small" icon={<SyncOutlined />} loading={syncingCls} onClick={syncCls}>同步财联社</Button>
-                <Button size="small" icon={<SyncOutlined />} loading={syncingFutu} onClick={syncFutu}>同步富途</Button>
                 <Button size="small" icon={<ReloadOutlined />} loading={loadingSources} onClick={refreshFirstPage}>刷新</Button>
               </Space>
             </div>
@@ -238,7 +208,7 @@ export function FlashSection() {
                     </article>
                   );
                 })}
-                {!loadingSources && feedItems.length === 0 ? <EmptyAction description="暂无快讯，可同步财联社或调整筛选条件" /> : null}
+                {!loadingSources && feedItems.length === 0 ? <EmptyAction description="暂无快讯，可调整筛选条件或稍后刷新" /> : null}
                 {loadingMoreSources ? <div className="flash-load-more">加载更多信息流...</div> : null}
                 {!hasMoreSources && feedItems.length > 0 ? <div className="flash-load-more">已加载全部信息流</div> : null}
               </div>

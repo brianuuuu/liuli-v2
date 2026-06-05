@@ -28,10 +28,10 @@ import { listAlertEvents } from "../../api/alerts";
 import { getAiLogs } from "../../api/console";
 import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, listJobs, listRunRequests, runJob } from "../../api/jobs";
 import {
+  getSourceItemDailyStats,
   listAiTagSuggestions,
   listHotwords,
-  listMarketTags,
-  listSourceItems
+  listMarketTags
 } from "../../api/marketRadar";
 import { listReports, getReportContent } from "../../api/reports";
 import { listAllStockMaterials, listStockPool } from "../../api/stockAnalysis";
@@ -97,15 +97,6 @@ function isUnhandledAlertEvent(item: Record<string, unknown>) {
   return item.status !== "handled" && item.status === "unread";
 }
 
-function countSourceTypes(items: Awaited<ReturnType<typeof listSourceItems>>) {
-  return Object.fromEntries(
-    Object.entries(sourceTypeGroups).map(([key, types]) => [
-      key,
-      items.filter((item) => types.includes(item.source_type)).length
-    ])
-  ) as Record<keyof typeof sourceTypeGroups, number>;
-}
-
 function failedTaskCount(jobs: JobConfig[]) {
   return jobs.filter((job) => ["failed", "error"].includes(String(job.last_status || "").toLowerCase())).length;
 }
@@ -164,7 +155,13 @@ function MetricGroup({ title, items, columns = 3 }: { title: string; items: Metr
 
 function TodayDashboardSection() {
   const { resolvedMode } = useLiuliTheme();
-  const sourceItems = useAsyncData(useCallback(() => listSourceItems({ limit: 200 }), []), []);
+  const sourceStats = useAsyncData(useCallback(getSourceItemDailyStats, []), {
+    total: 0,
+    news: 0,
+    announcement: 0,
+    sentiment: 0,
+    report: 0
+  });
   const tags = useAsyncData(useCallback(listMarketTags, []), []);
   const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
   const stockPool = useAsyncData(useCallback(listStockPool, []), []);
@@ -177,11 +174,7 @@ function TodayDashboardSection() {
   const jobs = useAsyncData(useCallback(listJobs, []), []);
   const requests = useAsyncData(useCallback(listRunRequests, []), []);
 
-  const todayItems = useMemo(
-    () => sourceItems.data.filter((item) => isToday(item.publish_time || item.created_at)),
-    [sourceItems.data]
-  );
-  const todaySourceCounts = useMemo(() => countSourceTypes(todayItems), [todayItems]);
+  const todaySourceCounts = sourceStats.data;
   const todayAiLogs = useMemo(() => aiLogs.data.filter((item) => isToday(item.created_at)), [aiLogs.data]);
   const todayTokenCount = useMemo(
     () => todayAiLogs.reduce((sum, item) => sum + Number(item.total_tokens || 0), 0),
@@ -232,11 +225,11 @@ function TodayDashboardSection() {
           title="新增"
           columns={3}
           items={[
-            { key: "source", label: "信息流", value: todayItems.length, loading: sourceItems.loading, icon: <DatabaseOutlined />, color: "#2563eb" },
-            { key: "news", label: "新闻", value: todaySourceCounts.news, loading: sourceItems.loading, icon: <GlobalOutlined />, color: "#0891b2" },
-            { key: "announcement", label: "公告", value: todaySourceCounts.announcement, loading: sourceItems.loading, icon: <NotificationOutlined />, color: "#7c3aed" },
-            { key: "sentiment", label: "舆情", value: todaySourceCounts.sentiment, loading: sourceItems.loading, icon: <MessageOutlined />, color: "#ea580c" },
-            { key: "report", label: "研报摘要", value: todaySourceCounts.report, loading: sourceItems.loading, icon: <FileSearchOutlined />, color: "#db2777" },
+            { key: "source", label: "信息流", value: todaySourceCounts.total, loading: sourceStats.loading, icon: <DatabaseOutlined />, color: "#2563eb" },
+            { key: "news", label: "新闻", value: todaySourceCounts.news, loading: sourceStats.loading, icon: <GlobalOutlined />, color: "#0891b2" },
+            { key: "announcement", label: "公告", value: todaySourceCounts.announcement, loading: sourceStats.loading, icon: <NotificationOutlined />, color: "#7c3aed" },
+            { key: "sentiment", label: "舆情", value: todaySourceCounts.sentiment, loading: sourceStats.loading, icon: <MessageOutlined />, color: "#ea580c" },
+            { key: "report", label: "研报摘要", value: todaySourceCounts.report, loading: sourceStats.loading, icon: <FileSearchOutlined />, color: "#db2777" },
             { key: "hotword-new", label: "热词", value: hotwords.data.filter((item) => isToday(item.created_at)).length, loading: hotwords.loading, icon: <FireOutlined />, color: "#dc2626" }
           ]}
         />

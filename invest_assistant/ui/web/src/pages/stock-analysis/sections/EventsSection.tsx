@@ -164,15 +164,23 @@ export function EventsSection() {
   );
 
   // 5. Curation Curation Split: confirmed timeline events & pending queue rows
-  const visibleEvents = useMemo(() => 
-    stockMaterials.data.filter((item) => item.status === "confirmed"),
-    [stockMaterials.data]
-  );
+  const visibleEvents = useMemo(() => {
+    const confirmed = stockMaterials.data.filter((item) => item.status === "confirmed");
+    return confirmed.sort((a, b) => {
+      const timeA = a.material_time || a.updated_at || a.created_at || "";
+      const timeB = b.material_time || b.updated_at || b.created_at || "";
+      return timeB.localeCompare(timeA);
+    });
+  }, [stockMaterials.data]);
 
-  const pendingEvents = useMemo(() => 
-    stockMaterials.data.filter((item) => item.status === "pending"),
-    [stockMaterials.data]
-  );
+  const pendingEvents = useMemo(() => {
+    const pending = stockMaterials.data.filter((item) => item.status === "pending");
+    return pending.sort((a, b) => {
+      const timeA = a.material_time || a.updated_at || a.created_at || "";
+      const timeB = b.material_time || b.updated_at || b.created_at || "";
+      return timeB.localeCompare(timeA);
+    });
+  }, [stockMaterials.data]);
 
   // 6. Apply Toolbar Filters client-side on confirmed timeline events
   const filteredEvents = useMemo(() => {

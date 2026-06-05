@@ -16,6 +16,9 @@ assert.ok(contentIndex < panelIndex, "feed panel should sit inside the feed colu
 assert.ok(panelIndex < toolbarIndex, "command bar should be merged into the feed panel");
 assert.ok(toolbarIndex < scrollIndex, "command bar should sit above the scroll area inside the feed panel");
 assert.doesNotMatch(source, /className="flash-toolbar"/);
-assert.match(source, /同步富途/);
-assert.match(source, /syncFutu/);
+assert.doesNotMatch(source, /同步财联社/);
+assert.doesNotMatch(source, /同步富途/);
+assert.doesNotMatch(source, /syncClsMarketFlashes/);
+assert.doesNotMatch(source, /syncFutuMarketFlashes/);
+assert.match(source, /刷新/);
 assert.match(source, /onScroll=\{handleFlashScroll\}/);

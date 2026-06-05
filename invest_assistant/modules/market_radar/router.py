@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagBindingCreate,
     TagBindingRead,
     TagCreate,
+    TagHeatRead,
     TagRead,
     TagUpdate,
 )
@@ -41,6 +44,11 @@ def list_source_items(
     db: Session = Depends(get_db),
 ) -> list:
     return service.list_source_items(db, limit=limit, offset=offset)
+
+
+@router.get("/source-items/daily-stats")
+def source_item_daily_stats(target_date: date | None = None, db: Session = Depends(get_db)) -> dict[str, int]:
+    return service.count_source_items_by_day(db, target_date)
 
 
 @router.post("/source-items", response_model=SourceItemRead)
@@ -102,7 +110,7 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     return service.disable_tag(db, tag)
 
 
-@router.get("/tags/{tag_id}/trend")
+@router.get("/tags/{tag_id}/trend", response_model=list[TagHeatRead])
 def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
     return service.tag_trend(db, tag_id)
 
@@ -155,6 +163,11 @@ def stock_track_graph(window: str = "24h", db: Session = Depends(get_db)) -> dic
 @router.get("/graphs/stock-hotword")
 def stock_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> dict:
     return service.graph_edges(db, "hotword", window)
+
+
+@router.get("/graphs/track-hotword")
+def track_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> dict:
+    return service.graph_edges(db, "track_hotword", window)
 
 
 @router.get("/ai-tag-suggestions", response_model=list[AiTagSuggestionRead])
