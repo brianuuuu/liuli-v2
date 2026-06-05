@@ -86,10 +86,10 @@ export function GraphSection() {
     const isDark = resolvedMode === "dark";
     
     // Modern tech-palette colors
-    const stockColor = isDark ? "#58a6ff" : "#2563eb"; 
+    const stockColor = "#2563eb"; 
     const relatedColor = type === "track" 
       ? (isDark ? "#bc8cff" : "#8b5cf6") 
-      : (isDark ? "#ffaf40" : "#fb923c");
+      : (isDark ? "#34d399" : "#10b981");
       
     // 1. Calculate aggregated edge weights for each node to represent its co-occurrence heat
     const nodeWeights = new Map<string, number>();
@@ -127,19 +127,24 @@ export function GraphSection() {
       const maxSize = node.type === "stock" ? 68 : 54;
       const symbolSize = Math.round(baseSize + scale * (maxSize - baseSize));
 
+      const color = node.type === "stock" ? stockColor : relatedColor;
+
       return {
         id: key,
         name: node.name,
         symbolSize,
         category: node.type === "stock" ? 0 : 1,
         itemStyle: {
-          color: node.type === "stock" ? stockColor : relatedColor,
+          color: color,
           borderWidth: 2,
-          borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)",
+          borderColor: color,
           shadowBlur: 8,
           shadowColor: node.type === "stock" 
-            ? (isDark ? "rgba(88, 166, 255, 0.2)" : "rgba(37, 99, 235, 0.12)")
-            : (isDark ? "rgba(188, 140, 255, 0.2)" : "rgba(139, 92, 246, 0.12)")
+            ? (isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.12)")
+            : (type === "track"
+                ? (isDark ? "rgba(188, 140, 255, 0.2)" : "rgba(139, 92, 246, 0.12)")
+                : (isDark ? "rgba(52, 211, 153, 0.2)" : "rgba(16, 185, 129, 0.12)")
+              )
         }
       };
     });
