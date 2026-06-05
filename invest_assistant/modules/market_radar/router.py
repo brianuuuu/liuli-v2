@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -41,6 +43,11 @@ def list_source_items(
     db: Session = Depends(get_db),
 ) -> list:
     return service.list_source_items(db, limit=limit, offset=offset)
+
+
+@router.get("/source-items/daily-stats")
+def source_item_daily_stats(target_date: date | None = None, db: Session = Depends(get_db)) -> dict[str, int]:
+    return service.count_source_items_by_day(db, target_date)
 
 
 @router.post("/source-items", response_model=SourceItemRead)

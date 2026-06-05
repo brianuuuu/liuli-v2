@@ -1,41 +1,131 @@
-import { Col, Row, Space, Statistic } from "antd";
-import { useCallback } from "react";
+import { Col, Row, Segmented, Statistic } from "antd";
+import { useCallback, useState } from "react";
 import { getMarketOverview, listAiTagSuggestions, listMarketTags, listRankings } from "../../../api/marketRadar";
-import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import { formatTime, heatBarOption, tagName } from "./shared";
+import type { TagHeat } from "../../../types/api";
+import { formatTime, tagName } from "./shared";
+import {
+  coolingTopRows,
+  formatRisePercent,
+  riseClass,
+  risingTopRows,
+  risingTypes,
+  risingWindows,
+  type RisingRankingType,
+  type RisingRankingWindow
+} from "./overviewRisingRankings";
 
-function RankingList({ title, rows, loading }: { title: string; rows: Awaited<ReturnType<typeof listRankings>>; loading: boolean }) {
+type RisingRankingGroup = {
+  type: RisingRankingType;
+  rows: TagHeat[];
+};
+
+type HeatMovementBoardProps = {
+  title: string;
+  activeWindow: RisingRankingWindow;
+  rowsByType: Map<RisingRankingType, TagHeat[]>;
+  loading: boolean;
+  emptyDescription: string;
+  onWindowChange: (value: RisingRankingWindow) => void;
+};
+
+function HeatMovementBoard({ title, activeWindow, rowsByType, loading, emptyDescription, onWindowChange }: HeatMovementBoardProps) {
   return (
-    <WorkbenchCard title={title}>
-      {rows.length ? (
-        <div className="compact-list">
-          {rows.slice(0, 8).map((item) => (
-            <div className="compact-list-row" key={item.id}>
-              <span>{item.rank_no}. {tagName(item)}</span>
-              <strong>{Number(item.heat_score || 0).toFixed(1)}</strong>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyAction description={loading ? "加载中" : "暂无热度数据"} />
-      )}
+    <WorkbenchCard
+      title={title}
+      extra={
+        <Segmented
+          size="small"
+          value={activeWindow}
+          options={risingWindows.map((item) => ({ label: item.label, value: item.value }))}
+          onChange={(value) => onWindowChange(value as RisingRankingWindow)}
+        />
+      }
+    >
+      <div className="market-rising-card-body">
+        {risingTypes.map((type) => (
+          <RisingRankingList
+            key={type.value}
+            title={type.label}
+            rows={rowsByType.get(type.value) || []}
+            loading={loading}
+            emptyDescription={emptyDescription}
+          />
+        ))}
+      </div>
     </WorkbenchCard>
   );
 }
 
+function RisingRankingList({
+  title,
+  rows,
+  loading,
+  emptyDescription
+}: {
+  title: string;
+  rows: TagHeat[];
+  loading: boolean;
+  emptyDescription: string;
+}) {
+  return (
+    <div className="market-rising-list">
+      <div className="market-rising-list-title">{title}</div>
+      {rows.length ? (
+        <div className="compact-list market-rising-list-rows">
+          {rows.map((item, index) => (
+            <div className="compact-list-row" key={item.id}>
+              <span className="market-rising-row-label">
+                <span className="market-rising-rank-no">{index + 1}</span>
+                <span className="market-rising-name">{tagName(item)}</span>
+              </span>
+              <strong className={`track-change ${riseClass(item.change_ratio)}`}>{formatRisePercent(item.change_ratio)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyAction description={loading ? "加载中" : emptyDescription} />
+      )}
+    </div>
+  );
+}
+
 export function OverviewSection() {
+  const [activeRisingWindow, setActiveRisingWindow] = useState<RisingRankingWindow>("7d");
+  const [activeCoolingWindow, setActiveCoolingWindow] = useState<RisingRankingWindow>("7d");
   const overview = useAsyncData(useCallback(getMarketOverview, []), { source_items: 0, tags: 0, ai_tag_suggestions: 0 });
-  const hotwords = useAsyncData(useCallback(() => listRankings("hotword", "24h"), []), []);
-  const tracks = useAsyncData(useCallback(() => listRankings("track", "24h"), []), []);
-  const stocks = useAsyncData(useCallback(() => listRankings("stock", "24h"), []), []);
+  const risingRankings = useAsyncData(
+    useCallback(async () => {
+      const groups = await Promise.all(
+        risingTypes.map(async (type) => ({
+          type: type.value,
+          rows: risingTopRows(await listRankings(type.value, activeRisingWindow))
+        }))
+      );
+      return groups;
+    }, [activeRisingWindow]),
+    [] as RisingRankingGroup[]
+  );
+  const coolingRankings = useAsyncData(
+    useCallback(async () => {
+      const groups = await Promise.all(
+        risingTypes.map(async (type) => ({
+          type: type.value,
+          rows: coolingTopRows(await listRankings(type.value, activeCoolingWindow))
+        }))
+      );
+      return groups;
+    }, [activeCoolingWindow]),
+    [] as RisingRankingGroup[]
+  );
   const tags = useAsyncData(useCallback(listMarketTags, []), []);
   const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
 
-  const allRankings = [...hotwords.data, ...tracks.data, ...stocks.data].sort((a, b) => Number(b.heat_score) - Number(a.heat_score));
-  const latestStat = allRankings.map((item) => item.stat_time).sort().at(-1);
+  const risingGroupByType = new Map(risingRankings.data.map((item) => [item.type, item.rows]));
+  const coolingGroupByType = new Map(coolingRankings.data.map((item) => [item.type, item.rows]));
+  const latestStat = [...risingRankings.data, ...coolingRankings.data].flatMap((item) => item.rows).map((item) => item.stat_time).sort().at(-1);
   const activeTagCount = tags.data.filter((item) => item.status === "active").length || overview.data.tags;
   const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length || overview.data.ai_tag_suggestions;
 
@@ -59,24 +149,28 @@ export function OverviewSection() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="最新统计" value={formatTime(latestStat).slice(5) || "-"} loading={hotwords.loading || tracks.loading || stocks.loading} />
+            <Statistic title="最新统计" value={formatTime(latestStat).slice(5) || "-"} loading={risingRankings.loading || coolingRankings.loading} />
           </WorkbenchCard>
         </Col>
       </Row>
 
       <div className="market-overview-grid">
-        {allRankings.length ? (
-          <ChartCard title="24h 热度排行" option={heatBarOption(allRankings)} height={330} />
-        ) : (
-          <WorkbenchCard title="24h 热度排行">
-            <EmptyAction description="暂无热度数据，去控制台运行市场雷达任务" />
-          </WorkbenchCard>
-        )}
-        <Space direction="vertical" size={10} style={{ width: "100%" }}>
-          <RankingList title="市场热词" rows={hotwords.data} loading={hotwords.loading} />
-          <RankingList title="赛道" rows={tracks.data} loading={tracks.loading} />
-          <RankingList title="标的" rows={stocks.data} loading={stocks.loading} />
-        </Space>
+        <HeatMovementBoard
+          title="热度升温榜"
+          activeWindow={activeRisingWindow}
+          rowsByType={risingGroupByType}
+          loading={risingRankings.loading}
+          emptyDescription="暂无升温数据"
+          onWindowChange={setActiveRisingWindow}
+        />
+        <HeatMovementBoard
+          title="热度降温榜"
+          activeWindow={activeCoolingWindow}
+          rowsByType={coolingGroupByType}
+          loading={coolingRankings.loading}
+          emptyDescription="暂无降温数据"
+          onWindowChange={setActiveCoolingWindow}
+        />
       </div>
     </div>
   );

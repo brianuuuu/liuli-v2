@@ -24,6 +24,8 @@ assert.match(page, /title="AI 控制面板"/);
 assert.match(page, /workbench-action-grid/);
 assert.doesNotMatch(page, /title="待办队列摘要"/);
 assert.match(todaySection, /title="最近执行记录"/);
+assert.match(todaySection, /getSourceItemDailyStats/);
+assert.doesNotMatch(todaySection, /listSourceItems\(\{\s*limit:\s*200\s*\}\)/);
 assert.doesNotMatch(operationsSection, /title="最近执行记录"/);
 assert.doesNotMatch(page, /常用网页快捷入口/);
 assert.doesNotMatch(page, /待办处理入口/);

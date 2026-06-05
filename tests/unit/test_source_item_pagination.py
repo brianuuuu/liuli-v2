@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master import models as _stock_models  # noqa: F401
 from invest_assistant.modules.market_radar import service
+from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.track_discovery import models as _track_models  # noqa: F401
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 
@@ -39,5 +40,62 @@ def test_list_source_items_limits_and_offsets_by_publish_time():
         assert [item["title"] for item in first_page] == ["item-4", "item-3"]
         assert [item["title"] for item in second_page] == ["item-2", "item-1"]
         assert service.count_source_items(db) == 5
+    finally:
+        db.close()
+
+
+def test_count_source_items_by_day_counts_beyond_list_page_limit():
+    SessionLocal = make_session()
+    db = SessionLocal()
+    target_day = date(2026, 6, 5)
+    base_time = datetime(2026, 6, 5, 9, 0, 0)
+    try:
+        source_types = ["news", "announcement", "financial", "sentiment", "research"]
+        for index in range(260):
+            source_type = source_types[index % len(source_types)]
+            service.create_source_item(
+                db,
+                SourceItemCreate(
+                    source_type=source_type,
+                    source_name="manual",
+                    title=f"today-item-{index}",
+                    content=f"content-{index}",
+                    publish_time=base_time + timedelta(minutes=index),
+                ),
+            )
+        service.create_source_item(
+            db,
+            SourceItemCreate(
+                source_type="news",
+                source_name="manual",
+                title="yesterday-item",
+                content="old content",
+                publish_time=datetime(2026, 6, 4, 23, 0, 0),
+            ),
+        )
+        fallback = service.create_source_item(
+            db,
+            SourceItemCreate(
+                source_type="report_summary",
+                source_name="manual",
+                title="created-at-fallback",
+                content="fallback content",
+                publish_time=None,
+            ),
+        )
+        db.get(SourceItem, fallback["id"]).created_at = datetime(2026, 6, 5, 12, 0, 0)
+        db.commit()
+
+        stats = service.count_source_items_by_day(db, target_day)
+
+        assert fallback is not None
+        assert len(service.list_source_items(db, limit=200)) == 200
+        assert stats == {
+            "total": 261,
+            "news": 52,
+            "announcement": 104,
+            "sentiment": 52,
+            "report": 53,
+        }
     finally:
         db.close()

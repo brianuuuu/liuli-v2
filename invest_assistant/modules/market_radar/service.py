@@ -1,8 +1,8 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from json import dumps
 
-from sqlalchemy import delete, distinct, func, or_, select
+from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.types import JobResult
@@ -29,7 +29,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagUpdate,
 )
 from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
-from invest_assistant.shared.time_utils import utc_now
+from invest_assistant.shared.time_utils import beijing_now, utc_now
 
 WINDOWS = {
     "1h": timedelta(hours=1),
@@ -37,6 +37,13 @@ WINDOWS = {
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
     "90d": timedelta(days=90),
+}
+
+SOURCE_ITEM_DAILY_TYPE_GROUPS = {
+    "news": {"news"},
+    "announcement": {"announcement", "financial"},
+    "sentiment": {"sentiment"},
+    "report": {"research", "research_report", "report", "report_summary"},
 }
 
 
@@ -308,6 +315,37 @@ def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> 
 
 def count_source_items(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(SourceItem)) or 0)
+
+
+def count_source_items_by_day(db: Session, target_date: date | None = None) -> dict[str, int]:
+    day = target_date or beijing_now().date()
+    start_at = datetime.combine(day, time.min)
+    end_at = start_at + timedelta(days=1)
+    rows = db.execute(
+        select(SourceItem.source_type, func.count())
+        .where(
+            or_(
+                and_(SourceItem.publish_time >= start_at, SourceItem.publish_time < end_at),
+                and_(
+                    SourceItem.publish_time.is_(None),
+                    SourceItem.created_at >= start_at,
+                    SourceItem.created_at < end_at,
+                ),
+            )
+        )
+        .group_by(SourceItem.source_type)
+    ).all()
+
+    stats = {key: 0 for key in SOURCE_ITEM_DAILY_TYPE_GROUPS}
+    stats["total"] = 0
+    for source_type, count in rows:
+        next_count = int(count or 0)
+        stats["total"] += next_count
+        for group_key, source_types in SOURCE_ITEM_DAILY_TYPE_GROUPS.items():
+            if source_type in source_types:
+                stats[group_key] += next_count
+                break
+    return stats
 
 
 def get_source_item(db: Session, source_item_id: int) -> dict | None:

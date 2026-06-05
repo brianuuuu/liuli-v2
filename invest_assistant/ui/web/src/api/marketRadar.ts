@@ -7,6 +7,14 @@ export type MarketOverview = {
   ai_tag_suggestions: number;
 };
 
+export type SourceItemDailyStats = {
+  total: number;
+  news: number;
+  announcement: number;
+  sentiment: number;
+  report: number;
+};
+
 export type MarketTagPayload = {
   name: string;
   type?: string | null;
@@ -62,7 +70,7 @@ export type TagBindingPayload = {
 };
 
 export type RankingType = "all" | "stock" | "track" | "hotword";
-export type RankingWindow = "1h" | "24h" | "7d" | "30d";
+export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d";
 export type GraphType = "track" | "hotword";
 
 export async function getMarketOverview(): Promise<MarketOverview> {
@@ -142,6 +150,13 @@ export type SourceItemListParams = {
 
 export async function listSourceItems(params: SourceItemListParams = {}): Promise<SourceItem[]> {
   const response = await apiClient.get<SourceItem[]>("/api/market-radar/source-items", { params });
+  return response.data;
+}
+
+export async function getSourceItemDailyStats(targetDate?: string): Promise<SourceItemDailyStats> {
+  const response = await apiClient.get<SourceItemDailyStats>("/api/market-radar/source-items/daily-stats", {
+    params: targetDate ? { target_date: targetDate } : undefined
+  });
   return response.data;
 }
 
