@@ -20,6 +20,36 @@ DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY = "market_radar.suggest_hotword_merges_deepseek"
 DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
 DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
+
+LEGACY_DEEPSEEK_HOTWORD_SYSTEM_PROMPT = (
+    "你是A股新闻热词标签抽取助手。只返回合法JSON，不要返回Markdown。"
+    "你的目标是抽取可作为系统标签长期复用的热点新闻名词，不是复述新闻标题。"
+)
+LEGACY_DEEPSEEK_HOTWORD_USER_PROMPT = (
+    "从以下今日新闻中抽取今日热点新闻名词，并给每个词按今日强度打0-10分。"
+    "name必须是一个专有名词或实体名词，可直接作为标签使用，例如公司、品牌、人物、地点、产品、技术、政策、行业、资源品、正式事件名。"
+    "不要返回新闻短句、标题摘要、主谓宾短语、带动作的描述、临时拼接词、泛化灾害词或无法长期复用的组合词。"
+    "如果标题像“某地发生某事”，只保留真正可复用的名词；没有合格名词就跳过。"
+    "name尽量短，中文通常2-8个字，英文保留官方写法；不要包含“供应、延误、爆炸、枪击、遇袭、火灾、强降雨”等单纯事件/动作/状态词，除非它们属于公认正式事件名的一部分。"
+    "只输出JSON：{\"hotwords\":[{\"name\":\"热词\",\"score\":0,\"reason\":\"简短原因\"}]}。"
+)
+DEEPSEEK_HOTWORD_SYSTEM_PROMPT = (
+    "你是A股市场新闻热词候选抽取助手。只返回合法JSON，不要返回Markdown。"
+    "你的目标是抽取可长期复用、能服务投资研究的产业名词和市场专业信息，不是复述新闻标题。"
+    "宁可少提，也不要把普通新闻名词、地名、人群、动作或一次性事件塞进候选池。"
+)
+DEEPSEEK_HOTWORD_USER_PROMPT = (
+    "从以下今日新闻中抽取值得进入审核池的新闻热词候选，并给每个词按今日投资关注强度打0-10分。"
+    "name必须是可独立复用的专业名词，优先选择：产业链环节、行业赛道、市场热词、新兴技术、"
+    "关键产品或材料、政策工具、上市公司、核心品牌、企业家/重要管理者、投资主题、宏观交易主线。"
+    "入选标准：看到这个词时，研究员能围绕它继续做产业、公司、政策、供需、竞争格局或投资假设分析。"
+    "不要返回普通地名、泛称人群、普通岗位、新闻短句、标题摘要、主谓宾短语、带动作的描述、临时拼接词、"
+    "单纯事件名、灾害事故词、情绪词、泛化概念或无法形成投资判断的名词。"
+    "如果新闻只是在讲“某地发生某事”或“某人表态”，除非其中出现有投资研究价值的公司、技术、行业、政策或企业家，否则跳过。"
+    "name尽量短，中文通常2-8个字，英文保留官方写法；不要包含“供应、延误、爆炸、枪击、遇袭、火灾、强降雨”等动作/状态词。"
+    "reason用一句话说明它的产业、市场、公司或投资含义，不要复述标题。"
+    "只输出JSON：{\"hotwords\":[{\"name\":\"热词\",\"score\":0,\"reason\":\"简短原因\"}]}。"
+)
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -27,18 +57,8 @@ DEFAULT_KNOWLEDGE_PROMPTS = [
         target_task=DEEPSEEK_HOTWORD_PROMPT_KEY,
         provider="deepseek",
         model="deepseek-v4-flash",
-        system_prompt=(
-            "你是A股新闻热词标签抽取助手。只返回合法JSON，不要返回Markdown。"
-            "你的目标是抽取可作为系统标签长期复用的热点新闻名词，不是复述新闻标题。"
-        ),
-        user_prompt=(
-            "从以下今日新闻中抽取今日热点新闻名词，并给每个词按今日强度打0-10分。"
-            "name必须是一个专有名词或实体名词，可直接作为标签使用，例如公司、品牌、人物、地点、产品、技术、政策、行业、资源品、正式事件名。"
-            "不要返回新闻短句、标题摘要、主谓宾短语、带动作的描述、临时拼接词、泛化灾害词或无法长期复用的组合词。"
-            "如果标题像“某地发生某事”，只保留真正可复用的名词；没有合格名词就跳过。"
-            "name尽量短，中文通常2-8个字，英文保留官方写法；不要包含“供应、延误、爆炸、枪击、遇袭、火灾、强降雨”等单纯事件/动作/状态词，除非它们属于公认正式事件名的一部分。"
-            "只输出JSON：{\"hotwords\":[{\"name\":\"热词\",\"score\":0,\"reason\":\"简短原因\"}]}。"
-        ),
+        system_prompt=DEEPSEEK_HOTWORD_SYSTEM_PROMPT,
+        user_prompt=DEEPSEEK_HOTWORD_USER_PROMPT,
         response_format="json_object",
         status="active",
     ),
@@ -162,16 +182,28 @@ def create_prompt(db: Session, payload: KnowledgePromptCreate) -> KnowledgePromp
 
 
 def ensure_default_prompts(db: Session) -> int:
-    inserted = 0
+    changed = 0
     for payload in DEFAULT_KNOWLEDGE_PROMPTS:
         existing = db.scalar(select(KnowledgePrompt).where(KnowledgePrompt.prompt_key == payload.prompt_key))
         if existing is not None:
+            if _should_upgrade_legacy_hotword_prompt(existing):
+                existing.system_prompt = DEEPSEEK_HOTWORD_SYSTEM_PROMPT
+                existing.user_prompt = DEEPSEEK_HOTWORD_USER_PROMPT
+                changed += 1
             continue
         db.add(KnowledgePrompt(**payload.model_dump()))
-        inserted += 1
-    if inserted:
+        changed += 1
+    if changed:
         db.commit()
-    return inserted
+    return changed
+
+
+def _should_upgrade_legacy_hotword_prompt(item: KnowledgePrompt) -> bool:
+    return (
+        item.prompt_key == DEEPSEEK_HOTWORD_PROMPT_KEY
+        and item.system_prompt == LEGACY_DEEPSEEK_HOTWORD_SYSTEM_PROMPT
+        and item.user_prompt == LEGACY_DEEPSEEK_HOTWORD_USER_PROMPT
+    )
 
 
 def list_prompts(db: Session) -> list[KnowledgePrompt]:

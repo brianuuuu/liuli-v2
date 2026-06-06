@@ -102,7 +102,7 @@ function PromptSection() {
       >
         <Table rowKey="id" size="small" loading={prompts.loading} dataSource={prompts.data} columns={promptColumns} pagination={{ pageSize: 10, showSizeChanger: true }} />
       </DataPanel>
-      <Modal title={editing ? "编辑 Prompt" : "新增 Prompt"} width={620} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
+      <Modal title={editing ? "编辑 Prompt" : "新增 Prompt"} width={980} style={{ top: 24 }} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical">
           <Row gutter={12}>
             <Col span={16}>
@@ -146,10 +146,10 @@ function PromptSection() {
             </Col>
           </Row>
           <Form.Item name="system_prompt" label="System Prompt" style={compactPromptFormStyle} rules={[{ required: true, message: "请输入 System Prompt" }]}>
-            <Input.TextArea rows={2} />
+            <Input.TextArea rows={6} />
           </Form.Item>
           <Form.Item name="user_prompt" label="User Prompt" rules={[{ required: true, message: "请输入 User Prompt" }]}>
-            <Input.TextArea rows={3} />
+            <Input.TextArea rows={12} />
           </Form.Item>
         </Form>
       </Modal>
