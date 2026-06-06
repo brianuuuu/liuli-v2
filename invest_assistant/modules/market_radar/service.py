@@ -304,13 +304,13 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
 
 
 def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> list[dict]:
-    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())
+    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     if offset > 0:
         stmt = stmt.offset(offset)
     if limit is not None:
         stmt = stmt.limit(max(int(limit), 1))
     items = list(db.scalars(stmt))
-    return [_source_item_dict(db, item) for item in items]
+    return _source_item_dicts(db, items)
 
 
 def count_source_items(db: Session) -> int:
@@ -672,10 +672,42 @@ def restore_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion) -> AiTag
     return suggestion
 
 
-def _source_item_dict(db: Session, item: SourceItem) -> dict:
+def _source_item_dicts(db: Session, items: list[SourceItem]) -> list[dict]:
+    tags_by_item = _source_tags_by_item(db, [item.id for item in items])
+    return [_source_item_dict_from_tags(item, tags_by_item.get(item.id, [])) for item in items]
+
+
+def _source_tags_by_item(db: Session, source_item_ids: list[int]) -> dict[int, list[dict]]:
+    if not source_item_ids:
+        return {}
     rows = db.execute(
-        select(SourceTag, Tag).join(Tag, Tag.id == SourceTag.tag_id).where(SourceTag.source_item_id == item.id).order_by(Tag.name.asc())
+        select(SourceTag, Tag)
+        .join(Tag, Tag.id == SourceTag.tag_id)
+        .where(SourceTag.source_item_id.in_(source_item_ids))
+        .order_by(SourceTag.source_item_id.asc(), Tag.name.asc())
     ).all()
+    tags_by_item: dict[int, list[dict]] = defaultdict(list)
+    for source_tag, tag in rows:
+        tags_by_item[int(source_tag.source_item_id)].append(
+            {
+                "id": source_tag.id,
+                "source_item_id": source_tag.source_item_id,
+                "tag_id": source_tag.tag_id,
+                "trigger_text": source_tag.trigger_text,
+                "confidence": source_tag.confidence,
+                "extractor": source_tag.extractor,
+                "created_at": source_tag.created_at,
+                "tag": _tag_dict(tag),
+            }
+        )
+    return tags_by_item
+
+
+def _source_item_dict(db: Session, item: SourceItem) -> dict:
+    return _source_item_dict_from_tags(item, _source_tags_by_item(db, [item.id]).get(item.id, []))
+
+
+def _source_item_dict_from_tags(item: SourceItem, source_tags: list[dict]) -> dict:
     return {
         "id": item.id,
         "source_type": item.source_type,
@@ -687,19 +719,7 @@ def _source_item_dict(db: Session, item: SourceItem) -> dict:
         "related_type": item.related_type,
         "related_id": item.related_id,
         "created_at": item.created_at,
-        "source_tags": [
-            {
-                "id": source_tag.id,
-                "source_item_id": source_tag.source_item_id,
-                "tag_id": source_tag.tag_id,
-                "trigger_text": source_tag.trigger_text,
-                "confidence": source_tag.confidence,
-                "extractor": source_tag.extractor,
-                "created_at": source_tag.created_at,
-                "tag": _tag_dict(tag),
-            }
-            for source_tag, tag in rows
-        ],
+        "source_tags": source_tags,
     }
 
 
