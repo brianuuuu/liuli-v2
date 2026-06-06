@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,6 +78,12 @@ class HotwordTagRelation(Base):
 
 class SourceItem(Base):
     __tablename__ = "source_item"
+    __table_args__ = (
+        Index("ix_source_item_feed_order", "publish_time", "id"),
+        Index("ix_source_item_url_dedupe_lookup", "source_type", "source_name", "source_url"),
+        Index("ix_source_item_title_time_dedupe_lookup", "source_type", "source_name", "publish_time", "title"),
+        Index("ix_source_item_daily_stats", "publish_time", "created_at", "source_type"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -106,6 +112,10 @@ class SourceTag(Base):
 
 class TagHeatSnapshot(Base):
     __tablename__ = "tag_heat_snapshot"
+    __table_args__ = (
+        Index("ix_tag_heat_snapshot_ranking_lookup", "window_type", "stat_time", "rank_no"),
+        Index("ix_tag_heat_snapshot_trend_lookup", "tag_id", "window_type", "stat_time"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
@@ -122,6 +132,9 @@ class TagHeatSnapshot(Base):
 
 class TagEdgeSnapshot(Base):
     __tablename__ = "tag_edge_snapshot"
+    __table_args__ = (
+        Index("ix_tag_edge_snapshot_graph_lookup", "window_type", "related_tag_type", "stat_time", "weight"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
@@ -155,4 +168,6 @@ class AiTagSuggestion(Base):
 
 
 def ensure_market_radar_schema(engine: Engine) -> None:
-    return
+    for table in (SourceItem.__table__, TagHeatSnapshot.__table__, TagEdgeSnapshot.__table__):
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
