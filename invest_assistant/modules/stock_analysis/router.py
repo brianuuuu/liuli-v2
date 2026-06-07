@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockMaterialRead,
     StockDashboardRead,
     StockDetailRead,
+    StockDailyBarRead,
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
@@ -75,6 +78,29 @@ def stock_detail(stock_id: int, db: Session = Depends(get_db)) -> dict:
     if detail is None:
         raise HTTPException(status_code=404, detail="stock not found")
     return detail
+
+
+@router.get("/stocks/{stock_id}/daily-bars", response_model=list[StockDailyBarRead])
+def stock_daily_bars(
+    stock_id: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+) -> list:
+    try:
+        rows = service.list_stock_daily_bars(
+            db,
+            stock_id,
+            start_date=start_date,
+            end_date=end_date,
+            refresh=refresh,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if rows is None:
+        raise HTTPException(status_code=404, detail="stock not found")
+    return rows
 
 
 @router.get("/stocks/{stock_id}/notes", response_model=list[StockResearchNoteRead])

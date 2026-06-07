@@ -47,6 +47,35 @@ class StockScoreSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
+class StockDailyBar(Base):
+    __tablename__ = "stock_daily_bar"
+    __table_args__ = (
+        UniqueConstraint("stock_id", "trade_date", "adj", "source", name="uq_stock_daily_bar_stock_date_adj_source"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    ts_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    trade_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    open: Mapped[float] = mapped_column(Float, nullable=False)
+    high: Mapped[float] = mapped_column(Float, nullable=False)
+    low: Mapped[float] = mapped_column(Float, nullable=False)
+    close: Mapped[float] = mapped_column(Float, nullable=False)
+    pre_close: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pct_chg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vol: Mapped[float | None] = mapped_column(Float, nullable=True)
+    amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ma5: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ma20: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ma60: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ma250: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="tushare", index=True)
+    adj: Mapped[str] = mapped_column(String(16), nullable=False, default="qfq", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class StockValuationSnapshot(Base):
     __tablename__ = "stock_valuation_snapshot"
 
@@ -128,4 +157,3 @@ class StockMaterial(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-

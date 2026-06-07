@@ -54,6 +54,31 @@ class StockScoreSnapshotRead(StockScoreSnapshotCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StockDailyBarRead(BaseModel):
+    id: int
+    stock_id: int
+    ts_code: str
+    trade_date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    pre_close: float | None = None
+    change: float | None = None
+    pct_chg: float | None = None
+    vol: float | None = None
+    amount: float | None = None
+    ma5: float | None = None
+    ma20: float | None = None
+    ma60: float | None = None
+    ma250: float | None = None
+    source: str
+    adj: str
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class StockScoreComparisonRead(BaseModel):
     stock_id: int
     symbol: str | None = None
