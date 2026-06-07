@@ -128,6 +128,7 @@ function NotesSection() {
   const [editForm] = Form.useForm<KnowledgeNotePayload>();
   const [groupForm] = Form.useForm<{ name: string; sort_order: number }>();
   const [composerExpanded, setComposerExpanded] = useState(false);
+  const [isEditingGroups, setIsEditingGroups] = useState(false);
 
   const activeTags = useMemo(() => tagData.data.filter((tag) => tag.status === "active"), [tagData.data]);
   const tagOptions = useMemo(() => activeTags.map((tag) => ({ value: tag.id, label: `#${tag.name}` })), [activeTags]);
@@ -180,6 +181,28 @@ function NotesSection() {
       sort_order: editingGroup?.sort_order ?? groups.data.length + 1
     });
   }, [editingGroup, groupForm, groupModalOpen, groups.data.length]);
+
+  useEffect(() => {
+    if (!isEditingGroups) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const sidebar = document.querySelector(".knowledge-notes-sidebar");
+      if (sidebar && sidebar.contains(target)) {
+        return;
+      }
+      const isPortal = target instanceof Element && !!target.closest?.(
+        ".ant-popover, .ant-modal-root, .ant-select-dropdown, .ant-message"
+      );
+      if (isPortal) {
+        return;
+      }
+      setIsEditingGroups(false);
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [isEditingGroups]);
 
   async function refreshFirstPage() {
     await loadNotes(0, true);
@@ -258,29 +281,61 @@ function NotesSection() {
     <>
       <div className="knowledge-notes-layout">
         <aside className="knowledge-notes-sidebar">
-          <div className="knowledge-panel-head">
-            <Typography.Text strong>分组</Typography.Text>
-            <Button size="small" icon={<PlusOutlined />} onClick={() => openGroupModal(null)} />
-          </div>
-          <button className={!groupFilter ? "knowledge-group-row active" : "knowledge-group-row"} onClick={() => setGroupFilter(undefined)}>
+          <div
+            className="knowledge-panel-header"
+            onClick={() => setGroupFilter(undefined)}
+            style={{ cursor: "pointer" }}
+          >
             <span>全部笔记</span>
-          </button>
-          {groups.data.map((group) => (
-            <div
-              className={groupFilter === group.id ? "knowledge-group-row active" : "knowledge-group-row"}
-              key={group.id}
-              onClick={() => setGroupFilter(group.id)}
-              style={{ cursor: "pointer" }}
-            >
-              <span className="group-name-text">{group.name}</span>
-              <Space size={2} onClick={(e) => e.stopPropagation()}>
-                <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openGroupModal(group)} />
-                <Popconfirm title="归档这个分组？" description="分组内笔记会移动到未分组。" okText="归档" cancelText="取消" onConfirm={() => archiveGroup(group)}>
-                  <Button size="small" type="text" icon={<FolderOutlined />} />
-                </Popconfirm>
-              </Space>
-            </div>
-          ))}
+            <Button
+              size="small"
+              type="text"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditingGroups(!isEditingGroups);
+              }}
+              style={{
+                color: isEditingGroups ? "var(--ll-accent)" : "var(--ll-muted)",
+                opacity: isEditingGroups ? 0.8 : 0.5,
+                padding: "4px 8px",
+                height: "auto",
+              }}
+              title={isEditingGroups ? "完成" : "编辑"}
+            />
+          </div>
+          <div className="knowledge-sidebar-body">
+            {groups.data.map((group) => (
+              <div
+                className={groupFilter === group.id ? "knowledge-group-row active" : "knowledge-group-row"}
+                key={group.id}
+                onClick={() => setGroupFilter(group.id)}
+                style={{ cursor: "pointer" }}
+              >
+                <span className="group-name-text">{group.name}</span>
+                {isEditingGroups && (
+                  <Space size={2} onClick={(e) => e.stopPropagation()}>
+                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openGroupModal(group)} />
+                    <Popconfirm title="归档这个分组？" description="分组内笔记会移动到未分组。" okText="归档" cancelText="取消" onConfirm={() => archiveGroup(group)}>
+                      <Button size="small" type="text" icon={<FolderOutlined />} />
+                    </Popconfirm>
+                  </Space>
+                )}
+              </div>
+            ))}
+            {isEditingGroups && (
+              <Button
+                type="dashed"
+                block
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => openGroupModal(null)}
+                style={{ marginTop: "8px" }}
+              >
+                新增分组
+              </Button>
+            )}
+          </div>
         </aside>
 
         <main className="knowledge-notes-main">
@@ -390,26 +445,30 @@ function NotesSection() {
         </main>
 
         <aside className="knowledge-notes-filter">
-          <Typography.Text strong>筛选与整理</Typography.Text>
-          <Input.Search
-            allowClear
-            placeholder="搜索标题或正文"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            style={{ width: "100%" }}
-          />
-          <Select allowClear placeholder="按标签筛选" value={tagFilter} options={tagOptions} onChange={setTagFilter} optionFilterProp="label" showSearch />
-          <Select allowClear placeholder="按分组筛选" value={groupFilter} options={groupOptions} onChange={setGroupFilter} />
-          <Row gutter={8}>
-            <Col span={12}>
-              <Button block onClick={() => { setTagFilter(undefined); setGroupFilter(undefined); setKeyword(""); setStatusFilter("active"); }}>重置筛选</Button>
-            </Col>
-            <Col span={12}>
-              <Button block icon={<ReloadOutlined />} loading={loading} onClick={refreshFirstPage}>刷新</Button>
-            </Col>
-          </Row>
-          <div className="knowledge-filter-hint">
-            标签来自已有标签词表；这里不会自动创建新标签，也不会写入股票/赛道/热词绑定。
+          <div className="knowledge-panel-header">
+            <span>筛选与整理</span>
+          </div>
+          <div className="knowledge-filter-body">
+            <Input.Search
+              allowClear
+              placeholder="搜索标题或正文"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              style={{ width: "100%" }}
+            />
+            <Select allowClear placeholder="按标签筛选" value={tagFilter} options={tagOptions} onChange={setTagFilter} optionFilterProp="label" showSearch />
+            <Select allowClear placeholder="按分组筛选" value={groupFilter} options={groupOptions} onChange={setGroupFilter} />
+            <Row gutter={8}>
+              <Col span={12}>
+                <Button block onClick={() => { setTagFilter(undefined); setGroupFilter(undefined); setKeyword(""); setStatusFilter("active"); }}>重置筛选</Button>
+              </Col>
+              <Col span={12}>
+                <Button block icon={<ReloadOutlined />} loading={loading} onClick={refreshFirstPage}>刷新</Button>
+              </Col>
+            </Row>
+            <div className="knowledge-filter-hint">
+              标签来自已有标签词表；这里不会自动创建新标签，也不会写入股票/赛道/热词绑定。
+            </div>
           </div>
         </aside>
       </div>
