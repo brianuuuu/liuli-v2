@@ -409,7 +409,6 @@ function NotesSection() {
       </div>
 
       <Drawer
-        className="knowledge-drawer"
         title={
           <Space>
             <EditOutlined style={{ color: "var(--ll-accent)" }} />
@@ -420,34 +419,37 @@ function NotesSection() {
         open={noteDrawerOpen}
         onClose={() => setNoteDrawerOpen(false)}
         destroyOnClose
+        closeIcon={false}
         extra={
           <Space size={8}>
-            <Button size="small" onClick={() => setNoteDrawerOpen(false)}>取消</Button>
-            <Button size="small" type="primary" onClick={submitEditNote}>保存修改</Button>
+            <Button onClick={() => setNoteDrawerOpen(false)}>取消</Button>
+            <Button type="primary" onClick={submitEditNote}>保存</Button>
           </Space>
         }
       >
         <Form form={editForm} layout="vertical" className="knowledge-drawer-form">
-          <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
-            <Input size="small" placeholder="输入知识笔记的标题..." showCount maxLength={100} />
-          </Form.Item>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
-                <Select size="small" options={noteTypeOptions} placeholder="选择笔记类型" />
+          <Row gutter={10}>
+            <Col span={14}>
+              <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
+                <Input placeholder="输入知识笔记的标题..." showCount maxLength={100} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={5}>
+              <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
+                <Select options={noteTypeOptions} placeholder="选择类型" />
+              </Form.Item>
+            </Col>
+            <Col span={5}>
               <Form.Item name="group_id" label="分组">
-                <Select size="small" allowClear placeholder="选择分组（可选）" options={groupOptions} />
+                <Select allowClear placeholder="未分组" options={groupOptions} />
               </Form.Item>
             </Col>
           </Row>
           <Form.Item name="content" label="正文" rules={[{ required: true, message: "请输入正文" }]}>
-            <Input.TextArea size="small" rows={8} placeholder="在这里写下你的研究结论、逻辑、证据或投资原则..." showCount maxLength={5000} />
+            <Input.TextArea rows={8} placeholder="在这里写下你的研究结论、逻辑、证据或投资原则..." showCount maxLength={5000} />
           </Form.Item>
           <Form.Item name="tag_ids" label="关联标签">
-            <Select size="small" mode="multiple" allowClear showSearch options={tagOptions} optionFilterProp="label" placeholder="选择或搜索关联标签词（可多选）" />
+            <Select mode="multiple" allowClear showSearch options={tagOptions} optionFilterProp="label" placeholder="选择或搜索关联标签词（可多选）" />
           </Form.Item>
           <div className="knowledge-drawer-hint">
             <InfoCircleOutlined style={{ color: "var(--ll-accent)", marginRight: 6 }} />
