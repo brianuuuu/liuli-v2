@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.track_discovery import service
 from invest_assistant.modules.track_discovery.schemas import (
+    MATERIAL_STATUSES,
     TrackAnalysisSnapshotCreate,
     TrackAnalysisSnapshotRead,
     TrackDetailRead,
@@ -27,6 +28,20 @@ from invest_assistant.modules.market_radar import service as market_radar_servic
 
 router = APIRouter(prefix="/api/track-discovery", tags=["track_discovery"], dependencies=[Depends(get_current_user)])
 
+DEFAULT_MATERIAL_STATUS_FILTER = "pending,confirmed"
+
+
+def _parse_material_status_filter(status: str | None) -> list[str] | None:
+    if status is None:
+        return None
+    normalized = [item.strip() for item in status.split(",") if item.strip()]
+    if not normalized or normalized == ["all"]:
+        return None
+    invalid = [item for item in normalized if item not in MATERIAL_STATUSES]
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"invalid material status: {', '.join(invalid)}")
+    return list(dict.fromkeys(normalized))
+
 
 @router.get("/tracks", response_model=list[TrackRead])
 def list_tracks(status: str | None = None, db: Session = Depends(get_db)) -> list:
@@ -36,6 +51,19 @@ def list_tracks(status: str | None = None, db: Session = Depends(get_db)) -> lis
 @router.get("/dashboard")
 def track_dashboard(db: Session = Depends(get_db)) -> dict:
     return service.get_dashboard(db)
+
+
+@router.get("/materials", response_model=list[TrackMaterialRead])
+def list_all_track_materials(
+    track_id: int | None = None,
+    status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> list:
+    if track_id is not None and service.get_track(db, track_id) is None:
+        raise HTTPException(status_code=404, detail="track not found")
+    return service.list_all_materials(db, track_id=track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
 
 
 @router.post("/tracks", response_model=TrackRead)
@@ -99,10 +127,16 @@ def delete_track_tag(relation_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/tracks/{track_id}/materials", response_model=list[TrackMaterialRead])
-def list_track_materials(track_id: int, db: Session = Depends(get_db)) -> list:
+def list_track_materials(
+    track_id: int,
+    status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> list:
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.list_materials(db, track_id)
+    return service.list_materials(db, track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
 
 
 @router.post("/tracks/{track_id}/materials", response_model=TrackMaterialRead)

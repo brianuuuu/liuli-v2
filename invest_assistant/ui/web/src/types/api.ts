@@ -257,6 +257,7 @@ export type TrackCandidate = {
 export type TrackMaterial = {
   id: number;
   track_id: number;
+  track_name?: string | null;
   material_type: "source_item" | "knowledge_note" | string;
   material_id: number;
   material_title?: string | null;
