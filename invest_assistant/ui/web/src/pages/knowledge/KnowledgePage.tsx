@@ -94,6 +94,11 @@ function noteTypeLabel(value: string) {
   return noteTypeOptions.find((item) => item.value === value)?.label || value;
 }
 
+function deriveQuickNoteTitle(content: string) {
+  const firstLine = content.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "未命名笔记";
+  return firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
+}
+
 function noteToPayload(note: KnowledgeNote): KnowledgeNotePayload {
   return {
     title: note.title,
@@ -210,7 +215,12 @@ function NotesSection() {
 
   async function submitQuickNote() {
     const values = await quickForm.validateFields();
-    await createKnowledgeNote({ ...noteDefaults, ...values, status: "active" });
+    const content = values.content.trim();
+    if (!content) {
+      message.warning("请输入笔记内容");
+      return;
+    }
+    await createKnowledgeNote({ ...noteDefaults, ...values, content, title: deriveQuickNoteTitle(content), status: "active" });
     quickForm.resetFields();
     quickForm.setFieldsValue(noteDefaults);
     message.success("笔记已保存");
@@ -259,10 +269,10 @@ function NotesSection() {
     await groups.refresh();
   }
 
-  async function archiveGroup(group: KnowledgeNoteGroup) {
+  async function softDeleteGroup(group: KnowledgeNoteGroup) {
     await archiveKnowledgeNoteGroup(group.id);
     if (groupFilter === group.id) setGroupFilter(undefined);
-    message.success("分组已归档，笔记已移至未分组");
+    message.success("分组已删除，笔记已移至未分组");
     await groups.refresh();
     await refreshFirstPage();
   }
@@ -316,8 +326,15 @@ function NotesSection() {
                 {isEditingGroups && (
                   <Space size={2} onClick={(e) => e.stopPropagation()}>
                     <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openGroupModal(group)} />
-                    <Popconfirm title="归档这个分组？" description="分组内笔记会移动到未分组。" okText="归档" cancelText="取消" onConfirm={() => archiveGroup(group)}>
-                      <Button size="small" type="text" icon={<FolderOutlined />} />
+                    <Popconfirm
+                      title="删除这个分组？"
+                      description="这是软删除，分组内笔记会移动到未分组。"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => softDeleteGroup(group)}
+                    >
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />} />
                     </Popconfirm>
                   </Space>
                 )}
@@ -355,38 +372,21 @@ function NotesSection() {
           </div>
           {composerExpanded && (
             <Form form={quickForm} layout="vertical" className="knowledge-note-composer">
-              <Row gutter={10}>
-                <Col span={14}>
-                  <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
-                    <Input placeholder="比如：复盘 GPU 服务器订单验证" />
-                  </Form.Item>
-                </Col>
-                <Col span={5}>
-                  <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
-                    <Select options={noteTypeOptions} />
-                  </Form.Item>
-                </Col>
-                <Col span={5}>
-                  <Form.Item name="group_id" label="分组">
-                    <Select allowClear placeholder="未分组" options={groupOptions} />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="content" label="正文" rules={[{ required: true, message: "请输入正文" }]}>
-                <Input.TextArea rows={4} placeholder="记录判断、证据、待验证点。标签用下方 # 选择。" />
+              <Form.Item name="content" className="knowledge-quick-content" rules={[{ required: true, message: "请输入笔记内容" }]}>
+                <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} placeholder="记录判断、证据、待验证点。正文首行会作为轻笔记主文本。" />
               </Form.Item>
-              <Row gutter={10}>
-                <Col span={19}>
-                  <Form.Item name="tag_ids" label="标签">
-                    <Select mode="multiple" allowClear showSearch placeholder="选择已有标签，展示为 #标签" options={tagOptions} optionFilterProp="label" />
-                  </Form.Item>
-                </Col>
-                <Col span={5}>
-                  <Form.Item label=" ">
-                    <Button block type="primary" onClick={submitQuickNote}>保存笔记</Button>
-                  </Form.Item>
-                </Col>
-              </Row>
+              <div className="knowledge-quick-meta-row">
+                <Form.Item name="note_type" rules={[{ required: true }]}>
+                  <Select options={noteTypeOptions} />
+                </Form.Item>
+                <Form.Item name="group_id">
+                  <Select allowClear placeholder="未分组" options={groupOptions} />
+                </Form.Item>
+                <Form.Item name="tag_ids">
+                  <Select mode="multiple" allowClear showSearch placeholder="选择已有标签，展示为 #标签" options={tagOptions} optionFilterProp="label" />
+                </Form.Item>
+                <Button type="primary" onClick={submitQuickNote}>保存笔记</Button>
+              </div>
             </Form>
           )}
 
