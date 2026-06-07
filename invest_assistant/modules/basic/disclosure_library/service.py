@@ -53,7 +53,7 @@ def fetch_stock_announcements(
     pool_status: str = "focused,watching,candidate",
     page_size: int = 30,
     max_pages: int = 2,
-    auto_to_source_item: bool = True,
+    auto_to_source_item: bool = False,
     category: str = "",
 ) -> JobResult:
     stocks = _target_announcement_stocks(db, stock_code, pool_status)

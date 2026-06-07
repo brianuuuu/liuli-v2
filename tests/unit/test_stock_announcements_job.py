@@ -175,6 +175,42 @@ def test_fetch_stock_announcements_deduplicates_by_source_url(monkeypatch, tmp_p
         db.close()
 
 
+def test_fetch_stock_announcements_does_not_write_source_items_by_default(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = Stock(stock_code="000001", stock_name="平安银行", exchange="SZSE", symbol="000001.SZ", status="active")
+        db.add(stock)
+        db.commit()
+        db.add(StockPoolItem(stock_id=stock.id, status="focused", source="manual"))
+        db.commit()
+
+        monkeypatch.setattr(
+            service.cninfo_client,
+            "fetch_stock_announcements",
+            lambda *_args, **_kwargs: [
+                CompanyDisclosureCreate(
+                    source="cninfo",
+                    disclosure_type="announcement",
+                    title="公告标题",
+                    publish_time=datetime(2026, 6, 5),
+                    report_period="000001",
+                    source_url="http://static.cninfo.com.cn/finalpage/no-source-item.PDF",
+                    parse_status="pending",
+                )
+            ],
+        )
+
+        result = service.fetch_stock_announcements(db, pool_status="focused")
+
+        assert result.inserted_count == 1
+        assert result.extra["source_item_inserted_count"] == 0
+        assert len(list(db.scalars(select(CompanyDisclosure)))) == 1
+        assert len(list(db.scalars(select(SourceItem)))) == 0
+    finally:
+        db.close()
+
+
 def test_stock_announcement_job_replaces_generic_cninfo_job():
     from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 
@@ -184,3 +220,4 @@ def test_stock_announcement_job_replaces_generic_cninfo_job():
     assert job.display_name == "拉取标的公告"
     assert job.cron_expr == "30 8 * * *"
     assert job.params_schema["days"]["default"] == 30
+    assert "auto_to_source_item" not in job.params_schema

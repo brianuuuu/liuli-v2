@@ -11,6 +11,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path.as_posix()}"
 from invest_assistant.bootstrap.app import create_app
 from invest_assistant.bootstrap.database import Base, SessionLocal, engine
 from invest_assistant.modules.basic.job_center.models import JobConfig
+from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.stock_master.jobs import sync_stock_basic_job
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.stock_master.service import build_a_stock_item
@@ -365,6 +366,17 @@ def test_console_data_sources_show_stock_master_and_cls_news():
             )
         )
         db.add(
+            JobConfig(
+                job_name="disclosure_library.fetch_stock_announcements",
+                module_name="disclosure_library",
+                display_name="拉取标的公告",
+                config_json={},
+                ext_json={},
+                last_status="success",
+                last_run_at=datetime(2026, 5, 22, 8, 30, 0),
+            )
+        )
+        db.add(
             SourceItem(
                 source_type="news",
                 source_name="财联社",
@@ -388,6 +400,15 @@ def test_console_data_sources_show_stock_master_and_cls_news():
                 content="测试个股新闻",
             )
         )
+        db.add(
+            CompanyDisclosure(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="测试公告",
+                publish_time=datetime(2026, 5, 22, 8, 12, 0),
+                parse_status="pending",
+            )
+        )
         db.commit()
     finally:
         db.close()
@@ -396,15 +417,17 @@ def test_console_data_sources_show_stock_master_and_cls_news():
 
     assert response.status_code == 200
     data = response.json()
-    assert [item["name"] for item in data] == ["股票基础库", "信息流（财联社）", "信息流（富途牛牛）", "信息流（东方财富）"]
+    assert [item["name"] for item in data] == ["股票基础库", "公告库（巨潮）", "信息流（财联社）", "信息流（富途牛牛）", "信息流（东方财富）"]
     assert data[0]["record_count"] == 1
     assert data[1]["record_count"] == 1
     assert data[2]["record_count"] == 1
     assert data[3]["record_count"] == 1
+    assert data[4]["record_count"] == 1
     assert data[0]["last_sync_at"].startswith("2026-05-21T23:12:42")
-    assert data[1]["last_sync_at"].startswith("2026-05-21T23:40:38")
-    assert data[2]["last_sync_at"].startswith("2026-05-21T23:55:12")
-    assert data[3]["last_sync_at"].startswith("2026-05-21T23:58:19")
+    assert data[1]["last_sync_at"].startswith("2026-05-22T08:30:00")
+    assert data[2]["last_sync_at"].startswith("2026-05-21T23:40:38")
+    assert data[3]["last_sync_at"].startswith("2026-05-21T23:55:12")
+    assert data[4]["last_sync_at"].startswith("2026-05-21T23:58:19")
 
 
 def test_report_library_creates_report_index():

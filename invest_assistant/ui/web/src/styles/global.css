@@ -898,6 +898,7 @@ body {
 
 .market-rising-list {
   display: grid;
+  align-content: start;
   gap: 8px;
 }
 

@@ -151,3 +151,55 @@ def test_aggregate_heat_supports_90d_and_preserves_previous_stat_times():
     assert old_time.replace(tzinfo=None) in stat_times
     assert new_time.replace(tzinfo=None) in stat_times
     assert result.inserted_count >= 4
+
+
+def test_aggregate_heat_compares_against_previous_equal_window():
+    db = make_session()
+    now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    tag_up = Tag(name="升温", type="hotword", status="active")
+    tag_down = Tag(name="降温", type="hotword", status="active")
+    tag_new = Tag(name="新晋", type="hotword", status="active")
+    tag_flat = Tag(name="持平", type="hotword", status="active")
+    db.add_all([tag_up, tag_down, tag_new, tag_flat])
+    db.flush()
+
+    def add_tagged_sources(tag: Tag, count: int, publish_time: datetime) -> None:
+        for index in range(count):
+            source = SourceItem(
+                source_type="news",
+                source_name="manual",
+                title=f"{tag.name}-{publish_time.isoformat()}-{index}",
+                content=tag.name,
+                publish_time=publish_time,
+            )
+            db.add(source)
+            db.flush()
+            db.add(SourceTag(source_item_id=source.id, tag_id=tag.id, confidence=1, extractor="test"))
+
+    current_time = now - timedelta(days=1)
+    previous_time = now - timedelta(days=8)
+    add_tagged_sources(tag_up, 10, current_time)
+    add_tagged_sources(tag_up, 5, previous_time)
+    add_tagged_sources(tag_down, 3, current_time)
+    add_tagged_sources(tag_down, 6, previous_time)
+    add_tagged_sources(tag_new, 4, current_time)
+    add_tagged_sources(tag_flat, 5, current_time)
+    add_tagged_sources(tag_flat, 5, previous_time)
+    db.add(SourceItem(source_type="news", source_name="manual", title="watermark", content="watermark", publish_time=now))
+    db.commit()
+
+    aggregate_heat(db)
+
+    snapshots = {
+        snapshot.tag_id: snapshot
+        for snapshot in db.scalars(
+            select(TagHeatSnapshot).where(
+                TagHeatSnapshot.window_type == "7d",
+                TagHeatSnapshot.stat_time == now.replace(tzinfo=None),
+            )
+        )
+    }
+    assert snapshots[tag_up.id].change_ratio == 1.0
+    assert snapshots[tag_down.id].change_ratio == -0.5
+    assert snapshots[tag_new.id].change_ratio == 1.0
+    assert snapshots[tag_flat.id].change_ratio == 0

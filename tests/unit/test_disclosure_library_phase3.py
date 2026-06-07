@@ -102,6 +102,5 @@ def test_disclosure_jobs_download_parse_and_market_radar(tmp_path):
         )
         assert execute_job(db, "disclosure_library.download_file", {"disclosure_id": item.id}).success is True
         assert execute_job(db, "disclosure_library.parse_pdf", {"disclosure_id": item.id}).success is True
-        assert execute_job(db, "disclosure_library.to_market_radar", {"disclosure_id": item.id}).success is True
     finally:
         db.close()

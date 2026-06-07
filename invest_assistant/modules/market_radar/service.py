@@ -443,21 +443,26 @@ def aggregate_heat(db: Session) -> JobResult:
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
+        previous_since = now - delta * 2
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == now))
-        rows = db.execute(
-            select(SourceTag.tag_id, func.count(SourceTag.id), func.count(distinct(SourceTag.source_item_id)))
-            .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
-            .where(or_(SourceItem.publish_time.is_(None), SourceItem.publish_time >= since))
-            .group_by(SourceTag.tag_id)
-        ).all()
-        for idx, row in enumerate(sorted(rows, key=lambda row: (-int(row[1]), int(row[0]))), start=1):
+        current_rows = _heat_rows_between(db, since, now, include_null_publish=True, include_end=True)
+        previous_scores = {
+            int(row[0]): _heat_score(int(row[1]), int(row[2]))
+            for row in _heat_rows_between(db, previous_since, since, include_null_publish=False, include_end=False)
+        }
+        sorted_rows = sorted(
+            current_rows,
+            key=lambda row: (-_heat_score(int(row[1]), int(row[2])), int(row[0])),
+        )
+        for idx, row in enumerate(sorted_rows, start=1):
+            tag_id = int(row[0])
             trigger_count = int(row[1])
             source_count = int(row[2])
-            heat_score = float(trigger_count * 10 + source_count)
-            previous_score = _previous_heat_score(db, int(row[0]), window, now)
+            heat_score = _heat_score(trigger_count, source_count)
+            previous_score = previous_scores.get(tag_id, 0.0)
             db.add(
                 TagHeatSnapshot(
-                    tag_id=int(row[0]),
+                    tag_id=tag_id,
                     window_type=window,
                     stat_time=now,
                     trigger_count=trigger_count,
@@ -473,28 +478,34 @@ def aggregate_heat(db: Session) -> JobResult:
     return JobResult(success=True, message=f"created {inserted} heat snapshots", inserted_count=inserted)
 
 
-def _previous_heat_score(db: Session, tag_id: int, window: str, before: datetime) -> float | None:
-    previous_stat = db.scalar(
-        select(func.max(TagHeatSnapshot.stat_time)).where(
-            TagHeatSnapshot.tag_id == tag_id,
-            TagHeatSnapshot.window_type == window,
-            TagHeatSnapshot.stat_time < before,
-        )
-    )
-    if previous_stat is None:
-        return None
-    return db.scalar(
-        select(TagHeatSnapshot.heat_score).where(
-            TagHeatSnapshot.tag_id == tag_id,
-            TagHeatSnapshot.window_type == window,
-            TagHeatSnapshot.stat_time == previous_stat,
-        )
-    )
+def _heat_rows_between(
+    db: Session,
+    start_at: datetime,
+    end_at: datetime,
+    *,
+    include_null_publish: bool,
+    include_end: bool,
+):
+    publish_filters = [SourceItem.publish_time >= start_at]
+    publish_filters.append(SourceItem.publish_time <= end_at if include_end else SourceItem.publish_time < end_at)
+    publish_filter = and_(*publish_filters)
+    if include_null_publish:
+        publish_filter = or_(SourceItem.publish_time.is_(None), publish_filter)
+    return db.execute(
+        select(SourceTag.tag_id, func.count(SourceTag.id), func.count(distinct(SourceTag.source_item_id)))
+        .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
+        .where(publish_filter)
+        .group_by(SourceTag.tag_id)
+    ).all()
+
+
+def _heat_score(trigger_count: int, source_count: int) -> float:
+    return float(trigger_count * 10 + source_count)
 
 
 def _change_ratio(current: float, previous: float | None) -> float:
     if previous is None or previous == 0:
-        return 0.0
+        return 1.0 if current > 0 else 0.0
     return round((current - previous) / previous, 4)
 
 
