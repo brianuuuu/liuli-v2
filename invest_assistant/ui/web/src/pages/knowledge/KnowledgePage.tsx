@@ -264,12 +264,16 @@ function NotesSection() {
           </div>
           <button className={!groupFilter ? "knowledge-group-row active" : "knowledge-group-row"} onClick={() => setGroupFilter(undefined)}>
             <span>全部笔记</span>
-            <span>{total}</span>
           </button>
           {groups.data.map((group) => (
-            <div className={groupFilter === group.id ? "knowledge-group-row active" : "knowledge-group-row"} key={group.id}>
-              <button onClick={() => setGroupFilter(group.id)}>{group.name}</button>
-              <Space size={2}>
+            <div
+              className={groupFilter === group.id ? "knowledge-group-row active" : "knowledge-group-row"}
+              key={group.id}
+              onClick={() => setGroupFilter(group.id)}
+              style={{ cursor: "pointer" }}
+            >
+              <span className="group-name-text">{group.name}</span>
+              <Space size={2} onClick={(e) => e.stopPropagation()}>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openGroupModal(group)} />
                 <Popconfirm title="归档这个分组？" description="分组内笔记会移动到未分组。" okText="归档" cancelText="取消" onConfirm={() => archiveGroup(group)}>
                   <Button size="small" type="text" icon={<FolderOutlined />} />
@@ -282,13 +286,15 @@ function NotesSection() {
         <main className="knowledge-notes-main">
           <div className="knowledge-composer-header" onClick={() => setComposerExpanded(!composerExpanded)}>
             <div className="composer-header-title">
-              <PlusOutlined style={{ marginRight: 6, color: "var(--ll-accent)" }} />
-              <span>新建知识笔记</span>
+              <span style={{ color: "var(--ll-accent)", marginRight: "6px", fontWeight: "bold", fontSize: "14px" }}>
+                {composerExpanded ? "−" : "+"}
+              </span>
+              <span>知识笔记</span>
+              <span style={{ fontSize: "12px", color: "var(--ll-muted)", fontWeight: "normal", marginLeft: "6px" }}>
+                ({total})
+              </span>
             </div>
             <div className="composer-header-extra">
-              <span style={{ fontSize: "12px", color: "var(--ll-muted)", marginRight: "8px" }}>
-                {composerExpanded ? "收起" : "展开"}
-              </span>
               {composerExpanded ? <UpOutlined /> : <DownOutlined />}
             </div>
           </div>

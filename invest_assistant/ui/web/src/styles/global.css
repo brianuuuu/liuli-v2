@@ -3811,8 +3811,10 @@ body {
   text-align: left;
 }
 
-.knowledge-group-row > button:first-child {
+.knowledge-group-row > button:first-child,
+.knowledge-group-row > .group-name-text {
   min-width: 0;
+  flex: 1;
   padding: 0;
   overflow: hidden;
   border: 0;
