@@ -9,6 +9,7 @@ def fetch_stock_announcements_job(
     pool_status: str = "focused,watching,candidate",
     page_size: int = 30,
     max_pages: int = 2,
+    auto_to_source_item: bool = True,
     **kwargs,
 ) -> JobResult:
     db = SessionLocal()
@@ -20,7 +21,7 @@ def fetch_stock_announcements_job(
             pool_status=pool_status,
             page_size=page_size,
             max_pages=max_pages,
-            auto_to_source_item=False,
+            auto_to_source_item=auto_to_source_item,
         )
     except Exception as exc:
         return JobResult(success=False, message=str(exc))
@@ -61,7 +62,7 @@ JOBS = [
         job_name="disclosure_library.fetch_stock_announcements",
         module_name="disclosure_library",
         display_name="拉取标的公告",
-        description="按标的池从巨潮拉取最近公告，写入公告库",
+        description="按标的池从巨潮拉取最近公告，写入公告库并默认转写市场雷达信息流",
         handler=fetch_stock_announcements_job,
         trigger_type="both",
         cron_expr="30 8 * * *",
@@ -73,6 +74,7 @@ JOBS = [
             "pool_status": {"type": "string", "label": "标的池状态", "default": "focused,watching,candidate"},
             "page_size": {"type": "number", "label": "每页公告数", "default": 30, "min": 1},
             "max_pages": {"type": "number", "label": "每只最多页数", "default": 2, "min": 1},
+            "auto_to_source_item": {"type": "boolean", "label": "自动写入信息流", "default": True},
         },
         tags=["announcement", "cninfo", "stock_pool"],
     ),

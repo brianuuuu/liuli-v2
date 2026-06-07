@@ -56,3 +56,8 @@ export async function disclosureToSourceItem(disclosureId: number): Promise<unkn
   const response = await apiClient.post(`/api/disclosures/${disclosureId}/to-source-item`, {});
   return response.data;
 }
+
+export async function disclosuresToMissingSourceItems(): Promise<{ total: number; converted: number; skipped: number }> {
+  const response = await apiClient.post<{ total: number; converted: number; skipped: number }>("/api/disclosures/to-source-items-missing", {});
+  return response.data;
+}

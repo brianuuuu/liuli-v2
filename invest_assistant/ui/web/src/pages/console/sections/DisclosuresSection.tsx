@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import {
   createDisclosure,
   disclosureToSourceItem,
+  disclosuresToMissingSourceItems,
   downloadDisclosure,
   fetchDisclosures,
   getParsedDisclosure,
@@ -38,6 +39,7 @@ export function DisclosuresSection() {
   const [detail, setDetail] = useState<Disclosure | null>(null);
   const [parsedContent, setParsedContent] = useState("");
   const [open, setOpen] = useState(false);
+  const [bulkSourceLoading, setBulkSourceLoading] = useState(false);
   const [form] = Form.useForm<DisclosureFormValues>();
 
   function openCreate() {
@@ -101,6 +103,17 @@ export function DisclosuresSection() {
     await disclosures.refresh();
   }
 
+  async function runBulkSourceItems() {
+    setBulkSourceLoading(true);
+    try {
+      const result = await disclosuresToMissingSourceItems();
+      message.success(`已入信息流 ${result.converted} 条，跳过 ${result.skipped} 条`);
+      await disclosures.refresh();
+    } finally {
+      setBulkSourceLoading(false);
+    }
+  }
+
   async function showDetail(record: Disclosure) {
     setDetail(record);
     setParsedContent("");
@@ -150,6 +163,7 @@ export function DisclosuresSection() {
             />
             <Button size="small" onClick={fetchRemote}>拉取公告</Button>
             <div className="data-panel-toolbar-spacer" />
+            <Button size="small" loading={bulkSourceLoading} onClick={runBulkSourceItems}>一键入信息流</Button>
             <Button size="small" type="primary" onClick={openCreate}>新增记录</Button>
           </>
         }
