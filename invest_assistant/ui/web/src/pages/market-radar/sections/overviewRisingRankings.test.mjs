@@ -35,7 +35,7 @@ const sampleRows = [
 
 const sorted = helper.risingTopRows(sampleRows);
 if (sorted.length !== 5) {
-  throw new Error(`Expected risingTopRows to keep top 5 rows, got ${sorted.length}`);
+  throw new Error(`Expected risingTopRows to keep only positive rows, got ${sorted.length}`);
 }
 
 if (sorted.map((item) => item.id).join(",") !== "3,2,1,6,5") {
@@ -54,6 +54,20 @@ const coolingRows = [
 const coolingSorted = helper.coolingTopRows(coolingRows);
 if (coolingSorted.map((item) => item.id).join(",") !== "9,8,7,11,12") {
   throw new Error(`Expected coolingTopRows to sort largest drops first, got ${coolingSorted.map((item) => item.id).join(",")}`);
+}
+
+const neutralRows = [
+  { id: 13, rank_no: 1, heat_score: 70, change_ratio: 0, tag_id: 13, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 14, rank_no: 2, heat_score: 40, change_ratio: -0.04, tag_id: 14, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 15, rank_no: 3, heat_score: 30, change_ratio: 0.05, tag_id: 15, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+];
+
+if (helper.risingTopRows(neutralRows).map((item) => item.id).join(",") !== "15") {
+  throw new Error("risingTopRows should filter neutral and cooling rows");
+}
+
+if (helper.coolingTopRows(neutralRows).map((item) => item.id).join(",") !== "14") {
+  throw new Error("coolingTopRows should filter neutral and rising rows");
 }
 
 if (helper.formatRisePercent(0.12) !== "+12%") {
@@ -82,6 +96,11 @@ if (overview.includes("Segmented")) {
 
 if (!overview.includes("heat-board-segmented") || !overview.includes("toolbar-status-buttons") || !overview.includes("toolbar-filter-button")) {
   throw new Error("Overview heat boards should use the shared segmented button classes");
+}
+
+const risingListRule = css.match(/\.market-rising-list \{[\s\S]*?\}/)?.[0] || "";
+if (!risingListRule.includes("align-content: start")) {
+  throw new Error("Sparse heat ranking columns should stay top-aligned and leave missing rows at the bottom");
 }
 
 const heatSegmentedContainerRule = css.match(/\.workbench-card \.ant-card-extra \.heat-board-segmented \{[\s\S]*?\}/)?.[0] || "";

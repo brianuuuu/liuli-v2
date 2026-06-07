@@ -283,7 +283,7 @@ def test_portfolio_flow():
     assert review.status_code == 200
 
 
-def test_knowledge_base_flow_and_jobs_registered():
+def test_knowledge_base_flow_and_placeholder_jobs_removed():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
@@ -307,8 +307,16 @@ def test_knowledge_base_flow_and_jobs_registered():
     assert agent.status_code == 200
     run = client.post(f"/api/knowledge/agents/{agent.json()['id']}/run", headers=headers)
     assert run.status_code == 200
-    assert "knowledge_base.extract_skills" in JOB_REGISTRY
-    assert "knowledge_base.compile_agents" in JOB_REGISTRY
+    removed_jobs = {
+        "knowledge_base.extract_skills",
+        "knowledge_base.compile_agents",
+        "track_discovery.collect_evidence",
+        "track_discovery.refresh_related_stocks",
+        "track_discovery.generate_candidates",
+        "track_discovery.collect_materials",
+        "track_discovery.refresh_bound_stocks",
+    }
+    assert removed_jobs.isdisjoint(JOB_REGISTRY)
 
 
 def test_knowledge_prompt_crud_uses_soft_delete():

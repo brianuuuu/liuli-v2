@@ -28,6 +28,13 @@ export type TrackMaterialPayload = {
   note?: string | null;
 };
 
+export type TrackMaterialListOptions = {
+  trackId?: number;
+  statuses?: string[];
+  limit?: number;
+  offset?: number;
+};
+
 export type TrackAnalysisSnapshotPayload = {
   analysis_date: string;
   market_space?: string | null;
@@ -102,8 +109,26 @@ export async function changeTrackStatus(trackId: number, newStatus: string, reas
   return response.data;
 }
 
-export async function listTrackMaterials(trackId: number): Promise<TrackMaterial[]> {
-  const response = await apiClient.get<TrackMaterial[]>(`/api/track-discovery/tracks/${trackId}/materials`);
+function materialListParams(options: TrackMaterialListOptions = {}) {
+  return {
+    track_id: options.trackId,
+    status: options.statuses?.join(","),
+    limit: options.limit,
+    offset: options.offset,
+  };
+}
+
+export async function listTrackDiscoveryMaterials(options: TrackMaterialListOptions = {}): Promise<TrackMaterial[]> {
+  const response = await apiClient.get<TrackMaterial[]>("/api/track-discovery/materials", {
+    params: materialListParams(options)
+  });
+  return response.data;
+}
+
+export async function listTrackMaterials(trackId: number, options: Omit<TrackMaterialListOptions, "trackId"> = {}): Promise<TrackMaterial[]> {
+  const response = await apiClient.get<TrackMaterial[]>(`/api/track-discovery/tracks/${trackId}/materials`, {
+    params: materialListParams(options)
+  });
   return response.data;
 }
 

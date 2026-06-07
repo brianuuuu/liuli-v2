@@ -257,6 +257,7 @@ export type TrackCandidate = {
 export type TrackMaterial = {
   id: number;
   track_id: number;
+  track_name?: string | null;
   material_type: "source_item" | "knowledge_note" | string;
   material_id: number;
   material_title?: string | null;
@@ -450,6 +451,30 @@ export type StockScoreSnapshot = {
   risk_score: number;
   total_score: number;
   created_at?: string | null;
+};
+
+export type StockDailyBar = {
+  id: number;
+  stock_id: number;
+  ts_code: string;
+  trade_date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  pre_close?: number | null;
+  change?: number | null;
+  pct_chg?: number | null;
+  vol?: number | null;
+  amount?: number | null;
+  ma5?: number | null;
+  ma20?: number | null;
+  ma60?: number | null;
+  ma250?: number | null;
+  source: string;
+  adj: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type StockScoreComparisonItem = {

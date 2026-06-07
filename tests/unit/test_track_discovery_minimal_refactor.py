@@ -153,6 +153,52 @@ def test_track_material_list_includes_referenced_material_summary(db_session: Se
     assert note_row["material_summary"] == "这是个人复盘内容，用于验证知识笔记摘要。"
 
 
+def test_track_material_list_filters_statuses_and_paginates(db_session: Session):
+    track = create_track(db_session, TrackCreate(name="能源"))
+    source_items = [
+        SourceItem(source_type="news", source_name="manual", title=f"能源材料 {index}", content=f"content {index}")
+        for index in range(4)
+    ]
+    db_session.add_all(source_items)
+    db_session.commit()
+    for source, status in zip(source_items, ["pending", "confirmed", "ignored", "confirmed"]):
+        create_material(db_session, track["id"], TrackMaterialCreate(material_type="source_item", material_id=source.id, status=status))
+
+    active_rows = list_materials(db_session, track["id"], statuses=["pending", "confirmed"], limit=2, offset=0)
+    ignored_rows = list_materials(db_session, track["id"], statuses=["ignored"])
+    next_page = list_materials(db_session, track["id"], statuses=["pending", "confirmed"], limit=2, offset=2)
+
+    assert [row["status"] for row in active_rows] == ["confirmed", "confirmed"]
+    assert [row["material_title"] for row in active_rows] == ["能源材料 3", "能源材料 1"]
+    assert [row["status"] for row in ignored_rows] == ["ignored"]
+    assert [row["status"] for row in next_page] == ["pending"]
+
+
+def test_all_track_materials_can_filter_by_status_track_and_include_track_name(db_session: Session):
+    energy = create_track(db_session, TrackCreate(name="能源"))
+    robot = create_track(db_session, TrackCreate(name="机器人"))
+    sources = [
+        SourceItem(source_type="news", source_name="manual", title="能源待处理", content="energy pending"),
+        SourceItem(source_type="news", source_name="manual", title="能源已忽略", content="energy ignored"),
+        SourceItem(source_type="news", source_name="manual", title="机器人已确认", content="robot confirmed"),
+    ]
+    db_session.add_all(sources)
+    db_session.commit()
+    create_material(db_session, energy["id"], TrackMaterialCreate(material_type="source_item", material_id=sources[0].id, status="pending"))
+    create_material(db_session, energy["id"], TrackMaterialCreate(material_type="source_item", material_id=sources[1].id, status="ignored"))
+    create_material(db_session, robot["id"], TrackMaterialCreate(material_type="source_item", material_id=sources[2].id, status="confirmed"))
+
+    from invest_assistant.modules.track_discovery.service import list_all_materials
+
+    default_rows = list_all_materials(db_session, statuses=["pending", "confirmed"], limit=10, offset=0)
+    ignored_energy_rows = list_all_materials(db_session, track_id=energy["id"], statuses=["ignored"], limit=10, offset=0)
+
+    assert [row["material_title"] for row in default_rows] == ["机器人已确认", "能源待处理"]
+    assert all(row["status"] != "ignored" for row in default_rows)
+    assert ignored_energy_rows[0]["material_title"] == "能源已忽略"
+    assert ignored_energy_rows[0]["track_name"] == "能源"
+
+
 def test_status_history_records_track_stage_change(db_session: Session):
     track = create_track(db_session, TrackCreate(name="商业航天", status="candidate", stage="concept"))
 

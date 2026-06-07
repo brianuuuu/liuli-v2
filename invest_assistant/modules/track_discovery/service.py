@@ -3,7 +3,6 @@ from collections import defaultdict
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
@@ -311,13 +310,47 @@ def create_material(db: Session, track_id: int, payload: TrackMaterialCreate) ->
     return item
 
 
-def list_materials(db: Session, track_id: int) -> list[dict]:
+def list_materials(
+    db: Session,
+    track_id: int,
+    statuses: list[str] | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict]:
     stmt = (
         select(TrackMaterial)
         .where(TrackMaterial.track_id == track_id)
         .order_by(TrackMaterial.updated_at.desc(), TrackMaterial.id.desc())
     )
-    return [_material_dict(db, item) for item in db.scalars(stmt)]
+    if statuses:
+        stmt = stmt.where(TrackMaterial.status.in_(statuses))
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return _material_dicts(db, list(db.scalars(stmt)))
+
+
+def list_all_materials(
+    db: Session,
+    track_id: int | None = None,
+    statuses: list[str] | None = None,
+    limit: int | None = 100,
+    offset: int = 0,
+) -> list[dict]:
+    stmt = select(TrackMaterial).order_by(TrackMaterial.updated_at.desc(), TrackMaterial.id.desc())
+    if track_id is not None:
+        stmt = stmt.where(TrackMaterial.track_id == track_id)
+    if statuses:
+        stmt = stmt.where(TrackMaterial.status.in_(statuses))
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    items = list(db.scalars(stmt))
+    track_ids = {item.track_id for item in items}
+    track_by_id = {track.id: track for track in db.scalars(select(Track).where(Track.id.in_(track_ids)))} if track_ids else {}
+    return _material_dicts(db, items, track_by_id=track_by_id)
 
 
 def update_material(db: Session, material_id: int, payload: TrackMaterialUpdate) -> TrackMaterial | None:
@@ -536,19 +569,6 @@ def market_radar_candidates(db: Session, window: str = "24h") -> list[dict]:
     return [{"tag": _tag_dict(tag), "heat": _heat_dict(snapshot)} for snapshot, tag in rows]
 
 
-def generate_candidates_job(db: Session) -> JobResult:
-    candidates = market_radar_candidates(db)
-    return JobResult(success=True, message=f"generated {len(candidates)} track candidates", processed_count=len(candidates))
-
-
-def collect_materials_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="track materials are curated manually")
-
-
-def refresh_bound_stocks_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="stock-track relations are curated manually")
-
-
 def _tag_dict(tag: Tag) -> dict:
     return {
         "id": tag.id,
@@ -587,9 +607,27 @@ def _heat_dict(snapshot: TagHeatSnapshot) -> dict:
 
 
 def _material_dict(db: Session, item: TrackMaterial) -> dict:
+    return _material_dicts(db, [item])[0]
+
+
+def _material_dicts(db: Session, items: list[TrackMaterial], track_by_id: dict[int, Track] | None = None) -> list[dict]:
+    source_ids = [item.material_id for item in items if item.material_type == "source_item"]
+    note_ids = [item.material_id for item in items if item.material_type == "knowledge_note"]
+    source_by_id = {source.id: source for source in db.scalars(select(SourceItem).where(SourceItem.id.in_(source_ids)))} if source_ids else {}
+    note_by_id = {note.id: note for note in db.scalars(select(KnowledgeNote).where(KnowledgeNote.id.in_(note_ids)))} if note_ids else {}
+    return [_material_dict_from_references(item, source_by_id, note_by_id, track_by_id or {}) for item in items]
+
+
+def _material_dict_from_references(
+    item: TrackMaterial,
+    source_by_id: dict[int, SourceItem],
+    note_by_id: dict[int, KnowledgeNote],
+    track_by_id: dict[int, Track],
+) -> dict:
     material = {
         "id": item.id,
         "track_id": item.track_id,
+        "track_name": track_by_id[item.track_id].name if item.track_id in track_by_id else None,
         "material_type": item.material_type,
         "material_id": item.material_id,
         "direction": item.direction,
@@ -605,7 +643,7 @@ def _material_dict(db: Session, item: TrackMaterial) -> dict:
         "material_time": None,
     }
     if item.material_type == "source_item":
-        source = db.get(SourceItem, item.material_id)
+        source = source_by_id.get(item.material_id)
         if source is not None:
             material.update(
                 material_title=source.title,
@@ -615,7 +653,7 @@ def _material_dict(db: Session, item: TrackMaterial) -> dict:
                 material_time=source.publish_time or source.created_at,
             )
     elif item.material_type == "knowledge_note":
-        note = db.get(KnowledgeNote, item.material_id)
+        note = note_by_id.get(item.material_id)
         if note is not None:
             material.update(
                 material_title=note.title,

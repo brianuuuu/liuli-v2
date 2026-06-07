@@ -57,6 +57,32 @@ def test_track_event_ai_review_buttons_are_wired_to_job():
     assert "AI审核全部" in materials
 
 
+def test_track_materials_default_loading_excludes_ignored_and_uses_global_page_api():
+    materials = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/MaterialsSection.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/trackDiscovery.ts").read_text(encoding="utf-8")
+
+    assert "export async function listTrackDiscoveryMaterials" in api
+    assert '"/api/track-discovery/materials"' in api
+    assert 'status: options.statuses?.join(",")' in api
+    assert 'const DEFAULT_MATERIAL_STATUSES = ["pending", "confirmed"]' in materials
+    assert "listTrackDiscoveryMaterials({" in materials
+    assert "statuses: materialStatuses" in materials
+    assert "limit: MATERIAL_PAGE_LIMIT" in materials
+    assert "const tracksList = await listTracks();" not in materials
+    assert "tracksList.map(async" not in materials
+
+
+def test_track_material_ignore_removes_row_locally_without_full_refresh():
+    materials = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/MaterialsSection.tsx").read_text(encoding="utf-8")
+
+    assert "dismissedMaterialIds" in materials
+    assert "setDismissedMaterialIds" in materials
+    ignore_branch_start = materials.index('if (newStatus === "ignored"')
+    ignore_branch = materials[ignore_branch_start : materials.index("return;", ignore_branch_start)]
+    assert "setDismissedMaterialIds" in ignore_branch
+    assert "materials.refresh()" not in ignore_branch
+
+
 def test_system_config_section_supports_delete_and_typed_value_editor():
     source = Path("invest_assistant/ui/web/src/pages/console/sections/SystemConfigSection.tsx").read_text(encoding="utf-8")
     api_source = Path("invest_assistant/ui/web/src/api/systemConfig.ts").read_text(encoding="utf-8")

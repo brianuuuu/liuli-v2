@@ -75,11 +75,13 @@ def create_all_tables() -> None:
 
     from invest_assistant.modules.basic.job_center.models import ensure_job_center_schema
     from invest_assistant.modules.basic.stock_master.models import ensure_stock_master_schema
+    from invest_assistant.modules.knowledge_base.models import ensure_knowledge_base_schema
     from invest_assistant.modules.market_radar.models import ensure_market_radar_schema
     from invest_assistant.modules.track_discovery.models import ensure_track_discovery_schema
 
     ensure_job_center_schema(engine)
     ensure_stock_master_schema(engine)
+    ensure_knowledge_base_schema(engine)
     ensure_market_radar_schema(engine)
     ensure_track_discovery_schema(engine)
 

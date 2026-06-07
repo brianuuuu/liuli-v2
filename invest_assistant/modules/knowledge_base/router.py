@@ -9,6 +9,9 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeAgentRead,
     KnowledgeFeedbackLogRead,
     KnowledgeNoteCreate,
+    KnowledgeNoteGroupCreate,
+    KnowledgeNoteGroupRead,
+    KnowledgeNotePage,
     KnowledgeNoteRead,
     KnowledgePromptCreate,
     KnowledgePromptRead,
@@ -19,45 +22,94 @@ from invest_assistant.modules.knowledge_base.schemas import (
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge_base"], dependencies=[Depends(get_current_user)])
 
 
-@router.get("/notes", response_model=list[KnowledgeNoteRead])
-def list_notes(db: Session = Depends(get_db)) -> list:
-    return service.list_notes(db)
+@router.get("/notes", response_model=KnowledgeNotePage)
+def list_notes(
+    status: str | None = "active",
+    group_id: int | None = None,
+    tag_id: int | None = None,
+    q: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    return service.list_notes(db, status=status, group_id=group_id, tag_id=tag_id, q=q, limit=limit, offset=offset)
 
 
 @router.post("/notes", response_model=KnowledgeNoteRead)
 def create_note(payload: KnowledgeNoteCreate, db: Session = Depends(get_db)):
-    return service.create_note(db, payload)
+    try:
+        return service.read_note(db, service.create_note(db, payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/notes/{note_id}", response_model=KnowledgeNoteRead)
 def get_note(note_id: int, db: Session = Depends(get_db)):
-    item = db.get(service.KnowledgeNote, note_id)
+    item = service.get_note(db, note_id)
     if item is None:
         raise HTTPException(status_code=404, detail="note not found")
-    return item
+    return service.read_note(db, item)
 
 
 @router.put("/notes/{note_id}", response_model=KnowledgeNoteRead)
 def update_note(note_id: int, payload: KnowledgeNoteCreate, db: Session = Depends(get_db)):
-    item = db.get(service.KnowledgeNote, note_id)
+    item = service.get_note(db, note_id)
     if item is None:
         raise HTTPException(status_code=404, detail="note not found")
-    for key, value in payload.model_dump().items():
-        setattr(item, key, value)
-    db.commit()
-    db.refresh(item)
-    return item
+    try:
+        return service.read_note(db, service.update_note(db, item, payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/notes/{note_id}", response_model=KnowledgeNoteRead)
 def delete_note(note_id: int, db: Session = Depends(get_db)):
-    item = db.get(service.KnowledgeNote, note_id)
+    item = service.get_note(db, note_id)
     if item is None:
         raise HTTPException(status_code=404, detail="note not found")
-    item.status = "archived"
-    db.commit()
-    db.refresh(item)
-    return item
+    return service.read_note(db, service.delete_note(db, item))
+
+
+@router.post("/notes/{note_id}/archive", response_model=KnowledgeNoteRead)
+def archive_note(note_id: int, db: Session = Depends(get_db)):
+    item = service.get_note(db, note_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    return service.read_note(db, service.archive_note(db, item))
+
+
+@router.post("/notes/{note_id}/restore", response_model=KnowledgeNoteRead)
+def restore_note(note_id: int, db: Session = Depends(get_db)):
+    item = service.get_note(db, note_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    return service.read_note(db, service.restore_note(db, item))
+
+
+@router.get("/note-groups", response_model=list[KnowledgeNoteGroupRead])
+def list_note_groups(status: str | None = "active", db: Session = Depends(get_db)) -> list:
+    return service.list_note_groups(db, status=status)
+
+
+@router.post("/note-groups", response_model=KnowledgeNoteGroupRead)
+def create_note_group(payload: KnowledgeNoteGroupCreate, db: Session = Depends(get_db)):
+    return service.create_note_group(db, payload)
+
+
+@router.put("/note-groups/{group_id}", response_model=KnowledgeNoteGroupRead)
+def update_note_group(group_id: int, payload: KnowledgeNoteGroupCreate, db: Session = Depends(get_db)):
+    item = service.get_note_group(db, group_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="note group not found")
+    return service.update_note_group(db, item, payload)
+
+
+@router.post("/note-groups/{group_id}/archive", response_model=KnowledgeNoteGroupRead)
+def archive_note_group(group_id: int, db: Session = Depends(get_db)):
+    item = service.get_note_group(db, group_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="note group not found")
+    return service.archive_note_group(db, item)
 
 
 @router.get("/skills", response_model=list[KnowledgeSkillRead])

@@ -18,6 +18,7 @@ export const risingTypes: { value: RisingRankingType; label: string }[] = [
 
 export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
   return [...rows]
+    .filter((item) => Number(item.change_ratio || 0) > 0)
     .sort((a, b) => {
       const byChange = Number(b.change_ratio || 0) - Number(a.change_ratio || 0);
       if (byChange !== 0) return byChange;
@@ -32,6 +33,7 @@ export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
 
 export function coolingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
   return [...rows]
+    .filter((item) => Number(item.change_ratio || 0) < 0)
     .sort((a, b) => {
       const byChange = Number(a.change_ratio || 0) - Number(b.change_ratio || 0);
       if (byChange !== 0) return byChange;

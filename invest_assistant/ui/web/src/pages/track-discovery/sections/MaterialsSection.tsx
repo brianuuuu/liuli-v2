@@ -3,7 +3,7 @@ import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Ty
 import ReactECharts from "echarts-for-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
-import { createTrackMaterial, listTrackMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
+import { createTrackMaterial, listTrackDiscoveryMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
 import type { TrackMaterialPayload } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -29,6 +29,10 @@ interface ExtendedTrackMaterial extends TrackMaterial {
 
 type MaterialFormValues = TrackMaterialPayload & { track_id?: number };
 type DrawerMode = "create" | "edit";
+type MaterialStatusScope = "active" | "ignored" | "all";
+
+const DEFAULT_MATERIAL_STATUSES = ["pending", "confirmed"];
+const MATERIAL_PAGE_LIMIT = 100;
 
 export function MaterialsSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
@@ -37,7 +41,9 @@ export function MaterialsSection() {
   const [directionFilter, setDirectionFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<string>("all");
+  const [materialStatusScope, setMaterialStatusScope] = useState<MaterialStatusScope>("active");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dismissedMaterialIds, setDismissedMaterialIds] = useState<number[]>([]);
 
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [editingMaterial, setEditingMaterial] = useState<ExtendedTrackMaterial | null>(null);
@@ -92,37 +98,44 @@ export function MaterialsSection() {
     }
   }, [drawerOpen, drawerMode, editingMaterial, form]);
 
-  // Fetch materials dynamically based on selected trackId (or fetch all in parallel if undefined)
+  const materialStatuses = useMemo(() => {
+    if (materialStatusScope === "ignored") return ["ignored"];
+    if (materialStatusScope === "all") return ["all"];
+    return DEFAULT_MATERIAL_STATUSES;
+  }, [materialStatusScope]);
+
+  useEffect(() => {
+    setDismissedMaterialIds([]);
+  }, [trackId, materialStatusScope]);
+
+  // Fetch one paged material list. Ignored rows are excluded unless explicitly requested.
   const materials = useAsyncData(
     useCallback(async () => {
-      const tracksList = await listTracks();
-      if (trackId) {
-        const data = await listTrackMaterials(trackId);
-        const currentTrack = tracksList.find((t) => t.id === trackId);
-        return data.map((item) => ({ ...item, track_name: currentTrack?.name })) as ExtendedTrackMaterial[];
-      } else {
-        // Fetch all tracks in parallel
-        const promises = tracksList.map(async (track) => {
-          try {
-            const list = await listTrackMaterials(track.id);
-            return list.map((item) => ({ ...item, track_name: track.name }));
-          } catch (e) {
-            return [];
-          }
-        });
-        const results = await Promise.all(promises);
-        return results.flat() as ExtendedTrackMaterial[];
-      }
-    }, [trackId]),
+      const data = await listTrackDiscoveryMaterials({
+        trackId,
+        statuses: materialStatuses,
+        limit: MATERIAL_PAGE_LIMIT,
+        offset: 0,
+      });
+      return data as ExtendedTrackMaterial[];
+    }, [trackId, materialStatuses]),
     []
   );
 
   const trackOptions = useMemo(() => tracks.data.map((item) => ({ value: item.id, label: item.name })), [tracks.data]);
   const activeTrack = useMemo(() => tracks.data.find((item) => item.id === trackId), [trackId, tracks.data]);
+  const materialRows = useMemo(() => {
+    if (!dismissedMaterialIds.length) return materials.data;
+    const dismissed = new Set(dismissedMaterialIds);
+    return materials.data.filter((item) => !dismissed.has(item.id));
+  }, [dismissedMaterialIds, materials.data]);
 
   // Main Event Timeline only displays confirmed materials
-  const visibleMaterials = useMemo(() => materials.data.filter((item) => item.status === "confirmed"), [materials.data]);
-  const pendingRows = useMemo(() => pendingMaterials(materials.data), [materials.data]);
+  const visibleMaterials = useMemo(
+    () => materialRows.filter((item) => item.status === "confirmed" || item.status === "ignored"),
+    [materialRows]
+  );
+  const pendingRows = useMemo(() => pendingMaterials(materialRows), [materialRows]);
 
   // Local Filter Logic
   const filterItem = useCallback((item: ExtendedTrackMaterial) => {
@@ -172,7 +185,7 @@ export function MaterialsSection() {
   // Statistics
   const stats = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
-    return materials.data.reduce(
+    return materialRows.reduce(
       (acc, item) => {
         const itemDate = (item.material_time || item.created_at || "").slice(0, 10);
         if (itemDate === todayStr) {
@@ -185,12 +198,12 @@ export function MaterialsSection() {
       },
       { todayAdded: 0, pending: 0, confirmed: 0, ignored: 0 }
     );
-  }, [materials.data]);
+  }, [materialRows]);
 
   // ECharts Timeline Event Distribution data
   const chartData = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const item of materials.data) {
+    for (const item of materialRows) {
       if (item.status !== "confirmed") continue; // Only count confirmed events on the chart
       if (directionFilter !== "all" && item.direction !== directionFilter) continue;
       if (typeFilter !== "all" && item.material_type !== typeFilter) continue;
@@ -205,7 +218,7 @@ export function MaterialsSection() {
       date,
       count: counts[date]
     }));
-  }, [materials.data, directionFilter, typeFilter]);
+  }, [materialRows, directionFilter, typeFilter]);
 
   // ECharts config options for Circular Glow display
   const accentColor = resolvedMode === "dark" ? "#58a6ff" : "#2563eb";
@@ -313,8 +326,13 @@ export function MaterialsSection() {
         status: newStatus,
         note: item.note || null,
       });
-      message.success(newStatus === "confirmed" ? "材料已确认" : "材料已忽略");
+      if (newStatus === "ignored" && materialStatusScope === "active") {
+        setDismissedMaterialIds((ids) => [...ids, item.id]);
+        message.success("材料已忽略");
+        return;
+      }
       await materials.refresh();
+      message.success(newStatus === "confirmed" ? "材料已确认" : "材料已忽略");
     } catch (err) {
       message.error("更新状态失败");
     }
@@ -451,6 +469,17 @@ export function MaterialsSection() {
               ]}
               style={{ width: 120 }}
               onChange={setTimeFilter}
+            />
+            <Select
+              size="small"
+              value={materialStatusScope}
+              options={[
+                { value: "active", label: "状态：待处理+已确认" },
+                { value: "ignored", label: "状态：已忽略" },
+                { value: "all", label: "状态：全部" },
+              ]}
+              style={{ width: 170 }}
+              onChange={(value) => setMaterialStatusScope(value as MaterialStatusScope)}
             />
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openCreateDrawer}>

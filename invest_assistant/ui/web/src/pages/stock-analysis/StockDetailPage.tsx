@@ -1,8 +1,10 @@
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
+import { Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
-import { useCallback, useMemo, useState } from "react";
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from "lightweight-charts";
+import type { Time } from "lightweight-charts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiuliTheme } from "../../app/theme";
 import { listTracks } from "../../api/trackDiscovery";
@@ -11,11 +13,12 @@ import {
   createStockNote,
   createStockScore,
   disableStockTrackRelation,
+  getStockDailyBars,
   getStockDetail,
   listStockPool,
   updateStockMaterial
 } from "../../api/stockAnalysis";
-import { chartBackgroundColor } from "../../components/charts/chartTheme";
+import { chartBackgroundColor, chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
@@ -23,6 +26,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type {
   StockDetail,
   StockDetailValuationSnapshot,
+  StockDailyBar,
   StockMaterial,
   StockResearchNote,
   StockScoreSnapshot,
@@ -217,6 +221,7 @@ export function StockDetailPage() {
               className="stock-detail-tabs"
               items={[
                 { key: "overview", label: "概览", children: <OverviewTab data={data} /> },
+                { key: "kline", label: "行情", children: <KlineTab stockId={stockId} /> },
                 {
                   key: "scores",
                   label: "评分",
@@ -407,6 +412,239 @@ function OverviewTab({ data }: { data: StockDetail }) {
         </div>
       </div>
     </WorkbenchCard>
+  );
+}
+
+type MaKey = "ma5" | "ma20" | "ma60" | "ma250";
+
+const maSeriesConfig: Record<MaKey, { label: string; color: string }> = {
+  ma5: { label: "MA5", color: "#d97706" },
+  ma20: { label: "MA20", color: "#2563eb" },
+  ma60: { label: "MA60", color: "#9333ea" },
+  ma250: { label: "MA250", color: "#db2777" }
+};
+
+const maVisibleRangeMonths: Record<MaKey, number> = {
+  ma5: 3,
+  ma20: 6,
+  ma60: 12,
+  ma250: 36
+};
+
+function largestVisibleMa(visibleMas: MaKey[]): MaKey | null {
+  if (!visibleMas.length) {
+    return null;
+  }
+  return visibleMas.reduce((largest, current) => (maVisibleRangeMonths[current] > maVisibleRangeMonths[largest] ? current : largest));
+}
+
+function shiftDateByMonths(value: string, months: number) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setMonth(date.getMonth() - months);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function klineVisibleRange(rows: StockDailyBar[], visibleMas: MaKey[]): { from: Time; to: Time } | null {
+  if (!rows.length) {
+    return null;
+  }
+  const selectedMa = largestVisibleMa(visibleMas);
+  const firstDate = rows[0].trade_date;
+  const lastDate = rows[rows.length - 1].trade_date;
+  if (!selectedMa) {
+    return null;
+  }
+  const targetFrom = shiftDateByMonths(lastDate, maVisibleRangeMonths[selectedMa]);
+  return {
+    from: (targetFrom <= firstDate ? firstDate : targetFrom) as Time,
+    to: lastDate as Time
+  };
+}
+
+function applyKlineVisibleRange(chart: ReturnType<typeof createChart>, rows: StockDailyBar[], visibleMas: MaKey[]) {
+  const range = klineVisibleRange(rows, visibleMas);
+  if (range) {
+    chart.timeScale().setVisibleRange(range);
+  } else {
+    chart.timeScale().fitContent();
+  }
+}
+
+function KlineTab({ stockId }: { stockId: number }) {
+  const [rows, setRows] = useState<StockDailyBar[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visibleMas, setVisibleMas] = useState<MaKey[]>(["ma5", "ma20", "ma250"]);
+
+  const loadBars = useCallback(
+    async (refresh = false) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const nextRows = await getStockDailyBars(stockId, refresh ? { refresh: true } : {});
+        setRows(nextRows);
+        if (refresh) {
+          message.success("行情已刷新");
+        }
+      } catch (nextError) {
+        const detail = nextError instanceof Error ? nextError.message : "行情数据加载失败";
+        setError(detail);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [stockId]
+  );
+
+  useEffect(() => {
+    void loadBars(false);
+  }, [loadBars]);
+
+  return (
+    <WorkbenchCard>
+      <div className="stock-detail-panel stock-kline-panel">
+        <div className="stock-detail-panel-toolbar stock-kline-toolbar">
+          <span>日线行情</span>
+          <Space size={12} wrap>
+            <Checkbox.Group
+              className="stock-kline-ma-toggle"
+              options={(Object.keys(maSeriesConfig) as MaKey[]).map((key) => ({ label: maSeriesConfig[key].label, value: key }))}
+              value={visibleMas}
+              onChange={(values) => setVisibleMas(values as MaKey[])}
+            />
+            <Button size="small" type="primary" loading={loading} onClick={() => loadBars(true)}>刷新行情</Button>
+          </Space>
+        </div>
+        <div className="stock-detail-panel-section first">
+          {error ? (
+            <EmptyAction description={`行情数据加载失败：${error}`} />
+          ) : rows.length ? (
+            <DailyBarChart rows={rows} visibleMas={visibleMas} />
+          ) : (
+            <EmptyAction description={loading ? "行情加载中" : "暂无行情数据"} />
+          )}
+        </div>
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function DailyBarChart({ rows, visibleMas }: { rows: StockDailyBar[]; visibleMas: MaKey[] }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { resolvedMode } = useLiuliTheme();
+  const activeMas = visibleMas.join(",");
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !rows.length) {
+      return;
+    }
+
+    const isDark = resolvedMode === "dark";
+    const chart = createChart(container, {
+      width: container.clientWidth || 720,
+      height: 520,
+      layout: {
+        background: { color: chartBackgroundColor(resolvedMode) },
+        textColor: chartTextColor(resolvedMode),
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: chartGridColor(resolvedMode) },
+        horzLines: { color: chartGridColor(resolvedMode) },
+      },
+      rightPriceScale: {
+        borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.12)",
+        scaleMargins: { top: 0.06, bottom: 0.24 },
+      },
+      timeScale: {
+        borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.12)",
+        timeVisible: false,
+      },
+      crosshair: { mode: 1 },
+    });
+
+    const upColor = "#ef4444";
+    const downColor = "#16a34a";
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor,
+      downColor,
+      borderUpColor: upColor,
+      borderDownColor: downColor,
+      wickUpColor: upColor,
+      wickDownColor: downColor,
+    });
+    candleSeries.setData(
+      rows.map((row) => ({
+        time: row.trade_date,
+        open: row.open,
+        high: row.high,
+        low: row.low,
+        close: row.close,
+      }))
+    );
+
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+    });
+    volumeSeries.setData(
+      rows.map((row) => ({
+        time: row.trade_date,
+        value: row.vol ?? 0,
+        color: row.close >= row.open ? "rgba(239,68,68,0.42)" : "rgba(22,163,74,0.42)",
+      }))
+    );
+    chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+
+    (Object.keys(maSeriesConfig) as MaKey[]).forEach((key) => {
+      if (!visibleMas.includes(key)) {
+        return;
+      }
+      const series = chart.addSeries(LineSeries, {
+        color: maSeriesConfig[key].color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      series.setData(
+        rows
+          .filter((row) => row[key] !== null && row[key] !== undefined)
+          .map((row) => ({
+            time: row.trade_date,
+            value: Number(row[key]),
+          }))
+      );
+    });
+
+    applyKlineVisibleRange(chart, rows, visibleMas);
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      chart.applyOptions({ width: Math.max(Math.floor(entry.contentRect.width), 320), height: 520 });
+      applyKlineVisibleRange(chart, rows, visibleMas);
+    });
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      chart.remove();
+    };
+  }, [activeMas, resolvedMode, rows, visibleMas]);
+
+  return (
+    <div className="stock-kline-chart-wrap">
+      <div className="stock-kline-legend">
+        {(Object.keys(maSeriesConfig) as MaKey[]).map((key) => (
+          <span key={key} className={visibleMas.includes(key) ? "active" : ""}>
+            <i style={{ backgroundColor: maSeriesConfig[key].color }} />
+            {maSeriesConfig[key].label}
+          </span>
+        ))}
+      </div>
+      <div ref={containerRef} className="stock-kline-chart" />
+    </div>
   );
 }
 

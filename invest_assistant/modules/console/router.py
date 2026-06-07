@@ -6,8 +6,10 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import list_ai_request_logs
+from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.job_center.models import JobConfig
 from invest_assistant.modules.market_radar.models import SourceItem
+from invest_assistant.modules.stock_analysis.models import StockDailyBar
 
 router = APIRouter(prefix="/api/console", tags=["console"], dependencies=[Depends(get_current_user)])
 
@@ -59,11 +61,21 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     eastmoney_count = db.scalar(
         text("SELECT COUNT(*) FROM source_item WHERE source_type = 'news' AND source_name = '东方财富'")
     ) or 0
+    cninfo_disclosure_count = db.scalar(
+        db.query(func.count(CompanyDisclosure.id)).filter(CompanyDisclosure.source == "cninfo").statement
+    ) or 0
+    stock_daily_bar_count = db.scalar(
+        db.query(func.count(StockDailyBar.id)).filter(StockDailyBar.source == "tushare").statement
+    ) or 0
 
     stock_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_master.sync_stock_basic").one_or_none()
     news_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one_or_none()
     futu_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one_or_none()
     eastmoney_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_stock_news").one_or_none()
+    stock_daily_bar_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_analysis.sync_daily_bars").one_or_none()
+    cninfo_disclosure_job = (
+        db.query(JobConfig).filter(JobConfig.job_name == "disclosure_library.fetch_stock_announcements").one_or_none()
+    )
 
     latest_cls_time = db.scalar(
         db.query(func.max(SourceItem.publish_time))
@@ -80,6 +92,12 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
         .filter(SourceItem.source_type == "news", SourceItem.source_name == "东方财富")
         .statement
     )
+    latest_cninfo_disclosure_time = db.scalar(
+        db.query(func.max(CompanyDisclosure.publish_time)).filter(CompanyDisclosure.source == "cninfo").statement
+    )
+    latest_stock_daily_bar_time = db.scalar(
+        db.query(func.max(StockDailyBar.updated_at)).filter(StockDailyBar.source == "tushare").statement
+    )
 
     return [
         {
@@ -90,6 +108,30 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
             "record_count": int(stock_count),
             "status": stock_job.last_status if stock_job is not None else "unknown",
             "last_sync_at": _format_time(stock_job.last_run_at if stock_job is not None else None),
+        },
+        {
+            "key": "stock-daily-bars",
+            "name": "日线行情（Tushare）",
+            "module": "stock_analysis",
+            "provider": "Tushare",
+            "record_count": int(stock_daily_bar_count),
+            "status": stock_daily_bar_job.last_status if stock_daily_bar_job is not None else "unknown",
+            "last_sync_at": _format_time(
+                stock_daily_bar_job.last_run_at if stock_daily_bar_job is not None else latest_stock_daily_bar_time
+            ),
+        },
+        {
+            "key": "cninfo-disclosures",
+            "name": "公告库（巨潮）",
+            "module": "basic/disclosure_library",
+            "provider": "巨潮资讯",
+            "record_count": int(cninfo_disclosure_count),
+            "status": cninfo_disclosure_job.last_status if cninfo_disclosure_job is not None else "unknown",
+            "last_sync_at": _format_time(
+                cninfo_disclosure_job.last_run_at
+                if cninfo_disclosure_job is not None
+                else latest_cninfo_disclosure_time
+            ),
         },
         {
             "key": "cls-news",

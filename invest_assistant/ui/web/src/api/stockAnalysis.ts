@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -56,6 +56,17 @@ export async function getStockDashboard(stockId?: number | null): Promise<StockD
 
 export async function getStockDetail(stockId: number): Promise<StockDetail> {
   const response = await apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`);
+  return response.data;
+}
+
+export type StockDailyBarsParams = {
+  start_date?: string;
+  end_date?: string;
+  refresh?: boolean;
+};
+
+export async function getStockDailyBars(stockId: number, params: StockDailyBarsParams = {}): Promise<StockDailyBar[]> {
+  const response = await apiClient.get<StockDailyBar[]>(`/api/stock-analysis/stocks/${stockId}/daily-bars`, { params });
   return response.data;
 }
 

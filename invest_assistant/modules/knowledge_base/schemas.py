@@ -1,23 +1,67 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class KnowledgeNoteGroupCreate(BaseModel):
+    name: str
+    sort_order: int = 0
+    status: str = "active"
+
+
+class KnowledgeNoteGroupRead(KnowledgeNoteGroupCreate):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KnowledgeNoteTagRead(BaseModel):
+    id: int
+    name: str
+    type: str | None = None
+    source: str | None = None
+    status: str = "active"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class KnowledgeNoteCreate(BaseModel):
     title: str
     content: str
     note_type: str
+    group_id: int | None = None
     related_module: str | None = None
     related_id: int | None = None
     tags: str | None = None
+    tag_ids: list[int] = Field(default_factory=list)
     status: str = "active"
 
 
-class KnowledgeNoteRead(KnowledgeNoteCreate):
+class KnowledgeNoteRead(BaseModel):
     id: int
+    title: str
+    content: str
+    note_type: str
+    group_id: int | None = None
+    related_module: str | None = None
+    related_id: int | None = None
+    tags_text: str | None = None
+    status: str
     created_at: datetime
     updated_at: datetime
+    group: KnowledgeNoteGroupRead | None = None
+    tags: list[KnowledgeNoteTagRead] = Field(default_factory=list)
     model_config = ConfigDict(from_attributes=True)
+
+
+class KnowledgeNotePage(BaseModel):
+    items: list[KnowledgeNoteRead]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
 
 
 class KnowledgeSkillCreate(BaseModel):

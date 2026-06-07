@@ -7,10 +7,12 @@ from invest_assistant.modules.basic.ai_audit.service import create_ai_request_lo
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.stock_analysis import ai as stock_ai
+from invest_assistant.modules.stock_analysis import service as stock_service
 from invest_assistant.modules.stock_analysis.models import StockMaterial
 from invest_assistant.services.deepseek import client as deepseek_client
 
 REVIEW_STOCK_EVENTS_JOB_NAME = "stock_analysis.review_stock_events_deepseek"
+SYNC_DAILY_BARS_JOB_NAME = "stock_analysis.sync_daily_bars"
 DEFAULT_STOCK_EVENT_REVIEW_MODEL = "deepseek-v4-pro"
 DEFAULT_REVIEW_BATCH_SIZE = 20
 DEFAULT_REVIEW_MAX_ITEMS = 100
@@ -148,7 +150,51 @@ def review_stock_events_deepseek_job(
         db.close()
 
 
+def sync_daily_bars_job(
+    stock_code: str | None = None,
+    pool_status: str = "focused,watching,candidate",
+    years: int = 3,
+    adj: str = "qfq",
+    force_refresh: bool = False,
+    max_stocks: int = 200,
+    **kwargs,
+) -> JobResult:
+    db = SessionLocal()
+    try:
+        return stock_service.sync_daily_bars(
+            db,
+            stock_code=stock_code,
+            pool_status=pool_status,
+            years=_positive_int(years, 3),
+            adj=str(adj or "qfq"),
+            force_refresh=bool(force_refresh),
+            max_stocks=_positive_int(max_stocks, 200),
+        )
+    finally:
+        db.close()
+
+
 JOBS = [
+    JobDefinition(
+        job_name=SYNC_DAILY_BARS_JOB_NAME,
+        module_name="stock_analysis",
+        display_name="同步标的日线行情",
+        description="按标的池同步 A 股前复权日线行情，并缓存 K 线和 MA 指标",
+        handler=sync_daily_bars_job,
+        trigger_type="both",
+        cron_expr="30 18 * * 1-5",
+        timeout_seconds=1800,
+        max_retries=1,
+        params_schema={
+            "stock_code": {"type": "string", "label": "股票代码", "default": ""},
+            "pool_status": {"type": "string", "label": "标的池状态", "default": "focused,watching,candidate"},
+            "years": {"type": "number", "label": "同步年数", "default": 3, "min": 1},
+            "adj": {"type": "string", "label": "复权", "default": "qfq"},
+            "force_refresh": {"type": "boolean", "label": "强制刷新", "default": False},
+            "max_stocks": {"type": "number", "label": "最多标的", "default": 200, "min": 1},
+        },
+        tags=["stock_analysis", "daily_bar", "tushare"],
+    ),
     JobDefinition(
         job_name=REVIEW_STOCK_EVENTS_JOB_NAME,
         module_name="stock_analysis",

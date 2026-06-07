@@ -128,6 +128,7 @@ class TrackMaterialUpdate(BaseModel):
 class TrackMaterialRead(TrackMaterialCreate):
     id: int
     track_id: int
+    track_name: str | None = None
     material_title: str | None = None
     material_summary: str | None = None
     material_source_name: str | None = None

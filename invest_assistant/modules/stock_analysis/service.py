@@ -1,14 +1,18 @@
 from collections import defaultdict
+from datetime import date, datetime, timedelta
+import math
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
+from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
     StockCompareGroup,
+    StockDailyBar,
     StockPoolItem,
     StockResearchNote,
     StockScoreSnapshot,
@@ -25,6 +29,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationCreate,
     StockTrackRelationUpdate,
 )
+from invest_assistant.services.tushare import client as tushare_client
 
 
 def create_pool_item(db: Session, payload: StockPoolCreate) -> dict:
@@ -1114,6 +1119,346 @@ def list_all_stock_materials(db: Session) -> list[dict]:
         .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
     )
     return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+
+
+def list_stock_daily_bars(
+    db: Session,
+    stock_id: int,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    refresh: bool = False,
+    years: int = 3,
+    adj: str = "qfq",
+) -> list[StockDailyBar] | None:
+    stock = db.get(Stock, stock_id)
+    if stock is None:
+        return None
+
+    cache_count_stmt = select(func.count(StockDailyBar.id)).where(
+        StockDailyBar.stock_id == stock_id,
+        StockDailyBar.adj == adj,
+        StockDailyBar.source == "tushare",
+    )
+    if start_date is not None:
+        cache_count_stmt = cache_count_stmt.where(StockDailyBar.trade_date >= start_date)
+    if end_date is not None:
+        cache_count_stmt = cache_count_stmt.where(StockDailyBar.trade_date <= end_date)
+    has_cached_rows = db.scalar(cache_count_stmt)
+    if refresh or not has_cached_rows:
+        refresh_stock_daily_bars(
+            db,
+            stock,
+            years=years,
+            adj=adj,
+            start_date=start_date,
+            end_date=end_date,
+            force_refresh=refresh,
+        )
+
+    stmt = select(StockDailyBar).where(
+        StockDailyBar.stock_id == stock_id,
+        StockDailyBar.adj == adj,
+        StockDailyBar.source == "tushare",
+    )
+    if start_date is not None:
+        stmt = stmt.where(StockDailyBar.trade_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(StockDailyBar.trade_date <= end_date)
+    return list(db.scalars(stmt.order_by(StockDailyBar.trade_date.asc(), StockDailyBar.id.asc())))
+
+
+def refresh_stock_daily_bars(
+    db: Session,
+    stock: Stock,
+    *,
+    years: int = 3,
+    adj: str = "qfq",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    force_refresh: bool = False,
+) -> JobResult:
+    end = end_date or date.today()
+    start = start_date or end - timedelta(days=max(int(years), 1) * 366)
+    ts_code = _stock_ts_code(stock)
+    rows = tushare_client.fetch_a_stock_daily_bar_rows(
+        ts_code,
+        start_date=start.strftime("%Y%m%d"),
+        end_date=end.strftime("%Y%m%d"),
+        adj=adj,
+        ma=[5, 20, 60, 250],
+    )
+    normalized = _normalize_daily_bar_rows(rows, ts_code=ts_code)
+    if not normalized:
+        return JobResult(success=True, message=f"no daily bars fetched for {ts_code}", skipped_count=1)
+
+    _fill_missing_moving_averages(normalized)
+    existing = {
+        item.trade_date: item
+        for item in db.scalars(
+            select(StockDailyBar).where(
+                StockDailyBar.stock_id == stock.id,
+                StockDailyBar.trade_date.in_([row["trade_date"] for row in normalized]),
+                StockDailyBar.adj == adj,
+                StockDailyBar.source == "tushare",
+            )
+        )
+    }
+
+    inserted = 0
+    updated = 0
+    for row in normalized:
+        payload = {
+            "stock_id": stock.id,
+            "ts_code": ts_code,
+            "trade_date": row["trade_date"],
+            "open": row["open"],
+            "high": row["high"],
+            "low": row["low"],
+            "close": row["close"],
+            "pre_close": row.get("pre_close"),
+            "change": row.get("change"),
+            "pct_chg": row.get("pct_chg"),
+            "vol": row.get("vol"),
+            "amount": row.get("amount"),
+            "ma5": row.get("ma5"),
+            "ma20": row.get("ma20"),
+            "ma60": row.get("ma60"),
+            "ma250": row.get("ma250"),
+            "source": "tushare",
+            "adj": adj,
+        }
+        item = existing.get(row["trade_date"])
+        if item is None:
+            db.add(StockDailyBar(**payload))
+            inserted += 1
+        else:
+            for key, value in payload.items():
+                setattr(item, key, value)
+            updated += 1
+
+    db.commit()
+    return JobResult(
+        success=True,
+        message=f"synced {len(normalized)} daily bars for {ts_code}",
+        fetched_count=len(normalized),
+        processed_count=1,
+        inserted_count=inserted,
+        updated_count=updated,
+        extra={"ts_code": ts_code, "adj": adj, "force_refresh": force_refresh},
+    )
+
+
+def sync_daily_bars(
+    db: Session,
+    *,
+    stock_code: str | None = None,
+    pool_status: str = "focused,watching,candidate",
+    years: int = 3,
+    adj: str = "qfq",
+    force_refresh: bool = False,
+    max_stocks: int = 200,
+) -> JobResult:
+    stocks = _daily_bar_target_stocks(
+        db,
+        stock_code=stock_code,
+        pool_status=pool_status,
+        max_stocks=max_stocks,
+    )
+    if not stocks:
+        return JobResult(success=True, message="no target stocks", skipped_count=1, extra={"per_stock": []})
+
+    processed = 0
+    fetched = 0
+    inserted = 0
+    updated = 0
+    skipped = 0
+    per_stock: list[dict] = []
+    for stock in stocks:
+        processed += 1
+        ts_code = _stock_ts_code(stock)
+        try:
+            result = refresh_stock_daily_bars(
+                db,
+                stock,
+                years=years,
+                adj=adj,
+                force_refresh=force_refresh,
+            )
+        except Exception as exc:
+            db.rollback()
+            skipped += 1
+            per_stock.append(
+                {
+                    "stock_id": stock.id,
+                    "stock_code": stock.stock_code,
+                    "stock_name": stock.stock_name,
+                    "ts_code": ts_code,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        fetched += result.fetched_count
+        inserted += result.inserted_count
+        updated += result.updated_count
+        skipped += result.skipped_count
+        per_stock.append(
+            {
+                "stock_id": stock.id,
+                "stock_code": stock.stock_code,
+                "stock_name": stock.stock_name,
+                "ts_code": ts_code,
+                "status": "success" if getattr(result, "success", True) else "skipped",
+                "fetched": result.fetched_count,
+                "inserted": result.inserted_count,
+                "updated": result.updated_count,
+                "skipped": result.skipped_count,
+                "message": getattr(result, "message", ""),
+            }
+        )
+
+    return JobResult(
+        success=True,
+        message=f"synced daily bars for {processed} stocks",
+        fetched_count=fetched,
+        processed_count=processed,
+        inserted_count=inserted,
+        updated_count=updated,
+        skipped_count=skipped,
+        extra={"per_stock": per_stock, "adj": adj, "years": years},
+    )
+
+
+def _daily_bar_target_stocks(
+    db: Session,
+    *,
+    stock_code: str | None,
+    pool_status: str,
+    max_stocks: int,
+) -> list[Stock]:
+    if stock_code:
+        code = stock_code.strip().upper()
+        if "." in code:
+            bare_code = code.split(".", 1)[0]
+            return list(db.scalars(select(Stock).where(or_(Stock.symbol == code, Stock.stock_code == bare_code)).limit(1)))
+        return list(db.scalars(select(Stock).where(Stock.stock_code == code).limit(1)))
+
+    statuses = [item.strip() for item in str(pool_status or "").split(",") if item.strip()]
+    stmt = (
+        select(Stock)
+        .join(StockPoolItem, StockPoolItem.stock_id == Stock.id)
+        .where(Stock.status != "archived")
+        .order_by(StockPoolItem.updated_at.desc(), StockPoolItem.id.desc())
+        .limit(max(int(max_stocks or 200), 1))
+    )
+    if statuses:
+        stmt = stmt.where(StockPoolItem.status.in_(statuses))
+    return list(db.scalars(stmt))
+
+
+def _stock_ts_code(stock: Stock) -> str:
+    symbol = (stock.symbol or "").strip().upper()
+    if "." in symbol:
+        return symbol
+
+    stock_code = (stock.stock_code or symbol).strip()
+    exchange = (stock.exchange or "").strip().upper()
+    suffix_map = {
+        "SSE": "SH",
+        "SH": "SH",
+        "SHSE": "SH",
+        "XSHG": "SH",
+        "SZSE": "SZ",
+        "SZ": "SZ",
+        "XSHE": "SZ",
+        "BSE": "BJ",
+        "BJ": "BJ",
+        "BJS": "BJ",
+        "XBSE": "BJ",
+    }
+    suffix = suffix_map.get(exchange)
+    if suffix is None:
+        if stock_code.startswith(("6", "9")):
+            suffix = "SH"
+        elif stock_code.startswith(("4", "8")):
+            suffix = "BJ"
+        else:
+            suffix = "SZ"
+    return f"{stock_code}.{suffix}".upper()
+
+
+def _normalize_daily_bar_rows(rows: list[dict], *, ts_code: str) -> list[dict]:
+    normalized: list[dict] = []
+    for row in rows:
+        trade_date = _parse_trade_date(row.get("trade_date"))
+        if trade_date is None:
+            continue
+        open_price = _float_or_none(row.get("open"))
+        high_price = _float_or_none(row.get("high"))
+        low_price = _float_or_none(row.get("low"))
+        close_price = _float_or_none(row.get("close"))
+        if None in (open_price, high_price, low_price, close_price):
+            continue
+        normalized.append(
+            {
+                "ts_code": row.get("ts_code") or ts_code,
+                "trade_date": trade_date,
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "pre_close": _float_or_none(row.get("pre_close")),
+                "change": _float_or_none(row.get("change")),
+                "pct_chg": _float_or_none(row.get("pct_chg")),
+                "vol": _float_or_none(row.get("vol")),
+                "amount": _float_or_none(row.get("amount")),
+                "ma5": _float_or_none(row.get("ma5") or row.get("ma_5")),
+                "ma20": _float_or_none(row.get("ma20") or row.get("ma_20")),
+                "ma60": _float_or_none(row.get("ma60") or row.get("ma_60")),
+                "ma250": _float_or_none(row.get("ma250") or row.get("ma_250")),
+            }
+        )
+    normalized.sort(key=lambda item: item["trade_date"])
+    return normalized
+
+
+def _fill_missing_moving_averages(rows: list[dict]) -> None:
+    closes: list[float] = []
+    for row in rows:
+        closes.append(float(row["close"]))
+        for window in (5, 20, 60, 250):
+            key = f"ma{window}"
+            if row.get(key) is not None or len(closes) < window:
+                continue
+            row[key] = round(sum(closes[-window:]) / window, 6)
+
+
+def _parse_trade_date(value) -> date | None:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y%m%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text[:10] if fmt == "%Y-%m-%d" else text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _float_or_none(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(parsed) or math.isinf(parsed):
+        return None
+    return parsed
 
 
 
