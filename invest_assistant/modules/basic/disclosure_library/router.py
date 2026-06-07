@@ -35,6 +35,11 @@ def fetch_disclosures(
     return {"fetched": len(items)}
 
 
+@router.post("/to-source-items-missing")
+def to_missing_source_items(db: Session = Depends(get_db)) -> dict[str, int]:
+    return service.disclosures_to_missing_source_items(db)
+
+
 @router.get("/{disclosure_id}", response_model=CompanyDisclosureRead)
 def get_disclosure(disclosure_id: int, db: Session = Depends(get_db)):
     item = service.get_disclosure(db, disclosure_id)

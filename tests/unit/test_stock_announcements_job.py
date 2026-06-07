@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.disclosure_library import cninfo_client, service
+from invest_assistant.modules.basic.disclosure_library import jobs as disclosure_jobs
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.disclosure_library.schemas import CompanyDisclosureCreate
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -175,7 +176,7 @@ def test_fetch_stock_announcements_deduplicates_by_source_url(monkeypatch, tmp_p
         db.close()
 
 
-def test_fetch_stock_announcements_does_not_write_source_items_by_default(monkeypatch, tmp_path):
+def test_fetch_stock_announcements_writes_source_items_by_default(monkeypatch, tmp_path):
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()
     try:
@@ -204,9 +205,53 @@ def test_fetch_stock_announcements_does_not_write_source_items_by_default(monkey
         result = service.fetch_stock_announcements(db, pool_status="focused")
 
         assert result.inserted_count == 1
-        assert result.extra["source_item_inserted_count"] == 0
+        assert result.extra["source_item_inserted_count"] == 1
         assert len(list(db.scalars(select(CompanyDisclosure)))) == 1
-        assert len(list(db.scalars(select(SourceItem)))) == 0
+        assert len(list(db.scalars(select(SourceItem)))) == 1
+    finally:
+        db.close()
+
+
+def test_disclosures_to_source_items_converts_only_missing_items(tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        first = service.create_disclosure(
+            db,
+            CompanyDisclosureCreate(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="已入流公告",
+                publish_time=datetime(2026, 6, 5),
+                source_url="http://static.cninfo.com.cn/finalpage/already.PDF",
+                parse_status="pending",
+            ),
+        )
+        second = service.create_disclosure(
+            db,
+            CompanyDisclosureCreate(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="待入流公告",
+                publish_time=datetime(2026, 6, 6),
+                source_url="http://static.cninfo.com.cn/finalpage/missing.PDF",
+                parse_status="pending",
+            ),
+        )
+        service.disclosure_to_source_item(db, first)
+
+        result = service.disclosures_to_missing_source_items(db)
+
+        source_items = list(db.scalars(select(SourceItem).order_by(SourceItem.id.asc())))
+        assert result == {"total": 2, "converted": 1, "skipped": 1}
+        assert len(source_items) == 2
+        assert source_items[1].related_type == "company_disclosure"
+        assert source_items[1].related_id == second.id
+
+        second_result = service.disclosures_to_missing_source_items(db)
+
+        assert second_result == {"total": 2, "converted": 0, "skipped": 2}
+        assert len(list(db.scalars(select(SourceItem)))) == 2
     finally:
         db.close()
 
@@ -220,4 +265,25 @@ def test_stock_announcement_job_replaces_generic_cninfo_job():
     assert job.display_name == "拉取标的公告"
     assert job.cron_expr == "30 8 * * *"
     assert job.params_schema["days"]["default"] == 30
-    assert "auto_to_source_item" not in job.params_schema
+    assert job.params_schema["auto_to_source_item"] == {"type": "boolean", "label": "自动写入信息流", "default": True}
+
+
+def test_stock_announcement_job_defaults_to_auto_source_item(monkeypatch):
+    captured = {}
+
+    class DummySession:
+        def close(self):
+            captured["closed"] = True
+
+    monkeypatch.setattr(disclosure_jobs, "SessionLocal", lambda: DummySession())
+
+    def fake_fetch_stock_announcements(db, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(success=True, message="ok")
+
+    monkeypatch.setattr(disclosure_jobs.service, "fetch_stock_announcements", fake_fetch_stock_announcements)
+
+    disclosure_jobs.fetch_stock_announcements_job()
+
+    assert captured["auto_to_source_item"] is True
+    assert captured["closed"] is True

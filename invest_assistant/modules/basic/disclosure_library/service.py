@@ -53,7 +53,7 @@ def fetch_stock_announcements(
     pool_status: str = "focused,watching,candidate",
     page_size: int = 30,
     max_pages: int = 2,
-    auto_to_source_item: bool = False,
+    auto_to_source_item: bool = True,
     category: str = "",
 ) -> JobResult:
     stocks = _target_announcement_stocks(db, stock_code, pool_status)
@@ -173,6 +173,20 @@ def disclosure_to_source_item(db: Session, item: CompanyDisclosure):
             related_id=item.id,
         ),
     )
+
+
+def disclosures_to_missing_source_items(db: Session) -> dict[str, int]:
+    total = 0
+    converted = 0
+    skipped = 0
+    for item in repository.list_disclosures(db):
+        total += 1
+        if not _source_item_missing(db, item):
+            skipped += 1
+            continue
+        disclosure_to_source_item(db, item)
+        converted += 1
+    return {"total": total, "converted": converted, "skipped": skipped}
 
 
 def disclosure_to_stock_analysis(db: Session, item: CompanyDisclosure) -> dict:
