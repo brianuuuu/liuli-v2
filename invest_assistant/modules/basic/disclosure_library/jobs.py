@@ -3,15 +3,25 @@ from invest_assistant.modules.basic.disclosure_library import service
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
 
 
-def fetch_cninfo_job(keyword: str = "", page_num: int = 1, page_size: int = 30, **kwargs) -> JobResult:
+def fetch_stock_announcements_job(
+    stock_code: str | None = None,
+    days: int = 30,
+    pool_status: str = "focused,watching,candidate",
+    page_size: int = 30,
+    max_pages: int = 2,
+    auto_to_source_item: bool = True,
+    **kwargs,
+) -> JobResult:
     db = SessionLocal()
     try:
-        items = service.fetch_cninfo(db, keyword=keyword, page_num=page_num, page_size=page_size)
-        return JobResult(
-            success=True,
-            message=f"fetched {len(items)} cninfo disclosures",
-            fetched_count=len(items),
-            inserted_count=len(items),
+        return service.fetch_stock_announcements(
+            db,
+            stock_code=stock_code,
+            days=days,
+            pool_status=pool_status,
+            page_size=page_size,
+            max_pages=max_pages,
+            auto_to_source_item=auto_to_source_item,
         )
     except Exception as exc:
         return JobResult(success=False, message=str(exc))
@@ -63,14 +73,24 @@ def to_market_radar_job(disclosure_id: int, **kwargs) -> JobResult:
 
 JOBS = [
     JobDefinition(
-        job_name="disclosure_library.fetch_cninfo",
+        job_name="disclosure_library.fetch_stock_announcements",
         module_name="disclosure_library",
-        display_name="拉取巨潮公告财报",
-        description="拉取巨潮公告/财报元数据并写入 company_disclosure",
-        handler=fetch_cninfo_job,
-        trigger_type="manual",
-        timeout_seconds=180,
+        display_name="拉取标的公告",
+        description="按标的池从巨潮拉取最近公告，写入公告库并转写市场雷达信息流",
+        handler=fetch_stock_announcements_job,
+        trigger_type="both",
+        cron_expr="30 8 * * *",
+        timeout_seconds=900,
         max_retries=1,
+        params_schema={
+            "stock_code": {"type": "string", "label": "特定股票代码", "placeholder": "选填，输入6位股票代码"},
+            "days": {"type": "number", "label": "最近天数", "default": 30, "min": 1},
+            "pool_status": {"type": "string", "label": "标的池状态", "default": "focused,watching,candidate"},
+            "page_size": {"type": "number", "label": "每页公告数", "default": 30, "min": 1},
+            "max_pages": {"type": "number", "label": "每只最多页数", "default": 2, "min": 1},
+            "auto_to_source_item": {"type": "boolean", "label": "自动写入信息流", "default": True},
+        },
+        tags=["announcement", "cninfo", "stock_pool"],
     ),
     JobDefinition(
         job_name="disclosure_library.download_file",

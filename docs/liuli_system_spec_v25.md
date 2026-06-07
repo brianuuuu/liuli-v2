@@ -290,7 +290,7 @@ Worker 进程负责：
 聚合市场热度
 聚合标签关系
 同步股票基础库
-拉取巨潮公告财报
+拉取标的公告
 下载 PDF
 解析 PDF
 生成报告
@@ -1139,7 +1139,7 @@ market_radar.aggregate_edges
 
 stock_master.sync_stock_basic
 
-disclosure_library.fetch_cninfo
+disclosure_library.fetch_stock_announcements
 disclosure_library.parse_pdf
 
 alert_center.evaluate_rules

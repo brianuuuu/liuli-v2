@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import select
@@ -9,9 +10,13 @@ from invest_assistant.modules.basic.disclosure_library.schemas import (
     CompanyDisclosureCreate,
     CompanyDisclosureUpdate,
 )
+from invest_assistant.modules.basic.job_center.types import JobResult
+from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.market_radar.service import create_source_item
-from invest_assistant.modules.stock_analysis.models import StockMaterial
+from invest_assistant.modules.stock_analysis.models import StockMaterial, StockPoolItem
+from invest_assistant.shared.time_utils import beijing_now
 
 
 def list_disclosures(db: Session) -> list[CompanyDisclosure]:
@@ -41,6 +46,92 @@ def fetch_cninfo(db: Session, keyword: str = "", page_num: int = 1, page_size: i
     return [repository.upsert_disclosure(db, payload) for payload in payloads]
 
 
+def fetch_stock_announcements(
+    db: Session,
+    stock_code: str | None = None,
+    days: int = 30,
+    pool_status: str = "focused,watching,candidate",
+    page_size: int = 30,
+    max_pages: int = 2,
+    auto_to_source_item: bool = True,
+    category: str = "",
+) -> JobResult:
+    stocks = _target_announcement_stocks(db, stock_code, pool_status)
+    if not stocks:
+        return JobResult(success=True, message="no target stocks for announcements", extra={"per_stock": []})
+
+    end_date = beijing_now().date()
+    start_date = end_date - timedelta(days=max(int(days), 1))
+    fetched_count = 0
+    inserted_count = 0
+    updated_count = 0
+    skipped_count = 0
+    source_item_inserted_count = 0
+    per_stock = []
+
+    for stock in stocks:
+        stock_summary = {
+            "stock_code": stock.stock_code,
+            "stock_name": stock.stock_name,
+            "fetched": 0,
+            "inserted": 0,
+            "updated": 0,
+            "skipped": 0,
+            "source_item_inserted": 0,
+            "error": None,
+        }
+        try:
+            payloads = cninfo_client.fetch_stock_announcements(
+                stock.stock_code,
+                start_date=start_date,
+                end_date=end_date,
+                page_size=page_size,
+                max_pages=max_pages,
+                category=category,
+            )
+        except Exception as exc:
+            stock_summary["error"] = str(exc)
+            skipped_count += 1
+            stock_summary["skipped"] += 1
+            per_stock.append(stock_summary)
+            continue
+
+        fetched_count += len(payloads)
+        stock_summary["fetched"] = len(payloads)
+        for payload in payloads:
+            payload = payload.model_copy(update={"stock_id": stock.id})
+            existing = repository.find_duplicate(db, payload)
+            item = repository.upsert_disclosure(db, payload)
+            if existing is None:
+                inserted_count += 1
+                stock_summary["inserted"] += 1
+            else:
+                updated_count += 1
+                stock_summary["updated"] += 1
+            if auto_to_source_item and _source_item_missing(db, item):
+                disclosure_to_source_item(db, item)
+                source_item_inserted_count += 1
+                stock_summary["source_item_inserted"] += 1
+        per_stock.append(stock_summary)
+
+    return JobResult(
+        success=True,
+        message=(
+            f"fetched {fetched_count} stock announcements; "
+            f"inserted {inserted_count}, updated {updated_count}, source items {source_item_inserted_count}"
+        ),
+        fetched_count=fetched_count,
+        processed_count=len(stocks),
+        inserted_count=inserted_count,
+        updated_count=updated_count,
+        skipped_count=skipped_count,
+        extra={
+            "source_item_inserted_count": source_item_inserted_count,
+            "per_stock": per_stock,
+        },
+    )
+
+
 def download_disclosure_file(db: Session, item: CompanyDisclosure) -> CompanyDisclosure:
     if not item.source_url:
         raise ValueError("source_url is required")
@@ -66,10 +157,9 @@ def parse_disclosure_file(db: Session, item: CompanyDisclosure) -> CompanyDisclo
 
 def disclosure_to_source_item(db: Session, item: CompanyDisclosure):
     parsed_path = resolve_path(item.parsed_markdown_path or item.parsed_text_path)
+    content = _disclosure_source_content(db, item)
     if parsed_path is not None and parsed_path.exists():
-        content = parsed_path.read_text(encoding="utf-8")
-    else:
-        content = item.title
+        content = f"{content}\n\n{parsed_path.read_text(encoding='utf-8')}"
     return create_source_item(
         db,
         SourceItemCreate(
@@ -79,6 +169,8 @@ def disclosure_to_source_item(db: Session, item: CompanyDisclosure):
             content=content,
             source_url=item.source_url,
             publish_time=item.publish_time,
+            related_type="company_disclosure",
+            related_id=item.id,
         ),
     )
 
@@ -118,3 +210,70 @@ def disclosure_to_stock_analysis(db: Session, item: CompanyDisclosure) -> dict:
         "created_at": material.created_at,
         "updated_at": material.updated_at,
     }
+
+
+def _target_announcement_stocks(db: Session, stock_code: str | None, pool_status: str) -> list[Stock]:
+    if stock_code and str(stock_code).strip():
+        code = str(stock_code).strip()
+        return list(
+            db.scalars(
+                select(Stock)
+                .where(Stock.stock_code == code, Stock.status == "active")
+                .order_by(Stock.id.asc())
+            )
+        )
+
+    statuses = [item.strip() for item in str(pool_status or "").split(",") if item.strip()]
+    stmt = (
+        select(Stock)
+        .join(StockPoolItem, StockPoolItem.stock_id == Stock.id)
+        .where(Stock.status == "active")
+        .order_by(StockPoolItem.updated_at.desc(), StockPoolItem.id.desc())
+    )
+    if statuses:
+        stmt = stmt.where(StockPoolItem.status.in_(statuses))
+    stocks = []
+    seen_stock_ids = set()
+    for stock in db.scalars(stmt):
+        if stock.id in seen_stock_ids:
+            continue
+        seen_stock_ids.add(stock.id)
+        stocks.append(stock)
+    return stocks
+
+
+def _source_item_missing(db: Session, item: CompanyDisclosure) -> bool:
+    if item.source_url:
+        existing = db.scalar(
+            select(SourceItem).where(
+                SourceItem.source_type == "announcement",
+                SourceItem.source_name == item.source,
+                SourceItem.source_url == item.source_url,
+            )
+        )
+        return existing is None
+    existing = db.scalar(
+        select(SourceItem).where(
+            SourceItem.source_type == "announcement",
+            SourceItem.source_name == item.source,
+            SourceItem.publish_time == item.publish_time,
+            SourceItem.title == item.title,
+        )
+    )
+    return existing is None
+
+
+def _disclosure_source_content(db: Session, item: CompanyDisclosure) -> str:
+    stock = db.get(Stock, item.stock_id) if item.stock_id is not None else None
+    stock_name = stock.stock_name if stock is not None else None
+    stock_code = stock.stock_code if stock is not None else item.report_period
+    lines = [
+        f"股票简称：{stock_name or '-'}",
+        f"股票代码：{stock_code or '-'}",
+        f"公告类型：{item.disclosure_type}",
+        f"公告日期：{item.publish_time.date().isoformat() if item.publish_time else '-'}",
+        f"公告标题：{item.title}",
+    ]
+    if item.source_url:
+        lines.append(f"公告原文：{item.source_url}")
+    return "\n".join(lines)
