@@ -18,13 +18,16 @@ export type KnowledgeNoteQuery = {
 export function groupKnowledgeNotesByDate<T extends KnowledgeNoteLike>(rows: T[]) {
   const sortedRows = [...rows].sort((a, b) => noteTime(b).localeCompare(noteTime(a)));
   const groups: Array<{ date: string; items: T[] }> = [];
+  const dateMap = new Map<string, { date: string; items: T[] }>();
+  
   for (const item of sortedRows) {
     const date = noteDate(item);
-    const lastGroup = groups[groups.length - 1];
-    if (!lastGroup || lastGroup.date !== date) {
-      groups.push({ date, items: [item] });
+    if (!dateMap.has(date)) {
+      const group = { date, items: [item] };
+      dateMap.set(date, group);
+      groups.push(group);
     } else {
-      lastGroup.items.push(item);
+      dateMap.get(date)!.items.push(item);
     }
   }
   return groups;
@@ -54,6 +57,6 @@ function noteTime(item: KnowledgeNoteLike) {
 }
 
 function noteDate(item: KnowledgeNoteLike) {
-  const value = noteTime(item);
+  const value = String(item.created_at || "");
   return value ? value.slice(0, 10) : "未注明日期";
 }

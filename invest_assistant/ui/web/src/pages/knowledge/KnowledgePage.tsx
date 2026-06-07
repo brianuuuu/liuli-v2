@@ -55,11 +55,6 @@ const noteTypeOptions = [
   { value: "market", label: "市场观察" }
 ];
 
-const statusOptions = [
-  { value: "active", label: "全部" },
-  { value: "archived", label: "已归档" },
-  { value: "deleted", label: "已删除" }
-];
 
 const promptDefaults: KnowledgePromptPayload = {
   prompt_key: "market_radar.extract_daily_hotwords_deepseek",
@@ -319,23 +314,6 @@ function NotesSection() {
             </Row>
           </Form>
 
-          <div className="knowledge-notes-toolbar">
-            <Space size={4} className="toolbar-status-buttons">
-              {statusOptions.map((item) => (
-                <button
-                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                  key={item.value}
-                  onClick={() => setStatusFilter(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </Space>
-            <Space size={8}>
-              <Input.Search allowClear placeholder="搜索标题或正文" value={keyword} onChange={(event) => setKeyword(event.target.value)} style={{ width: 220 }} />
-              <Button size="small" icon={<ReloadOutlined />} loading={loading} onClick={refreshFirstPage}>刷新</Button>
-            </Space>
-          </div>
 
           <div className="knowledge-notes-scroll" onScroll={handleScroll}>
             {groupedNotes.map((group) => (
@@ -343,29 +321,42 @@ function NotesSection() {
                 <div className="knowledge-date-label">{group.date}</div>
                 {group.items.map((note) => (
                   <article className="knowledge-note-row" key={note.id}>
-                    <div className="knowledge-note-time">{formatTime(note.updated_at || note.created_at)}</div>
+                    <div className="knowledge-note-time">{formatTime(note.created_at)}</div>
                     <div className="knowledge-note-card">
-                      <div className="knowledge-note-head">
-                        <div>
-                          <Typography.Text strong>{note.title}</Typography.Text>
-                          <div className="knowledge-note-meta">
-                            <span>{noteTypeLabel(note.note_type)}</span>
-                            {note.group ? <span>{note.group.name}</span> : <span>未分组</span>}
-                            <span>{formatDate(note.updated_at || note.created_at)}</span>
-                          </div>
-                        </div>
-                        <Space size={4}>
-                          <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingNote(note); setNoteDrawerOpen(true); }}>编辑</Button>
-                          {note.status === "active" ? <Button size="small" icon={<FolderOutlined />} onClick={() => archiveNote(note)}>归档</Button> : null}
-                          {note.status !== "active" ? <Button size="small" onClick={() => restoreNote(note)}>恢复</Button> : null}
-                          <Popconfirm title="删除这条笔记？" description="删除后进入已删除，可恢复。" okText="删除" cancelText="取消" onConfirm={() => removeNote(note)}>
-                            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
-                          </Popconfirm>
-                        </Space>
+                      <div className="knowledge-note-head-title">
+                        <Typography.Text strong style={{ fontSize: "14px" }}>{note.title}</Typography.Text>
                       </div>
                       <p className="knowledge-note-content">{note.content}</p>
-                      <div className="knowledge-note-tags">
-                        {note.tags.length ? note.tags.map((tag) => <Tag key={tag.id} onClick={() => setTagFilter(tag.id)}>#{tag.name}</Tag>) : <span>暂无标签</span>}
+                      
+                      <div className="knowledge-note-footer">
+                        <div className="knowledge-note-meta">
+                          <span className="meta-type-tag">{noteTypeLabel(note.note_type)}</span>
+                          <span className="meta-group-tag">{note.group ? note.group.name : "未分组"}</span>
+                          <span className="meta-date-tag">{formatDate(note.created_at)}</span>
+                          {note.tags.length ? (
+                            note.tags.map((tag) => (
+                              <span key={tag.id} className="meta-tag-link" onClick={() => setTagFilter(tag.id)}>
+                                #{tag.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="meta-no-tags">暂无标签</span>
+                          )}
+                        </div>
+                        <div className="knowledge-note-actions">
+                          <Space size={6}>
+                            <Button type="text" size="small" icon={<EditOutlined />} onClick={() => { setEditingNote(note); setNoteDrawerOpen(true); }} className="knowledge-note-action-btn">编辑</Button>
+                            {note.status === "active" ? (
+                              <Button type="text" size="small" icon={<FolderOutlined />} onClick={() => archiveNote(note)} className="knowledge-note-action-btn">归档</Button>
+                            ) : null}
+                            {note.status !== "active" ? (
+                              <Button type="text" size="small" onClick={() => restoreNote(note)} className="knowledge-note-action-btn">恢复</Button>
+                            ) : null}
+                            <Popconfirm title="删除这条笔记？" description="删除后进入已删除，可恢复。" okText="删除" cancelText="取消" onConfirm={() => removeNote(note)}>
+                              <Button type="text" size="small" danger icon={<DeleteOutlined />} className="knowledge-note-action-btn danger">删除</Button>
+                            </Popconfirm>
+                          </Space>
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -380,9 +371,23 @@ function NotesSection() {
 
         <aside className="knowledge-notes-filter">
           <Typography.Text strong>筛选与整理</Typography.Text>
+          <Input.Search
+            allowClear
+            placeholder="搜索标题或正文"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            style={{ width: "100%" }}
+          />
           <Select allowClear placeholder="按标签筛选" value={tagFilter} options={tagOptions} onChange={setTagFilter} optionFilterProp="label" showSearch />
           <Select allowClear placeholder="按分组筛选" value={groupFilter} options={groupOptions} onChange={setGroupFilter} />
-          <Button onClick={() => { setTagFilter(undefined); setGroupFilter(undefined); setKeyword(""); setStatusFilter("active"); }}>重置筛选</Button>
+          <Row gutter={8}>
+            <Col span={12}>
+              <Button block onClick={() => { setTagFilter(undefined); setGroupFilter(undefined); setKeyword(""); setStatusFilter("active"); }}>重置筛选</Button>
+            </Col>
+            <Col span={12}>
+              <Button block icon={<ReloadOutlined />} loading={loading} onClick={refreshFirstPage}>刷新</Button>
+            </Col>
+          </Row>
           <div className="knowledge-filter-hint">
             标签来自已有标签词表；这里不会自动创建新标签，也不会写入股票/赛道/热词绑定。
           </div>
