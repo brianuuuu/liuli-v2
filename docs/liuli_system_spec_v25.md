@@ -1143,9 +1143,6 @@ disclosure_library.fetch_cninfo
 disclosure_library.parse_pdf
 
 alert_center.evaluate_rules
-
-knowledge_base.extract_skills
-knowledge_base.compile_agents
 ```
 
 ### 14.5 任务执行结果规范

@@ -1,7 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.knowledge_base.models import (
     KnowledgeAgent,
     KnowledgeFeedbackLog,
@@ -250,13 +249,3 @@ def run_agent(db: Session, agent: KnowledgeAgent) -> KnowledgeFeedbackLog:
 
 def list_feedback_logs(db: Session) -> list[KnowledgeFeedbackLog]:
     return list(db.scalars(select(KnowledgeFeedbackLog).order_by(KnowledgeFeedbackLog.id.desc())))
-
-
-def extract_skills(db: Session) -> JobResult:
-    notes = list_notes(db)
-    return JobResult(success=True, message=f"processed {len(notes)} knowledge notes", processed_count=len(notes))
-
-
-def compile_agents(db: Session) -> JobResult:
-    agents = list_agents(db)
-    return JobResult(success=True, message=f"compiled {len(agents)} knowledge agents", processed_count=len(agents))

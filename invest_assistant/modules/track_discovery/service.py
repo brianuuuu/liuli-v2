@@ -3,7 +3,6 @@ from collections import defaultdict
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
@@ -568,19 +567,6 @@ def market_radar_candidates(db: Session, window: str = "24h") -> list[dict]:
         .order_by(TagHeatSnapshot.rank_no.asc())
     ).all()
     return [{"tag": _tag_dict(tag), "heat": _heat_dict(snapshot)} for snapshot, tag in rows]
-
-
-def generate_candidates_job(db: Session) -> JobResult:
-    candidates = market_radar_candidates(db)
-    return JobResult(success=True, message=f"generated {len(candidates)} track candidates", processed_count=len(candidates))
-
-
-def collect_materials_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="track materials are curated manually")
-
-
-def refresh_bound_stocks_job(db: Session) -> JobResult:
-    return JobResult(success=True, message="stock-track relations are curated manually")
 
 
 def _tag_dict(tag: Tag) -> dict:
