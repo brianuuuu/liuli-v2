@@ -1,10 +1,22 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.shared.time_utils import utc_now
+
+
+class KnowledgeNoteGroup(Base):
+    __tablename__ = "knowledge_note_group"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class KnowledgeNote(Base):
@@ -14,12 +26,23 @@ class KnowledgeNote(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     note_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_note_group.id"), nullable=True, index=True)
     related_module: Mapped[str | None] = mapped_column(String(64), nullable=True)
     related_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tags: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class KnowledgeNoteTagRelation(Base):
+    __tablename__ = "knowledge_note_tag_relation"
+    __table_args__ = (UniqueConstraint("note_id", "tag_id", name="uq_knowledge_note_tag_relation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    note_id: Mapped[int] = mapped_column(ForeignKey("knowledge_note.id"), nullable=False, index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
 class KnowledgeSkill(Base):
@@ -80,3 +103,14 @@ class KnowledgeFeedbackLog(Base):
     result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     effectiveness: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+def ensure_knowledge_base_schema(engine: Engine) -> None:
+    KnowledgeNoteGroup.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeNoteTagRelation.__table__.create(bind=engine, checkfirst=True)
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        note_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_note)")).all()}
+        if "group_id" not in note_columns:
+            conn.execute(text("ALTER TABLE knowledge_note ADD COLUMN group_id INTEGER"))
