@@ -1,4 +1,4 @@
-import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutlined, DownOutlined, UpOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -127,6 +127,7 @@ function NotesSection() {
   const [quickForm] = Form.useForm<KnowledgeNotePayload>();
   const [editForm] = Form.useForm<KnowledgeNotePayload>();
   const [groupForm] = Form.useForm<{ name: string; sort_order: number }>();
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const activeTags = useMemo(() => tagData.data.filter((tag) => tag.status === "active"), [tagData.data]);
   const tagOptions = useMemo(() => activeTags.map((tag) => ({ value: tag.id, label: `#${tag.name}` })), [activeTags]);
@@ -279,52 +280,66 @@ function NotesSection() {
         </aside>
 
         <main className="knowledge-notes-main">
-          <Form form={quickForm} layout="vertical" className="knowledge-note-composer">
-            <Row gutter={10}>
-              <Col span={14}>
-                <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
-                  <Input placeholder="比如：复盘 GPU 服务器订单验证" />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
-                  <Select options={noteTypeOptions} />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item name="group_id" label="分组">
-                  <Select allowClear placeholder="未分组" options={groupOptions} />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item name="content" label="正文" rules={[{ required: true, message: "请输入正文" }]}>
-              <Input.TextArea rows={4} placeholder="记录判断、证据、待验证点。标签用下方 # 选择。" />
-            </Form.Item>
-            <Row gutter={10}>
-              <Col span={19}>
-                <Form.Item name="tag_ids" label="标签">
-                  <Select mode="multiple" allowClear showSearch placeholder="选择已有标签，展示为 #标签" options={tagOptions} optionFilterProp="label" />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item label=" ">
-                  <Button block type="primary" onClick={submitQuickNote}>保存笔记</Button>
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form>
+          <div className="knowledge-composer-header" onClick={() => setComposerExpanded(!composerExpanded)}>
+            <div className="composer-header-title">
+              <PlusOutlined style={{ marginRight: 6, color: "var(--ll-accent)" }} />
+              <span>新建知识笔记</span>
+            </div>
+            <div className="composer-header-extra">
+              <span style={{ fontSize: "12px", color: "var(--ll-muted)", marginRight: "8px" }}>
+                {composerExpanded ? "收起" : "展开"}
+              </span>
+              {composerExpanded ? <UpOutlined /> : <DownOutlined />}
+            </div>
+          </div>
+          {composerExpanded && (
+            <Form form={quickForm} layout="vertical" className="knowledge-note-composer">
+              <Row gutter={10}>
+                <Col span={14}>
+                  <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
+                    <Input placeholder="比如：复盘 GPU 服务器订单验证" />
+                  </Form.Item>
+                </Col>
+                <Col span={5}>
+                  <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
+                    <Select options={noteTypeOptions} />
+                  </Form.Item>
+                </Col>
+                <Col span={5}>
+                  <Form.Item name="group_id" label="分组">
+                    <Select allowClear placeholder="未分组" options={groupOptions} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="content" label="正文" rules={[{ required: true, message: "请输入正文" }]}>
+                <Input.TextArea rows={4} placeholder="记录判断、证据、待验证点。标签用下方 # 选择。" />
+              </Form.Item>
+              <Row gutter={10}>
+                <Col span={19}>
+                  <Form.Item name="tag_ids" label="标签">
+                    <Select mode="multiple" allowClear showSearch placeholder="选择已有标签，展示为 #标签" options={tagOptions} optionFilterProp="label" />
+                  </Form.Item>
+                </Col>
+                <Col span={5}>
+                  <Form.Item label=" ">
+                    <Button block type="primary" onClick={submitQuickNote}>保存笔记</Button>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+          )}
 
 
           <div className="knowledge-notes-scroll" onScroll={handleScroll}>
             {groupedNotes.map((group) => (
               <section className="knowledge-date-group" key={group.date}>
-                <div className="knowledge-date-label">{group.date}</div>
                 {group.items.map((note) => (
                   <article className="knowledge-note-row" key={note.id}>
-                    <div className="knowledge-note-time">{formatTime(note.created_at)}</div>
                     <div className="knowledge-note-card">
-                      <div className="knowledge-note-head-title">
-                        <Typography.Text strong style={{ fontSize: "14px" }}>{note.title}</Typography.Text>
+                      <div className="knowledge-note-head-title" style={{ marginBottom: "6px" }}>
+                        <Typography.Text type="secondary" style={{ fontSize: "12px" }}>
+                          {formatDate(note.updated_at || note.created_at)} {formatTime(note.updated_at || note.created_at)}
+                        </Typography.Text>
                       </div>
                       <p className="knowledge-note-content">{note.content}</p>
                       
@@ -332,7 +347,6 @@ function NotesSection() {
                         <div className="knowledge-note-meta">
                           <span className="meta-type-tag">{noteTypeLabel(note.note_type)}</span>
                           <span className="meta-group-tag">{note.group ? note.group.name : "未分组"}</span>
-                          <span className="meta-date-tag">{formatDate(note.created_at)}</span>
                           {note.tags.length ? (
                             note.tags.map((tag) => (
                               <span key={tag.id} className="meta-tag-link" onClick={() => setTagFilter(tag.id)}>
@@ -394,29 +408,51 @@ function NotesSection() {
         </aside>
       </div>
 
-      <Drawer title="编辑笔记" width={620} open={noteDrawerOpen} onClose={() => setNoteDrawerOpen(false)} extra={<Button type="primary" onClick={submitEditNote}>保存</Button>}>
-        <Form form={editForm} layout="vertical">
+      <Drawer
+        className="knowledge-drawer"
+        title={
+          <Space>
+            <EditOutlined style={{ color: "var(--ll-accent)" }} />
+            <span>编辑知识笔记</span>
+          </Space>
+        }
+        width={620}
+        open={noteDrawerOpen}
+        onClose={() => setNoteDrawerOpen(false)}
+        destroyOnClose
+        extra={
+          <Space size={8}>
+            <Button size="small" onClick={() => setNoteDrawerOpen(false)}>取消</Button>
+            <Button size="small" type="primary" onClick={submitEditNote}>保存修改</Button>
+          </Space>
+        }
+      >
+        <Form form={editForm} layout="vertical" className="knowledge-drawer-form">
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
-            <Input />
+            <Input size="small" placeholder="输入知识笔记的标题..." showCount maxLength={100} />
           </Form.Item>
-          <Row gutter={10}>
+          <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
-                <Select options={noteTypeOptions} />
+                <Select size="small" options={noteTypeOptions} placeholder="选择笔记类型" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="group_id" label="分组">
-                <Select allowClear placeholder="未分组" options={groupOptions} />
+                <Select size="small" allowClear placeholder="选择分组（可选）" options={groupOptions} />
               </Form.Item>
             </Col>
           </Row>
           <Form.Item name="content" label="正文" rules={[{ required: true, message: "请输入正文" }]}>
-            <Input.TextArea rows={10} />
+            <Input.TextArea size="small" rows={8} placeholder="在这里写下你的研究结论、逻辑、证据或投资原则..." showCount maxLength={5000} />
           </Form.Item>
-          <Form.Item name="tag_ids" label="标签">
-            <Select mode="multiple" allowClear showSearch options={tagOptions} optionFilterProp="label" />
+          <Form.Item name="tag_ids" label="关联标签">
+            <Select size="small" mode="multiple" allowClear showSearch options={tagOptions} optionFilterProp="label" placeholder="选择或搜索关联标签词（可多选）" />
           </Form.Item>
+          <div className="knowledge-drawer-hint">
+            <InfoCircleOutlined style={{ color: "var(--ll-accent)", marginRight: 6 }} />
+            <span>修改笔记将同步到该笔记在各赛道或标的回溯视图中的展示内容。</span>
+          </div>
         </Form>
       </Drawer>
 
