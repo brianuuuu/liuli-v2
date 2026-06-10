@@ -112,5 +112,18 @@ def ensure_knowledge_base_schema(engine: Engine) -> None:
         return
     with engine.begin() as conn:
         note_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_note)")).all()}
-        if "group_id" not in note_columns:
-            conn.execute(text("ALTER TABLE knowledge_note ADD COLUMN group_id INTEGER"))
+        note_column_migrations = {
+            "title": "ALTER TABLE knowledge_note ADD COLUMN title VARCHAR(255)",
+            "content": "ALTER TABLE knowledge_note ADD COLUMN content TEXT",
+            "note_type": "ALTER TABLE knowledge_note ADD COLUMN note_type VARCHAR(64)",
+            "group_id": "ALTER TABLE knowledge_note ADD COLUMN group_id INTEGER",
+            "related_module": "ALTER TABLE knowledge_note ADD COLUMN related_module VARCHAR(64)",
+            "related_id": "ALTER TABLE knowledge_note ADD COLUMN related_id INTEGER",
+            "tags": "ALTER TABLE knowledge_note ADD COLUMN tags TEXT",
+            "status": "ALTER TABLE knowledge_note ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active'",
+            "created_at": "ALTER TABLE knowledge_note ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE knowledge_note ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in note_column_migrations.items():
+            if column_name not in note_columns:
+                conn.execute(text(statement))
