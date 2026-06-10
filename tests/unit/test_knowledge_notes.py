@@ -155,20 +155,12 @@ def test_archiving_group_moves_notes_to_ungrouped():
         db.close()
 
 
-def test_ensure_knowledge_base_schema_adds_group_id_to_existing_sqlite_table():
+def test_ensure_knowledge_base_schema_adds_missing_note_columns_to_existing_sqlite_table():
     TEST_DB_ROOT.mkdir(parents=True, exist_ok=True)
     db_path = TEST_DB_ROOT / f"ensure-{uuid4()}.sqlite3"
     engine = create_engine(f"sqlite:///{db_path.as_posix()}", connect_args={"check_same_thread": False})
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                "CREATE TABLE knowledge_note ("
-                "id INTEGER PRIMARY KEY, title VARCHAR(255) NOT NULL, content TEXT NOT NULL, "
-                "note_type VARCHAR(64) NOT NULL, related_module VARCHAR(64), related_id INTEGER, "
-                "tags TEXT, status VARCHAR(32) NOT NULL DEFAULT 'active', "
-                "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
-            )
-        )
+        conn.execute(text("CREATE TABLE knowledge_note (id INTEGER PRIMARY KEY, content TEXT NOT NULL, note_type VARCHAR(64) NOT NULL)"))
 
     service.ensure_knowledge_base_schema(engine)
 
@@ -176,6 +168,25 @@ def test_ensure_knowledge_base_schema_adds_group_id_to_existing_sqlite_table():
         columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_note)")).all()}
         tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).all()}
 
-    assert "group_id" in columns
+    assert {
+        "title",
+        "content",
+        "note_type",
+        "group_id",
+        "related_module",
+        "related_id",
+        "tags",
+        "status",
+        "created_at",
+        "updated_at",
+    }.issubset(columns)
     assert "knowledge_note_group" in tables
     assert "knowledge_note_tag_relation" in tables
+
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    db = SessionLocal()
+    try:
+        note = service.create_note(db, KnowledgeNoteCreate(content="迁移后保存", note_type="review"))
+        assert note.title == "迁移后保存"
+    finally:
+        db.close()
