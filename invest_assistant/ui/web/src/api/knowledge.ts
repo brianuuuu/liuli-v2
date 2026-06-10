@@ -28,7 +28,7 @@ export type KnowledgeNote = {
 };
 
 export type KnowledgeNotePayload = {
-  title: string;
+  title?: string | null;
   content: string;
   note_type: string;
   group_id?: number | null;

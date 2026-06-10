@@ -28,7 +28,7 @@ class KnowledgeNoteTagRead(BaseModel):
 
 
 class KnowledgeNoteCreate(BaseModel):
-    title: str
+    title: str | None = None
     content: str
     note_type: str
     group_id: int | None = None

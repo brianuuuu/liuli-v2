@@ -99,6 +99,22 @@ function deriveQuickNoteTitle(content: string) {
   return firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
 }
 
+function noteSaveErrorMessage(error: unknown) {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) return String((item as { msg: unknown }).msg);
+        return "";
+      })
+      .filter(Boolean)
+      .join("；") || "请稍后重试";
+  }
+  return "请稍后重试";
+}
+
 function noteToPayload(note: KnowledgeNote): KnowledgeNotePayload {
   return {
     title: note.title,
@@ -215,26 +231,34 @@ function NotesSection() {
 
   async function submitQuickNote() {
     const values = await quickForm.validateFields();
-    const content = values.content.trim();
+    const content = String(values.content || "").trim();
     if (!content) {
       message.warning("请输入笔记内容");
       return;
     }
-    await createKnowledgeNote({ ...noteDefaults, ...values, content, title: deriveQuickNoteTitle(content), status: "active" });
-    quickForm.resetFields();
-    quickForm.setFieldsValue(noteDefaults);
-    message.success("笔记已保存");
-    await refreshFirstPage();
+    try {
+      await createKnowledgeNote({ ...noteDefaults, ...values, content, title: deriveQuickNoteTitle(content), status: "active" });
+      quickForm.resetFields();
+      quickForm.setFieldsValue(noteDefaults);
+      message.success("笔记已保存");
+      await refreshFirstPage();
+    } catch (error) {
+      message.error(`笔记保存失败：${noteSaveErrorMessage(error)}`);
+    }
   }
 
   async function submitEditNote() {
     if (!editingNote) return;
     const values = await editForm.validateFields();
-    await updateKnowledgeNote(editingNote.id, { ...noteToPayload(editingNote), ...values });
-    setNoteDrawerOpen(false);
-    setEditingNote(null);
-    message.success("笔记已更新");
-    await refreshFirstPage();
+    try {
+      await updateKnowledgeNote(editingNote.id, { ...noteToPayload(editingNote), ...values });
+      setNoteDrawerOpen(false);
+      setEditingNote(null);
+      message.success("笔记已更新");
+      await refreshFirstPage();
+    } catch (error) {
+      message.error(`笔记更新失败：${noteSaveErrorMessage(error)}`);
+    }
   }
 
   async function archiveNote(note: KnowledgeNote) {
