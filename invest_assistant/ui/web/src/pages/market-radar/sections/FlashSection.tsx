@@ -56,8 +56,9 @@ export function FlashSection() {
       setLoadingMoreSources(true);
     }
     try {
-      const nextItems = await listSourceItems({ limit: FLASH_PAGE_SIZE, offset });
-      setHasMoreSources(nextItems.length === FLASH_PAGE_SIZE);
+      const page = await listSourceItems({ limit: FLASH_PAGE_SIZE, offset });
+      const nextItems = page.items;
+      setHasMoreSources(page.has_more);
       setSourceItems((currentItems) => {
         if (replace) return nextItems;
         const seenIds = new Set(currentItems.map((item) => item.id));

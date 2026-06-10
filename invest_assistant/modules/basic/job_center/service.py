@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunLog, JobRunRequest
@@ -6,6 +6,7 @@ from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.job_center.schemas import JobConfigUpdate
 from invest_assistant.modules.basic.job_center.types import JobDefinition
 from invest_assistant.shared.db_types import dumps_json
+from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
 
 def _schedule_kind_from_cron(cron_expr: str | None) -> str:
@@ -142,5 +143,23 @@ def list_run_requests(db: Session) -> list[JobRunRequest]:
     return list(db.scalars(select(JobRunRequest).order_by(JobRunRequest.requested_at.desc(), JobRunRequest.id.desc())))
 
 
+def list_run_requests_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[JobRunRequest]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(JobRunRequest).order_by(JobRunRequest.requested_at.desc(), JobRunRequest.id.desc())
+    total = int(db.scalar(select(func.count(JobRunRequest.id))) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page(items, total, safe_limit, safe_offset)
+
+
 def list_job_logs(db: Session, job_name: str) -> list[JobRunLog]:
     return list(db.scalars(select(JobRunLog).where(JobRunLog.job_name == job_name).order_by(JobRunLog.started_at.desc())))
+
+
+def list_job_logs_page(db: Session, job_name: str, limit: int | None = 50, offset: int = 0) -> Page[JobRunLog]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(JobRunLog).where(JobRunLog.job_name == job_name).order_by(JobRunLog.started_at.desc(), JobRunLog.id.desc())
+    total = int(db.scalar(select(func.count(JobRunLog.id)).where(JobRunLog.job_name == job_name)) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page(items, total, safe_limit, safe_offset)

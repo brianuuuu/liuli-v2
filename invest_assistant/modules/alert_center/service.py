@@ -6,6 +6,7 @@ from invest_assistant.modules.alert_center.schemas import AlertEventCreate, Aler
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.models import Tag, TagHeatSnapshot
 from invest_assistant.shared.db_types import loads_json
+from invest_assistant.shared.pagination import Page, page_from_statement
 
 
 def create_rule(db: Session, payload: AlertRuleCreate, user_id: int | None) -> AlertRule:
@@ -30,6 +31,23 @@ def create_event(db: Session, payload: AlertEventCreate) -> AlertEvent:
 
 def list_events(db: Session) -> list[AlertEvent]:
     return list(db.scalars(select(AlertEvent).order_by(AlertEvent.event_time.desc(), AlertEvent.id.desc())))
+
+
+def list_events_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[AlertEvent]:
+    stmt = select(AlertEvent).order_by(AlertEvent.event_time.desc(), AlertEvent.id.desc())
+    return page_from_statement(db, stmt, limit=limit, offset=offset)
+
+
+def event_stats(db: Session) -> dict[str, int]:
+    rows = db.execute(select(AlertEvent.status, func.count(AlertEvent.id)).group_by(AlertEvent.status)).all()
+    stats = {"total": 0, "unread": 0, "read": 0, "handled": 0}
+    for status, count in rows:
+        value = int(count or 0)
+        stats["total"] += value
+        if status in stats:
+            stats[str(status)] += value
+    stats["unhandled"] = stats["unread"] + stats["read"]
+    return stats
 
 
 def get_event(db: Session, event_id: int) -> AlertEvent | None:

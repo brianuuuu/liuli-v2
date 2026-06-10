@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -23,6 +23,7 @@ from invest_assistant.modules.track_discovery.schemas import (
     TrackStatusChange,
     TrackUpdate,
 )
+from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
 
 def create_track(db: Session, payload: TrackCreate) -> dict:
@@ -179,15 +180,19 @@ def get_dashboard(db: Session) -> dict:
         heat_trends.append({"track_id": track_id, "track_name": track_by_id[track_id].name, "points": points})
 
     latest_materials = []
-    material_rows = sorted(
-        db.scalars(select(TrackMaterial).where(TrackMaterial.track_id.in_(track_ids))),
-        key=lambda item: (
-            0 if item.status == "pending" else 1,
-            -(item.updated_at.timestamp() if item.updated_at else 0),
-            -item.id,
-        ),
+    material_rows = list(
+        db.scalars(
+            select(TrackMaterial)
+            .where(TrackMaterial.track_id.in_(track_ids))
+            .order_by(
+                case((TrackMaterial.status == "pending", 0), else_=1),
+                TrackMaterial.updated_at.desc(),
+                TrackMaterial.id.desc(),
+            )
+            .limit(10)
+        )
     )
-    for item in material_rows[:10]:
+    for item in material_rows:
         row = _material_dict(db, item)
         row["track_name"] = track_by_id.get(item.track_id).name if track_by_id.get(item.track_id) else f"#{item.track_id}"
         latest_materials.append(row)
@@ -331,6 +336,29 @@ def list_materials(
     return _material_dicts(db, list(db.scalars(stmt)))
 
 
+def list_materials_page(
+    db: Session,
+    track_id: int,
+    statuses: list[str] | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = (
+        select(TrackMaterial)
+        .where(TrackMaterial.track_id == track_id)
+        .order_by(TrackMaterial.updated_at.desc(), TrackMaterial.id.desc())
+    )
+    count_stmt = select(func.count(TrackMaterial.id)).where(TrackMaterial.track_id == track_id)
+    if statuses:
+        stmt = stmt.where(TrackMaterial.status.in_(statuses))
+        count_stmt = count_stmt.where(TrackMaterial.status.in_(statuses))
+    total = int(db.scalar(count_stmt) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page(_material_dicts(db, items), total, safe_limit, safe_offset)
+
+
 def list_all_materials(
     db: Session,
     track_id: int | None = None,
@@ -351,6 +379,30 @@ def list_all_materials(
     track_ids = {item.track_id for item in items}
     track_by_id = {track.id: track for track in db.scalars(select(Track).where(Track.id.in_(track_ids)))} if track_ids else {}
     return _material_dicts(db, items, track_by_id=track_by_id)
+
+
+def list_all_materials_page(
+    db: Session,
+    track_id: int | None = None,
+    statuses: list[str] | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(TrackMaterial).order_by(TrackMaterial.updated_at.desc(), TrackMaterial.id.desc())
+    count_stmt = select(func.count(TrackMaterial.id))
+    if track_id is not None:
+        stmt = stmt.where(TrackMaterial.track_id == track_id)
+        count_stmt = count_stmt.where(TrackMaterial.track_id == track_id)
+    if statuses:
+        stmt = stmt.where(TrackMaterial.status.in_(statuses))
+        count_stmt = count_stmt.where(TrackMaterial.status.in_(statuses))
+    total = int(db.scalar(count_stmt) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    track_ids = {item.track_id for item in items}
+    track_by_id = {track.id: track for track in db.scalars(select(Track).where(Track.id.in_(track_ids)))} if track_ids else {}
+    return make_page(_material_dicts(db, items, track_by_id=track_by_id), total, safe_limit, safe_offset)
 
 
 def update_material(db: Session, material_id: int, payload: TrackMaterialUpdate) -> TrackMaterial | None:

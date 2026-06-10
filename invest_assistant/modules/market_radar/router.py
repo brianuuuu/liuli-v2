@@ -24,6 +24,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagUpdate,
 )
 from invest_assistant.modules.basic.job_center.dispatcher import execute_job
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/market-radar", tags=["market_radar"], dependencies=[Depends(get_current_user)])
 
@@ -32,18 +33,18 @@ router = APIRouter(prefix="/api/market-radar", tags=["market_radar"], dependenci
 def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
         "source_items": service.count_source_items(db),
-        "tags": len(service.list_tags(db)),
-        "ai_tag_suggestions": len(service.list_ai_tag_suggestions(db)),
+        "tags": service.count_tags(db),
+        "ai_tag_suggestions": service.count_ai_tag_suggestions(db),
     }
 
 
-@router.get("/source-items", response_model=list[SourceItemRead])
+@router.get("/source-items", response_model=Page[SourceItemRead])
 def list_source_items(
-    limit: int = Query(200, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-) -> list:
-    return service.list_source_items(db, limit=limit, offset=offset)
+) -> Page[dict]:
+    return service.list_source_items_page(db, limit=limit, offset=offset)
 
 
 @router.get("/source-items/daily-stats")
@@ -120,9 +121,19 @@ def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
     return service.create_hotword(db, payload)
 
 
-@router.get("/hotwords", response_model=list[HotwordRead])
-def list_hotwords(status: str | None = None, db: Session = Depends(get_db)) -> list:
-    return service.list_hotwords(db, status)
+@router.get("/hotwords", response_model=Page[HotwordRead])
+def list_hotwords(
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[dict]:
+    return service.list_hotwords_page(db, status=status, limit=limit, offset=offset)
+
+
+@router.get("/hotwords/stats")
+def hotword_stats(target_date: date | None = None, db: Session = Depends(get_db)) -> dict[str, int]:
+    return service.hotword_stats(db, target_date)
 
 
 @router.get("/hotwords/{hotword_id}/tags", response_model=list[TagBindingRead])
@@ -170,9 +181,14 @@ def track_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> d
     return service.graph_edges(db, "track_hotword", window)
 
 
-@router.get("/ai-tag-suggestions", response_model=list[AiTagSuggestionRead])
-def list_ai_tag_suggestions(db: Session = Depends(get_db)) -> list:
-    return service.list_ai_tag_suggestions(db)
+@router.get("/ai-tag-suggestions", response_model=Page[AiTagSuggestionRead])
+def list_ai_tag_suggestions(
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page:
+    return service.list_ai_tag_suggestions_page(db, status=status, limit=limit, offset=offset)
 
 
 @router.post("/ai-tag-suggestions", response_model=AiTagSuggestionRead)

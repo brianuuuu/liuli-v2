@@ -29,6 +29,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagUpdate,
 )
 from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
+from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 from invest_assistant.shared.time_utils import beijing_now, utc_now
 
 WINDOWS = {
@@ -81,6 +82,13 @@ def list_tags(db: Session, tag_type: str | None = None) -> list[Tag]:
     if tag_type:
         stmt = stmt.where(Tag.type == tag_type)
     return list(db.scalars(stmt))
+
+
+def count_tags(db: Session, tag_type: str | None = None) -> int:
+    stmt = select(func.count(Tag.id))
+    if tag_type:
+        stmt = stmt.where(Tag.type == tag_type)
+    return int(db.scalar(stmt) or 0)
 
 
 def create_tag(db: Session, payload: TagCreate) -> Tag:
@@ -208,6 +216,45 @@ def list_hotwords(db: Session, status: str | None = None) -> list[dict]:
     return [hotword_dict(db, hotword) for hotword in db.scalars(stmt)]
 
 
+def list_hotwords_page(db: Session, status: str | None = None, limit: int | None = 50, offset: int = 0) -> Page[dict]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(Hotword).order_by(Hotword.name.asc())
+    count_stmt = select(func.count(Hotword.id))
+    if status:
+        stmt = stmt.where(Hotword.status == status)
+        count_stmt = count_stmt.where(Hotword.status == status)
+    total = int(db.scalar(count_stmt) or 0)
+    rows = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page([hotword_dict(db, hotword) for hotword in rows], total, safe_limit, safe_offset)
+
+
+def count_hotwords(db: Session, status: str | None = None) -> int:
+    stmt = select(func.count(Hotword.id))
+    if status:
+        stmt = stmt.where(Hotword.status == status)
+    return int(db.scalar(stmt) or 0)
+
+
+def hotword_stats(db: Session, target_date: date | None = None) -> dict[str, int]:
+    day = target_date or beijing_now().date()
+    start_at = datetime.combine(day, time.min)
+    end_at = start_at + timedelta(days=1)
+    return {
+        "total": count_hotwords(db),
+        "active": count_hotwords(db, "active"),
+        "today": int(
+            db.scalar(
+                select(func.count(Hotword.id)).where(
+                    Hotword.created_at >= start_at,
+                    Hotword.created_at < end_at,
+                )
+            )
+            or 0
+        ),
+    }
+
+
 def get_hotword(db: Session, hotword_id: int) -> dict | None:
     hotword = db.get(Hotword, hotword_id)
     return hotword_dict(db, hotword) if hotword is not None else None
@@ -311,6 +358,15 @@ def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> 
         stmt = stmt.limit(max(int(limit), 1))
     items = list(db.scalars(stmt))
     return _source_item_dicts(db, items)
+
+
+def list_source_items_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[dict]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
+    total = count_source_items(db)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page(_source_item_dicts(db, items), total, safe_limit, safe_offset)
 
 
 def count_source_items(db: Session) -> int:
@@ -621,6 +677,26 @@ def create_ai_tag_suggestion(db: Session, payload: AiTagSuggestionCreate) -> AiT
 
 def list_ai_tag_suggestions(db: Session) -> list[AiTagSuggestion]:
     return list(db.scalars(select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc())))
+
+
+def list_ai_tag_suggestions_page(db: Session, status: str | None = None, limit: int | None = 50, offset: int = 0) -> Page[AiTagSuggestion]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc())
+    count_stmt = select(func.count(AiTagSuggestion.id))
+    if status:
+        stmt = stmt.where(AiTagSuggestion.status == status)
+        count_stmt = count_stmt.where(AiTagSuggestion.status == status)
+    total = int(db.scalar(count_stmt) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page(items, total, safe_limit, safe_offset)
+
+
+def count_ai_tag_suggestions(db: Session, status: str | None = None) -> int:
+    stmt = select(func.count(AiTagSuggestion.id))
+    if status:
+        stmt = stmt.where(AiTagSuggestion.status == status)
+    return int(db.scalar(stmt) or 0)
 
 
 def get_ai_tag_suggestion(db: Session, suggestion_id: int) -> AiTagSuggestion | None:

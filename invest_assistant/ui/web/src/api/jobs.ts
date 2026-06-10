@@ -1,4 +1,4 @@
-import type { JobConfig, JobRunLog, JobRunRequest } from "../types/api";
+import type { JobConfig, JobRunLog, JobRunRequest, Page } from "../types/api";
 import { apiClient } from "./client";
 
 export const STOCK_EVENT_REVIEW_JOB_NAME = "stock_analysis.review_stock_events_deepseek";
@@ -26,12 +26,17 @@ export async function runJob(jobName: string, params: Record<string, unknown> = 
   return response.data;
 }
 
-export async function listRunRequests(): Promise<JobRunRequest[]> {
-  const response = await apiClient.get<JobRunRequest[]>("/api/jobs/run-requests");
+export type PageParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export async function listRunRequests(params: PageParams = {}): Promise<Page<JobRunRequest>> {
+  const response = await apiClient.get<Page<JobRunRequest>>("/api/jobs/run-requests", { params });
   return response.data;
 }
 
-export async function listJobLogs(jobName: string): Promise<JobRunLog[]> {
-  const response = await apiClient.get<JobRunLog[]>(`/api/jobs/${encodeURIComponent(jobName)}/logs`);
+export async function listJobLogs(jobName: string, params: PageParams = {}): Promise<Page<JobRunLog>> {
+  const response = await apiClient.get<Page<JobRunLog>>(`/api/jobs/${encodeURIComponent(jobName)}/logs`, { params });
   return response.data;
 }

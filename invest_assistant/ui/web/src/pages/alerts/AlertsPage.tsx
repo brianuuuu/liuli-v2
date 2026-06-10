@@ -22,7 +22,7 @@ const ruleColumns = [
 
 export function AlertsPage() {
   const [activeTab, setActiveTab] = useState("events");
-  const events = useAsyncData(useCallback(listAlertEvents, []), []);
+  const events = useAsyncData(useCallback(async () => (await listAlertEvents({ limit: 200, offset: 0 })).items, []), []);
   const rules = useAsyncData(useCallback(listAlertRules, []), []);
   const handled = events.data.filter((item) => item.status === "handled" || item.status === "read");
 

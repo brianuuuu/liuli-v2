@@ -1,5 +1,10 @@
-import type { Report } from "../types/api";
+import type { Page, Report } from "../types/api";
 import { apiClient } from "./client";
+
+export type PageParams = {
+  limit?: number;
+  offset?: number;
+};
 
 export type ReportCreate = {
   title: string;
@@ -17,8 +22,8 @@ export type ReportCreate = {
 
 export type ReportUpdate = Partial<ReportCreate>;
 
-export async function listReports(): Promise<Report[]> {
-  const response = await apiClient.get<Report[]>("/api/reports");
+export async function listReports(params: PageParams = {}): Promise<Page<Report>> {
+  const response = await apiClient.get<Page<Report>>("/api/reports", { params });
   return response.data;
 }
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
@@ -6,6 +6,7 @@ from invest_assistant.modules.alert_center import service
 from invest_assistant.modules.alert_center.schemas import AlertEventCreate, AlertEventRead, AlertRuleCreate, AlertRuleRead
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/alerts", tags=["alert_center"], dependencies=[Depends(get_current_user)])
 
@@ -43,9 +44,18 @@ def delete_rule(rule_id: int, db: Session = Depends(get_db)):
     return rule
 
 
-@router.get("/events", response_model=list[AlertEventRead])
-def list_events(db: Session = Depends(get_db)) -> list:
-    return service.list_events(db)
+@router.get("/events", response_model=Page[AlertEventRead])
+def list_events(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[AlertEventRead]:
+    return service.list_events_page(db, limit=limit, offset=offset)
+
+
+@router.get("/events/stats")
+def event_stats(db: Session = Depends(get_db)) -> dict[str, int]:
+    return service.event_stats(db)
 
 
 @router.post("/events", response_model=AlertEventRead)

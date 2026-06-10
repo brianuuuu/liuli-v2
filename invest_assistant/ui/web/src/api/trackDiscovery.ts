@@ -5,7 +5,8 @@ import type {
   TrackDashboard,
   TrackDetail,
   TrackAnalysisSnapshot,
-  TrackMaterial
+  TrackMaterial,
+  Page
 } from "../types/api";
 import { apiClient } from "./client";
 
@@ -118,15 +119,15 @@ function materialListParams(options: TrackMaterialListOptions = {}) {
   };
 }
 
-export async function listTrackDiscoveryMaterials(options: TrackMaterialListOptions = {}): Promise<TrackMaterial[]> {
-  const response = await apiClient.get<TrackMaterial[]>("/api/track-discovery/materials", {
+export async function listTrackDiscoveryMaterials(options: TrackMaterialListOptions = {}): Promise<Page<TrackMaterial>> {
+  const response = await apiClient.get<Page<TrackMaterial>>("/api/track-discovery/materials", {
     params: materialListParams(options)
   });
   return response.data;
 }
 
-export async function listTrackMaterials(trackId: number, options: Omit<TrackMaterialListOptions, "trackId"> = {}): Promise<TrackMaterial[]> {
-  const response = await apiClient.get<TrackMaterial[]>(`/api/track-discovery/tracks/${trackId}/materials`, {
+export async function listTrackMaterials(trackId: number, options: Omit<TrackMaterialListOptions, "trackId"> = {}): Promise<Page<TrackMaterial>> {
+  const response = await apiClient.get<Page<TrackMaterial>>(`/api/track-discovery/tracks/${trackId}/materials`, {
     params: materialListParams(options)
   });
   return response.data;

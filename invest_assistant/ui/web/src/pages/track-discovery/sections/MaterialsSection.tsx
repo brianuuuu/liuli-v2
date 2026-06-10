@@ -111,13 +111,13 @@ export function MaterialsSection() {
   // Fetch one paged material list. Ignored rows are excluded unless explicitly requested.
   const materials = useAsyncData(
     useCallback(async () => {
-      const data = await listTrackDiscoveryMaterials({
+      const page = await listTrackDiscoveryMaterials({
         trackId,
         statuses: materialStatuses,
         limit: MATERIAL_PAGE_LIMIT,
         offset: 0,
       });
-      return data as ExtendedTrackMaterial[];
+      return page.items as ExtendedTrackMaterial[];
     }, [trackId, materialStatuses]),
     []
   );

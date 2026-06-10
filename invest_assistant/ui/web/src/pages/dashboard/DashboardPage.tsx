@@ -24,13 +24,13 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
-import { listAlertEvents } from "../../api/alerts";
+import { getAlertEventStats } from "../../api/alerts";
 import { getAiLogs } from "../../api/console";
 import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, listJobs, listRunRequests, runJob } from "../../api/jobs";
 import {
+  getHotwordStats,
   getSourceItemDailyStats,
   listAiTagSuggestions,
-  listHotwords,
   listMarketTags
 } from "../../api/marketRadar";
 import { listReports, getReportContent } from "../../api/reports";
@@ -91,10 +91,6 @@ function isToday(value?: string | null) {
 
 function isActiveStatus(status?: string | null) {
   return !["disabled", "archived", "ignored", "rejected", "inactive"].includes(String(status || "").toLowerCase());
-}
-
-function isUnhandledAlertEvent(item: Record<string, unknown>) {
-  return item.status !== "handled" && item.status === "unread";
 }
 
 function failedTaskCount(jobs: JobConfig[]) {
@@ -163,16 +159,28 @@ function TodayDashboardSection() {
     report: 0
   });
   const tags = useAsyncData(useCallback(listMarketTags, []), []);
-  const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
+  const hotwordStats = useAsyncData(useCallback(getHotwordStats, []), { total: 0, active: 0, today: 0 });
   const stockPool = useAsyncData(useCallback(listStockPool, []), []);
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const aiLogs = useAsyncData(useCallback(getAiLogs, []), []);
-  const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
+  const pendingSuggestions = useAsyncData(useCallback(() => listAiTagSuggestions("pending", { limit: 1, offset: 0 }), []), {
+    items: [],
+    total: 0,
+    limit: 1,
+    offset: 0,
+    has_more: false
+  });
   const trackDashboard = useAsyncData(useCallback(getTrackDashboard, []), todayLoaderInitialTrackDashboard);
-  const stockMaterials = useAsyncData(useCallback(listAllStockMaterials, []), []);
-  const alertEvents = useAsyncData(useCallback(listAlertEvents, []), []);
+  const pendingStockMaterials = useAsyncData(useCallback(() => listAllStockMaterials({ status: "pending", limit: 1, offset: 0 }), []), {
+    items: [],
+    total: 0,
+    limit: 1,
+    offset: 0,
+    has_more: false
+  });
+  const alertStats = useAsyncData(useCallback(getAlertEventStats, []), { total: 0, unread: 0, read: 0, handled: 0, unhandled: 0 });
   const jobs = useAsyncData(useCallback(listJobs, []), []);
-  const requests = useAsyncData(useCallback(listRunRequests, []), []);
+  const requests = useAsyncData(useCallback(async () => (await listRunRequests({ limit: 8, offset: 0 })).items, []), []);
 
   const todaySourceCounts = sourceStats.data;
   const todayAiLogs = useMemo(() => aiLogs.data.filter((item) => isToday(item.created_at)), [aiLogs.data]);
@@ -180,9 +188,9 @@ function TodayDashboardSection() {
     () => todayAiLogs.reduce((sum, item) => sum + Number(item.total_tokens || 0), 0),
     [todayAiLogs]
   );
-  const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length;
-  const stockPendingCount = stockMaterials.data.filter((item) => item.status === "pending").length;
-  const unreadAlertCount = alertEvents.data.filter(isUnhandledAlertEvent).length;
+  const pendingSuggestionCount = pendingSuggestions.data.total;
+  const stockPendingCount = pendingStockMaterials.data.total;
+  const unreadAlertCount = alertStats.data.unread;
 
   const todoTotalCount = pendingSuggestionCount
     + Number(trackDashboard.data.summary.pending_materials_count || 0)
@@ -230,7 +238,7 @@ function TodayDashboardSection() {
             { key: "announcement", label: "公告", value: todaySourceCounts.announcement, loading: sourceStats.loading, icon: <NotificationOutlined />, color: "#7c3aed" },
             { key: "sentiment", label: "舆情", value: todaySourceCounts.sentiment, loading: sourceStats.loading, icon: <MessageOutlined />, color: "#ea580c" },
             { key: "report", label: "研报摘要", value: todaySourceCounts.report, loading: sourceStats.loading, icon: <FileSearchOutlined />, color: "#db2777" },
-            { key: "hotword-new", label: "热词", value: hotwords.data.filter((item) => isToday(item.created_at)).length, loading: hotwords.loading, icon: <FireOutlined />, color: "#dc2626" }
+            { key: "hotword-new", label: "热词", value: hotwordStats.data.today, loading: hotwordStats.loading, icon: <FireOutlined />, color: "#dc2626" }
           ]}
         />
         <MetricGroup
@@ -238,7 +246,7 @@ function TodayDashboardSection() {
           columns={2}
           items={[
             { key: "tags", label: "标签", value: tags.data.filter((item) => item.status === "active").length, loading: tags.loading, icon: <TagOutlined />, color: "#64748b" },
-            { key: "hotwords", label: "热词", value: hotwords.data.filter((item) => item.status === "active").length, loading: hotwords.loading, icon: <FireOutlined />, color: "#d97706" },
+            { key: "hotwords", label: "热词", value: hotwordStats.data.active, loading: hotwordStats.loading, icon: <FireOutlined />, color: "#d97706" },
             { key: "stocks", label: "标的", value: stockPool.data.filter((item) => isActiveStatus(item.status)).length, loading: stockPool.loading, icon: <AimOutlined />, color: "#4f46e5" },
             { key: "tracks", label: "赛道", value: tracks.data.filter((item) => isActiveStatus(item.status)).length, loading: tracks.loading, icon: <RadarChartOutlined />, color: "#059669" }
           ]}
@@ -249,8 +257,8 @@ function TodayDashboardSection() {
           items={[
             { key: "ai-count", label: "AI 操作", value: todayAiLogs.length, loading: aiLogs.loading, icon: <RobotOutlined />, color: "#0284c7" },
             { key: "ai-token", label: "Token", value: todayTokenCount, loading: aiLogs.loading, icon: <ThunderboltOutlined />, color: "#8b5cf6" },
-            { key: "todo-alert", label: "未读预警", value: unreadAlertCount, loading: alertEvents.loading, icon: <WarningOutlined />, color: "#e11d48" },
-            { key: "todo-total", label: "待办队列", value: todoTotalCount, loading: suggestions.loading || trackDashboard.loading || stockMaterials.loading || alertEvents.loading || jobs.loading, icon: <CarryOutOutlined />, color: "#d97706" }
+            { key: "todo-alert", label: "未读预警", value: unreadAlertCount, loading: alertStats.loading, icon: <WarningOutlined />, color: "#e11d48" },
+            { key: "todo-total", label: "待办队列", value: todoTotalCount, loading: pendingSuggestions.loading || trackDashboard.loading || pendingStockMaterials.loading || alertStats.loading || jobs.loading, icon: <CarryOutOutlined />, color: "#d97706" }
           ]}
         />
       </div>
@@ -282,15 +290,27 @@ function TodayDashboardSection() {
 function OperationsPanelSection() {
   const navigate = useNavigate();
   const jobs = useAsyncData(useCallback(listJobs, []), []);
-  const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
+  const pendingSuggestions = useAsyncData(useCallback(() => listAiTagSuggestions("pending", { limit: 1, offset: 0 }), []), {
+    items: [],
+    total: 0,
+    limit: 1,
+    offset: 0,
+    has_more: false
+  });
   const trackDashboard = useAsyncData(useCallback(getTrackDashboard, []), todayLoaderInitialTrackDashboard);
-  const stockMaterials = useAsyncData(useCallback(listAllStockMaterials, []), []);
-  const alertEvents = useAsyncData(useCallback(listAlertEvents, []), []);
+  const pendingStockMaterials = useAsyncData(useCallback(() => listAllStockMaterials({ status: "pending", limit: 1, offset: 0 }), []), {
+    items: [],
+    total: 0,
+    limit: 1,
+    offset: 0,
+    has_more: false
+  });
+  const alertStats = useAsyncData(useCallback(getAlertEventStats, []), { total: 0, unread: 0, read: 0, handled: 0, unhandled: 0 });
   const [runningKey, setRunningKey] = useState<string | null>(null);
 
   const jobByName = useMemo(() => new Map(jobs.data.map((job) => [job.job_name, job])), [jobs.data]);
-  const stockPendingCount = stockMaterials.data.filter((item) => item.status === "pending").length;
-  const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length;
+  const stockPendingCount = pendingStockMaterials.data.total;
+  const pendingSuggestionCount = pendingSuggestions.data.total;
 
   const operations = [
     {
@@ -335,7 +355,7 @@ function OperationsPanelSection() {
     { key: "suggestions", label: "AI 推荐词审核", count: pendingSuggestionCount, path: "/market-radar", icon: <TagOutlined />, color: "#2563eb" },
     { key: "track-materials", label: "赛道材料处理", count: trackDashboard.data.summary.pending_materials_count, path: "/track-discovery", icon: <RadarChartOutlined />, color: "#059669" },
     { key: "stock-materials", label: "标的材料处理", count: stockPendingCount, path: "/stock-analysis", icon: <AimOutlined />, color: "#4f46e5" },
-    { key: "alerts", label: "未读预警处理", count: alertEvents.data.filter(isUnhandledAlertEvent).length, path: "/alerts", icon: <WarningOutlined />, color: "#e11d48" },
+    { key: "alerts", label: "未读预警处理", count: alertStats.data.unread, path: "/alerts", icon: <WarningOutlined />, color: "#e11d48" },
     { key: "jobs", label: "失败任务排查", count: failedTaskCount(jobs.data), path: "/console", icon: <HistoryOutlined />, color: "#dc2626" }
   ];
 
@@ -451,7 +471,7 @@ function ReportTable({ title, rows, loading, onOpen }: { title: string; rows: Re
 }
 
 function LatestReportsSection() {
-  const reports = useAsyncData(useCallback(listReports, []), []);
+  const reports = useAsyncData(useCallback(async () => (await listReports({ limit: 200, offset: 0 })).items, []), []);
   const [activeReport, setActiveReport] = useState<Report | null>(null);
   const [content, setContent] = useState("");
   const [contentLoading, setContentLoading] = useState(false);

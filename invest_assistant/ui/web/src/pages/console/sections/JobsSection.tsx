@@ -60,7 +60,7 @@ function defaultRunParamValues(job: JobConfig): Record<string, unknown> {
 
 export function JobsSection() {
   const jobs = useAsyncData(useCallback(listJobs, []), []);
-  const requests = useAsyncData(useCallback(listRunRequests, []), []);
+  const requests = useAsyncData(useCallback(async () => (await listRunRequests({ limit: 200, offset: 0 })).items, []), []);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -166,7 +166,8 @@ export function JobsSection() {
   async function loadLogs(jobName: string) {
     setLogsLoading(true);
     try {
-      setLogs(await listJobLogs(jobName));
+      const page = await listJobLogs(jobName, { limit: 200, offset: 0 });
+      setLogs(page.items);
     } finally {
       setLogsLoading(false);
     }
@@ -190,8 +191,8 @@ export function JobsSection() {
     setLogDrawerOpen(true);
     setLogsLoading(true);
     try {
-      const result = await Promise.all(jobs.data.map((job) => listJobLogs(job.job_name)));
-      setAllLogs(result.flat().sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || ""))));
+      const result = await Promise.all(jobs.data.map((job) => listJobLogs(job.job_name, { limit: 200, offset: 0 })));
+      setAllLogs(result.flatMap((page) => page.items).sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || ""))));
     } finally {
       setLogsLoading(false);
     }

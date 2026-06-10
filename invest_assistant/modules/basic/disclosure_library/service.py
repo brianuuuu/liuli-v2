@@ -16,11 +16,20 @@ from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.market_radar.service import create_source_item
 from invest_assistant.modules.stock_analysis.models import StockMaterial, StockPoolItem
+from invest_assistant.shared.pagination import Page, page_from_statement
 from invest_assistant.shared.time_utils import beijing_now
 
 
 def list_disclosures(db: Session) -> list[CompanyDisclosure]:
     return repository.list_disclosures(db)
+
+
+def list_disclosures_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[CompanyDisclosure]:
+    stmt = select(CompanyDisclosure).order_by(
+        CompanyDisclosure.publish_time.desc().nullslast(),
+        CompanyDisclosure.id.desc(),
+    )
+    return page_from_statement(db, stmt, limit=limit, offset=offset)
 
 
 def get_disclosure(db: Session, disclosure_id: int) -> CompanyDisclosure | None:

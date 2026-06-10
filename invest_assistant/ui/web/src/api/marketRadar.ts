@@ -1,4 +1,4 @@
-import type { AiTagSuggestion, Hotword, JobRunRequest, MarketGraph, MarketTag, SourceItem, TagBinding, TagHeat } from "../types/api";
+import type { AiTagSuggestion, Hotword, JobRunRequest, MarketGraph, MarketTag, Page, SourceItem, TagBinding, TagHeat } from "../types/api";
 import { apiClient } from "./client";
 
 export type MarketOverview = {
@@ -13,6 +13,12 @@ export type SourceItemDailyStats = {
   announcement: number;
   sentiment: number;
   report: number;
+};
+
+export type HotwordStats = {
+  total: number;
+  active: number;
+  today: number;
 };
 
 export type MarketTagPayload = {
@@ -73,6 +79,11 @@ export type RankingType = "all" | "stock" | "track" | "hotword";
 export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d";
 export type GraphType = "track" | "hotword" | "track_hotword";
 
+export type PageParams = {
+  limit?: number;
+  offset?: number;
+};
+
 export async function getMarketOverview(): Promise<MarketOverview> {
   const response = await apiClient.get<MarketOverview>("/api/market-radar/overview");
   return response.data;
@@ -93,8 +104,17 @@ export async function createHotword(payload: HotwordPayload): Promise<Hotword> {
   return response.data;
 }
 
-export async function listHotwords(status?: string): Promise<Hotword[]> {
-  const response = await apiClient.get<Hotword[]>("/api/market-radar/hotwords", { params: status ? { status } : undefined });
+export async function listHotwords(status?: string, params: PageParams = {}): Promise<Page<Hotword>> {
+  const response = await apiClient.get<Page<Hotword>>("/api/market-radar/hotwords", {
+    params: { ...params, ...(status ? { status } : {}) }
+  });
+  return response.data;
+}
+
+export async function getHotwordStats(targetDate?: string): Promise<HotwordStats> {
+  const response = await apiClient.get<HotwordStats>("/api/market-radar/hotwords/stats", {
+    params: targetDate ? { target_date: targetDate } : undefined
+  });
   return response.data;
 }
 
@@ -118,8 +138,10 @@ export async function getTagTrend(tagId: number): Promise<TagHeat[]> {
   return response.data;
 }
 
-export async function listAiTagSuggestions(): Promise<AiTagSuggestion[]> {
-  const response = await apiClient.get<AiTagSuggestion[]>("/api/market-radar/ai-tag-suggestions");
+export async function listAiTagSuggestions(status?: string, params: PageParams = {}): Promise<Page<AiTagSuggestion>> {
+  const response = await apiClient.get<Page<AiTagSuggestion>>("/api/market-radar/ai-tag-suggestions", {
+    params: { ...params, ...(status ? { status } : {}) }
+  });
   return response.data;
 }
 
@@ -148,8 +170,8 @@ export type SourceItemListParams = {
   offset?: number;
 };
 
-export async function listSourceItems(params: SourceItemListParams = {}): Promise<SourceItem[]> {
-  const response = await apiClient.get<SourceItem[]>("/api/market-radar/source-items", { params });
+export async function listSourceItems(params: SourceItemListParams = {}): Promise<Page<SourceItem>> {
+  const response = await apiClient.get<Page<SourceItem>>("/api/market-radar/source-items", { params });
   return response.data;
 }
 

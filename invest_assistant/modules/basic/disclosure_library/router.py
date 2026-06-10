@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -10,13 +10,18 @@ from invest_assistant.modules.basic.disclosure_library.schemas import (
     CompanyDisclosureRead,
     CompanyDisclosureUpdate,
 )
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/disclosures", tags=["disclosure_library"], dependencies=[Depends(get_current_user)])
 
 
-@router.get("", response_model=list[CompanyDisclosureRead])
-def list_disclosures(db: Session = Depends(get_db)) -> list:
-    return service.list_disclosures(db)
+@router.get("", response_model=Page[CompanyDisclosureRead])
+def list_disclosures(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[CompanyDisclosureRead]:
+    return service.list_disclosures_page(db, limit=limit, offset=offset)
 
 
 @router.post("", response_model=CompanyDisclosureRead)

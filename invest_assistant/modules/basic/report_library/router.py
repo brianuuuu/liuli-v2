@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
@@ -6,13 +6,18 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.report_library import service
 from invest_assistant.modules.basic.report_library.schemas import ReportCreate, ReportRead, ReportUpdate
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/reports", tags=["report_library"], dependencies=[Depends(get_current_user)])
 
 
-@router.get("", response_model=list[ReportRead])
-def list_reports(db: Session = Depends(get_db)) -> list:
-    return service.list_reports(db)
+@router.get("", response_model=Page[ReportRead])
+def list_reports(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[ReportRead]:
+    return service.list_reports_page(db, limit=limit, offset=offset)
 
 
 @router.post("", response_model=ReportRead)

@@ -25,6 +25,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/track-discovery", tags=["track_discovery"], dependencies=[Depends(get_current_user)])
 
@@ -53,17 +54,17 @@ def track_dashboard(db: Session = Depends(get_db)) -> dict:
     return service.get_dashboard(db)
 
 
-@router.get("/materials", response_model=list[TrackMaterialRead])
+@router.get("/materials", response_model=Page[TrackMaterialRead])
 def list_all_track_materials(
     track_id: int | None = None,
     status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-) -> list:
+) -> Page[dict]:
     if track_id is not None and service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.list_all_materials(db, track_id=track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
+    return service.list_all_materials_page(db, track_id=track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
 
 
 @router.post("/tracks", response_model=TrackRead)
@@ -126,17 +127,17 @@ def delete_track_tag(relation_id: int, db: Session = Depends(get_db)):
     return binding
 
 
-@router.get("/tracks/{track_id}/materials", response_model=list[TrackMaterialRead])
+@router.get("/tracks/{track_id}/materials", response_model=Page[TrackMaterialRead])
 def list_track_materials(
     track_id: int,
     status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-) -> list:
+) -> Page[dict]:
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.list_materials(db, track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
+    return service.list_materials_page(db, track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
 
 
 @router.post("/tracks/{track_id}/materials", response_model=TrackMaterialRead)

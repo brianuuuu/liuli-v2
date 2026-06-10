@@ -17,10 +17,10 @@ export function TopStatusBar() {
 
     async function refreshTaskStatus() {
       try {
-        const [nextJobs, nextRequests] = await Promise.all([listJobs(), listRunRequests()]);
+        const [nextJobs, nextRequests] = await Promise.all([listJobs(), listRunRequests({ limit: 50, offset: 0 })]);
         if (!active) return;
         setJobs(nextJobs);
-        setRequests(nextRequests);
+        setRequests(nextRequests.items);
       } catch {
         if (!active) return;
       } finally {
