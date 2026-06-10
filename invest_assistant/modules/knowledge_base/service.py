@@ -178,8 +178,7 @@ def archive_note_group(db: Session, item: KnowledgeNoteGroup) -> KnowledgeNoteGr
 
 def create_note(db: Session, payload: KnowledgeNoteCreate) -> KnowledgeNote:
     tags_by_id = _active_tags_by_id_or_raise(db, payload.tag_ids)
-    data = payload.model_dump(exclude={"tag_ids"})
-    data["tags"] = _tags_text(payload.tag_ids, tags_by_id) if payload.tag_ids else data.get("tags")
+    data = _note_payload_data(payload, tags_by_id)
     item = KnowledgeNote(**data)
     db.add(item)
     db.commit()
@@ -236,8 +235,7 @@ def read_note(db: Session, item: KnowledgeNote) -> KnowledgeNoteRead:
 
 def update_note(db: Session, item: KnowledgeNote, payload: KnowledgeNoteCreate) -> KnowledgeNote:
     tags_by_id = _active_tags_by_id_or_raise(db, payload.tag_ids)
-    data = payload.model_dump(exclude={"tag_ids"})
-    data["tags"] = _tags_text(payload.tag_ids, tags_by_id) if payload.tag_ids else data.get("tags")
+    data = _note_payload_data(payload, tags_by_id)
     for key, value in data.items():
         setattr(item, key, value)
     db.commit()
@@ -373,6 +371,21 @@ def run_agent(db: Session, agent: KnowledgeAgent) -> KnowledgeFeedbackLog:
 
 def list_feedback_logs(db: Session) -> list[KnowledgeFeedbackLog]:
     return list(db.scalars(select(KnowledgeFeedbackLog).order_by(KnowledgeFeedbackLog.id.desc())))
+
+
+def _note_payload_data(payload: KnowledgeNoteCreate, tags_by_id: dict[int, Tag]) -> dict:
+    data = payload.model_dump(exclude={"tag_ids"})
+    content = str(data.get("content") or "")
+    data["content"] = content
+    title = str(data.get("title") or "").strip()
+    data["title"] = title or _derive_note_title(content)
+    data["tags"] = _tags_text(payload.tag_ids, tags_by_id) if payload.tag_ids else data.get("tags")
+    return data
+
+
+def _derive_note_title(content: str) -> str:
+    first_line = next((line.strip() for line in content.splitlines() if line.strip()), "未命名笔记")
+    return f"{first_line[:80]}..." if len(first_line) > 80 else first_line
 
 
 def _replace_note_tags(db: Session, item: KnowledgeNote, tag_ids: list[int]) -> None:
