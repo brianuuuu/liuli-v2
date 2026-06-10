@@ -12,6 +12,14 @@ export type UserMe = {
 
 export type Id = number;
 
+export type Page<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
 export type JobConfig = {
   id: number;
   job_name: string;

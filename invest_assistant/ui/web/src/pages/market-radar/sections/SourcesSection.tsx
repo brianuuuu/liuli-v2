@@ -19,7 +19,15 @@ type SourceFormValues = {
 };
 
 export function SourcesSection() {
-  const sources = useAsyncData(useCallback(listSourceItems, []), []);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const sources = useAsyncData(useCallback(async () => listSourceItems({ limit: pageSize, offset: (page - 1) * pageSize }), [page, pageSize]), {
+    items: [],
+    total: 0,
+    limit: 50,
+    offset: 0,
+    has_more: false
+  });
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<SourceItem | null>(null);
   const [form] = Form.useForm<SourceFormValues>();
@@ -64,9 +72,19 @@ export function SourcesSection() {
           rowKey="id"
           size="small"
           loading={sources.loading}
-          dataSource={sources.data}
+          dataSource={sources.data.items}
           columns={columns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{
+            current: page,
+            pageSize,
+            total: sources.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100, 200],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
           locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步财联社" /> }}
         />
       </DataPanel>

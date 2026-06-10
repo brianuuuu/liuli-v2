@@ -22,7 +22,15 @@ type ReportFormValues = {
 };
 
 export function ReportsSection() {
-  const reports = useAsyncData(useCallback(listReports, []), []);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const reports = useAsyncData(useCallback(async () => listReports({ limit: pageSize, offset: (page - 1) * pageSize }), [page, pageSize]), {
+    items: [],
+    total: 0,
+    limit: 50,
+    offset: 0,
+    has_more: false
+  });
   const [editing, setEditing] = useState<Report | null>(null);
   const [detail, setDetail] = useState<Report | null>(null);
   const [content, setContent] = useState("");
@@ -124,7 +132,24 @@ export function ReportsSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={reports.loading} dataSource={reports.data} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
+        <Table
+          rowKey="id"
+          size="small"
+          loading={reports.loading}
+          dataSource={reports.data.items}
+          columns={columns}
+          pagination={{
+            current: page,
+            pageSize,
+            total: reports.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100, 200],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
+        />
       </DataPanel>
 
       <Modal title={editing ? "编辑报告" : "新增报告"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>

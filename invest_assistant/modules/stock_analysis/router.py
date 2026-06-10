@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
@@ -29,8 +29,18 @@ from invest_assistant.modules.stock_analysis.schemas import (
 )
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate, TagBindingRead
 from invest_assistant.modules.market_radar import service as market_radar_service
+from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/stock-analysis", tags=["stock_analysis"], dependencies=[Depends(get_current_user)])
+
+
+def _parse_status_filter(status: str | None) -> list[str] | None:
+    if status is None:
+        return None
+    values = [item.strip() for item in status.split(",") if item.strip()]
+    if not values or values == ["all"]:
+        return None
+    return list(dict.fromkeys(values))
 
 
 @router.get("/dashboard", response_model=StockDashboardRead)
@@ -195,14 +205,38 @@ def disable_stock_track_relation(relation_id: int, db: Session = Depends(get_db)
     return binding
 
 
-@router.get("/materials", response_model=list[StockMaterialRead])
-def list_all_stock_materials(db: Session = Depends(get_db)) -> list:
-    return service.list_all_stock_materials(db)
+@router.get("/materials", response_model=Page[StockMaterialRead])
+def list_all_stock_materials(
+    stock_id: int | None = None,
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[dict]:
+    return service.list_all_stock_materials_page(
+        db,
+        stock_id=stock_id,
+        statuses=_parse_status_filter(status),
+        limit=limit,
+        offset=offset,
+    )
 
 
-@router.get("/stocks/{stock_id}/materials", response_model=list[StockMaterialRead])
-def list_stock_materials(stock_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_stock_materials(db, stock_id)
+@router.get("/stocks/{stock_id}/materials", response_model=Page[StockMaterialRead])
+def list_stock_materials(
+    stock_id: int,
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> Page[dict]:
+    return service.list_stock_materials_page(
+        db,
+        stock_id,
+        statuses=_parse_status_filter(status),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/stocks/{stock_id}/materials", response_model=StockMaterialRead)

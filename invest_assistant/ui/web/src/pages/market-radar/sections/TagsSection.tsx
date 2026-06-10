@@ -28,7 +28,7 @@ function HotwordStatusTag({ status }: { status?: string }) {
 }
 
 export function TagsSection() {
-  const hotwords = useAsyncData(useCallback(() => listHotwords(), []), []);
+  const hotwords = useAsyncData(useCallback(async () => (await listHotwords(undefined, { limit: 200, offset: 0 })).items, []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Hotword | null>(null);

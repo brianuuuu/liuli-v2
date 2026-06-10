@@ -33,7 +33,15 @@ type DisclosureFormValues = {
 };
 
 export function DisclosuresSection() {
-  const disclosures = useAsyncData(useCallback(listDisclosures, []), []);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const disclosures = useAsyncData(useCallback(async () => listDisclosures({ limit: pageSize, offset: (page - 1) * pageSize }), [page, pageSize]), {
+    items: [],
+    total: 0,
+    limit: 50,
+    offset: 0,
+    has_more: false
+  });
   const [keyword, setKeyword] = useState("");
   const [editing, setEditing] = useState<Disclosure | null>(null);
   const [detail, setDetail] = useState<Disclosure | null>(null);
@@ -168,7 +176,24 @@ export function DisclosuresSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={disclosures.loading} dataSource={disclosures.data} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
+        <Table
+          rowKey="id"
+          size="small"
+          loading={disclosures.loading}
+          dataSource={disclosures.data.items}
+          columns={columns}
+          pagination={{
+            current: page,
+            pageSize,
+            total: disclosures.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100, 200],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
+        />
       </DataPanel>
 
       <Modal title={editing ? "编辑公告财报" : "新增公告财报"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>

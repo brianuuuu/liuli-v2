@@ -1,4 +1,4 @@
-import type { StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { Page, StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -45,6 +45,16 @@ export type TagBindingPayload = {
   name: string;
   source?: string | null;
   status?: string;
+};
+
+export type PageParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export type StockMaterialListParams = PageParams & {
+  status?: string;
+  stock_id?: number;
 };
 
 export async function getStockDashboard(stockId?: number | null): Promise<StockDashboard> {
@@ -165,13 +175,13 @@ export async function disableStockTrackRelation(relationId: number): Promise<Sto
   return response.data;
 }
 
-export async function listAllStockMaterials(): Promise<StockMaterial[]> {
-  const response = await apiClient.get<StockMaterial[]>("/api/stock-analysis/materials");
+export async function listAllStockMaterials(params: StockMaterialListParams = {}): Promise<Page<StockMaterial>> {
+  const response = await apiClient.get<Page<StockMaterial>>("/api/stock-analysis/materials", { params });
   return response.data;
 }
 
-export async function listStockMaterials(stockId: number): Promise<StockMaterial[]> {
-  const response = await apiClient.get<StockMaterial[]>(`/api/stock-analysis/stocks/${stockId}/materials`);
+export async function listStockMaterials(stockId: number, params: StockMaterialListParams = {}): Promise<Page<StockMaterial>> {
+  const response = await apiClient.get<Page<StockMaterial>>(`/api/stock-analysis/stocks/${stockId}/materials`, { params });
   return response.data;
 }
 

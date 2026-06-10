@@ -127,13 +127,19 @@ export function OverviewSection() {
     [] as RisingRankingGroup[]
   );
   const tags = useAsyncData(useCallback(listMarketTags, []), []);
-  const suggestions = useAsyncData(useCallback(listAiTagSuggestions, []), []);
+  const pendingSuggestions = useAsyncData(useCallback(() => listAiTagSuggestions("pending", { limit: 1, offset: 0 }), []), {
+    items: [],
+    total: 0,
+    limit: 1,
+    offset: 0,
+    has_more: false
+  });
 
   const risingGroupByType = new Map(risingRankings.data.map((item) => [item.type, item.rows]));
   const coolingGroupByType = new Map(coolingRankings.data.map((item) => [item.type, item.rows]));
   const latestStat = [...risingRankings.data, ...coolingRankings.data].flatMap((item) => item.rows).map((item) => item.stat_time).sort().at(-1);
   const activeTagCount = tags.data.filter((item) => item.status === "active").length || overview.data.tags;
-  const pendingSuggestionCount = suggestions.data.filter((item) => item.status === "pending").length || overview.data.ai_tag_suggestions;
+  const pendingSuggestionCount = pendingSuggestions.data.total || overview.data.ai_tag_suggestions;
 
   return (
     <div className="market-overview-dashboard">
@@ -150,7 +156,7 @@ export function OverviewSection() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="AI 推荐词" value={pendingSuggestionCount} loading={suggestions.loading} />
+            <Statistic title="AI 推荐词" value={pendingSuggestionCount} loading={pendingSuggestions.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>

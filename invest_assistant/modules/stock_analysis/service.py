@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 import math
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -30,6 +30,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationUpdate,
 )
 from invest_assistant.services.tushare import client as tushare_client
+from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
 
 def create_pool_item(db: Session, payload: StockPoolCreate) -> dict:
@@ -536,16 +537,17 @@ def _dashboard_materials(
     stmt = select(StockMaterial).where(StockMaterial.stock_id.in_(stock_ids))
     if status is not None:
         stmt = stmt.where(StockMaterial.status == status)
-    materials = sorted(
-        db.scalars(stmt),
-        key=lambda item: (
-            0 if item.status == "pending" else 1,
-            -(item.updated_at.timestamp() if item.updated_at else 0),
-            -item.id,
-        ),
+    materials = list(
+        db.scalars(
+            stmt.order_by(
+                case((StockMaterial.status == "pending", 0), else_=1),
+                StockMaterial.updated_at.desc(),
+                StockMaterial.id.desc(),
+            ).limit(limit)
+        )
     )
     rows = []
-    for item in materials[:limit]:
+    for item in materials:
         row = _stock_material_dict(db, item)
         stock = stock_by_id.get(item.stock_id)
         row["stock_name"] = stock.stock_name if stock else None
@@ -563,26 +565,26 @@ def _hot_stocks(
 ) -> list[dict]:
     if not stock_ids:
         return []
-    rows = list(db.scalars(select(StockMaterial).where(StockMaterial.stock_id.in_(stock_ids))))
-    stats: dict[int, dict] = defaultdict(
-        lambda: {
-            "source_item_count": 0,
-            "material_count": 0,
-            "high_importance_material_count": 0,
-            "latest_material_time": None,
+    rows = db.execute(
+        select(
+            StockMaterial.stock_id,
+            func.sum(case((StockMaterial.material_type == "source_item", 1), else_=0)).label("source_item_count"),
+            func.count(StockMaterial.id).label("material_count"),
+            func.sum(case((StockMaterial.importance_level == "high", 1), else_=0)).label("high_importance_material_count"),
+            func.max(StockMaterial.updated_at).label("latest_material_time"),
+        )
+        .where(StockMaterial.stock_id.in_(stock_ids))
+        .group_by(StockMaterial.stock_id)
+    ).all()
+    stats = {
+        int(stock_id): {
+            "source_item_count": int(source_item_count or 0),
+            "material_count": int(material_count or 0),
+            "high_importance_material_count": int(high_importance_material_count or 0),
+            "latest_material_time": latest_material_time,
         }
-    )
-    for item in rows:
-        row = stats[item.stock_id]
-        row["material_count"] += 1
-        if item.material_type == "source_item":
-            row["source_item_count"] += 1
-        if item.importance_level == "high":
-            row["high_importance_material_count"] += 1
-        if item.updated_at is not None and (
-            row["latest_material_time"] is None or item.updated_at.timestamp() > row["latest_material_time"].timestamp()
-        ):
-            row["latest_material_time"] = item.updated_at
+        for stock_id, source_item_count, material_count, high_importance_material_count, latest_material_time in rows
+    }
 
     result = []
     for stock_id, stat in stats.items():
@@ -1104,6 +1106,10 @@ def _summary(value: str | None, limit: int = 240) -> str | None:
     return text if len(text) <= limit else f"{text[:limit]}..."
 
 
+def _isoformat(value: object) -> str | None:
+    return value.isoformat() if hasattr(value, "isoformat") else None
+
+
 def list_stock_materials(db: Session, stock_id: int) -> list[dict]:
     stmt = (
         select(StockMaterial)
@@ -1113,12 +1119,55 @@ def list_stock_materials(db: Session, stock_id: int) -> list[dict]:
     return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
 
 
+def _stock_materials_page(
+    db: Session,
+    *,
+    stock_id: int | None = None,
+    statuses: list[str] | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
+    safe_limit = normalize_limit(limit)
+    safe_offset = normalize_offset(offset)
+    stmt = select(StockMaterial).order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
+    count_stmt = select(func.count(StockMaterial.id))
+    if stock_id is not None:
+        stmt = stmt.where(StockMaterial.stock_id == stock_id)
+        count_stmt = count_stmt.where(StockMaterial.stock_id == stock_id)
+    if statuses:
+        stmt = stmt.where(StockMaterial.status.in_(statuses))
+        count_stmt = count_stmt.where(StockMaterial.status.in_(statuses))
+    total = int(db.scalar(count_stmt) or 0)
+    items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
+    return make_page([_stock_material_dict(db, item) for item in items], total, safe_limit, safe_offset)
+
+
+def list_stock_materials_page(
+    db: Session,
+    stock_id: int,
+    statuses: list[str] | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
+    return _stock_materials_page(db, stock_id=stock_id, statuses=statuses, limit=limit, offset=offset)
+
+
 def list_all_stock_materials(db: Session) -> list[dict]:
     stmt = (
         select(StockMaterial)
         .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
     )
     return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+
+
+def list_all_stock_materials_page(
+    db: Session,
+    statuses: list[str] | None = None,
+    stock_id: int | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
+    return _stock_materials_page(db, stock_id=stock_id, statuses=statuses, limit=limit, offset=offset)
 
 
 def list_stock_daily_bars(

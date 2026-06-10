@@ -1,5 +1,10 @@
-import type { Disclosure } from "../types/api";
+import type { Disclosure, Page } from "../types/api";
 import { apiClient } from "./client";
+
+export type PageParams = {
+  limit?: number;
+  offset?: number;
+};
 
 export type DisclosureCreate = {
   stock_id?: number | null;
@@ -17,8 +22,8 @@ export type DisclosureCreate = {
 
 export type DisclosureUpdate = Partial<DisclosureCreate>;
 
-export async function listDisclosures(): Promise<Disclosure[]> {
-  const response = await apiClient.get<Disclosure[]>("/api/disclosures");
+export async function listDisclosures(params: PageParams = {}): Promise<Page<Disclosure>> {
+  const response = await apiClient.get<Page<Disclosure>>("/api/disclosures", { params });
   return response.data;
 }
 
