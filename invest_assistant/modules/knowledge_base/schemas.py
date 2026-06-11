@@ -30,7 +30,7 @@ class KnowledgeNoteTagRead(BaseModel):
 class KnowledgeNoteCreate(BaseModel):
     title: str | None = None
     content: str
-    note_type: str
+    note_type: str = ""
     group_id: int | None = None
     related_module: str | None = None
     related_id: int | None = None

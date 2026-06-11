@@ -71,7 +71,7 @@ const promptDefaults: KnowledgePromptPayload = {
 const noteDefaults: KnowledgeNotePayload = {
   title: "",
   content: "",
-  note_type: "review",
+  note_type: "",
   group_id: null,
   related_module: null,
   related_id: null,
@@ -191,6 +191,10 @@ function NotesSection() {
   }, [quickForm]);
 
   useEffect(() => {
+    quickForm.setFieldValue("group_id", groupFilter ?? null);
+  }, [groupFilter, quickForm]);
+
+  useEffect(() => {
     if (!noteDrawerOpen) return;
     editForm.setFieldsValue(editingNote ? noteToPayload(editingNote) : noteDefaults);
   }, [editForm, editingNote, noteDrawerOpen]);
@@ -239,7 +243,7 @@ function NotesSection() {
     try {
       await createKnowledgeNote({ ...noteDefaults, ...values, content, title: deriveQuickNoteTitle(content), status: "active" });
       quickForm.resetFields();
-      quickForm.setFieldsValue(noteDefaults);
+      quickForm.setFieldsValue({ ...noteDefaults, group_id: groupFilter ?? null });
       message.success("笔记已保存");
       await refreshFirstPage();
     } catch (error) {
@@ -400,9 +404,7 @@ function NotesSection() {
                 <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} placeholder="记录判断、证据、待验证点。正文首行会作为轻笔记主文本。" />
               </Form.Item>
               <div className="knowledge-quick-meta-row">
-                <Form.Item name="note_type" rules={[{ required: true }]}>
-                  <Select options={noteTypeOptions} />
-                </Form.Item>
+
                 <Form.Item name="group_id">
                   <Select allowClear placeholder="未分组" options={groupOptions} />
                 </Form.Item>
@@ -430,7 +432,9 @@ function NotesSection() {
                       
                       <div className="knowledge-note-footer">
                         <div className="knowledge-note-meta">
-                          <span className="meta-type-tag">{noteTypeLabel(note.note_type)}</span>
+                          {note.note_type ? (
+                            <span className="meta-type-tag">{noteTypeLabel(note.note_type)}</span>
+                          ) : null}
                           <span className="meta-group-tag">{note.group ? note.group.name : "未分组"}</span>
                           {note.tags.length ? (
                             note.tags.map((tag) => (
@@ -518,17 +522,12 @@ function NotesSection() {
       >
         <Form form={editForm} layout="vertical" className="knowledge-drawer-form">
           <Row gutter={10}>
-            <Col span={14}>
+            <Col span={18}>
               <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
                 <Input placeholder="输入知识笔记的标题..." showCount maxLength={100} />
               </Form.Item>
             </Col>
-            <Col span={5}>
-              <Form.Item name="note_type" label="类型" rules={[{ required: true }]}>
-                <Select options={noteTypeOptions} placeholder="选择类型" />
-              </Form.Item>
-            </Col>
-            <Col span={5}>
+            <Col span={6}>
               <Form.Item name="group_id" label="分组">
                 <Select allowClear placeholder="未分组" options={groupOptions} />
               </Form.Item>
