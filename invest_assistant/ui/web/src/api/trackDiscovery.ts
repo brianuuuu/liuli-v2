@@ -71,9 +71,17 @@ export async function listTracks(status?: string): Promise<Track[]> {
   return response.data;
 }
 
+let trackDashboardRequest: Promise<TrackDashboard> | null = null;
+
 export async function getTrackDashboard(): Promise<TrackDashboard> {
-  const response = await apiClient.get<TrackDashboard>("/api/track-discovery/dashboard");
-  return response.data;
+  if (trackDashboardRequest) return trackDashboardRequest;
+  trackDashboardRequest = apiClient
+    .get<TrackDashboard>("/api/track-discovery/dashboard")
+    .then((response) => response.data)
+    .finally(() => {
+      trackDashboardRequest = null;
+    });
+  return trackDashboardRequest;
 }
 
 export async function createTrack(payload: TrackPayload): Promise<Track> {

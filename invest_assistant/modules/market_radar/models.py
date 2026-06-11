@@ -40,7 +40,10 @@ class StockTagRelation(Base):
 
 class TrackTagRelation(Base):
     __tablename__ = "track_tag_relation"
-    __table_args__ = (UniqueConstraint("track_id", "tag_id", name="uq_track_tag_relation"),)
+    __table_args__ = (
+        UniqueConstraint("track_id", "tag_id", name="uq_track_tag_relation"),
+        Index("ix_track_tag_relation_status_tag_track", "status", "tag_id", "track_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
@@ -168,6 +171,6 @@ class AiTagSuggestion(Base):
 
 
 def ensure_market_radar_schema(engine: Engine) -> None:
-    for table in (SourceItem.__table__, TagHeatSnapshot.__table__, TagEdgeSnapshot.__table__):
+    for table in (SourceItem.__table__, TrackTagRelation.__table__, TagHeatSnapshot.__table__, TagEdgeSnapshot.__table__):
         for index in table.indexes:
             index.create(bind=engine, checkfirst=True)

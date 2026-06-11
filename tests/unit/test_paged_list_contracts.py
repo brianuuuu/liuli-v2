@@ -14,7 +14,7 @@ from invest_assistant.modules.basic.report_library import service as report_serv
 from invest_assistant.modules.basic.report_library.models import Report
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.market_radar import service as market_service
-from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem
+from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.stock_analysis import service as stock_service
 from invest_assistant.modules.stock_analysis.models import StockMaterial
@@ -65,9 +65,12 @@ def test_market_radar_growth_lists_return_page_metadata():
     source_page = market_service.list_source_items_page(db, limit=200, offset=0)
     hotword_page = market_service.list_hotwords_page(db, status="active", limit=50, offset=50)
     suggestion_page = market_service.list_ai_tag_suggestions_page(db, status="pending", limit=25, offset=100)
+    hotword_search_page = market_service.list_hotwords_page(db, q="005", limit=20, offset=0)
+    suggestion_search_page = market_service.list_ai_tag_suggestions_page(db, q="tag-006", limit=20, offset=0)
 
-    assert len(source_page.items) == 200
+    assert len(source_page.items) == 100
     assert source_page.total == 260
+    assert source_page.limit == 100
     assert source_page.has_more is True
     assert source_page.items[0]["title"] == "source-259"
     assert len(hotword_page.items) == 50
@@ -77,6 +80,10 @@ def test_market_radar_growth_lists_return_page_metadata():
     assert len(suggestion_page.items) == 25
     assert suggestion_page.total == 130
     assert suggestion_page.has_more is True
+    assert hotword_search_page.total == 1
+    assert hotword_search_page.items[0]["name"] == "hotword-005"
+    assert suggestion_search_page.total == 1
+    assert suggestion_search_page.items[0].suggested_text == "tag-006"
 
 
 def test_material_lists_return_filtered_total_and_max_page_size():
@@ -95,21 +102,24 @@ def test_material_lists_return_filtered_total_and_max_page_size():
     db.commit()
 
     stock_page = stock_service.list_all_stock_materials_page(db, statuses=["pending"], limit=200, offset=0)
-    stock_next_page = stock_service.list_stock_materials_page(db, stock.id, statuses=["pending"], limit=200, offset=200)
+    stock_next_page = stock_service.list_stock_materials_page(db, stock.id, statuses=["pending"], limit=100, offset=100)
     track_page = track_service.list_all_materials_page(db, statuses=["pending"], limit=200, offset=0)
-    track_next_page = track_service.list_materials_page(db, track["id"], statuses=["pending"], limit=200, offset=200)
+    track_next_page = track_service.list_materials_page(db, track["id"], statuses=["pending"], limit=100, offset=100)
 
-    assert len(stock_page.items) == 130
+    assert len(stock_page.items) == 100
     assert stock_page.total == 130
-    assert stock_page.limit == 200
-    assert stock_page.has_more is False
+    assert stock_page.limit == 100
+    assert stock_page.has_more is True
     assert stock_next_page.total == 130
-    assert stock_next_page.items == []
-    assert len(track_page.items) == 130
+    assert len(stock_next_page.items) == 30
+    assert stock_next_page.has_more is False
+    assert len(track_page.items) == 100
     assert track_page.total == 130
-    assert track_page.has_more is False
+    assert track_page.limit == 100
+    assert track_page.has_more is True
     assert track_next_page.total == 130
-    assert track_next_page.items == []
+    assert len(track_next_page.items) == 30
+    assert track_next_page.has_more is False
 
 
 def test_job_request_and_log_lists_return_page_metadata():
@@ -132,8 +142,9 @@ def test_job_request_and_log_lists_return_page_metadata():
     request_page = job_service.list_run_requests_page(db, limit=200, offset=0)
     log_page = job_service.list_job_logs_page(db, "market_radar.fetch_news", limit=50, offset=100)
 
-    assert len(request_page.items) == 200
+    assert len(request_page.items) == 100
     assert request_page.total == 260
+    assert request_page.limit == 100
     assert request_page.has_more is True
     assert request_page.items[0].requested_at > request_page.items[-1].requested_at
     assert len(log_page.items) == 30
@@ -177,8 +188,9 @@ def test_console_growth_lists_return_page_metadata():
     disclosure_page = disclosure_service.list_disclosures_page(db, limit=80, offset=160)
     alert_stats = alert_service.event_stats(db)
 
-    assert len(alert_page.items) == 200
+    assert len(alert_page.items) == 100
     assert alert_page.total == 260
+    assert alert_page.limit == 100
     assert alert_page.has_more is True
     assert len(report_page.items) == 50
     assert report_page.total == 260
@@ -187,3 +199,47 @@ def test_console_growth_lists_return_page_metadata():
     assert disclosure_page.total == 260
     assert disclosure_page.has_more is True
     assert alert_stats["unhandled"] == 130
+
+
+def test_track_dashboard_limits_trend_points_and_preserves_summary():
+    db = make_session()
+    base_time = datetime(2026, 6, 10, 9, 0)
+    tracks = [track_service.create_track(db, TrackCreate(name=f"赛道-{index:02d}", status="active")) for index in range(12)]
+    for track in tracks:
+        tag = market_service.ensure_tag(db, f"赛道-{track['id']:02d}", "track", "test", "active")
+        db.add(TrackTagRelation(track_id=track["id"], tag_id=tag.id, source="test", status="active"))
+        for point_index in range(45):
+            for window in ("7d", "30d", "90d", "24h"):
+                db.add(
+                    TagHeatSnapshot(
+                        tag_id=tag.id,
+                        window_type=window,
+                        stat_time=base_time + timedelta(minutes=point_index),
+                        trigger_count=point_index,
+                        source_count=point_index,
+                        heat_score=float(track["id"] * 1000 + point_index),
+                        avg_count=0,
+                        change_ratio=0.2 if window == "7d" else 0.1,
+                        rank_no=track["id"],
+                    )
+                )
+        source = SourceItem(source_type="news", source_name="manual", title=f"材料 {track['id']}", content="content")
+        db.add(source)
+        db.flush()
+        db.add(TrackMaterial(track_id=track["id"], material_type="source_item", material_id=source.id, status="pending"))
+    db.commit()
+
+    dashboard = track_service.get_dashboard(db)
+
+    assert dashboard["summary"]["focus_tracks_count"] == 12
+    assert dashboard["summary"]["pending_materials_count"] == 12
+    assert dashboard["summary"]["warming_tracks_count"] == 12
+    assert len(dashboard["heat_rankings"]) == 12
+    assert len(dashboard["heat_trends"]) == 10
+    assert len(dashboard["latest_materials"]) == 10
+    assert all(len(trend["points"]) <= 90 for trend in dashboard["heat_trends"])
+    assert all(
+        len([point for point in trend["points"] if point["window_type"] == window]) <= 30
+        for trend in dashboard["heat_trends"]
+        for window in ("7d", "30d", "90d")
+    )

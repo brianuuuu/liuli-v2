@@ -1,4 +1,4 @@
-export const FLASH_PAGE_SIZE = 200;
+export const FLASH_PAGE_SIZE = 100;
 
 export type FlashScrollMetrics = {
   scrollTop: number;

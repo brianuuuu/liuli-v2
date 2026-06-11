@@ -120,7 +120,7 @@ export function EventsSection() {
     useCallback(async () => {
       const poolList = await listStockPool();
       if (stockId) {
-        const page = await listStockMaterials(stockId, { limit: 200, offset: 0 });
+        const page = await listStockMaterials(stockId, { limit: 100, offset: 0 });
         const list = page.items;
         const stock = poolList.find((s) => s.stock_id === stockId);
         return list.map((m) => ({
@@ -129,7 +129,7 @@ export function EventsSection() {
           stock_code: stock?.stock_code,
         })) as ExtendedStockMaterial[];
       } else {
-        const page = await listAllStockMaterials({ limit: 200, offset: 0 });
+        const page = await listAllStockMaterials({ limit: 100, offset: 0 });
         const list = page.items;
         return list.map((m) => {
           const stock = poolList.find((s) => s.stock_id === m.stock_id);

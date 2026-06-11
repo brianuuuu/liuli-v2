@@ -79,9 +79,9 @@ export function SourcesSection() {
             pageSize,
             total: sources.data.total,
             showSizeChanger: true,
-            pageSizeOptions: [20, 50, 100, 200],
+            pageSizeOptions: [20, 50, 100],
             onChange: (nextPage, nextPageSize) => {
-              setPage(nextPage);
+              setPage(nextPageSize !== pageSize ? 1 : nextPage);
               setPageSize(nextPageSize);
             }
           }}

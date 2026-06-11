@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -24,6 +24,11 @@ from invest_assistant.modules.track_discovery.schemas import (
     TrackUpdate,
 )
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
+
+DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d", "90d")
+DASHBOARD_TREND_WINDOWS = ("7d", "30d", "90d")
+DASHBOARD_TREND_POINT_LIMIT = 30
+DASHBOARD_RANKING_LIMIT = 10
 
 
 def create_track(db: Session, payload: TrackCreate) -> dict:
@@ -76,43 +81,15 @@ def get_dashboard(db: Session) -> dict:
             TrackTagRelation.status == "active",
         )
     ).all()
-    tag_to_tracks: dict[int, list[int]] = defaultdict(list)
-    for track_id, tag_id in tag_rows:
-        tag_to_tracks[int(tag_id)].append(int(track_id))
-
-    heat_by_track_window_time: dict[tuple[int, str, object], float] = defaultdict(float)
-    change_by_track_window_time: dict[tuple[int, str, object], float] = defaultdict(float)
-    latest_stat_by_window: dict[str, object] = {}
-    if tag_to_tracks:
-        heat_rows = list(db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_to_tracks.keys()))))
-        for row in heat_rows:
-            for track_id in tag_to_tracks.get(row.tag_id, []):
-                heat_by_track_window_time[(track_id, row.window_type, row.stat_time)] += float(row.heat_score or 0)
-                change_by_track_window_time[(track_id, row.window_type, row.stat_time)] += float(row.change_ratio or 0)
-            if row.stat_time is not None and (row.window_type not in latest_stat_by_window or row.stat_time > latest_stat_by_window[row.window_type]):
-                latest_stat_by_window[row.window_type] = row.stat_time
+    tag_ids = list({int(tag_id) for _track_id, tag_id in tag_rows})
+    latest_stat_by_window = _dashboard_latest_stat_by_window(db, tag_ids)
+    latest_heat_by_track_window = _dashboard_latest_heat_by_track_window(db, track_ids, latest_stat_by_window)
 
     def latest_heat(track_id: int, window: str) -> float:
-        stat_time = latest_stat_by_window.get(window)
-        if stat_time is None:
-            return 0.0
-        return round(heat_by_track_window_time.get((track_id, window, stat_time), 0.0), 2)
+        return round(float(latest_heat_by_track_window.get((track_id, window), {}).get("heat_score") or 0), 2)
 
     def latest_change(track_id: int, window: str) -> float:
-        stat_time = latest_stat_by_window.get(window)
-        if stat_time is None:
-            return 0.0
-        change = change_by_track_window_time.get((track_id, window, stat_time), 0.0)
-        if change:
-            return round(change, 4)
-        points = sorted(
-            (stat_time, value)
-            for (candidate_track_id, candidate_window, stat_time), value in heat_by_track_window_time.items()
-            if candidate_track_id == track_id and candidate_window == window
-        )
-        if len(points) < 2 or points[-2][1] == 0:
-            return 0.0
-        return round((points[-1][1] - points[-2][1]) / points[-2][1], 4)
+        return round(float(latest_heat_by_track_window.get((track_id, window), {}).get("change_ratio") or 0), 4)
 
     material_counts = dict(
         db.execute(
@@ -169,15 +146,7 @@ def get_dashboard(db: Session) -> dict:
     )[:6]
 
     trend_track_ids = [item["track_id"] for item in rankings[:10]]
-    heat_trends = []
-    for track_id in trend_track_ids:
-        points = [
-            {"window_type": window, "stat_time": _isoformat(stat_time), "heat_score": round(value, 2)}
-            for (candidate_track_id, window, stat_time), value in heat_by_track_window_time.items()
-            if candidate_track_id == track_id and window in {"7d", "30d", "90d"}
-        ]
-        points.sort(key=lambda item: (item["window_type"], item["stat_time"] or ""))
-        heat_trends.append({"track_id": track_id, "track_name": track_by_id[track_id].name, "points": points})
+    heat_trends = _dashboard_heat_trends(db, track_by_id, trend_track_ids)
 
     latest_materials = []
     material_rows = list(
@@ -220,6 +189,135 @@ def get_dashboard(db: Session) -> dict:
         "default_track_id": default_track_id,
         "analysis_summary": analysis_summary,
     }
+
+
+def _dashboard_latest_stat_by_window(db: Session, tag_ids: list[int]) -> dict[str, object]:
+    if not tag_ids:
+        return {}
+    rows = db.execute(
+        select(TagHeatSnapshot.window_type, func.max(TagHeatSnapshot.stat_time))
+        .where(
+            TagHeatSnapshot.tag_id.in_(tag_ids),
+            TagHeatSnapshot.window_type.in_(DASHBOARD_HEAT_WINDOWS),
+        )
+        .group_by(TagHeatSnapshot.window_type)
+    ).all()
+    return {str(window): stat_time for window, stat_time in rows if stat_time is not None}
+
+
+def _dashboard_latest_heat_by_track_window(
+    db: Session,
+    track_ids: list[int],
+    latest_stat_by_window: dict[str, object],
+) -> dict[tuple[int, str], dict[str, float]]:
+    if not track_ids or not latest_stat_by_window:
+        return {}
+    latest_conditions = [
+        and_(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == stat_time)
+        for window, stat_time in latest_stat_by_window.items()
+    ]
+    rows = db.execute(
+        select(
+            TrackTagRelation.track_id,
+            TagHeatSnapshot.window_type,
+            func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
+            func.sum(TagHeatSnapshot.change_ratio).label("change_ratio"),
+        )
+        .select_from(TrackTagRelation)
+        .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
+        .where(
+            TrackTagRelation.status == "active",
+            TrackTagRelation.track_id.in_(track_ids),
+            or_(*latest_conditions),
+        )
+        .group_by(TrackTagRelation.track_id, TagHeatSnapshot.window_type)
+    ).all()
+    return {
+        (int(track_id), str(window)): {
+            "heat_score": float(heat_score or 0),
+            "change_ratio": float(change_ratio or 0),
+        }
+        for track_id, window, heat_score, change_ratio in rows
+    }
+
+
+def _dashboard_heat_trends(
+    db: Session,
+    track_by_id: dict[int, Track],
+    trend_track_ids: list[int],
+) -> list[dict]:
+    if not trend_track_ids:
+        return []
+    distinct_times = (
+        select(
+            TagHeatSnapshot.window_type.label("window_type"),
+            TagHeatSnapshot.stat_time.label("stat_time"),
+        )
+        .select_from(TrackTagRelation)
+        .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
+        .where(
+            TrackTagRelation.status == "active",
+            TrackTagRelation.track_id.in_(trend_track_ids),
+            TagHeatSnapshot.window_type.in_(DASHBOARD_TREND_WINDOWS),
+        )
+        .group_by(TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
+        .subquery()
+    )
+    ranked_times = (
+        select(
+            distinct_times.c.window_type,
+            distinct_times.c.stat_time,
+            func.row_number()
+            .over(partition_by=distinct_times.c.window_type, order_by=distinct_times.c.stat_time.desc())
+            .label("rn"),
+        )
+        .subquery()
+    )
+    recent_times = (
+        select(ranked_times.c.window_type, ranked_times.c.stat_time)
+        .where(ranked_times.c.rn <= DASHBOARD_TREND_POINT_LIMIT)
+        .subquery()
+    )
+    rows = db.execute(
+        select(
+            TrackTagRelation.track_id,
+            TagHeatSnapshot.window_type,
+            TagHeatSnapshot.stat_time,
+            func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
+        )
+        .select_from(TrackTagRelation)
+        .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
+        .join(
+            recent_times,
+            and_(
+                recent_times.c.window_type == TagHeatSnapshot.window_type,
+                recent_times.c.stat_time == TagHeatSnapshot.stat_time,
+            ),
+        )
+        .where(
+            TrackTagRelation.status == "active",
+            TrackTagRelation.track_id.in_(trend_track_ids),
+        )
+        .group_by(TrackTagRelation.track_id, TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
+        .order_by(TrackTagRelation.track_id.asc(), TagHeatSnapshot.window_type.asc(), TagHeatSnapshot.stat_time.asc())
+    ).all()
+    points_by_track: dict[int, list[dict]] = defaultdict(list)
+    for track_id, window, stat_time, heat_score in rows:
+        points_by_track[int(track_id)].append(
+            {
+                "window_type": str(window),
+                "stat_time": _isoformat(stat_time),
+                "heat_score": round(float(heat_score or 0), 2),
+            }
+        )
+    return [
+        {
+            "track_id": track_id,
+            "track_name": track_by_id[track_id].name,
+            "points": points_by_track.get(track_id, []),
+        }
+        for track_id in trend_track_ids[:DASHBOARD_RANKING_LIMIT]
+    ]
 
 
 def get_track(db: Session, track_id: int) -> dict | None:

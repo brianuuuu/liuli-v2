@@ -29,7 +29,7 @@ def sync_definitions(db: Session = Depends(get_db)) -> dict[str, int]:
 
 @router.get("/run-requests", response_model=Page[JobRunRequestRead])
 def list_run_requests(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[JobRunRequestRead]:
@@ -68,7 +68,7 @@ def run_job(
 @router.get("/{job_name}/logs", response_model=Page[JobRunLogRead])
 def list_logs(
     job_name: str,
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[JobRunLogRead]:
