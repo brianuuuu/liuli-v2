@@ -377,7 +377,7 @@ def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
             {
                 "name": name,
                 "score": score,
-                "reason": f"DeepSeek score={score}/10；{reason}" if reason else f"DeepSeek score={score}/10",
+                "reason": reason if reason else None,
             }
         )
         existing.add(key)

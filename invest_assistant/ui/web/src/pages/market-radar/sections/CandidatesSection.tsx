@@ -110,13 +110,9 @@ export function CandidatesSection() {
     await suggestions.refresh();
   }
 
+
   function openApprove(record: AiTagSuggestion) {
     setApproving(record);
-    approveForm.setFieldsValue({
-      final_tag_name: record.final_tag_name || record.suggested_text,
-      target_type: "hotword",
-      target_name: record.final_tag_name || record.suggested_text
-    });
   }
 
   async function submitApprove() {
@@ -168,7 +164,7 @@ export function CandidatesSection() {
     { title: "分数", dataIndex: "score", width: 80, render: (value) => (value == null ? "-" : Number(value).toFixed(1)) },
     { title: "状态", dataIndex: "status", width: 92, render: (value) => <SuggestionStatusTag status={value} /> },
     { title: "拒绝次数", dataIndex: "rejected_count", width: 88, render: (value) => Number(value || 0) },
-    { title: "原因", dataIndex: "reason", width: 220, ellipsis: true, render: (value) => value || "-" },
+    { title: "原因", dataIndex: "reason", ellipsis: true, render: (value) => value || "-" },
     { title: "创建", dataIndex: "created_at", width: 132, render: (value) => formatTime(value).slice(5, 16) },
     {
       title: "操作",
@@ -223,7 +219,7 @@ export function CandidatesSection() {
           loading={suggestions.loading}
           dataSource={rows}
           columns={columns}
-          scroll={{ x: "max-content" }}
+          tableLayout="fixed"
           pagination={{
             current: page,
             pageSize,
@@ -260,7 +256,16 @@ export function CandidatesSection() {
         onOk={submitApprove}
         destroyOnHidden
       >
-        <Form form={approveForm} layout="vertical" preserve={false}>
+        <Form
+          key={approving?.id ?? "none"}
+          form={approveForm}
+          layout="vertical"
+          preserve={false}
+          initialValues={{
+            final_tag_name: approving?.final_tag_name || approving?.suggested_text,
+            target_type: "hotword"
+          }}
+        >
           <Form.Item name="final_tag_name" label="最终标签词">
             <Input />
           </Form.Item>
