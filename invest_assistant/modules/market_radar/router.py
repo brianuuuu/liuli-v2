@@ -41,11 +41,25 @@ def overview(db: Session = Depends(get_db)) -> dict[str, int]:
 
 @router.get("/source-items", response_model=Page[SourceItemRead])
 def list_source_items(
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    q: str | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    important_only: bool = False,
+    tag_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> Page[dict]:
-    return service.list_source_items_page(db, limit=limit, offset=offset)
+    return service.list_source_items_page(
+        db,
+        limit=limit,
+        offset=offset,
+        q=q,
+        source_name=source_name,
+        source_type=source_type,
+        important_only=important_only,
+        tag_id=tag_id,
+    )
 
 
 @router.get("/source-items/daily-stats")

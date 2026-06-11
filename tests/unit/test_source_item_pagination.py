@@ -6,7 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master import models as _stock_models  # noqa: F401
 from invest_assistant.modules.market_radar import service
-from invest_assistant.modules.market_radar.models import SourceItem
+from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag
+from invest_assistant.modules.stock_analysis import models as _stock_analysis_models  # noqa: F401
 from invest_assistant.modules.track_discovery import models as _track_models  # noqa: F401
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 
@@ -97,5 +98,61 @@ def test_count_source_items_by_day_counts_beyond_list_page_limit():
             "sentiment": 52,
             "report": 53,
         }
+    finally:
+        db.close()
+
+
+def test_list_source_items_page_filters_in_database_and_counts_filtered_total():
+    SessionLocal = make_session()
+    db = SessionLocal()
+    base_time = datetime(2026, 6, 6, 9, 0, 0)
+    try:
+        tag = Tag(name="数据库筛选专用标签", type="track", status="active")
+        db.add(tag)
+        db.flush()
+        for index in range(120):
+            source_name = "东方财富" if index < 110 else "富途牛牛"
+            source_type = "news" if index % 2 == 0 else "announcement"
+            content = "重大 AI 订单落地" if index % 10 == 0 else "普通信息流"
+            item = service.create_source_item(
+                db,
+                SourceItemCreate(
+                    source_type=source_type,
+                    source_name=source_name,
+                    title=f"普通跟踪 {index}",
+                    content=content,
+                    publish_time=base_time + timedelta(minutes=index),
+                ),
+            )
+            if index % 3 == 0:
+                db.add(SourceTag(source_item_id=item["id"], tag_id=tag.id, confidence=1, extractor="test"))
+        service.create_source_item(
+            db,
+            SourceItemCreate(
+                source_type="announcement",
+                source_name="cninfo",
+                title="巨潮公告",
+                content="机器人 重大 合同公告",
+                publish_time=base_time + timedelta(hours=3),
+            ),
+        )
+        db.commit()
+
+        eastmoney_page = service.list_source_items_page(db, limit=100, offset=0, source_name="东方财富")
+        cninfo_page = service.list_source_items_page(db, limit=100, offset=0, source_name="cninfo")
+        query_page = service.list_source_items_page(db, limit=100, offset=0, q="跟踪 11")
+        type_page = service.list_source_items_page(db, limit=100, offset=0, source_type="announcement")
+        important_page = service.list_source_items_page(db, limit=100, offset=0, important_only=True)
+        tag_page = service.list_source_items_page(db, limit=100, offset=0, tag_id=tag.id)
+
+        assert len(eastmoney_page.items) == 100
+        assert eastmoney_page.total == 110
+        assert eastmoney_page.has_more is True
+        assert cninfo_page.total == 1
+        assert cninfo_page.items[0]["source_name"] == "cninfo"
+        assert query_page.total == 11
+        assert type_page.total == 61
+        assert important_page.total == 13
+        assert tag_page.total == 40
     finally:
         db.close()

@@ -47,6 +47,25 @@ SOURCE_ITEM_DAILY_TYPE_GROUPS = {
     "report": {"research", "research_report", "report", "report_summary"},
 }
 
+SOURCE_ITEM_IMPORTANT_KEYWORDS = (
+    "重要",
+    "重大",
+    "风口",
+    "电报解读",
+    "预增",
+    "预减",
+    "停牌",
+    "复牌",
+    "重组",
+    "并购",
+    "处罚",
+    "监管",
+    "芯片",
+    "半导体",
+    "AI",
+    "算力",
+)
+
 
 def ensure_tag(
     db: Session,
@@ -363,8 +382,55 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
-def list_source_items(db: Session, limit: int | None = 100, offset: int = 0) -> list[dict]:
-    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
+def _source_item_filter_conditions(
+    *,
+    q: str | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    important_only: bool = False,
+    tag_id: int | None = None,
+) -> list:
+    conditions = []
+    query = str(q or "").strip()
+    if query:
+        like_query = f"%{query}%"
+        conditions.append(or_(SourceItem.title.ilike(like_query), SourceItem.content.ilike(like_query)))
+    source_name_value = str(source_name or "").strip()
+    if source_name_value:
+        conditions.append(SourceItem.source_name == source_name_value)
+    source_type_value = str(source_type or "").strip()
+    if source_type_value:
+        conditions.append(SourceItem.source_type == source_type_value)
+    if important_only:
+        important_conditions = []
+        for keyword in SOURCE_ITEM_IMPORTANT_KEYWORDS:
+            like_keyword = f"%{keyword}%"
+            important_conditions.append(SourceItem.title.ilike(like_keyword))
+            important_conditions.append(SourceItem.content.ilike(like_keyword))
+        conditions.append(or_(*important_conditions))
+    if tag_id is not None:
+        conditions.append(SourceItem.id.in_(select(SourceTag.source_item_id).where(SourceTag.tag_id == tag_id)))
+    return conditions
+
+
+def list_source_items(
+    db: Session,
+    limit: int | None = 100,
+    offset: int = 0,
+    q: str | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    important_only: bool = False,
+    tag_id: int | None = None,
+) -> list[dict]:
+    conditions = _source_item_filter_conditions(
+        q=q,
+        source_name=source_name,
+        source_type=source_type,
+        important_only=important_only,
+        tag_id=tag_id,
+    )
+    stmt = select(SourceItem).where(*conditions).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     if offset > 0:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -373,17 +439,54 @@ def list_source_items(db: Session, limit: int | None = 100, offset: int = 0) -> 
     return _source_item_dicts(db, items)
 
 
-def list_source_items_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[dict]:
+def list_source_items_page(
+    db: Session,
+    limit: int | None = 100,
+    offset: int = 0,
+    q: str | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    important_only: bool = False,
+    tag_id: int | None = None,
+) -> Page[dict]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
-    stmt = select(SourceItem).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
-    total = count_source_items(db)
+    conditions = _source_item_filter_conditions(
+        q=q,
+        source_name=source_name,
+        source_type=source_type,
+        important_only=important_only,
+        tag_id=tag_id,
+    )
+    stmt = select(SourceItem).where(*conditions).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
+    total = count_source_items(
+        db,
+        q=q,
+        source_name=source_name,
+        source_type=source_type,
+        important_only=important_only,
+        tag_id=tag_id,
+    )
     items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
     return make_page(_source_item_dicts(db, items), total, safe_limit, safe_offset)
 
 
-def count_source_items(db: Session) -> int:
-    return int(db.scalar(select(func.count()).select_from(SourceItem)) or 0)
+def count_source_items(
+    db: Session,
+    q: str | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    important_only: bool = False,
+    tag_id: int | None = None,
+) -> int:
+    conditions = _source_item_filter_conditions(
+        q=q,
+        source_name=source_name,
+        source_type=source_type,
+        important_only=important_only,
+        tag_id=tag_id,
+    )
+    return int(db.scalar(select(func.count()).select_from(SourceItem).where(*conditions)) or 0)
 
 
 def count_source_items_by_day(db: Session, target_date: date | None = None) -> dict[str, int]:

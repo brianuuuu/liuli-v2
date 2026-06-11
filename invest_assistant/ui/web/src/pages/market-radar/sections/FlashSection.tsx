@@ -4,11 +4,8 @@ import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import type { SourceItem } from "../../../types/api";
-import { filterFlashRows } from "./flashFilters";
 import { FLASH_PAGE_SIZE, shouldLoadNextFlashPage } from "./flashPagination";
 import { formatTime } from "./shared";
-
-const flashTypes = new Set(["news", "policy", "sentiment", "announcement", "financial"]);
 
 const sourceTypeOptions = [
   { value: "news", label: "新闻" },
@@ -18,6 +15,12 @@ const sourceTypeOptions = [
   { value: "financial", label: "财报" }
 ];
 
+const sourceFilterOptions = [
+  { value: "东方财富", label: "东方财富" },
+  { value: "富途牛牛", label: "富途牛牛" },
+  { value: "cninfo", label: "巨潮" }
+];
+
 function isImportantFlash(item: SourceItem) {
   const text = `${item.title}\n${item.content}`;
   return /重要|重大|风口|电报解读|预增|预减|停牌|复牌|重组|并购|处罚|监管|芯片|半导体|AI|算力/.test(text);
@@ -25,10 +28,6 @@ function isImportantFlash(item: SourceItem) {
 
 function flashDate(item: SourceItem) {
   return item.publish_time ? item.publish_time.slice(0, 10) : "未注明日期";
-}
-
-function flashText(item: SourceItem) {
-  return `${item.title}\n${item.content}`.toLowerCase();
 }
 
 function dotClass(item: SourceItem) {
@@ -56,7 +55,15 @@ export function FlashSection() {
       setLoadingMoreSources(true);
     }
     try {
-      const page = await listSourceItems({ limit: FLASH_PAGE_SIZE, offset });
+      const page = await listSourceItems({
+        limit: FLASH_PAGE_SIZE,
+        offset,
+        q: keyword.trim() || undefined,
+        source_name: sourceName?.trim() || undefined,
+        source_type: sourceType,
+        important_only: importantOnly,
+        tag_id: activeTagId ?? undefined
+      });
       const nextItems = page.items;
       setHasMoreSources(page.has_more);
       setSourceItems((currentItems) => {
@@ -71,9 +78,11 @@ export function FlashSection() {
         setLoadingMoreSources(false);
       }
     }
-  }, []);
+  }, [activeTagId, importantOnly, keyword, sourceName, sourceType]);
 
   const refreshFirstPage = useCallback(async () => {
+    setSourceItems([]);
+    setHasMoreSources(true);
     await loadSourcePage(0, true);
   }, [loadSourcePage]);
 
@@ -81,23 +90,9 @@ export function FlashSection() {
     void refreshFirstPage();
   }, [refreshFirstPage]);
 
-  const sourceOptions = useMemo(() => {
-    const names = Array.from(new Set(sourceItems.map((item) => item.source_name).filter(Boolean))).sort();
-    return names.map((name) => ({ value: name, label: name }));
-  }, [sourceItems]);
-
   const rows = useMemo(() => {
-    const query = keyword.trim().toLowerCase();
-    const filteredRows = sourceItems
-      .filter((item) => flashTypes.has(item.source_type))
-      .filter((item) => !sourceName || item.source_name === sourceName)
-      .filter((item) => !sourceType || item.source_type === sourceType)
-      .filter((item) => !importantOnly || isImportantFlash(item))
-      .filter((item) => !query || flashText(item).includes(query))
-      .sort((a, b) => String(b.publish_time || b.created_at || "").localeCompare(String(a.publish_time || a.created_at || "")));
-
-    return filterFlashRows(filteredRows, { activeTagId });
-  }, [activeTagId, importantOnly, keyword, sourceItems, sourceName, sourceType]);
+    return sourceItems;
+  }, [sourceItems]);
 
   const feedItems = useMemo(() => {
     const result: Array<{ type: "date"; date: string; key: string } | { type: "flash"; item: SourceItem; key: string }> = [];
@@ -227,7 +222,16 @@ export function FlashSection() {
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
-            <Select allowClear placeholder="来源" value={sourceName} options={sourceOptions} onChange={setSourceName} />
+            <Select
+              allowClear
+              showSearch
+              placeholder="来源"
+              value={sourceName}
+              options={sourceFilterOptions}
+              optionFilterProp="label"
+              onChange={setSourceName}
+              onSearch={(value) => setSourceName(value.trim() || undefined)}
+            />
             <Select allowClear placeholder="类型" value={sourceType} options={sourceTypeOptions} onChange={setSourceType} />
             <Button block onClick={resetFilters}>重置筛选</Button>
           </Space>

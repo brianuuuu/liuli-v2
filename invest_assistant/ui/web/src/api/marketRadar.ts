@@ -170,6 +170,11 @@ export async function restoreAiTagSuggestion(suggestionId: number): Promise<AiTa
 export type SourceItemListParams = {
   limit?: number;
   offset?: number;
+  q?: string;
+  source_name?: string;
+  source_type?: string;
+  important_only?: boolean;
+  tag_id?: number;
 };
 
 export async function listSourceItems(params: SourceItemListParams = {}): Promise<Page<SourceItem>> {
