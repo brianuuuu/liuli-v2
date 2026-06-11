@@ -4,6 +4,7 @@ import { apiClient } from "./client";
 export type MarketOverview = {
   source_items: number;
   tags: number;
+  active_tags: number;
   ai_tag_suggestions: number;
 };
 

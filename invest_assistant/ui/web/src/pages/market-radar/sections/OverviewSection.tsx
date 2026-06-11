@@ -1,6 +1,6 @@
 import { Button, Col, Row, Space, Statistic } from "antd";
 import { useCallback, useState } from "react";
-import { getMarketOverview, listAiTagSuggestions, listMarketTags, listRankings } from "../../../api/marketRadar";
+import { getMarketOverview, listAiTagSuggestions, listRankings } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -101,7 +101,7 @@ function RisingRankingList({
 export function OverviewSection() {
   const [activeRisingWindow, setActiveRisingWindow] = useState<RisingRankingWindow>("7d");
   const [activeCoolingWindow, setActiveCoolingWindow] = useState<RisingRankingWindow>("7d");
-  const overview = useAsyncData(useCallback(getMarketOverview, []), { source_items: 0, tags: 0, ai_tag_suggestions: 0 });
+  const overview = useAsyncData(useCallback(getMarketOverview, []), { source_items: 0, tags: 0, active_tags: 0, ai_tag_suggestions: 0 });
   const risingRankings = useAsyncData(
     useCallback(async () => {
       const groups = await Promise.all(
@@ -126,7 +126,6 @@ export function OverviewSection() {
     }, [activeCoolingWindow]),
     [] as RisingRankingGroup[]
   );
-  const tags = useAsyncData(useCallback(listMarketTags, []), []);
   const pendingSuggestions = useAsyncData(useCallback(() => listAiTagSuggestions("pending", { limit: 1, offset: 0 }), []), {
     items: [],
     total: 0,
@@ -138,7 +137,7 @@ export function OverviewSection() {
   const risingGroupByType = new Map(risingRankings.data.map((item) => [item.type, item.rows]));
   const coolingGroupByType = new Map(coolingRankings.data.map((item) => [item.type, item.rows]));
   const latestStat = [...risingRankings.data, ...coolingRankings.data].flatMap((item) => item.rows).map((item) => item.stat_time).sort().at(-1);
-  const activeTagCount = tags.data.filter((item) => item.status === "active").length || overview.data.tags;
+  const activeTagCount = overview.data.active_tags;
   const pendingSuggestionCount = pendingSuggestions.data.total || overview.data.ai_tag_suggestions;
 
   return (
@@ -151,7 +150,7 @@ export function OverviewSection() {
         </Col>
         <Col span={6}>
           <WorkbenchCard>
-            <Statistic title="活跃标签" value={activeTagCount} loading={tags.loading} />
+            <Statistic title="活跃标签" value={activeTagCount} loading={overview.loading} />
           </WorkbenchCard>
         </Col>
         <Col span={6}>

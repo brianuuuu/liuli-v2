@@ -34,6 +34,7 @@ def overview(db: Session = Depends(get_db)) -> dict[str, int]:
     return {
         "source_items": service.count_source_items(db),
         "tags": service.count_tags(db),
+        "active_tags": service.count_tags(db, status="active"),
         "ai_tag_suggestions": service.count_ai_tag_suggestions(db),
     }
 

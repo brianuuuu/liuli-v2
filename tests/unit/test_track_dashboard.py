@@ -127,6 +127,43 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert any(point["window_type"] == "90d" for trend in dashboard["heat_trends"] for point in trend["points"])
 
 
+def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting():
+    db = make_session()
+    base_time = datetime(2026, 6, 1, 9, 0)
+    target = Track(name="具身智能", status="active", track_score=90)
+    noisy = Track(name="噪声赛道", status="active", track_score=10)
+    db.add_all([target, noisy])
+    db.flush()
+    target_tag_a = Tag(name="具身智能", type="track", status="active")
+    target_tag_b = Tag(name="机器人本体", type="track", status="active")
+    noisy_tag = Tag(name="噪声标签", type="track", status="active")
+    db.add_all([target_tag_a, target_tag_b, noisy_tag])
+    db.flush()
+    db.add_all(
+        [
+            TrackTagRelation(track_id=target.id, tag_id=target_tag_a.id, status="active"),
+            TrackTagRelation(track_id=target.id, tag_id=target_tag_b.id, status="active"),
+            TrackTagRelation(track_id=noisy.id, tag_id=noisy_tag.id, status="active"),
+        ]
+    )
+    for offset, score in enumerate((10, 20, 30)):
+        stat_time = base_time + timedelta(days=offset)
+        add_heat(db, target_tag_a.id, "7d", stat_time, score)
+        add_heat(db, target_tag_b.id, "7d", stat_time, score + 1)
+    add_heat(db, target_tag_a.id, "24h", base_time + timedelta(days=2), 100)
+    add_heat(db, target_tag_b.id, "24h", base_time + timedelta(days=2), 50)
+    for offset in range(40):
+        add_heat(db, noisy_tag.id, "7d", base_time + timedelta(days=10, minutes=offset), 1)
+    add_heat(db, noisy_tag.id, "24h", base_time + timedelta(days=10), 1)
+    db.commit()
+
+    dashboard = get_dashboard(db)
+
+    target_trend = next(item for item in dashboard["heat_trends"] if item["track_id"] == target.id)
+    points_7d = [point for point in target_trend["points"] if point["window_type"] == "7d"]
+    assert [point["heat_score"] for point in points_7d] == [21, 41, 61]
+
+
 def test_aggregate_heat_supports_90d_and_preserves_previous_stat_times():
     db = make_session()
     old_time = datetime(2026, 5, 30, 9, 0, tzinfo=timezone.utc)

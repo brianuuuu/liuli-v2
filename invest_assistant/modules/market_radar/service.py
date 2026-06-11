@@ -84,10 +84,12 @@ def list_tags(db: Session, tag_type: str | None = None) -> list[Tag]:
     return list(db.scalars(stmt))
 
 
-def count_tags(db: Session, tag_type: str | None = None) -> int:
+def count_tags(db: Session, tag_type: str | None = None, status: str | None = None) -> int:
     stmt = select(func.count(Tag.id))
     if tag_type:
         stmt = stmt.where(Tag.type == tag_type)
+    if status:
+        stmt = stmt.where(Tag.status == status)
     return int(db.scalar(stmt) or 0)
 
 
