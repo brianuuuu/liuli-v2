@@ -1,9 +1,11 @@
+from datetime import date, datetime, time, timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.shared.time_utils import beijing_now
 
 
 def create_ai_request_log(
@@ -37,5 +39,23 @@ def create_ai_request_log(
     return item
 
 
-def list_ai_request_logs(db: Session, limit: int = 100) -> list[AiRequestLog]:
+def list_ai_request_logs(db: Session, limit: int = 20) -> list[AiRequestLog]:
     return list(db.scalars(select(AiRequestLog).order_by(AiRequestLog.created_at.desc(), AiRequestLog.id.desc()).limit(limit)))
+
+
+def count_ai_request_logs(db: Session, target_date: date | None = None) -> dict[str, int]:
+    day = target_date or beijing_now().date()
+    start_at = datetime.combine(day, time.min)
+    end_at = start_at + timedelta(days=1)
+    total = int(db.scalar(select(func.count()).select_from(AiRequestLog)) or 0)
+    today_count, today_tokens = db.execute(
+        select(func.count(AiRequestLog.id), func.coalesce(func.sum(AiRequestLog.total_tokens), 0)).where(
+            AiRequestLog.created_at >= start_at,
+            AiRequestLog.created_at < end_at,
+        )
+    ).one()
+    return {
+        "total": total,
+        "today": int(today_count or 0),
+        "today_tokens": int(today_tokens or 0),
+    }

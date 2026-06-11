@@ -1,21 +1,58 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, text
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.alert_center.models import AlertEvent
-from invest_assistant.modules.basic.ai_audit.service import list_ai_request_logs
+from invest_assistant.modules.basic.ai_audit.service import count_ai_request_logs, list_ai_request_logs
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
-from invest_assistant.modules.basic.job_center.models import JobConfig
+from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
+from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
+from invest_assistant.modules.market_radar import service as market_service
 from invest_assistant.modules.market_radar.models import SourceItem
-from invest_assistant.modules.stock_analysis.models import StockDailyBar
+from invest_assistant.modules.stock_analysis.models import StockDailyBar, StockMaterial, StockPoolItem
+from invest_assistant.modules.track_discovery.models import Track, TrackMaterial
 
 router = APIRouter(prefix="/api/console", tags=["console"], dependencies=[Depends(get_current_user)])
+
+WORKBENCH_OPERATION_JOBS = (
+    "track_discovery.review_track_events_deepseek",
+    "stock_analysis.review_stock_events_deepseek",
+    "market_radar.extract_daily_hotwords_deepseek",
+    "market_radar.suggest_hotword_merges_deepseek",
+)
 
 
 def _format_time(value) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _run_request_summary(item: JobRunRequest) -> dict:
+    return {
+        "id": item.id,
+        "job_name": item.job_name,
+        "status": item.status,
+        "requested_at": _format_time(item.requested_at),
+        "started_at": _format_time(item.started_at),
+        "finished_at": _format_time(item.finished_at),
+    }
+
+
+def _operation_job_summary(configs: dict[str, JobConfig]) -> list[dict]:
+    return [
+        {
+            "job_name": job_name,
+            "exists": job_name in JOB_REGISTRY,
+            "last_run_at": _format_time(configs[job_name].last_run_at) if job_name in configs else None,
+            "last_status": configs[job_name].last_status if job_name in configs else None,
+        }
+        for job_name in WORKBENCH_OPERATION_JOBS
+    ]
+
+
+def _active_status_filter(column):
+    return ~func.lower(column).in_(("disabled", "archived", "ignored", "rejected", "inactive"))
 
 
 @router.get("/dashboard")
@@ -40,6 +77,60 @@ def dashboard(db: Session = Depends(get_db)) -> dict:
             }
             for event in todo_events
         ],
+    }
+
+
+@router.get("/workbench-today")
+def workbench_today(db: Session = Depends(get_db)) -> dict:
+    source_stats = market_service.count_source_items_by_day(db)
+    hotword_stats = market_service.hotword_stats(db)
+    ai_log_stats = count_ai_request_logs(db)
+    pending_suggestions = market_service.count_ai_tag_suggestions(db, "pending")
+    pending_track_materials = int(db.scalar(select(func.count(TrackMaterial.id)).where(TrackMaterial.status == "pending")) or 0)
+    pending_stock_materials = int(db.scalar(select(func.count(StockMaterial.id)).where(StockMaterial.status == "pending")) or 0)
+    unread_alerts = int(db.scalar(select(func.count(AlertEvent.id)).where(AlertEvent.status == "unread")) or 0)
+    failed_jobs = int(
+        db.scalar(
+            select(func.count(JobConfig.id)).where(func.lower(JobConfig.last_status).in_(("failed", "error")))
+        )
+        or 0
+    )
+    recent_requests = list(
+        db.scalars(
+            select(JobRunRequest)
+            .order_by(JobRunRequest.requested_at.desc(), JobRunRequest.id.desc())
+            .limit(8)
+        )
+    )
+    operation_configs = {
+        item.job_name: item
+        for item in db.scalars(select(JobConfig).where(JobConfig.job_name.in_(WORKBENCH_OPERATION_JOBS)))
+    }
+    return {
+        "source_stats": source_stats,
+        "active": {
+            "tags": market_service.count_tags(db, status="active"),
+            "hotwords": hotword_stats["active"],
+            "stocks": int(db.scalar(select(func.count(StockPoolItem.id)).where(_active_status_filter(StockPoolItem.status))) or 0),
+            "tracks": int(db.scalar(select(func.count(Track.id)).where(_active_status_filter(Track.status))) or 0),
+        },
+        "new": {
+            "hotwords": hotword_stats["today"],
+        },
+        "ai": {
+            "today": ai_log_stats["today"],
+            "today_tokens": ai_log_stats["today_tokens"],
+        },
+        "todo": {
+            "pending_suggestions": pending_suggestions,
+            "pending_track_materials": pending_track_materials,
+            "pending_stock_materials": pending_stock_materials,
+            "unread_alerts": unread_alerts,
+            "failed_jobs": failed_jobs,
+            "total": pending_suggestions + pending_track_materials + pending_stock_materials + unread_alerts + failed_jobs,
+        },
+        "operation_jobs": _operation_job_summary(operation_configs),
+        "recent_run_requests": [_run_request_summary(item) for item in recent_requests],
     }
 
 
@@ -163,8 +254,13 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     ]
 
 
+@router.get("/ai-logs/stats")
+def ai_log_stats(db: Session = Depends(get_db)) -> dict[str, int]:
+    return count_ai_request_logs(db)
+
+
 @router.get("/ai-logs")
-def ai_logs(db: Session = Depends(get_db)) -> list[dict]:
+def ai_logs(limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db)) -> list[dict]:
     return [
         {
             "id": item.id,
@@ -180,5 +276,5 @@ def ai_logs(db: Session = Depends(get_db)) -> list[dict]:
             "error_message": item.error_message,
             "created_at": _format_time(item.created_at),
         }
-        for item in list_ai_request_logs(db)
+        for item in list_ai_request_logs(db, limit=limit)
     ]

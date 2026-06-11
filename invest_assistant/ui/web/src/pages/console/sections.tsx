@@ -22,7 +22,7 @@ const logColumns = [
 ];
 
 function AiLogsSection() {
-  const aiLogs = useAsyncData(useCallback(getAiLogs, []), []);
+  const aiLogs = useAsyncData(useCallback(() => getAiLogs({ limit: 20 }), []), []);
   return (
     <RecordTable
       loading={aiLogs.loading}

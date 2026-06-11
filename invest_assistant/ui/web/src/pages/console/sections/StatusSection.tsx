@@ -1,6 +1,6 @@
 import { Col, Row, Statistic } from "antd";
 import { useCallback } from "react";
-import { getAiLogs, getDashboard, getDataSources, getSystemStatus } from "../../../api/console";
+import { getAiLogStats, getDashboard, getDataSources, getSystemStatus } from "../../../api/console";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 
@@ -8,7 +8,7 @@ export function StatusSection() {
   const status = useAsyncData(useCallback(getSystemStatus, []), { api: "unknown", database: "unknown" });
   const dashboard = useAsyncData(useCallback(getDashboard, []), {});
   const dataSources = useAsyncData(useCallback(getDataSources, []), []);
-  const aiLogs = useAsyncData(useCallback(getAiLogs, []), []);
+  const aiLogStats = useAsyncData(useCallback(getAiLogStats, []), { total: 0, today: 0, today_tokens: 0 });
 
   return (
     <Row gutter={[12, 12]}>
@@ -29,7 +29,7 @@ export function StatusSection() {
       </Col>
       <Col span={6}>
         <WorkbenchCard>
-          <Statistic title="数据源 / AI 日志" value={`${dataSources.data.length} / ${aiLogs.data.length}`} loading={dataSources.loading || aiLogs.loading} />
+          <Statistic title="数据源 / AI 日志" value={`${dataSources.data.length} / ${aiLogStats.data.total}`} loading={dataSources.loading || aiLogStats.loading} />
         </WorkbenchCard>
       </Col>
     </Row>

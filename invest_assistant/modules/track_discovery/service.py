@@ -248,10 +248,12 @@ def _dashboard_heat_trends(
 ) -> list[dict]:
     if not trend_track_ids:
         return []
-    distinct_times = (
+    grouped_points = (
         select(
+            TrackTagRelation.track_id.label("track_id"),
             TagHeatSnapshot.window_type.label("window_type"),
             TagHeatSnapshot.stat_time.label("stat_time"),
+            func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
         )
         .select_from(TrackTagRelation)
         .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
@@ -260,46 +262,33 @@ def _dashboard_heat_trends(
             TrackTagRelation.track_id.in_(trend_track_ids),
             TagHeatSnapshot.window_type.in_(DASHBOARD_TREND_WINDOWS),
         )
-        .group_by(TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
+        .group_by(TrackTagRelation.track_id, TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
         .subquery()
     )
-    ranked_times = (
+    ranked_points = (
         select(
-            distinct_times.c.window_type,
-            distinct_times.c.stat_time,
+            grouped_points.c.track_id,
+            grouped_points.c.window_type,
+            grouped_points.c.stat_time,
+            grouped_points.c.heat_score,
             func.row_number()
-            .over(partition_by=distinct_times.c.window_type, order_by=distinct_times.c.stat_time.desc())
+            .over(
+                partition_by=(grouped_points.c.track_id, grouped_points.c.window_type),
+                order_by=grouped_points.c.stat_time.desc(),
+            )
             .label("rn"),
         )
         .subquery()
     )
-    recent_times = (
-        select(ranked_times.c.window_type, ranked_times.c.stat_time)
-        .where(ranked_times.c.rn <= DASHBOARD_TREND_POINT_LIMIT)
-        .subquery()
-    )
     rows = db.execute(
         select(
-            TrackTagRelation.track_id,
-            TagHeatSnapshot.window_type,
-            TagHeatSnapshot.stat_time,
-            func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
+            ranked_points.c.track_id,
+            ranked_points.c.window_type,
+            ranked_points.c.stat_time,
+            ranked_points.c.heat_score,
         )
-        .select_from(TrackTagRelation)
-        .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
-        .join(
-            recent_times,
-            and_(
-                recent_times.c.window_type == TagHeatSnapshot.window_type,
-                recent_times.c.stat_time == TagHeatSnapshot.stat_time,
-            ),
-        )
-        .where(
-            TrackTagRelation.status == "active",
-            TrackTagRelation.track_id.in_(trend_track_ids),
-        )
-        .group_by(TrackTagRelation.track_id, TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
-        .order_by(TrackTagRelation.track_id.asc(), TagHeatSnapshot.window_type.asc(), TagHeatSnapshot.stat_time.asc())
+        .where(ranked_points.c.rn <= DASHBOARD_TREND_POINT_LIMIT)
+        .order_by(ranked_points.c.track_id.asc(), ranked_points.c.window_type.asc(), ranked_points.c.stat_time.asc())
     ).all()
     points_by_track: dict[int, list[dict]] = defaultdict(list)
     for track_id, window, stat_time, heat_score in rows:

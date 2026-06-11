@@ -31,9 +31,22 @@ export type PageParams = {
   offset?: number;
 };
 
+const runRequestsInFlight = new Map<string, Promise<Page<JobRunRequest>>>();
+
 export async function listRunRequests(params: PageParams = {}): Promise<Page<JobRunRequest>> {
-  const response = await apiClient.get<Page<JobRunRequest>>("/api/jobs/run-requests", { params });
-  return response.data;
+  const requestParams = { limit: 8, offset: 0, ...params };
+  const key = JSON.stringify(requestParams);
+  if (runRequestsInFlight.has(key)) {
+    return runRequestsInFlight.get(key)!;
+  }
+  const request = apiClient
+    .get<Page<JobRunRequest>>("/api/jobs/run-requests", { params: requestParams })
+    .then((response) => response.data)
+    .finally(() => {
+      runRequestsInFlight.delete(key);
+    });
+  runRequestsInFlight.set(key, request);
+  return request;
 }
 
 export async function listJobLogs(jobName: string, params: PageParams = {}): Promise<Page<JobRunLog>> {
