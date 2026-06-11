@@ -40,7 +40,7 @@ def overview(db: Session = Depends(get_db)) -> dict[str, int]:
 
 @router.get("/source-items", response_model=Page[SourceItemRead])
 def list_source_items(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:
@@ -124,11 +124,12 @@ def create_hotword(payload: HotwordCreate, db: Session = Depends(get_db)):
 @router.get("/hotwords", response_model=Page[HotwordRead])
 def list_hotwords(
     status: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
+    q: str | None = None,
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:
-    return service.list_hotwords_page(db, status=status, limit=limit, offset=offset)
+    return service.list_hotwords_page(db, status=status, q=q, limit=limit, offset=offset)
 
 
 @router.get("/hotwords/stats")
@@ -184,11 +185,12 @@ def track_hotword_graph(window: str = "24h", db: Session = Depends(get_db)) -> d
 @router.get("/ai-tag-suggestions", response_model=Page[AiTagSuggestionRead])
 def list_ai_tag_suggestions(
     status: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
+    q: str | None = None,
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page:
-    return service.list_ai_tag_suggestions_page(db, status=status, limit=limit, offset=offset)
+    return service.list_ai_tag_suggestions_page(db, status=status, q=q, limit=limit, offset=offset)
 
 
 @router.post("/ai-tag-suggestions", response_model=AiTagSuggestionRead)

@@ -57,11 +57,19 @@ function SuggestionStatusTag({ status }: { status?: string }) {
 }
 
 export function CandidatesSection() {
-  const suggestions = useAsyncData(useCallback(async () => (await listAiTagSuggestions(undefined, { limit: 200, offset: 0 })).items, []), []);
-  const hotwords = useAsyncData(useCallback(async () => (await listHotwords(undefined, { limit: 200, offset: 0 })).items, []), []);
-  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const suggestions = useAsyncData(
+    useCallback(
+      async () => listAiTagSuggestions(statusFilter, { q: searchQuery.trim() || undefined, limit: pageSize, offset: (page - 1) * pageSize }),
+      [page, pageSize, searchQuery, statusFilter]
+    ),
+    { items: [], total: 0, limit: 20, offset: 0, has_more: false }
+  );
+  const hotwords = useAsyncData(useCallback(async () => (await listHotwords(undefined, { limit: 100, offset: 0 })).items, []), []);
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [createOpen, setCreateOpen] = useState(false);
   const [approving, setApproving] = useState<AiTagSuggestion | null>(null);
   const [stockOptions, setStockOptions] = useState<Stock[]>([]);
@@ -70,13 +78,11 @@ export function CandidatesSection() {
   const [approveForm] = Form.useForm<ApproveFormValues>();
   const targetType = Form.useWatch("target_type", approveForm) || "hotword";
 
-  const rows = useMemo(() => {
-    return suggestions.data.filter((item) => {
-      const matchesStatus = !statusFilter || item.status === statusFilter;
-      const matchesSearch = !searchQuery || item.suggested_text.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesStatus && matchesSearch;
-    });
-  }, [suggestions.data, statusFilter, searchQuery]);
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
+
+  const rows = suggestions.data.items;
   const statusButtons = [{ value: undefined, label: "全部" }, ...statusOptions];
   const targetObjectOptions = useMemo(() => getTargetOptions(targetType, hotwords.data, tracks.data, stockOptions), [hotwords.data, stockOptions, targetType, tracks.data]);
   const targetObjectLoading = targetType === "stock" ? stockSearchLoading : targetType === "track" ? tracks.loading : hotwords.loading;
@@ -218,7 +224,17 @@ export function CandidatesSection() {
           dataSource={rows}
           columns={columns}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{
+            current: page,
+            pageSize,
+            total: suggestions.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPageSize !== pageSize ? 1 : nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
           locale={{ emptyText: <EmptyAction description="暂无 AI 推荐词" /> }}
         />
       </DataPanel>

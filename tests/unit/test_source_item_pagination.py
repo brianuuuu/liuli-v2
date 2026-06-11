@@ -89,7 +89,7 @@ def test_count_source_items_by_day_counts_beyond_list_page_limit():
         stats = service.count_source_items_by_day(db, target_day)
 
         assert fallback is not None
-        assert len(service.list_source_items(db, limit=200)) == 200
+        assert len(service.list_source_items(db, limit=200)) == 100
         assert stats == {
             "total": 261,
             "news": 52,

@@ -58,7 +58,7 @@ def track_dashboard(db: Session = Depends(get_db)) -> dict:
 def list_all_track_materials(
     track_id: int | None = None,
     status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:
@@ -131,7 +131,7 @@ def delete_track_tag(relation_id: int, db: Session = Depends(get_db)):
 def list_track_materials(
     track_id: int,
     status: str | None = Query(DEFAULT_MATERIAL_STATUS_FILTER),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:

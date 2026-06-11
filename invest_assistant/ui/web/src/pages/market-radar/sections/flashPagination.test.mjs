@@ -20,7 +20,7 @@ writeFileSync(compiledPath, output.outputText);
 
 const { FLASH_PAGE_SIZE, shouldLoadNextFlashPage } = await import(pathToFileURL(compiledPath));
 
-assert.equal(FLASH_PAGE_SIZE, 200);
+assert.equal(FLASH_PAGE_SIZE, 100);
 assert.equal(shouldLoadNextFlashPage({ scrollTop: 700, clientHeight: 280, scrollHeight: 1000 }), true);
 assert.equal(shouldLoadNextFlashPage({ scrollTop: 640, clientHeight: 280, scrollHeight: 1000 }), false);
 assert.equal(shouldLoadNextFlashPage({ scrollTop: 700, clientHeight: 280, scrollHeight: 1000 }, 12), false);

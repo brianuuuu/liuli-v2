@@ -46,7 +46,7 @@ def delete_rule(rule_id: int, db: Session = Depends(get_db)):
 
 @router.get("/events", response_model=Page[AlertEventRead])
 def list_events(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[AlertEventRead]:

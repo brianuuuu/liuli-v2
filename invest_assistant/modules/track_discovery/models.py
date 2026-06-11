@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,10 @@ class Track(Base):
 
 class TrackMaterial(Base):
     __tablename__ = "track_material"
-    __table_args__ = (UniqueConstraint("track_id", "material_type", "material_id", name="uq_track_material_ref"),)
+    __table_args__ = (
+        UniqueConstraint("track_id", "material_type", "material_id", name="uq_track_material_ref"),
+        Index("ix_track_material_track_status_updated", "track_id", "status", "updated_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     track_id: Mapped[int] = mapped_column(ForeignKey("track.id"), nullable=False, index=True)
@@ -74,6 +77,10 @@ class TrackStatusHistory(Base):
 
 
 def ensure_track_discovery_schema(engine: Engine) -> None:
+    for table in (TrackMaterial.__table__,):
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
+
     if engine.dialect.name != "sqlite":
         return
     with engine.begin() as conn:

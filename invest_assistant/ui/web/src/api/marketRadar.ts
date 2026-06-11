@@ -82,6 +82,7 @@ export type GraphType = "track" | "hotword" | "track_hotword";
 export type PageParams = {
   limit?: number;
   offset?: number;
+  q?: string;
 };
 
 export async function getMarketOverview(): Promise<MarketOverview> {

@@ -209,7 +209,7 @@ def disable_stock_track_relation(relation_id: int, db: Session = Depends(get_db)
 def list_all_stock_materials(
     stock_id: int | None = None,
     status: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:
@@ -226,7 +226,7 @@ def list_all_stock_materials(
 def list_stock_materials(
     stock_id: int,
     status: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> Page[dict]:

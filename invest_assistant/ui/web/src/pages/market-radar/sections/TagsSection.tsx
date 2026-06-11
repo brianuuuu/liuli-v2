@@ -1,6 +1,6 @@
 import { Button, Drawer, Form, Input, Modal, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createHotword, getTagTrend, listHotwords } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -28,22 +28,28 @@ function HotwordStatusTag({ status }: { status?: string }) {
 }
 
 export function TagsSection() {
-  const hotwords = useAsyncData(useCallback(async () => (await listHotwords(undefined, { limit: 200, offset: 0 })).items, []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const hotwords = useAsyncData(
+    useCallback(
+      async () => listHotwords(statusFilter, { q: searchQuery.trim() || undefined, limit: pageSize, offset: (page - 1) * pageSize }),
+      [page, pageSize, searchQuery, statusFilter]
+    ),
+    { items: [], total: 0, limit: 20, offset: 0, has_more: false }
+  );
   const [selected, setSelected] = useState<Hotword | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<HotwordFormValues>();
 
-  const rows = useMemo(() => {
-    return hotwords.data.filter((item) => {
-      const matchesStatus = !statusFilter || item.status === statusFilter;
-      const matchesSearch = !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesStatus && matchesSearch;
-    });
-  }, [hotwords.data, statusFilter, searchQuery]);
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
+
+  const rows = hotwords.data.items;
   const statusButtons = [{ value: undefined, label: "全部" }, ...hotwordStatusOptions];
 
   function openCreate() {
@@ -128,7 +134,17 @@ export function TagsSection() {
           loading={hotwords.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{
+            current: page,
+            pageSize,
+            total: hotwords.data.total,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPageSize !== pageSize ? 1 : nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
           locale={{ emptyText: <EmptyAction description="暂无标签" /> }}
         />
       </DataPanel>

@@ -216,7 +216,13 @@ def list_hotwords(db: Session, status: str | None = None) -> list[dict]:
     return [hotword_dict(db, hotword) for hotword in db.scalars(stmt)]
 
 
-def list_hotwords_page(db: Session, status: str | None = None, limit: int | None = 50, offset: int = 0) -> Page[dict]:
+def list_hotwords_page(
+    db: Session,
+    status: str | None = None,
+    q: str | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[dict]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
     stmt = select(Hotword).order_by(Hotword.name.asc())
@@ -224,6 +230,11 @@ def list_hotwords_page(db: Session, status: str | None = None, limit: int | None
     if status:
         stmt = stmt.where(Hotword.status == status)
         count_stmt = count_stmt.where(Hotword.status == status)
+    query = str(q or "").strip()
+    if query:
+        condition = Hotword.name.ilike(f"%{query}%")
+        stmt = stmt.where(condition)
+        count_stmt = count_stmt.where(condition)
     total = int(db.scalar(count_stmt) or 0)
     rows = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
     return make_page([hotword_dict(db, hotword) for hotword in rows], total, safe_limit, safe_offset)
@@ -350,12 +361,12 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
-def list_source_items(db: Session, limit: int | None = 200, offset: int = 0) -> list[dict]:
+def list_source_items(db: Session, limit: int | None = 100, offset: int = 0) -> list[dict]:
     stmt = select(SourceItem).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     if offset > 0:
         stmt = stmt.offset(offset)
     if limit is not None:
-        stmt = stmt.limit(max(int(limit), 1))
+        stmt = stmt.limit(normalize_limit(limit))
     items = list(db.scalars(stmt))
     return _source_item_dicts(db, items)
 
@@ -679,7 +690,13 @@ def list_ai_tag_suggestions(db: Session) -> list[AiTagSuggestion]:
     return list(db.scalars(select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc())))
 
 
-def list_ai_tag_suggestions_page(db: Session, status: str | None = None, limit: int | None = 50, offset: int = 0) -> Page[AiTagSuggestion]:
+def list_ai_tag_suggestions_page(
+    db: Session,
+    status: str | None = None,
+    q: str | None = None,
+    limit: int | None = 50,
+    offset: int = 0,
+) -> Page[AiTagSuggestion]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
     stmt = select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc())
@@ -687,6 +704,11 @@ def list_ai_tag_suggestions_page(db: Session, status: str | None = None, limit: 
     if status:
         stmt = stmt.where(AiTagSuggestion.status == status)
         count_stmt = count_stmt.where(AiTagSuggestion.status == status)
+    query = str(q or "").strip()
+    if query:
+        condition = AiTagSuggestion.suggested_text.ilike(f"%{query}%")
+        stmt = stmt.where(condition)
+        count_stmt = count_stmt.where(condition)
     total = int(db.scalar(count_stmt) or 0)
     items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
     return make_page(items, total, safe_limit, safe_offset)

@@ -471,7 +471,7 @@ function ReportTable({ title, rows, loading, onOpen }: { title: string; rows: Re
 }
 
 function LatestReportsSection() {
-  const reports = useAsyncData(useCallback(async () => (await listReports({ limit: 200, offset: 0 })).items, []), []);
+  const reports = useAsyncData(useCallback(async () => (await listReports({ limit: 100, offset: 0 })).items, []), []);
   const [activeReport, setActiveReport] = useState<Report | null>(null);
   const [content, setContent] = useState("");
   const [contentLoading, setContentLoading] = useState(false);
