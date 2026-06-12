@@ -19,7 +19,7 @@ import type {
   TrackDashboardMaterial,
   TrackHeatRanking
 } from "../../../types/api";
-import { DirectionTag, formatTime, stageOptions } from "./shared";
+import { DirectionTag, formatTime, stageOptions, StatusTag } from "./shared";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -80,7 +80,6 @@ function snapshotToSummary(trackName: string, snapshot?: TrackAnalysisSnapshot |
 export function OverviewSection() {
   const dashboard = useAsyncData(useCallback(getTrackDashboard, []), {
     summary: { warming_tracks_count: 0, focus_tracks_count: 0, pending_materials_count: 0, top_heat_track: null },
-    heat_trends: [],
     heat_rankings: [],
     focus_tracks: [],
     latest_materials: [],
@@ -117,18 +116,19 @@ export function OverviewSection() {
   }, [dashboard.data.analysis_summary, selectedSnapshots.data, selectedTrackId, selectedTrackName]);
 
   const rankingColumns: ColumnsType<TrackHeatRanking> = [
-    { title: "排名", dataIndex: "rank", width: 58 },
-    { title: "赛道", dataIndex: "track_name", ellipsis: true },
-    { title: "当天热度", dataIndex: "current_heat", width: 86, render: (value) => Number(value || 0).toFixed(0) },
-    { title: "材料", dataIndex: "today_material_count", width: 68, render: countText },
-    { title: "确认", dataIndex: "confirmed_material_count", width: 68, render: countText },
-    { title: "已处理", dataIndex: "processed_material_count", width: 72, render: countText },
-    { title: "待处理", dataIndex: "pending_material_count", width: 72, render: countText },
-    { title: "24h变化", dataIndex: "rank_change_24h", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
-    { title: "7日变化", dataIndex: "rank_change_7d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
-    { title: "30日变化", dataIndex: "rank_change_30d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
-    { title: "阶段", dataIndex: "stage", width: 82, render: (value) => <Tag>{stageLabel(value)}</Tag> },
-    { title: "评分", dataIndex: "track_score", width: 64, render: (value) => value ?? "-" }
+    { title: "排名", dataIndex: "rank", width: 54 },
+    { title: "赛道", dataIndex: "track_name", width: 300, ellipsis: true },
+    { title: "状态", dataIndex: "status", width: 76, render: (value) => <StatusTag status={value} /> },
+    { title: "信息流", dataIndex: "current_heat", width: 68, render: (value) => Number(value || 0).toFixed(0) },
+    { title: "材料", dataIndex: "today_material_count", width: 56, render: countText },
+    { title: "确认", dataIndex: "confirmed_material_count", width: 56, render: countText },
+    { title: "已处理", dataIndex: "processed_material_count", width: 64, render: countText },
+    { title: "待处理", dataIndex: "pending_material_count", width: 64, render: countText },
+    { title: "24h", dataIndex: "rank_change_24h", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
+    { title: "7日", dataIndex: "rank_change_7d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
+    { title: "30日", dataIndex: "rank_change_30d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
+    { title: "阶段", dataIndex: "stage", width: 76, render: (value) => <Tag>{stageLabel(value)}</Tag> },
+    { title: "评分", dataIndex: "track_score", width: 56, render: (value) => value ?? "-" }
   ];
 
   const materialColumns: ColumnsType<TrackDashboardMaterial> = [

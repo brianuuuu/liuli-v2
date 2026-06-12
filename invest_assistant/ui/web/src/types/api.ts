@@ -360,20 +360,11 @@ export type TrackDashboardSummary = {
   } | null;
 };
 
-export type TrackHeatTrend = {
-  track_id: number;
-  track_name: string;
-  points: {
-    window_type: "7d" | "30d" | string;
-    stat_time?: string | null;
-    heat_score: number;
-  }[];
-};
-
 export type TrackHeatRanking = {
   rank: number;
   track_id: number;
   track_name: string;
+  status?: string | null;
   current_heat: number;
   today_material_count?: number;
   confirmed_material_count?: number;
@@ -419,7 +410,6 @@ export type TrackDashboardAnalysisSummary = {
 
 export type TrackDashboard = {
   summary: TrackDashboardSummary;
-  heat_trends: TrackHeatTrend[];
   heat_rankings: TrackHeatRanking[];
   focus_tracks: TrackDashboardFocusTrack[];
   latest_materials: TrackDashboardMaterial[];

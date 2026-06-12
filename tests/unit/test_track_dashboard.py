@@ -113,6 +113,7 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert dashboard["summary"]["top_heat_track"]["name"] == "机器人"
     assert dashboard["summary"]["top_heat_track"]["heat_score"] == 89
     assert dashboard["heat_rankings"][0]["track_name"] == "机器人"
+    assert dashboard["heat_rankings"][0]["status"] == "active"
     assert dashboard["heat_rankings"][0]["current_heat"] == 89
     assert dashboard["heat_rankings"][0]["rank_change_24h"] is None
     assert dashboard["heat_rankings"][0]["rank_change_7d"] == 0
@@ -123,10 +124,10 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert dashboard["latest_materials"][0]["material_type"] == "source_item"
     assert dashboard["analysis_summary"]["track_name"] == "机器人"
     assert dashboard["analysis_summary"]["market_space"] == "长期空间大"
-    assert {point["window_type"] for trend in dashboard["heat_trends"] for point in trend["points"]} <= {"7d", "30d"}
+    assert "heat_trends" not in dashboard
 
 
-def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting():
+def test_track_dashboard_excludes_heat_trends_payload():
     db = make_session()
     base_time = datetime(2026, 6, 1, 9, 0)
     target = Track(name="具身智能", status="active", track_score=90)
@@ -158,9 +159,8 @@ def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting(
 
     dashboard = get_dashboard(db)
 
-    target_trend = next(item for item in dashboard["heat_trends"] if item["track_id"] == target.id)
-    points_7d = [point for point in target_trend["points"] if point["window_type"] == "7d"]
-    assert [point["heat_score"] for point in points_7d] == [21, 41, 61]
+    assert "heat_trends" not in dashboard
+    assert dashboard["heat_rankings"]
 
 
 def test_track_dashboard_ranking_includes_today_material_status_counts():

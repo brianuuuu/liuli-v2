@@ -15,6 +15,9 @@ export const windowOptions = [
   { value: "30d", label: "30d" }
 ];
 
+const HEAT_TREND_LINE_COLOR = "#19d9a3";
+const HEAT_TREND_AREA_COLOR = "rgba(25, 217, 163, 0.18)";
+
 export function formatTime(value?: string | null) {
   if (!value) return "-";
   return value.replace("T", " ").slice(0, 19);
@@ -71,7 +74,6 @@ export function smoothHeatTrendRows(rows: TagHeat[], alpha = 0.4): number[] {
 
 export function trendLineOption(rows: TagHeat[], title?: string, windowType?: string): EChartsOption {
   const visibleRows = rows.filter((item) => !windowType || item.window_type === windowType);
-  const rawValues = visibleRows.map((item) => Number(item.heat_score || 0));
   const smoothedValues = smoothHeatTrendRows(visibleRows);
   const dateAxisLabels = visibleRows.map((item, index) => {
     const dateLabel = formatDateLabel(item.stat_time);
@@ -79,8 +81,18 @@ export function trendLineOption(rows: TagHeat[], title?: string, windowType?: st
     return index === 0 || dateLabel !== previousDateLabel ? dateLabel : "";
   });
   return {
+    backgroundColor: "#11161d",
+    color: ["#19d9a3"],
     tooltip: {
       trigger: "axis",
+      backgroundColor: "#ffffff",
+      borderColor: "rgba(15, 23, 42, 0.12)",
+      borderWidth: 1,
+      textStyle: { color: "#4b5563", fontSize: 12 },
+      axisPointer: {
+        type: "shadow",
+        shadowStyle: { color: "rgba(148, 163, 184, 0.18)" }
+      },
       formatter: (params: unknown) => {
         const points = Array.isArray(params) ? params : [params];
         const first = points[0] as { dataIndex?: number } | undefined;
@@ -89,24 +101,46 @@ export function trendLineOption(rows: TagHeat[], title?: string, windowType?: st
         return [formatTime(row?.stat_time), ...values].join("<br/>");
       }
     },
-    grid: { left: 42, right: 18, top: 26, bottom: 28 },
-    xAxis: { type: "category", data: dateAxisLabels },
-    yAxis: { type: "value" },
+    grid: { left: 42, right: 20, top: 26, bottom: 34 },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: dateAxisLabels,
+      axisLine: { lineStyle: { color: "#2b333f" } },
+      axisTick: { show: false },
+      axisLabel: { color: "#9ca3af", fontSize: 12 }
+    },
+    yAxis: {
+      type: "value",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#9ca3af", fontSize: 12 },
+      splitLine: { lineStyle: { color: "rgba(148, 163, 184, 0.16)" } }
+    },
     series: [
       {
-        name: `${title || "热度"} 平滑`,
+        name: `${title || "热度"}`,
         type: "line",
         smooth: true,
+        showSymbol: true,
+        symbolSize: 8,
+        symbol: "circle",
         data: smoothedValues,
-        areaStyle: {}
-      },
-      {
-        name: `${title || "热度"} 原始`,
-        type: "line",
-        smooth: false,
-        symbolSize: 4,
-        data: rawValues,
-        lineStyle: { opacity: 0.28 }
+        lineStyle: {
+          width: 3,
+          color: HEAT_TREND_LINE_COLOR,
+          shadowBlur: 10,
+          shadowColor: "rgba(25, 217, 163, 0.35)"
+        },
+        itemStyle: {
+          color: HEAT_TREND_LINE_COLOR,
+          borderColor: "#11161d",
+          borderWidth: 2
+        },
+        areaStyle: {
+          color: HEAT_TREND_AREA_COLOR
+        },
+        emphasis: { focus: "series" }
       }
     ]
   };

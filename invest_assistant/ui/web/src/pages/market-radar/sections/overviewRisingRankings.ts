@@ -16,7 +16,7 @@ export const risingTypes: { value: RisingRankingType; label: string }[] = [
   { value: "stock", label: "标的" }
 ];
 
-export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
+export function risingTopRows(rows: TagHeat[], limit = 10): TagHeat[] {
   return [...rows]
     .filter((item) => item.rank_movement === "up" || item.rank_movement === "new")
     .sort((a, b) => {
@@ -35,7 +35,7 @@ export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
     .slice(0, limit);
 }
 
-export function coolingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
+export function coolingTopRows(rows: TagHeat[], limit = 10): TagHeat[] {
   return [...rows]
     .filter((item) => item.rank_movement === "down" && Number(item.rank_change || 0) < 0)
     .sort((a, b) => {
