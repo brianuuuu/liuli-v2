@@ -34,7 +34,7 @@ def make_session() -> Session:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)()
 
 
-def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_score: float, rank_no: int = 1, change_ratio: float = 0) -> None:
+def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_score: float, rank_no: int = 1) -> None:
     db.add(
         TagHeatSnapshot(
             tag_id=tag_id,
@@ -44,7 +44,6 @@ def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_sc
             source_count=1,
             heat_score=heat_score,
             avg_count=heat_score,
-            change_ratio=change_ratio,
             rank_no=rank_no,
         )
     )
@@ -74,11 +73,10 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     add_heat(db, ai_tag.id, "24h", now, 84, 3)
     add_heat(db, robot_tag_a.id, "7d", now - timedelta(days=1), 62, 1)
     add_heat(db, robot_tag_b.id, "7d", now - timedelta(days=1), 10, 2)
-    add_heat(db, robot_tag_a.id, "7d", now, 70, 1, 0.12)
-    add_heat(db, robot_tag_b.id, "7d", now, 14, 2, 0.4)
-    add_heat(db, robot_tag_a.id, "30d", now, 80, 1, 0.08)
-    add_heat(db, robot_tag_a.id, "90d", now, 90, 1, 0.2)
-    add_heat(db, ai_tag.id, "7d", now, 77, 3, 0.02)
+    add_heat(db, robot_tag_a.id, "7d", now, 70, 1)
+    add_heat(db, robot_tag_b.id, "7d", now, 14, 2)
+    add_heat(db, robot_tag_a.id, "30d", now, 80, 1)
+    add_heat(db, ai_tag.id, "7d", now, 77, 3)
     source = SourceItem(source_type="news", source_name="manual", title="机器人订单提升", content="机器人订单和执行器关注度提升", publish_time=now)
     note = KnowledgeNote(title="AI算力复盘", content="算力需求仍需要持续跟踪", note_type="review")
     stock = Stock(stock_code="000001", stock_name="测试标的")
@@ -108,23 +106,23 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
 
     dashboard = get_dashboard(db)
 
-    assert dashboard["summary"]["warming_tracks_count"] == 2
+    assert dashboard["summary"]["warming_tracks_count"] == 0
     assert dashboard["summary"]["focus_tracks_count"] == 2
     assert dashboard["summary"]["pending_materials_count"] == 1
     assert dashboard["summary"]["top_heat_track"]["name"] == "机器人"
     assert dashboard["summary"]["top_heat_track"]["heat_score"] == 89
     assert dashboard["heat_rankings"][0]["track_name"] == "机器人"
     assert dashboard["heat_rankings"][0]["current_heat"] == 89
-    assert dashboard["heat_rankings"][0]["change_7d"] == 0.52
-    assert dashboard["heat_rankings"][0]["change_30d"] == 0.08
-    assert dashboard["heat_rankings"][0]["change_90d"] == 0.2
+    assert dashboard["heat_rankings"][0]["rank_change_24h"] is None
+    assert dashboard["heat_rankings"][0]["rank_change_7d"] == 0
+    assert dashboard["heat_rankings"][0]["rank_change_30d"] is None
     assert dashboard["focus_tracks"][0]["bound_stock_count"] == 1
     assert dashboard["focus_tracks"][0]["recent_material_count"] == 1
     assert dashboard["latest_materials"][0]["track_name"] == "机器人"
     assert dashboard["latest_materials"][0]["material_type"] == "source_item"
     assert dashboard["analysis_summary"]["track_name"] == "机器人"
     assert dashboard["analysis_summary"]["market_space"] == "长期空间大"
-    assert any(point["window_type"] == "90d" for trend in dashboard["heat_trends"] for point in trend["points"])
+    assert {point["window_type"] for trend in dashboard["heat_trends"] for point in trend["points"]} <= {"7d", "30d"}
 
 
 def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting():
@@ -164,14 +162,48 @@ def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting(
     assert [point["heat_score"] for point in points_7d] == [21, 41, 61]
 
 
-def test_aggregate_heat_supports_90d_and_preserves_previous_stat_times():
+def test_track_dashboard_warming_summary_uses_7d_rank_change_by_default():
+    db = make_session()
+    now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    track = Track(name="机器人", status="active", track_score=80)
+    other_track = Track(name="AI算力", status="active", track_score=70)
+    tag = Tag(name="机器人", type="track", status="active")
+    other_tag = Tag(name="AI算力", type="track", status="active")
+    db.add_all([track, other_track, tag, other_tag])
+    db.flush()
+    db.add_all(
+        [
+            TrackTagRelation(track_id=track.id, tag_id=tag.id, status="active"),
+            TrackTagRelation(track_id=other_track.id, tag_id=other_tag.id, status="active"),
+        ]
+    )
+    add_heat(db, tag.id, "24h", now - timedelta(hours=1), 8, 2)
+    add_heat(db, other_tag.id, "24h", now - timedelta(hours=1), 12, 1)
+    add_heat(db, tag.id, "24h", now, 10, 1)
+    add_heat(db, other_tag.id, "24h", now, 6, 2)
+    add_heat(db, tag.id, "7d", now - timedelta(days=1), 9, 1)
+    add_heat(db, other_tag.id, "7d", now - timedelta(days=1), 5, 2)
+    add_heat(db, tag.id, "7d", now, 10, 1)
+    add_heat(db, other_tag.id, "7d", now, 4, 2)
+    db.commit()
+
+    dashboard = get_dashboard(db)
+
+    assert dashboard["heat_rankings"][0]["rank_change_24h"] == 1
+    assert dashboard["heat_rankings"][0]["rank_change_7d"] == 0
+    assert dashboard["summary"]["warming_tracks_count"] == 0
+
+
+def test_aggregate_heat_uses_tag_hit_count_and_supported_windows():
     db = make_session()
     old_time = datetime(2026, 5, 30, 9, 0, tzinfo=timezone.utc)
     new_time = datetime(2026, 5, 31, 9, 0, tzinfo=timezone.utc)
     tag = Tag(name="机器人", type="track", status="active")
-    db.add(tag)
+    competitor_a = Tag(name="AI算力", type="track", status="active")
+    competitor_b = Tag(name="商业航天", type="track", status="active")
+    db.add_all([tag, competitor_a, competitor_b])
     db.flush()
-    db.add(TagHeatSnapshot(tag_id=tag.id, window_type="24h", stat_time=old_time, trigger_count=1, source_count=1, heat_score=11, avg_count=1, change_ratio=0, rank_no=1))
+    db.add(TagHeatSnapshot(tag_id=tag.id, window_type="24h", stat_time=old_time, trigger_count=1, source_count=1, heat_score=1, avg_count=1, rank_no=1))
     old_source = SourceItem(source_type="news", source_name="manual", title="旧材料", content="机器人", publish_time=old_time)
     new_source = SourceItem(source_type="news", source_name="manual", title="新材料", content="机器人", publish_time=new_time)
     db.add_all([old_source, new_source])
@@ -183,60 +215,125 @@ def test_aggregate_heat_supports_90d_and_preserves_previous_stat_times():
 
     windows = {row.window_type for row in db.scalars(select(TagHeatSnapshot))}
     stat_times = {row.stat_time for row in db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.window_type == "24h"))}
-    assert "90d" in WINDOWS
-    assert "90d" in windows
+    assert set(WINDOWS) == {"24h", "7d", "30d"}
+    assert windows <= {"24h", "7d", "30d"}
     assert old_time.replace(tzinfo=None) in stat_times
     assert new_time.replace(tzinfo=None) in stat_times
-    assert result.inserted_count >= 4
+    latest = db.scalar(
+        select(TagHeatSnapshot).where(
+            TagHeatSnapshot.window_type == "24h",
+            TagHeatSnapshot.stat_time == new_time.replace(tzinfo=None),
+        )
+    )
+    assert latest is not None
+    assert latest.heat_score == latest.trigger_count
+    assert result.inserted_count >= 3
 
 
-def test_aggregate_heat_compares_against_previous_equal_window():
+def test_latest_rankings_returns_rank_movement_and_filters_low_24h_hits():
     db = make_session()
     now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    from invest_assistant.modules.market_radar.service import latest_rankings
+
     tag_up = Tag(name="升温", type="hotword", status="active")
     tag_down = Tag(name="降温", type="hotword", status="active")
-    tag_new = Tag(name="新晋", type="hotword", status="active")
-    tag_flat = Tag(name="持平", type="hotword", status="active")
-    db.add_all([tag_up, tag_down, tag_new, tag_flat])
+    tag_new = Tag(name="新进", type="hotword", status="active")
+    tag_one = Tag(name="低基数", type="hotword", status="active")
+    db.add_all([tag_up, tag_down, tag_new, tag_one])
     db.flush()
-
-    def add_tagged_sources(tag: Tag, count: int, publish_time: datetime) -> None:
-        for index in range(count):
-            source = SourceItem(
-                source_type="news",
-                source_name="manual",
-                title=f"{tag.name}-{publish_time.isoformat()}-{index}",
-                content=tag.name,
-                publish_time=publish_time,
-            )
-            db.add(source)
-            db.flush()
-            db.add(SourceTag(source_item_id=source.id, tag_id=tag.id, confidence=1, extractor="test"))
-
-    current_time = now - timedelta(days=1)
-    previous_time = now - timedelta(days=8)
-    add_tagged_sources(tag_up, 10, current_time)
-    add_tagged_sources(tag_up, 5, previous_time)
-    add_tagged_sources(tag_down, 3, current_time)
-    add_tagged_sources(tag_down, 6, previous_time)
-    add_tagged_sources(tag_new, 4, current_time)
-    add_tagged_sources(tag_flat, 5, current_time)
-    add_tagged_sources(tag_flat, 5, previous_time)
-    db.add(SourceItem(source_type="news", source_name="manual", title="watermark", content="watermark", publish_time=now))
+    ignored_previous = now - timedelta(minutes=10)
+    previous = now - timedelta(hours=1)
+    add_heat(db, tag_up.id, "24h", ignored_previous, 6, 1)
+    add_heat(db, tag_down.id, "24h", ignored_previous, 5, 2)
+    add_heat(db, tag_down.id, "24h", previous, 5, 1)
+    add_heat(db, tag_up.id, "24h", previous, 4, 2)
+    add_heat(db, tag_one.id, "24h", previous, 1, 3)
+    add_heat(db, tag_up.id, "24h", now, 6, 1)
+    add_heat(db, tag_down.id, "24h", now, 5, 2)
+    add_heat(db, tag_new.id, "24h", now, 3, 3)
+    add_heat(db, tag_one.id, "24h", now, 1, 4)
     db.commit()
 
-    aggregate_heat(db)
+    rows = latest_rankings(db, "hotword", "24h")
 
-    snapshots = {
-        snapshot.tag_id: snapshot
-        for snapshot in db.scalars(
-            select(TagHeatSnapshot).where(
-                TagHeatSnapshot.window_type == "7d",
-                TagHeatSnapshot.stat_time == now.replace(tzinfo=None),
-            )
-        )
+    by_name = {row["tag"]["name"]: row for row in rows}
+    assert list(by_name) == ["升温", "降温", "新进"]
+    assert by_name["升温"]["previous_rank_no"] == 2
+    assert by_name["升温"]["rank_change"] == 1
+    assert by_name["升温"]["rank_movement"] == "up"
+    assert by_name["降温"]["previous_rank_no"] == 1
+    assert by_name["降温"]["rank_change"] == -1
+    assert by_name["降温"]["rank_movement"] == "down"
+    assert by_name["新进"]["previous_rank_no"] is None
+    assert by_name["新进"]["rank_change"] is None
+    assert by_name["新进"]["rank_movement"] == "new"
+    assert "低基数" not in by_name
+
+
+def test_latest_rankings_uses_rank_within_selected_tag_type():
+    db = make_session()
+    now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    previous = now - timedelta(days=1)
+    from invest_assistant.modules.market_radar.service import latest_rankings
+
+    track = Tag(name="赛道词", type="track", status="active")
+    stock = Tag(name="标的词", type="stock", status="active")
+    hotword_up = Tag(name="热词上升", type="hotword", status="active")
+    hotword_down = Tag(name="热词下降", type="hotword", status="active")
+    db.add_all([track, stock, hotword_up, hotword_down])
+    db.flush()
+
+    add_heat(db, track.id, "7d", previous, 100, 1)
+    add_heat(db, hotword_down.id, "7d", previous, 80, 2)
+    add_heat(db, stock.id, "7d", previous, 70, 3)
+    add_heat(db, hotword_up.id, "7d", previous, 60, 4)
+    add_heat(db, track.id, "7d", now, 100, 1)
+    add_heat(db, hotword_up.id, "7d", now, 90, 2)
+    add_heat(db, stock.id, "7d", now, 70, 3)
+    add_heat(db, hotword_down.id, "7d", now, 50, 4)
+    db.commit()
+
+    rows = latest_rankings(db, "hotword", "7d")
+
+    assert [row["tag"]["name"] for row in rows] == ["热词上升", "热词下降"]
+    assert [row["rank_no"] for row in rows] == [1, 2]
+    assert rows[0]["previous_rank_no"] == 2
+    assert rows[0]["rank_change"] == 1
+    assert rows[1]["previous_rank_no"] == 1
+    assert rows[1]["rank_change"] == -1
+
+
+def test_latest_rankings_uses_window_specific_rank_change_baselines():
+    db = make_session()
+    now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    from invest_assistant.modules.market_radar.service import latest_rankings
+
+    tag = Tag(name="机器人", type="track", status="active")
+    competitor_a = Tag(name="AI算力", type="track", status="active")
+    competitor_b = Tag(name="商业航天", type="track", status="active")
+    db.add_all([tag, competitor_a, competitor_b])
+    db.flush()
+
+    baselines = {
+        "24h": now - timedelta(hours=1),
+        "7d": now - timedelta(days=1),
+        "30d": now - timedelta(days=7),
     }
-    assert snapshots[tag_up.id].change_ratio == 1.0
-    assert snapshots[tag_down.id].change_ratio == -0.5
-    assert snapshots[tag_new.id].change_ratio == 1.0
-    assert snapshots[tag_flat.id].change_ratio == 0
+    for window, previous in baselines.items():
+        add_heat(db, tag.id, window, now - timedelta(minutes=10), 7, 1)
+        add_heat(db, competitor_a.id, window, now - timedelta(minutes=10), 5, 2)
+        add_heat(db, competitor_b.id, window, now - timedelta(minutes=10), 4, 3)
+        add_heat(db, competitor_a.id, window, previous, 9, 1)
+        add_heat(db, competitor_b.id, window, previous, 8, 2)
+        add_heat(db, tag.id, window, previous, 7, 3)
+        add_heat(db, tag.id, window, now, 8, 1)
+        add_heat(db, competitor_a.id, window, now, 5, 2)
+        add_heat(db, competitor_b.id, window, now, 4, 3)
+    db.commit()
+
+    for window in baselines:
+        rows = latest_rankings(db, "track", window)
+
+        assert rows[0]["previous_rank_no"] == 3
+        assert rows[0]["rank_change"] == 2
+        assert rows[0]["rank_movement"] == "up"

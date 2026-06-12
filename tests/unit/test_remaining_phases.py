@@ -210,7 +210,7 @@ def test_alert_center_heat_rule_job_creates_deduplicated_event():
             "rule_type": "heat",
             "target_type": "track",
             "target_id": tag["id"],
-            "condition_json": "{\"window\":\"24h\",\"min_heat\":50,\"event_level\":\"warning\"}",
+            "condition_json": "{\"window\":\"24h\",\"min_heat\":5,\"event_level\":\"warning\"}",
             "enabled": True,
         },
         headers=headers,
@@ -225,9 +225,8 @@ def test_alert_center_heat_rule_job_creates_deduplicated_event():
                 stat_time=utc_now(),
                 trigger_count=6,
                 source_count=3,
-                heat_score=78,
-                avg_count=2,
-                change_ratio=1.5,
+                heat_score=6,
+                avg_count=6,
                 rank_no=1,
             )
         )

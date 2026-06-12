@@ -185,8 +185,10 @@ export type TagHeat = {
   source_count: number;
   heat_score: number;
   avg_count: number;
-  change_ratio: number;
   rank_no: number;
+  previous_rank_no?: number | null;
+  rank_change?: number | null;
+  rank_movement?: "up" | "down" | "flat" | "new" | string | null;
   created_at?: string | null;
   tag?: MarketTag | null;
 };
@@ -313,7 +315,6 @@ export type TrackDetailHeatPoint = {
   heat_score: number;
   trigger_count: number;
   source_count: number;
-  change_ratio?: number | null;
   rank_no?: number | null;
 };
 
@@ -363,7 +364,7 @@ export type TrackHeatTrend = {
   track_id: number;
   track_name: string;
   points: {
-    window_type: "7d" | "30d" | "90d" | string;
+    window_type: "7d" | "30d" | string;
     stat_time?: string | null;
     heat_score: number;
   }[];
@@ -374,9 +375,9 @@ export type TrackHeatRanking = {
   track_id: number;
   track_name: string;
   current_heat: number;
-  change_7d: number;
-  change_30d: number;
-  change_90d: number;
+  rank_change_24h?: number | null;
+  rank_change_7d?: number | null;
+  rank_change_30d?: number | null;
   stage?: string | null;
   track_score?: number | null;
 };

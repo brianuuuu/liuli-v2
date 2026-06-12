@@ -208,7 +208,6 @@ class TrackDetailHeatPoint(BaseModel):
     heat_score: float
     trigger_count: int
     source_count: int
-    change_ratio: float | None = None
     rank_no: int | None = None
 
 

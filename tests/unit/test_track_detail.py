@@ -45,7 +45,6 @@ def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_sc
             source_count=1,
             heat_score=heat_score,
             avg_count=heat_score,
-            change_ratio=0.1,
             rank_no=1,
         )
     )
