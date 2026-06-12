@@ -117,7 +117,7 @@ export function OverviewSection() {
 
   const rankingColumns: ColumnsType<TrackHeatRanking> = [
     { title: "排名", dataIndex: "rank", width: 54 },
-    { title: "赛道", dataIndex: "track_name", ellipsis: true },
+    { title: "赛道", dataIndex: "track_name", width: 300, ellipsis: true },
     { title: "状态", dataIndex: "status", width: 76, render: (value) => <StatusTag status={value} /> },
     { title: "信息流", dataIndex: "current_heat", width: 68, render: (value) => Number(value || 0).toFixed(0) },
     { title: "材料", dataIndex: "today_material_count", width: 56, render: countText },
