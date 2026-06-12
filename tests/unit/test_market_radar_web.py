@@ -210,3 +210,19 @@ def test_heat_rankings_table_uses_tag_hits_and_rank_movement():
     assert 'title: "排名变化"' in rankings
     assert "rankChangeBaselineLabel" not in rankings
     assert "formatRankMovement" in rankings
+
+
+def test_track_dashboard_removes_heat_trend_chart():
+    section = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/OverviewSection.tsx").read_text(encoding="utf-8")
+
+    assert 'title="赛道热度趋势"' not in section
+    assert "ChartCard" not in section
+    assert "trendOption" not in section
+    assert "trendWindow" not in section
+    assert 'title="今日赛道简表"' in section
+    assert 'title: "当天热度"' in section
+    assert 'title: "材料"' in section
+    assert 'title: "确认"' in section
+    assert 'title: "已处理"' in section
+    assert 'title: "待处理"' in section
+    assert 'className="track-dashboard-ranking-card"' in section

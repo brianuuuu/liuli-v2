@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import timedelta
 
 from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
@@ -24,6 +25,7 @@ from invest_assistant.modules.track_discovery.schemas import (
     TrackUpdate,
 )
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
+from invest_assistant.shared.time_utils import beijing_now
 
 DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
 DASHBOARD_TREND_WINDOWS = ("7d", "30d")
@@ -112,14 +114,20 @@ def get_dashboard(db: Session) -> dict:
     pending_materials_count = int(
         db.scalar(select(func.count(TrackMaterial.id)).where(TrackMaterial.track_id.in_(track_ids), TrackMaterial.status == "pending")) or 0
     )
+    today_material_counts = _dashboard_today_material_counts_by_track(db, track_ids)
 
     rankings = []
     for track in tracks:
+        material_count = today_material_counts.get(track.id, {})
         rankings.append(
             {
                 "track_id": track.id,
                 "track_name": track.name,
                 "current_heat": latest_heat(track.id, "24h"),
+                "today_material_count": int(material_count.get("total", 0)),
+                "confirmed_material_count": int(material_count.get("confirmed", 0)),
+                "processed_material_count": int(material_count.get("processed", 0)),
+                "pending_material_count": int(material_count.get("pending", 0)),
                 "rank_change_24h": latest_rank_change(track.id, "24h"),
                 "rank_change_7d": latest_rank_change(track.id, "7d"),
                 "rank_change_30d": latest_rank_change(track.id, "30d"),
@@ -207,6 +215,35 @@ def _dashboard_latest_stat_by_window(db: Session, tag_ids: list[int]) -> dict[st
         .group_by(TagHeatSnapshot.window_type)
     ).all()
     return {str(window): stat_time for window, stat_time in rows if stat_time is not None}
+
+
+def _dashboard_today_material_counts_by_track(db: Session, track_ids: list[int]) -> dict[int, dict[str, int]]:
+    if not track_ids:
+        return {}
+    start = beijing_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    rows = db.execute(
+        select(TrackMaterial.track_id, TrackMaterial.status, func.count(TrackMaterial.id))
+        .where(
+            TrackMaterial.track_id.in_(track_ids),
+            TrackMaterial.created_at >= start,
+            TrackMaterial.created_at < end,
+        )
+        .group_by(TrackMaterial.track_id, TrackMaterial.status)
+    ).all()
+    result: dict[int, dict[str, int]] = {}
+    for track_id, status, count in rows:
+        item = result.setdefault(int(track_id), {"total": 0, "confirmed": 0, "processed": 0, "pending": 0})
+        next_count = int(count or 0)
+        item["total"] += next_count
+        if status == "confirmed":
+            item["confirmed"] += next_count
+            item["processed"] += next_count
+        elif status == "ignored":
+            item["processed"] += next_count
+        elif status == "pending":
+            item["pending"] += next_count
+    return result
 
 
 def _dashboard_latest_heat_by_track_window(

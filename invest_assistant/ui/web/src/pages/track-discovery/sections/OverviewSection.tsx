@@ -4,15 +4,11 @@ import {
   StarOutlined,
   TrophyOutlined
 } from "@ant-design/icons";
-import { Segmented, Space, Table, Tag } from "antd";
+import { Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getTrackDashboard, listTrackAnalysisSnapshots } from "../../../api/trackDiscovery";
-import { useLiuliTheme } from "../../../app/theme";
-import { ChartCard } from "../../../components/charts/ChartCard";
-import { chartGridColor, chartTextColor } from "../../../components/charts/chartTheme";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -24,8 +20,6 @@ import type {
   TrackHeatRanking
 } from "../../../types/api";
 import { DirectionTag, formatTime, stageOptions } from "./shared";
-
-type TrendWindow = "7d" | "30d";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -61,6 +55,10 @@ function rankChangeClass(value?: number | null) {
   return "";
 }
 
+function countText(value?: number | null) {
+  return Number(value || 0);
+}
+
 function snapshotToSummary(trackName: string, snapshot?: TrackAnalysisSnapshot | null): TrackDashboardAnalysisSummary | null {
   if (!snapshot) return null;
   return {
@@ -89,8 +87,6 @@ export function OverviewSection() {
     default_track_id: null,
     analysis_summary: null
   });
-  const { resolvedMode } = useLiuliTheme();
-  const [trendWindow, setTrendWindow] = useState<TrendWindow>("7d");
   const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -120,52 +116,14 @@ export function OverviewSection() {
     return snapshotToSummary(selectedTrackName, selectedSnapshots.data[0]);
   }, [dashboard.data.analysis_summary, selectedSnapshots.data, selectedTrackId, selectedTrackName]);
 
-  const trendOption = useMemo<EChartsOption>(() => {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    return {
-      tooltip: { trigger: "axis" },
-      legend: {
-        bottom: 0,
-        left: 0,
-        right: 0,
-        type: "plain",
-        itemGap: 14,
-        textStyle: { color: textColor }
-      },
-      grid: { top: 18, left: 42, right: 18, bottom: 82 },
-      xAxis: {
-        type: "category",
-        boundaryGap: false,
-        axisLabel: { color: textColor },
-        axisLine: { lineStyle: { color: gridColor } },
-        data: Array.from(
-          new Set(
-            dashboard.data.heat_trends.flatMap((trend) =>
-              trend.points.filter((point) => point.window_type === trendWindow).map((point) => formatTime(point.stat_time).slice(5, 10))
-            )
-          )
-        )
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: textColor },
-        splitLine: { lineStyle: { color: gridColor } }
-      },
-      series: dashboard.data.heat_trends.map((trend) => ({
-        name: trend.track_name,
-        type: "line",
-        smooth: true,
-        showSymbol: false,
-        data: trend.points.filter((point) => point.window_type === trendWindow).map((point) => Number(point.heat_score || 0))
-      }))
-    };
-  }, [dashboard.data.heat_trends, resolvedMode, trendWindow]);
-
   const rankingColumns: ColumnsType<TrackHeatRanking> = [
     { title: "排名", dataIndex: "rank", width: 58 },
     { title: "赛道", dataIndex: "track_name", ellipsis: true },
-    { title: "当前热度", dataIndex: "current_heat", width: 86, render: (value) => Number(value || 0).toFixed(0) },
+    { title: "当天热度", dataIndex: "current_heat", width: 86, render: (value) => Number(value || 0).toFixed(0) },
+    { title: "材料", dataIndex: "today_material_count", width: 68, render: countText },
+    { title: "确认", dataIndex: "confirmed_material_count", width: 68, render: countText },
+    { title: "已处理", dataIndex: "processed_material_count", width: 72, render: countText },
+    { title: "待处理", dataIndex: "pending_material_count", width: 72, render: countText },
     { title: "24h变化", dataIndex: "rank_change_24h", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "7日变化", dataIndex: "rank_change_7d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "30日变化", dataIndex: "rank_change_30d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
@@ -195,14 +153,8 @@ export function OverviewSection() {
         />
       </div>
 
-      <div className="track-dashboard-grid main">
-        <ChartCard
-          title="赛道热度趋势"
-          option={trendOption}
-          height={310}
-          extra={<Segmented size="small" value={trendWindow} options={[{ label: "7天", value: "7d" }, { label: "30天", value: "30d" }]} onChange={(value) => setTrendWindow(value as TrendWindow)} />}
-        />
-        <WorkbenchCard title="今日赛道热度榜">
+      <div className="track-dashboard-ranking-card">
+        <WorkbenchCard title="今日赛道简表">
           <Table
             rowKey="track_id"
             size="small"

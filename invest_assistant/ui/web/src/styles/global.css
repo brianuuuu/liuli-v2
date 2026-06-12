@@ -1581,6 +1581,10 @@ body {
   grid-template-columns: minmax(0, 1.12fr) minmax(480px, 0.88fr);
 }
 
+.track-dashboard-ranking-card {
+  min-width: 0;
+}
+
 .track-dashboard-grid.secondary {
   grid-template-columns: minmax(0, 0.95fr) minmax(520px, 1.05fr);
 }

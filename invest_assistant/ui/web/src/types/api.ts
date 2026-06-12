@@ -375,6 +375,10 @@ export type TrackHeatRanking = {
   track_id: number;
   track_name: string;
   current_heat: number;
+  today_material_count?: number;
+  confirmed_material_count?: number;
+  processed_material_count?: number;
+  pending_material_count?: number;
   rank_change_24h?: number | null;
   rank_change_7d?: number | null;
   rank_change_30d?: number | null;
