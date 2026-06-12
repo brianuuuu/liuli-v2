@@ -11,6 +11,7 @@ from invest_assistant.modules.market_radar.service import WINDOWS, aggregate_hea
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery.models import Track, TrackAnalysisSnapshot, TrackMaterial
 from invest_assistant.modules.track_discovery.service import get_dashboard
+from invest_assistant.shared.time_utils import beijing_now
 
 
 def make_session() -> Session:
@@ -160,6 +161,35 @@ def test_track_dashboard_trends_sum_track_tags_per_track_window_before_limiting(
     target_trend = next(item for item in dashboard["heat_trends"] if item["track_id"] == target.id)
     points_7d = [point for point in target_trend["points"] if point["window_type"] == "7d"]
     assert [point["heat_score"] for point in points_7d] == [21, 41, 61]
+
+
+def test_track_dashboard_ranking_includes_today_material_status_counts():
+    db = make_session()
+    today = beijing_now()
+    yesterday = today - timedelta(days=1)
+    track = Track(name="机器人", status="active", track_score=80)
+    tag = Tag(name="机器人", type="track", status="active")
+    db.add_all([track, tag])
+    db.flush()
+    db.add(TrackTagRelation(track_id=track.id, tag_id=tag.id, status="active"))
+    add_heat(db, tag.id, "24h", today, 8, 1)
+    db.add_all(
+        [
+            TrackMaterial(track_id=track.id, material_type="source_item", material_id=1, status="pending", created_at=today, updated_at=today),
+            TrackMaterial(track_id=track.id, material_type="source_item", material_id=2, status="confirmed", created_at=today, updated_at=today),
+            TrackMaterial(track_id=track.id, material_type="source_item", material_id=3, status="ignored", created_at=today, updated_at=today),
+            TrackMaterial(track_id=track.id, material_type="source_item", material_id=4, status="confirmed", created_at=yesterday, updated_at=yesterday),
+        ]
+    )
+    db.commit()
+
+    dashboard = get_dashboard(db)
+    ranking = dashboard["heat_rankings"][0]
+
+    assert ranking["today_material_count"] == 3
+    assert ranking["confirmed_material_count"] == 1
+    assert ranking["processed_material_count"] == 2
+    assert ranking["pending_material_count"] == 1
 
 
 def test_track_dashboard_warming_summary_uses_7d_rank_change_by_default():
