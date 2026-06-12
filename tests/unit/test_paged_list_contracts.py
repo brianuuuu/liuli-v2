@@ -234,11 +234,5 @@ def test_track_dashboard_limits_trend_points_and_preserves_summary():
     assert dashboard["summary"]["pending_materials_count"] == 12
     assert dashboard["summary"]["warming_tracks_count"] == 0
     assert len(dashboard["heat_rankings"]) == 12
-    assert len(dashboard["heat_trends"]) == 10
     assert len(dashboard["latest_materials"]) == 10
-    assert all(len(trend["points"]) <= 90 for trend in dashboard["heat_trends"])
-    assert all(
-        len([point for point in trend["points"] if point["window_type"] == window]) <= 30
-        for trend in dashboard["heat_trends"]
-        for window in ("7d", "30d")
-    )
+    assert "heat_trends" not in dashboard

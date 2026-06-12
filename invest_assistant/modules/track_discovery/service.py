@@ -28,9 +28,7 @@ from invest_assistant.shared.pagination import Page, make_page, normalize_limit,
 from invest_assistant.shared.time_utils import beijing_now
 
 DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
-DASHBOARD_TREND_WINDOWS = ("7d", "30d")
 DEFAULT_RANK_CHANGE_WINDOW = "7d"
-DASHBOARD_TREND_POINT_LIMIT = 30
 DASHBOARD_RANKING_LIMIT = 10
 
 
@@ -69,7 +67,6 @@ def get_dashboard(db: Session) -> dict:
                 "pending_materials_count": 0,
                 "top_heat_track": None,
             },
-            "heat_trends": [],
             "heat_rankings": [],
             "focus_tracks": [],
             "latest_materials": [],
@@ -123,6 +120,7 @@ def get_dashboard(db: Session) -> dict:
             {
                 "track_id": track.id,
                 "track_name": track.name,
+                "status": track.status,
                 "current_heat": latest_heat(track.id, "24h"),
                 "today_material_count": int(material_count.get("total", 0)),
                 "confirmed_material_count": int(material_count.get("confirmed", 0)),
@@ -156,9 +154,6 @@ def get_dashboard(db: Session) -> dict:
         ],
         key=lambda item: (0 if track_by_id[item["track_id"]].status == "active" else 1, -float(item["track_score"] or 0), -float(item["current_heat"] or 0)),
     )[:6]
-
-    trend_track_ids = [item["track_id"] for item in rankings[:10]]
-    heat_trends = _dashboard_heat_trends(db, track_by_id, trend_track_ids)
 
     latest_materials = []
     material_rows = list(
@@ -194,7 +189,6 @@ def get_dashboard(db: Session) -> dict:
             if top_heat
             else None,
         },
-        "heat_trends": heat_trends,
         "heat_rankings": rankings,
         "focus_tracks": focus_tracks,
         "latest_materials": latest_materials,
@@ -321,74 +315,6 @@ def _dashboard_rank_changes_by_track_window(
             previous_rank = previous_ranks.get(track_id)
             result[(track_id, window)] = None if previous_rank is None else previous_rank - current_rank
     return result
-
-
-def _dashboard_heat_trends(
-    db: Session,
-    track_by_id: dict[int, Track],
-    trend_track_ids: list[int],
-) -> list[dict]:
-    if not trend_track_ids:
-        return []
-    grouped_points = (
-        select(
-            TrackTagRelation.track_id.label("track_id"),
-            TagHeatSnapshot.window_type.label("window_type"),
-            TagHeatSnapshot.stat_time.label("stat_time"),
-            func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
-        )
-        .select_from(TrackTagRelation)
-        .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
-        .where(
-            TrackTagRelation.status == "active",
-            TrackTagRelation.track_id.in_(trend_track_ids),
-            TagHeatSnapshot.window_type.in_(DASHBOARD_TREND_WINDOWS),
-        )
-        .group_by(TrackTagRelation.track_id, TagHeatSnapshot.window_type, TagHeatSnapshot.stat_time)
-        .subquery()
-    )
-    ranked_points = (
-        select(
-            grouped_points.c.track_id,
-            grouped_points.c.window_type,
-            grouped_points.c.stat_time,
-            grouped_points.c.heat_score,
-            func.row_number()
-            .over(
-                partition_by=(grouped_points.c.track_id, grouped_points.c.window_type),
-                order_by=grouped_points.c.stat_time.desc(),
-            )
-            .label("rn"),
-        )
-        .subquery()
-    )
-    rows = db.execute(
-        select(
-            ranked_points.c.track_id,
-            ranked_points.c.window_type,
-            ranked_points.c.stat_time,
-            ranked_points.c.heat_score,
-        )
-        .where(ranked_points.c.rn <= DASHBOARD_TREND_POINT_LIMIT)
-        .order_by(ranked_points.c.track_id.asc(), ranked_points.c.window_type.asc(), ranked_points.c.stat_time.asc())
-    ).all()
-    points_by_track: dict[int, list[dict]] = defaultdict(list)
-    for track_id, window, stat_time, heat_score in rows:
-        points_by_track[int(track_id)].append(
-            {
-                "window_type": str(window),
-                "stat_time": _isoformat(stat_time),
-                "heat_score": round(float(heat_score or 0), 2),
-            }
-        )
-    return [
-        {
-            "track_id": track_id,
-            "track_name": track_by_id[track_id].name,
-            "points": points_by_track.get(track_id, []),
-        }
-        for track_id in trend_track_ids[:DASHBOARD_RANKING_LIMIT]
-    ]
 
 
 def get_track(db: Session, track_id: int) -> dict | None:

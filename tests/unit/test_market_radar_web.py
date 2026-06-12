@@ -198,6 +198,15 @@ def test_heat_trend_chart_uses_selected_window_and_date_axis():
     assert "dateAxisLabels" in shared
     assert "previousDateLabel" in shared
     assert "formatDateLabel(item.stat_time)" in shared
+    assert "HEAT_TREND_LINE_COLOR" in shared
+    assert "#19d9a3" in shared
+    assert "axisPointer:" in shared
+    assert 'type: "shadow"' in shared
+    assert "showSymbol: true" in shared
+    assert "symbolSize: 8" in shared
+    assert "rgba(25, 217, 163, 0.18)" in shared
+    assert 'name: `${title || "热度"}`' in shared
+    assert 'name: `${title || "热度"} 原始`' not in shared
 
 
 def test_heat_rankings_table_uses_tag_hits_and_rank_movement():
@@ -220,7 +229,10 @@ def test_track_dashboard_removes_heat_trend_chart():
     assert "trendOption" not in section
     assert "trendWindow" not in section
     assert 'title="今日赛道简表"' in section
-    assert 'title: "当天热度"' in section
+    assert 'title: "状态"' in section
+    assert "StatusTag" in section
+    assert 'title: "信息流"' in section
+    assert 'title: "当天热度"' not in section
     assert 'title: "材料"' in section
     assert 'title: "确认"' in section
     assert 'title: "已处理"' in section
