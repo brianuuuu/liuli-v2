@@ -42,6 +42,21 @@ if (sorted.map((item) => item.id).join(",") !== "3,2,6,1,5") {
   throw new Error(`Expected rank_change-first ordering with new entries after true rises, got ${sorted.map((item) => item.id).join(",")}`);
 }
 
+const twelveRisingRows = [
+  ...sampleRows,
+  { id: 21, rank_no: 7, heat_score: 8, rank_change: 2, rank_movement: "up", tag_id: 21, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 22, rank_no: 8, heat_score: 7, rank_change: 2, rank_movement: "up", tag_id: 22, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 23, rank_no: 9, heat_score: 6, rank_change: 2, rank_movement: "up", tag_id: 23, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 24, rank_no: 10, heat_score: 5, rank_change: 2, rank_movement: "up", tag_id: 24, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 25, rank_no: 11, heat_score: 4, rank_change: 2, rank_movement: "up", tag_id: 25, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 26, rank_no: 12, heat_score: 3, rank_change: 2, rank_movement: "up", tag_id: 26, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 27, rank_no: 13, heat_score: 2, rank_change: 2, rank_movement: "up", tag_id: 27, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+];
+const sortedTwelve = helper.risingTopRows(twelveRisingRows);
+if (sortedTwelve.length !== 10) {
+  throw new Error(`Expected risingTopRows to limit to 10 rows by default, got ${sortedTwelve.length}`);
+}
+
 const coolingRows = [
   { id: 7, rank_no: 1, heat_score: 50, rank_change: -3, rank_movement: "down", tag_id: 7, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
   { id: 8, rank_no: 2, heat_score: 30, rank_change: -8, rank_movement: "down", tag_id: 8, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
@@ -54,6 +69,21 @@ const coolingRows = [
 const coolingSorted = helper.coolingTopRows(coolingRows);
 if (coolingSorted.map((item) => item.id).join(",") !== "9,8,7,11") {
   throw new Error(`Expected coolingTopRows to sort largest drops first, got ${coolingSorted.map((item) => item.id).join(",")}`);
+}
+
+const twelveCoolingRows = [
+  ...coolingRows,
+  { id: 31, rank_no: 7, heat_score: 8, rank_change: -2, rank_movement: "down", tag_id: 31, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 32, rank_no: 8, heat_score: 7, rank_change: -2, rank_movement: "down", tag_id: 32, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 33, rank_no: 9, heat_score: 6, rank_change: -2, rank_movement: "down", tag_id: 33, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 34, rank_no: 10, heat_score: 5, rank_change: -2, rank_movement: "down", tag_id: 34, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 35, rank_no: 11, heat_score: 4, rank_change: -2, rank_movement: "down", tag_id: 35, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 36, rank_no: 12, heat_score: 3, rank_change: -2, rank_movement: "down", tag_id: 36, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 37, rank_no: 13, heat_score: 2, rank_change: -2, rank_movement: "down", tag_id: 37, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+];
+const coolingTwelveSorted = helper.coolingTopRows(twelveCoolingRows);
+if (coolingTwelveSorted.length !== 10) {
+  throw new Error(`Expected coolingTopRows to limit to 10 rows by default, got ${coolingTwelveSorted.length}`);
 }
 
 const neutralRows = [
