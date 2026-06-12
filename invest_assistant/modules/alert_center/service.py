@@ -94,7 +94,7 @@ def _evaluate_heat_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
     condition = loads_json(rule.condition_json) or {}
     window = str(condition.get("window") or "24h")
     min_heat = float(condition.get("min_heat") or 0)
-    min_change_ratio = condition.get("min_change_ratio")
+    min_rank_change = condition.get("min_rank_change")
     min_trigger_count = condition.get("min_trigger_count")
 
     latest_stat = db.scalar(
@@ -122,8 +122,10 @@ def _evaluate_heat_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
         return None
     if snapshot.heat_score < min_heat:
         return None
-    if min_change_ratio is not None and snapshot.change_ratio < float(min_change_ratio):
-        return None
+    rank_change = _snapshot_rank_change(db, snapshot)
+    if min_rank_change is not None:
+        if rank_change is None or rank_change < int(min_rank_change):
+            return None
     if min_trigger_count is not None and snapshot.trigger_count < int(min_trigger_count):
         return None
 
@@ -132,8 +134,10 @@ def _evaluate_heat_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
         return None
     message = (
         f"{tag.name} 在 {window} 窗口热度 {snapshot.heat_score:.1f}，"
-        f"触发 {snapshot.trigger_count} 次，来源 {snapshot.source_count} 个，排名 {snapshot.rank_no}。"
+        f"标签命中 {snapshot.trigger_count} 次，排名 {snapshot.rank_no}。"
     )
+    if rank_change is not None:
+        message = f"{message[:-1]}，排名变化 {rank_change:+d}。"
     return AlertEvent(
         rule_id=rule.id,
         event_level=str(condition.get("event_level") or "warning"),
@@ -141,6 +145,31 @@ def _evaluate_heat_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
         message=message,
         status="unread",
     )
+
+
+def _snapshot_rank_change(db: Session, snapshot: TagHeatSnapshot) -> int | None:
+    previous_stat = db.scalar(
+        select(TagHeatSnapshot.stat_time)
+        .where(
+            TagHeatSnapshot.window_type == snapshot.window_type,
+            TagHeatSnapshot.stat_time < snapshot.stat_time,
+        )
+        .distinct()
+        .order_by(TagHeatSnapshot.stat_time.desc())
+        .limit(1)
+    )
+    if previous_stat is None:
+        return None
+    previous_rank = db.scalar(
+        select(TagHeatSnapshot.rank_no).where(
+            TagHeatSnapshot.tag_id == snapshot.tag_id,
+            TagHeatSnapshot.window_type == snapshot.window_type,
+            TagHeatSnapshot.stat_time == previous_stat,
+        )
+    )
+    if previous_rank is None:
+        return None
+    return int(previous_rank) - int(snapshot.rank_no)
 
 
 def _has_open_event(db: Session, rule_id: int, title: str) -> bool:

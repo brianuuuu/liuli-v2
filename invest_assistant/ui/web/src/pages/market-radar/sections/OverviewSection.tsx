@@ -8,8 +8,8 @@ import type { TagHeat } from "../../../types/api";
 import { formatTime, tagName } from "./shared";
 import {
   coolingTopRows,
-  formatRisePercent,
-  riseClass,
+  formatRankMovement,
+  rankMovementClass,
   risingTopRows,
   risingTypes,
   risingWindows,
@@ -87,7 +87,7 @@ function RisingRankingList({
                 <span className="market-rising-rank-no">{index + 1}</span>
                 <span className="market-rising-name">{tagName(item)}</span>
               </span>
-              <strong className={`track-change ${riseClass(item.change_ratio)}`}>{formatRisePercent(item.change_ratio)}</strong>
+              <strong className={`track-change ${rankMovementClass(item)}`}>{formatRankMovement(item)}</strong>
             </div>
           ))}
         </div>

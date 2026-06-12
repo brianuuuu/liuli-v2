@@ -77,7 +77,7 @@ export type TagBindingPayload = {
 };
 
 export type RankingType = "all" | "stock" | "track" | "hotword";
-export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d";
+export type RankingWindow = "24h" | "7d" | "30d";
 export type GraphType = "track" | "hotword" | "track_hotword";
 
 export type PageParams = {

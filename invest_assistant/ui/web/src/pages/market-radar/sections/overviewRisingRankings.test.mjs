@@ -25,12 +25,12 @@ const compiled = ts.transpileModule(helperSource, {
 const helper = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
 const sampleRows = [
-  { id: 1, rank_no: 1, heat_score: 100, change_ratio: 0.08, tag_id: 1, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 2, rank_no: 2, heat_score: 50, change_ratio: 0.12, tag_id: 2, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 3, rank_no: 3, heat_score: 80, change_ratio: 0.12, tag_id: 3, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 4, rank_no: 4, heat_score: 20, change_ratio: -0.02, tag_id: 4, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 5, rank_no: 5, heat_score: 10, change_ratio: 0.01, tag_id: 5, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 6, rank_no: 6, heat_score: 9, change_ratio: 0.02, tag_id: 6, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+  { id: 1, rank_no: 1, heat_score: 100, rank_change: 1, rank_movement: "up", tag_id: 1, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 2, rank_no: 2, heat_score: 50, rank_change: 4, rank_movement: "up", tag_id: 2, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 3, rank_no: 3, heat_score: 80, rank_change: 4, rank_movement: "up", tag_id: 3, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 4, rank_no: 4, heat_score: 20, rank_change: -2, rank_movement: "down", tag_id: 4, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 5, rank_no: 5, heat_score: 10, rank_change: null, rank_movement: "new", tag_id: 5, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 6, rank_no: 6, heat_score: 9, rank_change: 2, rank_movement: "up", tag_id: 6, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
 ];
 
 const sorted = helper.risingTopRows(sampleRows);
@@ -38,28 +38,28 @@ if (sorted.length !== 5) {
   throw new Error(`Expected risingTopRows to keep only positive rows, got ${sorted.length}`);
 }
 
-if (sorted.map((item) => item.id).join(",") !== "3,2,1,6,5") {
-  throw new Error(`Expected change_ratio-first stable ordering, got ${sorted.map((item) => item.id).join(",")}`);
+if (sorted.map((item) => item.id).join(",") !== "3,2,6,1,5") {
+  throw new Error(`Expected rank_change-first ordering with new entries after true rises, got ${sorted.map((item) => item.id).join(",")}`);
 }
 
 const coolingRows = [
-  { id: 7, rank_no: 1, heat_score: 50, change_ratio: -0.1, tag_id: 7, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 8, rank_no: 2, heat_score: 30, change_ratio: -0.22, tag_id: 8, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 9, rank_no: 3, heat_score: 60, change_ratio: -0.22, tag_id: 9, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 10, rank_no: 4, heat_score: 90, change_ratio: 0, tag_id: 10, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 11, rank_no: 5, heat_score: 45, change_ratio: -0.05, tag_id: 11, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 12, rank_no: 6, heat_score: 25, change_ratio: -0.01, tag_id: 12, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+  { id: 7, rank_no: 1, heat_score: 50, rank_change: -3, rank_movement: "down", tag_id: 7, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 8, rank_no: 2, heat_score: 30, rank_change: -8, rank_movement: "down", tag_id: 8, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 9, rank_no: 3, heat_score: 60, rank_change: -8, rank_movement: "down", tag_id: 9, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 10, rank_no: 4, heat_score: 90, rank_change: 0, rank_movement: "flat", tag_id: 10, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 11, rank_no: 5, heat_score: 45, rank_change: -1, rank_movement: "down", tag_id: 11, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 12, rank_no: 6, heat_score: 25, rank_change: 1, rank_movement: "up", tag_id: 12, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
 ];
 
 const coolingSorted = helper.coolingTopRows(coolingRows);
-if (coolingSorted.map((item) => item.id).join(",") !== "9,8,7,11,12") {
+if (coolingSorted.map((item) => item.id).join(",") !== "9,8,7,11") {
   throw new Error(`Expected coolingTopRows to sort largest drops first, got ${coolingSorted.map((item) => item.id).join(",")}`);
 }
 
 const neutralRows = [
-  { id: 13, rank_no: 1, heat_score: 70, change_ratio: 0, tag_id: 13, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 14, rank_no: 2, heat_score: 40, change_ratio: -0.04, tag_id: 14, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
-  { id: 15, rank_no: 3, heat_score: 30, change_ratio: 0.05, tag_id: 15, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
+  { id: 13, rank_no: 1, heat_score: 70, rank_change: 0, rank_movement: "flat", tag_id: 13, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 14, rank_no: 2, heat_score: 40, rank_change: -1, rank_movement: "down", tag_id: 14, window_type: "7d", stat_time: "2026-06-01T09:30:00" },
+  { id: 15, rank_no: 3, heat_score: 30, rank_change: 1, rank_movement: "up", tag_id: 15, window_type: "7d", stat_time: "2026-06-01T09:30:00" }
 ];
 
 if (helper.risingTopRows(neutralRows).map((item) => item.id).join(",") !== "15") {
@@ -70,12 +70,16 @@ if (helper.coolingTopRows(neutralRows).map((item) => item.id).join(",") !== "14"
   throw new Error("coolingTopRows should filter neutral and rising rows");
 }
 
-if (helper.formatRisePercent(0.12) !== "+12%") {
-  throw new Error(`Expected 0.12 to display as +12%, got ${helper.formatRisePercent(0.12)}`);
+if (helper.formatRankMovement({ rank_change: 4, rank_movement: "up" }) !== "↑ 4") {
+  throw new Error("Expected positive rank movement to display as rank rise text");
 }
 
-if (helper.formatRisePercent(-0.02) !== "-2%") {
-  throw new Error(`Expected -0.02 to display as -2%, got ${helper.formatRisePercent(-0.02)}`);
+if (helper.formatRankMovement({ rank_change: -2, rank_movement: "down" }) !== "↓ 2") {
+  throw new Error("Expected negative rank movement to display as rank fall text");
+}
+
+if (helper.formatRankMovement({ rank_change: null, rank_movement: "new" }) !== "新进") {
+  throw new Error("Expected new rank movement to display as new entry");
 }
 
 if (overview.includes("24h 热度排行")) {
@@ -128,6 +132,10 @@ if (!overview.includes('title="热度降温榜"')) {
   throw new Error("Overview should render a cooling ranking card next to the rising card");
 }
 
-if (!api.includes('export type RankingWindow = "1h" | "24h" | "7d" | "30d" | "90d"')) {
-  throw new Error("RankingWindow must support 90d");
+if (!api.includes('export type RankingWindow = "24h" | "7d" | "30d"')) {
+  throw new Error("RankingWindow should only expose 24h, 7d, and 30d");
+}
+
+if (helperSource.includes("change_ratio") || overview.includes("change_ratio")) {
+  throw new Error("Overview rising/cooling rankings should not depend on change_ratio");
 }

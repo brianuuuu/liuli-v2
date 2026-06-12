@@ -2,12 +2,12 @@ import type { RankingType, RankingWindow } from "../../../api/marketRadar";
 import type { TagHeat } from "../../../types/api";
 
 export type RisingRankingType = Exclude<RankingType, "all">;
-export type RisingRankingWindow = Extract<RankingWindow, "7d" | "30d" | "90d">;
+export type RisingRankingWindow = Extract<RankingWindow, "24h" | "7d" | "30d">;
 
 export const risingWindows: { value: RisingRankingWindow; label: string }[] = [
+  { value: "24h", label: "最近24小时" },
   { value: "7d", label: "最近7天" },
-  { value: "30d", label: "最近30天" },
-  { value: "90d", label: "最近90天" }
+  { value: "30d", label: "最近30天" }
 ];
 
 export const risingTypes: { value: RisingRankingType; label: string }[] = [
@@ -18,9 +18,13 @@ export const risingTypes: { value: RisingRankingType; label: string }[] = [
 
 export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
   return [...rows]
-    .filter((item) => Number(item.change_ratio || 0) > 0)
+    .filter((item) => item.rank_movement === "up" || item.rank_movement === "new")
     .sort((a, b) => {
-      const byChange = Number(b.change_ratio || 0) - Number(a.change_ratio || 0);
+      const aNew = a.rank_movement === "new" ? 1 : 0;
+      const bNew = b.rank_movement === "new" ? 1 : 0;
+      const byNew = aNew - bNew;
+      if (byNew !== 0) return byNew;
+      const byChange = Number(b.rank_change || 0) - Number(a.rank_change || 0);
       if (byChange !== 0) return byChange;
       const byHeat = Number(b.heat_score || 0) - Number(a.heat_score || 0);
       if (byHeat !== 0) return byHeat;
@@ -33,9 +37,9 @@ export function risingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
 
 export function coolingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
   return [...rows]
-    .filter((item) => Number(item.change_ratio || 0) < 0)
+    .filter((item) => item.rank_movement === "down" && Number(item.rank_change || 0) < 0)
     .sort((a, b) => {
-      const byChange = Number(a.change_ratio || 0) - Number(b.change_ratio || 0);
+      const byChange = Number(a.rank_change || 0) - Number(b.rank_change || 0);
       if (byChange !== 0) return byChange;
       const byHeat = Number(b.heat_score || 0) - Number(a.heat_score || 0);
       if (byHeat !== 0) return byHeat;
@@ -46,14 +50,16 @@ export function coolingTopRows(rows: TagHeat[], limit = 5): TagHeat[] {
     .slice(0, limit);
 }
 
-export function formatRisePercent(value?: number | null): string {
-  const next = Number(value || 0);
-  if (!next) return "0%";
-  return `${next > 0 ? "+" : ""}${(next * 100).toFixed(0)}%`;
+export function formatRankMovement(value: Pick<TagHeat, "rank_change" | "rank_movement">): string {
+  if (value.rank_movement === "new") return "新进";
+  const next = Number(value.rank_change || 0);
+  if (!next) return "持平";
+  return next > 0 ? `↑ ${next}` : `↓ ${Math.abs(next)}`;
 }
 
-export function riseClass(value?: number | null): string {
-  const next = Number(value || 0);
+export function rankMovementClass(value: Pick<TagHeat, "rank_change" | "rank_movement">): string {
+  if (value.rank_movement === "new") return "up";
+  const next = Number(value.rank_change || 0);
   if (next > 0) return "up";
   if (next < 0) return "down";
   return "";

@@ -128,7 +128,6 @@ class TagHeatSnapshot(Base):
     source_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     heat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     avg_count: Mapped[float] = mapped_column(Float, nullable=False, default=0)
-    change_ratio: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     rank_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 

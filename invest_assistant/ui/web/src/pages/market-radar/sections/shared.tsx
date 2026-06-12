@@ -10,7 +10,6 @@ export const rankingTypeOptions = [
 ];
 
 export const windowOptions = [
-  { value: "1h", label: "1h" },
   { value: "24h", label: "24h" },
   { value: "7d", label: "7d" },
   { value: "30d", label: "30d" }
@@ -60,8 +59,20 @@ export function heatBarOption(rows: TagHeat[]): EChartsOption {
   };
 }
 
+export function smoothHeatTrendRows(rows: TagHeat[], alpha = 0.4): number[] {
+  let previous: number | null = null;
+  return rows.map((item) => {
+    const raw = Number(item.heat_score || 0);
+    const smoothed = previous == null ? raw : raw * alpha + previous * (1 - alpha);
+    previous = smoothed;
+    return Number(smoothed.toFixed(2));
+  });
+}
+
 export function trendLineOption(rows: TagHeat[], title?: string, windowType?: string): EChartsOption {
   const visibleRows = rows.filter((item) => !windowType || item.window_type === windowType);
+  const rawValues = visibleRows.map((item) => Number(item.heat_score || 0));
+  const smoothedValues = smoothHeatTrendRows(visibleRows);
   const dateAxisLabels = visibleRows.map((item, index) => {
     const dateLabel = formatDateLabel(item.stat_time);
     const previousDateLabel = formatDateLabel(visibleRows[index - 1]?.stat_time);
@@ -74,10 +85,7 @@ export function trendLineOption(rows: TagHeat[], title?: string, windowType?: st
         const points = Array.isArray(params) ? params : [params];
         const first = points[0] as { dataIndex?: number } | undefined;
         const row = visibleRows[Number(first?.dataIndex ?? 0)];
-        const values = points.map((point) => {
-          const item = point as { marker?: string; seriesName?: string; value?: unknown };
-          return `${item.marker || ""}${item.seriesName || "热度"}: ${Number(item.value || 0).toFixed(1)}`;
-        });
+        const values = [`原始: ${Number(row?.heat_score || 0).toFixed(1)}`, `平滑: ${smoothedValues[Number(first?.dataIndex ?? 0)]?.toFixed(1) ?? "0.0"}`];
         return [formatTime(row?.stat_time), ...values].join("<br/>");
       }
     },
@@ -86,11 +94,19 @@ export function trendLineOption(rows: TagHeat[], title?: string, windowType?: st
     yAxis: { type: "value" },
     series: [
       {
-        name: title || "热度",
+        name: `${title || "热度"} 平滑`,
         type: "line",
         smooth: true,
-        data: visibleRows.map((item) => Number(item.heat_score || 0)),
+        data: smoothedValues,
         areaStyle: {}
+      },
+      {
+        name: `${title || "热度"} 原始`,
+        type: "line",
+        smooth: false,
+        symbolSize: 4,
+        data: rawValues,
+        lineStyle: { opacity: 0.28 }
       }
     ]
   };

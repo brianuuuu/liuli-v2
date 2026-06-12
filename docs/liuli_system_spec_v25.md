@@ -1764,13 +1764,12 @@ source_tag
 tag_heat_snapshot
 - id
 - tag_id
-- window_type       -- 1h / 24h / 7d / 30d
+- window_type       -- 24h / 7d / 30d
 - stat_time
 - trigger_count
 - source_count
 - heat_score
 - avg_count
-- change_ratio
 - rank_no
 - created_at
 ```
@@ -1861,7 +1860,53 @@ final_tag_name 不为空
 
 ### 17.8 热度与关系统计
 
-`tag_heat_snapshot` 是标签词热度。
+`tag_heat_snapshot` 是标签词热度，统计层级停留在信息流标签层：
+
+```text
+source_item -> source_tag -> tag
+```
+
+热度不进入 `track_material` / `stock_material` 审核材料层，不受 pending / confirmed / ignored 影响。
+
+热度窗口统一为 `24h / 7d / 30d`，每个窗口独立统计窗口内标签命中：
+
+```text
+heat_score = trigger_count
+trigger_count = source_tag 命中次数
+source_count = 去重 source_item 数，仅用于内部诊断
+```
+
+热度变化不使用百分比变化率。排名变化由同窗口的参照快照计算，不直接取上一轮聚合快照：
+
+```text
+24h 榜：最新快照 vs 1 小时前参照快照
+7d 榜：最新快照 vs 24 小时前参照快照
+30d 榜：最新快照 vs 7 天前参照快照
+```
+
+参照快照按目标时间向前寻找最近一条，并设置最大容忍范围；找不到参照快照时按新进处理：
+
+```text
+24h 参照最多向前容忍 3 小时
+7d 参照最多向前容忍 36 小时
+30d 参照最多向前容忍 10 天
+```
+
+```text
+rank_change = previous_rank_no - current_rank_no
+rank_movement = up / down / flat / new
+```
+
+`rank_no`、`previous_rank_no` 和 `rank_change` 的排名口径跟随榜单分类：
+
+```text
+type=hotword：热词内排名
+type=track：赛道内排名
+type=stock：标的内排名
+type=all：全标签全局排名
+```
+
+默认排名变化口径取 `7d` 的变化值；例如赛道看板的升温赛道数量只按 `rank_change_7d > 0` 统计。
 
 实体热度通过绑定关系聚合：
 
@@ -4737,13 +4782,12 @@ AI 只推荐词，不判断 stock / track / hotword；
 |---|---|
 | id | 主键 |
 | tag_id | 标签词 ID |
-| window_type | 1h/24h/7d/30d |
+| window_type | 24h/7d/30d |
 | stat_time | 统计时间 |
-| trigger_count | 触发次数 |
-| source_count | 信息源数量 |
-| heat_score | 热度分 |
+| trigger_count | 标签命中次数 |
+| source_count | 去重信息流数量，内部诊断字段 |
+| heat_score | 热度分，等于 trigger_count |
 | avg_count | 平均次数 |
-| change_ratio | 变化率 |
 | rank_no | 排名 |
 | created_at | 创建时间 |
 
@@ -4752,6 +4796,8 @@ AI 只推荐词，不判断 stock / track / hotword；
 ```text
 tag_heat_snapshot 是标签词热度；
 stock / track / hotword 的实体热度需要通过绑定关系聚合。
+热度变化使用同 window_type 的参照快照排名变化，不保存百分比变化率。
+24h 对比 1 小时前，7d 对比 24 小时前，30d 对比 7 天前；默认排名变化取 7d 变化值。
 ```
 
 #### `tag_edge_snapshot`：标签关系快照表，保存标签词之间的信息流共现关系
@@ -4762,7 +4808,7 @@ stock / track / hotword 的实体热度需要通过绑定关系聚合。
 | stock_tag_id | 标的标签词 ID |
 | related_tag_id | 关联标签词 ID |
 | related_tag_type | track/hotword |
-| window_type | 1h/24h/7d/30d |
+| window_type | 24h/7d/30d |
 | stat_time | 统计时间 |
 | cooccur_count | 共现次数 |
 | source_count | 信息源数量 |
@@ -5421,7 +5467,7 @@ TOOL_REGISTRY = {
                 },
                 "window": {
                     "type": "string",
-                    "enum": ["1h", "24h", "7d", "30d"],
+                    "enum": ["24h", "7d", "30d"],
                     "description": "统计窗口"
                 }
             },

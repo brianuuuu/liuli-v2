@@ -25,7 +25,7 @@ import type {
 } from "../../../types/api";
 import { DirectionTag, formatTime, stageOptions } from "./shared";
 
-type TrendWindow = "7d" | "30d" | "90d";
+type TrendWindow = "7d" | "30d";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -48,13 +48,13 @@ function stageLabel(value?: string | null) {
   return stageOptions.find((item) => item.value === value)?.label || value || "-";
 }
 
-function changeText(value?: number | null) {
+function rankChangeText(value?: number | null) {
   const next = Number(value || 0);
-  if (!next) return "0%";
-  return `${next > 0 ? "+" : ""}${(next * 100).toFixed(0)}%`;
+  if (!next) return "持平";
+  return next > 0 ? `↑ ${next}` : `↓ ${Math.abs(next)}`;
 }
 
-function changeClass(value?: number | null) {
+function rankChangeClass(value?: number | null) {
   const next = Number(value || 0);
   if (next > 0) return "up";
   if (next < 0) return "down";
@@ -166,9 +166,9 @@ export function OverviewSection() {
     { title: "排名", dataIndex: "rank", width: 58 },
     { title: "赛道", dataIndex: "track_name", ellipsis: true },
     { title: "当前热度", dataIndex: "current_heat", width: 86, render: (value) => Number(value || 0).toFixed(0) },
-    { title: "7日", dataIndex: "change_7d", width: 70, render: (value) => <span className={`track-change ${changeClass(value)}`}>{changeText(value)}</span> },
-    { title: "30日", dataIndex: "change_30d", width: 70, render: (value) => <span className={`track-change ${changeClass(value)}`}>{changeText(value)}</span> },
-    { title: "90日", dataIndex: "change_90d", width: 70, render: (value) => <span className={`track-change ${changeClass(value)}`}>{changeText(value)}</span> },
+    { title: "24h变化", dataIndex: "rank_change_24h", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
+    { title: "7日变化", dataIndex: "rank_change_7d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
+    { title: "30日变化", dataIndex: "rank_change_30d", width: 86, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "阶段", dataIndex: "stage", width: 82, render: (value) => <Tag>{stageLabel(value)}</Tag> },
     { title: "评分", dataIndex: "track_score", width: 64, render: (value) => value ?? "-" }
   ];
@@ -185,7 +185,7 @@ export function OverviewSection() {
   return (
     <div className="track-dashboard">
       <div className="track-dashboard-metrics">
-        <MetricCard icon={<FireOutlined />} label="升温赛道数量" value={dashboard.data.summary.warming_tracks_count} />
+        <MetricCard icon={<FireOutlined />} label="7日升温赛道数量" value={dashboard.data.summary.warming_tracks_count} />
         <MetricCard icon={<StarOutlined />} label="重点跟踪赛道数量" value={dashboard.data.summary.focus_tracks_count} />
         <MetricCard icon={<AlertOutlined />} label="待确认动态数量" value={dashboard.data.summary.pending_materials_count} />
         <MetricCard
@@ -200,7 +200,7 @@ export function OverviewSection() {
           title="赛道热度趋势"
           option={trendOption}
           height={310}
-          extra={<Segmented size="small" value={trendWindow} options={[{ label: "7天", value: "7d" }, { label: "30天", value: "30d" }, { label: "90天", value: "90d" }]} onChange={(value) => setTrendWindow(value as TrendWindow)} />}
+          extra={<Segmented size="small" value={trendWindow} options={[{ label: "7天", value: "7d" }, { label: "30天", value: "30d" }]} onChange={(value) => setTrendWindow(value as TrendWindow)} />}
         />
         <WorkbenchCard title="今日赛道热度榜">
           <Table
@@ -243,5 +243,3 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
     </div>
   );
 }
-
-

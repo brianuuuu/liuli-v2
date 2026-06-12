@@ -33,11 +33,21 @@ from invest_assistant.shared.pagination import Page, make_page, normalize_limit,
 from invest_assistant.shared.time_utils import beijing_now, utc_now
 
 WINDOWS = {
-    "1h": timedelta(hours=1),
     "24h": timedelta(days=1),
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
-    "90d": timedelta(days=90),
+}
+
+RANK_CHANGE_BASELINES = {
+    "24h": timedelta(hours=1),
+    "7d": timedelta(days=1),
+    "30d": timedelta(days=7),
+}
+
+RANK_CHANGE_REFERENCE_TOLERANCES = {
+    "24h": timedelta(hours=3),
+    "7d": timedelta(hours=36),
+    "30d": timedelta(days=10),
 }
 
 SOURCE_ITEM_DAILY_TYPE_GROUPS = {
@@ -615,13 +625,8 @@ def aggregate_heat(db: Session) -> JobResult:
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
-        previous_since = now - delta * 2
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == now))
         current_rows = _heat_rows_between(db, since, now, include_null_publish=True, include_end=True)
-        previous_scores = {
-            int(row[0]): _heat_score(int(row[1]), int(row[2]))
-            for row in _heat_rows_between(db, previous_since, since, include_null_publish=False, include_end=False)
-        }
         sorted_rows = sorted(
             current_rows,
             key=lambda row: (-_heat_score(int(row[1]), int(row[2])), int(row[0])),
@@ -631,7 +636,6 @@ def aggregate_heat(db: Session) -> JobResult:
             trigger_count = int(row[1])
             source_count = int(row[2])
             heat_score = _heat_score(trigger_count, source_count)
-            previous_score = previous_scores.get(tag_id, 0.0)
             db.add(
                 TagHeatSnapshot(
                     tag_id=tag_id,
@@ -641,7 +645,6 @@ def aggregate_heat(db: Session) -> JobResult:
                     source_count=source_count,
                     heat_score=heat_score,
                     avg_count=float(trigger_count),
-                    change_ratio=_change_ratio(heat_score, previous_score),
                     rank_no=idx,
                 )
             )
@@ -672,13 +675,7 @@ def _heat_rows_between(
 
 
 def _heat_score(trigger_count: int, source_count: int) -> float:
-    return float(trigger_count * 10 + source_count)
-
-
-def _change_ratio(current: float, previous: float | None) -> float:
-    if previous is None or previous == 0:
-        return 1.0 if current > 0 else 0.0
-    return round((current - previous) / previous, 4)
+    return float(trigger_count)
 
 
 def aggregate_edges(db: Session) -> JobResult:
@@ -741,6 +738,10 @@ def latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
     latest_stat = db.scalar(select(func.max(TagHeatSnapshot.stat_time)).where(TagHeatSnapshot.window_type == window))
     if latest_stat is None:
         return []
+    previous_stat = rank_change_reference_stat_time(db, window, latest_stat)
+    previous_ranks = {}
+    if previous_stat is not None:
+        previous_ranks = _rank_no_by_tag_for_snapshot(db, window, previous_stat, tag_type)
     stmt = select(TagHeatSnapshot, Tag).join(Tag, Tag.id == TagHeatSnapshot.tag_id).where(
         TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == latest_stat
     )
@@ -748,11 +749,60 @@ def latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
         stmt = stmt.where(Tag.type == tag_type)
     stmt = stmt.order_by(TagHeatSnapshot.rank_no.asc())
     rows = db.execute(stmt).all()
-    return [dict(_snapshot_dict(snapshot), tag=_tag_dict(tag)) for snapshot, tag in rows]
+    result = []
+    current_ranks = _rank_no_by_tag_for_rows(rows, tag_type)
+    for snapshot, tag in rows:
+        if window == "24h" and int(snapshot.trigger_count or 0) < 2:
+            continue
+        current_rank_no = current_ranks[int(snapshot.tag_id)]
+        snapshot_data = _snapshot_dict(snapshot)
+        snapshot_data["rank_no"] = current_rank_no
+        result.append(dict(snapshot_data, **_rank_movement_dict(snapshot, previous_ranks, current_rank_no), tag=_tag_dict(tag)))
+    return result
 
 
 def tag_trend(db: Session, tag_id: int) -> list[TagHeatSnapshot]:
     return list(db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.tag_id == tag_id).order_by(TagHeatSnapshot.stat_time.asc())))
+
+
+def rank_change_reference_stat_time(db: Session, window: str, latest_stat: datetime, *extra_conditions) -> datetime | None:
+    baseline = RANK_CHANGE_BASELINES.get(window)
+    tolerance = RANK_CHANGE_REFERENCE_TOLERANCES.get(window)
+    if baseline is None or tolerance is None:
+        return None
+    target = latest_stat - baseline
+    lower_bound = target - tolerance
+    return db.scalar(
+        select(TagHeatSnapshot.stat_time)
+        .where(
+            TagHeatSnapshot.window_type == window,
+            TagHeatSnapshot.stat_time <= target,
+            TagHeatSnapshot.stat_time >= lower_bound,
+            *extra_conditions,
+        )
+        .distinct()
+        .order_by(TagHeatSnapshot.stat_time.desc())
+        .limit(1)
+    )
+
+
+def _rank_no_by_tag_for_snapshot(db: Session, window: str, stat_time: datetime, tag_type: str) -> dict[int, int]:
+    stmt = select(TagHeatSnapshot.tag_id, TagHeatSnapshot.rank_no).where(
+        TagHeatSnapshot.window_type == window,
+        TagHeatSnapshot.stat_time == stat_time,
+    )
+    if tag_type != "all":
+        stmt = stmt.join(Tag, Tag.id == TagHeatSnapshot.tag_id).where(Tag.type == tag_type)
+    rows = list(db.execute(stmt.order_by(TagHeatSnapshot.rank_no.asc())))
+    if tag_type == "all":
+        return {int(tag_id): int(rank_no) for tag_id, rank_no in rows}
+    return {int(tag_id): index for index, (tag_id, _rank_no) in enumerate(rows, start=1)}
+
+
+def _rank_no_by_tag_for_rows(rows: list[tuple[TagHeatSnapshot, Tag]], tag_type: str) -> dict[int, int]:
+    if tag_type == "all":
+        return {int(snapshot.tag_id): int(snapshot.rank_no) for snapshot, _tag in rows}
+    return {int(snapshot.tag_id): index for index, (snapshot, _tag) in enumerate(rows, start=1)}
 
 
 def graph_edges(db: Session, related_type: str, window: str) -> dict:
@@ -970,10 +1020,23 @@ def _snapshot_dict(snapshot: TagHeatSnapshot) -> dict:
         "source_count": snapshot.source_count,
         "heat_score": snapshot.heat_score,
         "avg_count": snapshot.avg_count,
-        "change_ratio": snapshot.change_ratio,
         "rank_no": snapshot.rank_no,
         "created_at": snapshot.created_at,
     }
+
+
+def _rank_movement_dict(snapshot: TagHeatSnapshot, previous_ranks: dict[int, int], current_rank_no: int | None = None) -> dict:
+    previous_rank = previous_ranks.get(int(snapshot.tag_id))
+    if previous_rank is None:
+        return {"previous_rank_no": None, "rank_change": None, "rank_movement": "new"}
+    rank_change = int(previous_rank) - int(current_rank_no if current_rank_no is not None else snapshot.rank_no)
+    if rank_change > 0:
+        movement = "up"
+    elif rank_change < 0:
+        movement = "down"
+    else:
+        movement = "flat"
+    return {"previous_rank_no": previous_rank, "rank_change": rank_change, "rank_movement": movement}
 
 
 def _tag_dict(tag: Tag) -> dict:

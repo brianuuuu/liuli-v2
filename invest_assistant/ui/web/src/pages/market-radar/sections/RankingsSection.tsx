@@ -8,6 +8,7 @@ import { DataPanel } from "../../../components/common/DataPanel";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TagHeat } from "../../../types/api";
+import { formatRankMovement, rankMovementClass } from "./overviewRisingRankings";
 import { formatTime, rankingTypeOptions, tagName, TagTypeTag, trendLineOption, windowOptions } from "./shared";
 
 export function RankingsSection() {
@@ -33,9 +34,12 @@ export function RankingsSection() {
     { title: "标签", render: (_, record) => tagName(record) },
     { title: "类型", width: 100, render: (_, record) => <TagTypeTag type={record.tag?.type} /> },
     { title: "热度", dataIndex: "heat_score", width: 100, render: (value) => Number(value || 0).toFixed(1) },
-    { title: "触发", dataIndex: "trigger_count", width: 80 },
-    { title: "来源", dataIndex: "source_count", width: 80 },
-    { title: "变化", dataIndex: "change_ratio", width: 90, render: (value) => `${Number(value || 0).toFixed(2)}%` },
+    { title: "标签命中", dataIndex: "trigger_count", width: 96 },
+    {
+      title: "排名变化",
+      width: 96,
+      render: (_, record) => <span className={`track-change ${rankMovementClass(record)}`}>{formatRankMovement(record)}</span>
+    },
     { title: "统计时间", dataIndex: "stat_time", width: 160, render: formatTime },
     { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
   ];

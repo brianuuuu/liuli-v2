@@ -209,7 +209,7 @@ def test_track_dashboard_limits_trend_points_and_preserves_summary():
         tag = market_service.ensure_tag(db, f"赛道-{track['id']:02d}", "track", "test", "active")
         db.add(TrackTagRelation(track_id=track["id"], tag_id=tag.id, source="test", status="active"))
         for point_index in range(45):
-            for window in ("7d", "30d", "90d", "24h"):
+            for window in ("7d", "30d", "24h"):
                 db.add(
                     TagHeatSnapshot(
                         tag_id=tag.id,
@@ -219,7 +219,6 @@ def test_track_dashboard_limits_trend_points_and_preserves_summary():
                         source_count=point_index,
                         heat_score=float(track["id"] * 1000 + point_index),
                         avg_count=0,
-                        change_ratio=0.2 if window == "7d" else 0.1,
                         rank_no=track["id"],
                     )
                 )
@@ -233,7 +232,7 @@ def test_track_dashboard_limits_trend_points_and_preserves_summary():
 
     assert dashboard["summary"]["focus_tracks_count"] == 12
     assert dashboard["summary"]["pending_materials_count"] == 12
-    assert dashboard["summary"]["warming_tracks_count"] == 12
+    assert dashboard["summary"]["warming_tracks_count"] == 0
     assert len(dashboard["heat_rankings"]) == 12
     assert len(dashboard["heat_trends"]) == 10
     assert len(dashboard["latest_materials"]) == 10
@@ -241,5 +240,5 @@ def test_track_dashboard_limits_trend_points_and_preserves_summary():
     assert all(
         len([point for point in trend["points"] if point["window_type"] == window]) <= 30
         for trend in dashboard["heat_trends"]
-        for window in ("7d", "30d", "90d")
+        for window in ("7d", "30d")
     )

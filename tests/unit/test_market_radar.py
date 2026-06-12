@@ -52,7 +52,6 @@ def test_tag_trend_endpoint_serializes_heat_snapshots(monkeypatch):
         source_count=3,
         heat_score=63.0,
         avg_count=6.0,
-        change_ratio=0.12,
         rank_no=1,
         created_at=datetime(2026, 6, 5, 21, 18, 49),
     )
@@ -71,7 +70,6 @@ def test_tag_trend_endpoint_serializes_heat_snapshots(monkeypatch):
             "source_count": 3,
             "heat_score": 63.0,
             "avg_count": 6.0,
-            "change_ratio": 0.12,
             "rank_no": 1,
             "created_at": "2026-06-05T21:18:49",
             "tag": None,
@@ -144,6 +142,17 @@ def test_rule_extraction_heat_and_graph_jobs_use_tag_words():
             "title": "平安银行布局AI算力",
             "content": "平安银行 和 AI算力 被共同提及。",
             "publish_time": "2026-05-13T10:00:00",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/api/market-radar/source-items",
+        json={
+            "source_type": "news",
+            "source_name": "manual",
+            "title": "平安银行AI算力订单跟进",
+            "content": "平安银行 与 AI算力 再次被共同提及。",
+            "publish_time": "2026-05-13T10:10:00",
         },
         headers=headers,
     )

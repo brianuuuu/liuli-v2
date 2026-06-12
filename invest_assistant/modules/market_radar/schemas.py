@@ -78,7 +78,6 @@ class TagHeatRead(BaseModel):
     source_count: int
     heat_score: float
     avg_count: float
-    change_ratio: float
     rank_no: int
     created_at: datetime
     tag: TagRead | None = None

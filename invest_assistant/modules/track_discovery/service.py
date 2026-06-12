@@ -7,7 +7,7 @@ from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate
-from invest_assistant.modules.market_radar.service import bind_track_tag, list_track_tag_bindings
+from invest_assistant.modules.market_radar.service import bind_track_tag, list_track_tag_bindings, rank_change_reference_stat_time
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
@@ -25,8 +25,9 @@ from invest_assistant.modules.track_discovery.schemas import (
 )
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
-DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d", "90d")
-DASHBOARD_TREND_WINDOWS = ("7d", "30d", "90d")
+DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
+DASHBOARD_TREND_WINDOWS = ("7d", "30d")
+DEFAULT_RANK_CHANGE_WINDOW = "7d"
 DASHBOARD_TREND_POINT_LIMIT = 30
 DASHBOARD_RANKING_LIMIT = 10
 
@@ -88,8 +89,11 @@ def get_dashboard(db: Session) -> dict:
     def latest_heat(track_id: int, window: str) -> float:
         return round(float(latest_heat_by_track_window.get((track_id, window), {}).get("heat_score") or 0), 2)
 
-    def latest_change(track_id: int, window: str) -> float:
-        return round(float(latest_heat_by_track_window.get((track_id, window), {}).get("change_ratio") or 0), 4)
+    rank_changes_by_track_window = _dashboard_rank_changes_by_track_window(db, track_ids, latest_stat_by_window)
+
+    def latest_rank_change(track_id: int, window: str) -> int | None:
+        value = rank_changes_by_track_window.get((track_id, window))
+        return int(value) if value is not None else None
 
     material_counts = dict(
         db.execute(
@@ -116,9 +120,9 @@ def get_dashboard(db: Session) -> dict:
                 "track_id": track.id,
                 "track_name": track.name,
                 "current_heat": latest_heat(track.id, "24h"),
-                "change_7d": latest_change(track.id, "7d"),
-                "change_30d": latest_change(track.id, "30d"),
-                "change_90d": latest_change(track.id, "90d"),
+                "rank_change_24h": latest_rank_change(track.id, "24h"),
+                "rank_change_7d": latest_rank_change(track.id, "7d"),
+                "rank_change_30d": latest_rank_change(track.id, "30d"),
                 "stage": track.stage,
                 "track_score": track.track_score,
             }
@@ -171,7 +175,7 @@ def get_dashboard(db: Session) -> dict:
     top_heat = rankings[0] if rankings else None
     return {
         "summary": {
-            "warming_tracks_count": len([item for item in rankings if any(float(item[f"change_{window}"] or 0) > 0 for window in ("7d", "30d", "90d"))]),
+            "warming_tracks_count": len([item for item in rankings if (item.get(f"rank_change_{DEFAULT_RANK_CHANGE_WINDOW}") or 0) > 0]),
             "focus_tracks_count": len([track for track in tracks if track.status == "active"]),
             "pending_materials_count": pending_materials_count,
             "top_heat_track": {
@@ -221,7 +225,6 @@ def _dashboard_latest_heat_by_track_window(
             TrackTagRelation.track_id,
             TagHeatSnapshot.window_type,
             func.sum(TagHeatSnapshot.heat_score).label("heat_score"),
-            func.sum(TagHeatSnapshot.change_ratio).label("change_ratio"),
         )
         .select_from(TrackTagRelation)
         .join(TagHeatSnapshot, TagHeatSnapshot.tag_id == TrackTagRelation.tag_id)
@@ -235,10 +238,52 @@ def _dashboard_latest_heat_by_track_window(
     return {
         (int(track_id), str(window)): {
             "heat_score": float(heat_score or 0),
-            "change_ratio": float(change_ratio or 0),
         }
-        for track_id, window, heat_score, change_ratio in rows
+        for track_id, window, heat_score in rows
     }
+
+
+def _dashboard_rank_changes_by_track_window(
+    db: Session,
+    track_ids: list[int],
+    latest_stat_by_window: dict[str, object],
+) -> dict[tuple[int, str], int | None]:
+    if not track_ids or not latest_stat_by_window:
+        return {}
+    tag_id_stmt = select(TrackTagRelation.tag_id).where(
+        TrackTagRelation.status == "active",
+        TrackTagRelation.track_id.in_(track_ids),
+    )
+    previous_stat_by_window = {
+        window: rank_change_reference_stat_time(db, window, latest_stat, TagHeatSnapshot.tag_id.in_(tag_id_stmt))
+        for window, latest_stat in latest_stat_by_window.items()
+    }
+    previous_stat_by_window = {window: stat_time for window, stat_time in previous_stat_by_window.items() if stat_time is not None}
+    if not previous_stat_by_window:
+        return {}
+
+    current_heat = _dashboard_latest_heat_by_track_window(db, track_ids, latest_stat_by_window)
+    previous_heat = _dashboard_latest_heat_by_track_window(db, track_ids, previous_stat_by_window)
+
+    def ranks_for(rows: dict[tuple[int, str], dict[str, float]], window: str) -> dict[int, int]:
+        ordered = sorted(
+            [
+                (track_id, float(value.get("heat_score") or 0))
+                for (track_id, row_window), value in rows.items()
+                if row_window == window and float(value.get("heat_score") or 0) > 0
+            ],
+            key=lambda item: (-item[1], item[0]),
+        )
+        return {track_id: index for index, (track_id, _heat) in enumerate(ordered, start=1)}
+
+    result: dict[tuple[int, str], int | None] = {}
+    for window in latest_stat_by_window:
+        current_ranks = ranks_for(current_heat, window)
+        previous_ranks = ranks_for(previous_heat, window)
+        for track_id, current_rank in current_ranks.items():
+            previous_rank = previous_ranks.get(track_id)
+            result[(track_id, window)] = None if previous_rank is None else previous_rank - current_rank
+    return result
 
 
 def _dashboard_heat_trends(
@@ -640,14 +685,12 @@ def _track_detail_heat_trends(db: Session, active_tag_ids: list[int]) -> list[di
                 "heat_score": 0.0,
                 "trigger_count": 0,
                 "source_count": 0,
-                "change_ratio": 0.0,
                 "rank_no": row.rank_no,
             },
         )
         item["heat_score"] = round(float(item["heat_score"]) + float(row.heat_score or 0), 2)
         item["trigger_count"] = int(item["trigger_count"]) + int(row.trigger_count or 0)
         item["source_count"] = int(item["source_count"]) + int(row.source_count or 0)
-        item["change_ratio"] = round(float(item["change_ratio"] or 0) + float(row.change_ratio or 0), 4)
         if row.rank_no is not None:
             item["rank_no"] = min(int(item["rank_no"] or row.rank_no), int(row.rank_no))
 

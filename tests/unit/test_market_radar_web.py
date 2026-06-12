@@ -190,8 +190,23 @@ def test_heat_trend_chart_uses_selected_window_and_date_axis():
     shared = Path("invest_assistant/ui/web/src/pages/market-radar/sections/shared.tsx").read_text(encoding="utf-8")
 
     assert "selected?.window_type" in rankings
+    assert "smoothHeatTrendRows" in shared
+    assert "原始" in shared
+    assert "平滑" in shared
     assert "windowType?: string" in shared
     assert "rows.filter((item) => !windowType || item.window_type === windowType)" in shared
     assert "dateAxisLabels" in shared
     assert "previousDateLabel" in shared
     assert "formatDateLabel(item.stat_time)" in shared
+
+
+def test_heat_rankings_table_uses_tag_hits_and_rank_movement():
+    rankings = Path("invest_assistant/ui/web/src/pages/market-radar/sections/RankingsSection.tsx").read_text(encoding="utf-8")
+
+    assert 'title: "标签命中"' in rankings
+    assert "trigger_count" in rankings
+    assert "source_count" not in rankings
+    assert "change_ratio" not in rankings
+    assert 'title: "排名变化"' in rankings
+    assert "rankChangeBaselineLabel" not in rankings
+    assert "formatRankMovement" in rankings
