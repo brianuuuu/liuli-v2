@@ -158,10 +158,10 @@ def fetch_futu_news_job(limit: int = 50, **kwargs) -> JobResult:
     )
 
 
-def extract_tags_job(**kwargs) -> JobResult:
+def extract_tags_job(batch_limit: int | None = None, **kwargs) -> JobResult:
     db = SessionLocal()
     try:
-        return service.extract_tags(db)
+        return service.extract_tags(db, batch_limit=batch_limit)
     finally:
         db.close()
 
@@ -634,6 +634,7 @@ JOBS = [
         cron_expr="*/5 * * * *",
         timeout_seconds=180,
         max_retries=1,
+        params_schema={"batch_limit": {"type": "number", "label": "每批处理条数", "default": 500, "min": 1}},
         tags=["tag", "market_radar"],
     ),
     JobDefinition(

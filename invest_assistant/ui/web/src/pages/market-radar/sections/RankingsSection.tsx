@@ -1,6 +1,6 @@
-import { Button, Drawer, Space, Table } from "antd";
+import { Button, Drawer, Input, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getTagTrend, listRankings, type RankingType, type RankingWindow } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -9,6 +9,7 @@ import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TagHeat } from "../../../types/api";
 import { formatRankMovement, rankMovementClass } from "./overviewRisingRankings";
+import { filterRankingRows } from "./rankingSearch";
 import { formatTime, rankingTypeOptions, tagName, TagTypeTag, trendLineOption, windowOptions } from "./shared";
 
 export function RankingsSection() {
@@ -17,7 +18,9 @@ export function RankingsSection() {
   const [selected, setSelected] = useState<TagHeat | null>(null);
   const [trend, setTrend] = useState<TagHeat[]>([]);
   const [trendLoading, setTrendLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const rankings = useAsyncData(useCallback(() => listRankings(type, timeWindow), [type, timeWindow]), []);
+  const rows = useMemo(() => filterRankingRows(rankings.data, searchQuery), [rankings.data, searchQuery]);
 
   async function showTrend(record: TagHeat) {
     setSelected(record);
@@ -75,6 +78,15 @@ export function RankingsSection() {
               ))}
             </Space>
             <div className="data-panel-toolbar-spacer" />
+            <Input.Search
+              placeholder="搜索标签 / ID / 类型..."
+              allowClear
+              size="small"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onSearch={setSearchQuery}
+              style={{ width: 190 }}
+            />
           </>
         }
       >
@@ -82,7 +94,7 @@ export function RankingsSection() {
           rowKey="id"
           size="small"
           loading={rankings.loading}
-          dataSource={rankings.data}
+          dataSource={rows}
           columns={columns}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无热度榜数据" /> }}

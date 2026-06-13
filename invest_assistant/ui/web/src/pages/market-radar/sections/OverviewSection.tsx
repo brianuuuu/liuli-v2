@@ -8,6 +8,7 @@ import type { TagHeat } from "../../../types/api";
 import { formatTime, tagName } from "./shared";
 import {
   coolingTopRows,
+  formatCurrentRank,
   formatRankMovement,
   rankMovementClass,
   risingTopRows,
@@ -86,6 +87,7 @@ function RisingRankingList({
               <span className="market-rising-row-label">
                 <span className="market-rising-rank-no">{index + 1}</span>
                 <span className="market-rising-name">{tagName(item)}</span>
+                <span className="market-rising-name-rank">{formatCurrentRank(item)}</span>
               </span>
               <strong className={`track-change ${rankMovementClass(item)}`}>{formatRankMovement(item)}</strong>
             </div>

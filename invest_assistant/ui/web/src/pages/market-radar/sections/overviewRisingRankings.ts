@@ -57,6 +57,11 @@ export function formatRankMovement(value: Pick<TagHeat, "rank_change" | "rank_mo
   return next > 0 ? `↑ ${next}` : `↓ ${Math.abs(next)}`;
 }
 
+export function formatCurrentRank(value: Pick<TagHeat, "rank_no">): string {
+  const rank = Number(value.rank_no || 0);
+  return rank > 0 ? `第 ${rank} 名` : "";
+}
+
 export function rankMovementClass(value: Pick<TagHeat, "rank_change" | "rank_movement">): string {
   if (value.rank_movement === "new") return "up";
   const next = Number(value.rank_change || 0);

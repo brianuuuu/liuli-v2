@@ -934,6 +934,13 @@ body {
   white-space: nowrap;
 }
 
+.market-rising-name-rank {
+  flex: 0 0 auto;
+  color: var(--ll-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .workbench-card .ant-card-extra .heat-board-segmented {
   padding: 4px;
   border-radius: 8px;

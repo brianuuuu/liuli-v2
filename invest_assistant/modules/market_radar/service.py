@@ -5,6 +5,7 @@ from json import dumps
 from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
+from invest_assistant.modules.basic.system_config.service import get_runtime_state, set_runtime_state
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.backfill_requests import enqueue_tag_backfill
 from invest_assistant.modules.market_radar.models import (
@@ -49,6 +50,10 @@ RANK_CHANGE_REFERENCE_TOLERANCES = {
     "7d": timedelta(hours=36),
     "30d": timedelta(days=10),
 }
+
+EXTRACT_TAGS_STATE_NAMESPACE = "job.market_radar.extract_tags"
+EXTRACT_TAGS_SOURCE_ITEM_CURSOR_KEY = "source_item_last_id"
+DEFAULT_EXTRACT_TAGS_BATCH_LIMIT = 500
 
 SOURCE_ITEM_DAILY_TYPE_GROUPS = {
     "news": {"news"},
@@ -616,8 +621,107 @@ def backfill_source_tags(
     )
 
 
-def extract_tags(db: Session) -> JobResult:
-    return backfill_source_tags(db)
+def _normalize_extract_tags_batch_limit(value: int | str | None) -> int:
+    try:
+        limit = int(value or DEFAULT_EXTRACT_TAGS_BATCH_LIMIT)
+    except (TypeError, ValueError):
+        return DEFAULT_EXTRACT_TAGS_BATCH_LIMIT
+    return limit if limit > 0 else DEFAULT_EXTRACT_TAGS_BATCH_LIMIT
+
+
+def _runtime_state_int_value(value: str | None) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def extract_tags(db: Session, batch_limit: int | str | None = DEFAULT_EXTRACT_TAGS_BATCH_LIMIT) -> JobResult:
+    from invest_assistant.modules.stock_analysis.service import create_pending_stock_materials_for_source_item
+
+    limit = _normalize_extract_tags_batch_limit(batch_limit)
+    state = get_runtime_state(db, EXTRACT_TAGS_STATE_NAMESPACE, EXTRACT_TAGS_SOURCE_ITEM_CURSOR_KEY)
+    latest_source_item_id = int(db.scalar(select(func.max(SourceItem.id))) or 0)
+    if state is None:
+        set_runtime_state(
+            db,
+            EXTRACT_TAGS_STATE_NAMESPACE,
+            EXTRACT_TAGS_SOURCE_ITEM_CURSOR_KEY,
+            str(latest_source_item_id),
+            value_type="int",
+            ext={"initialized_from": "extract_tags"},
+        )
+        return JobResult(
+            success=True,
+            message=f"initialized source item cursor at {latest_source_item_id}",
+            processed_count=0,
+            inserted_count=0,
+            extra={
+                "old_cursor": None,
+                "new_cursor": latest_source_item_id,
+                "batch_limit": limit,
+                "remaining_count": 0,
+            },
+        )
+
+    old_cursor = _runtime_state_int_value(state.state_value)
+    items = list(
+        db.scalars(
+            select(SourceItem)
+            .where(SourceItem.id > old_cursor)
+            .order_by(SourceItem.id.asc())
+            .limit(limit)
+        )
+    )
+    if not items:
+        return JobResult(
+            success=True,
+            message="no new source items to extract tags",
+            processed_count=0,
+            inserted_count=0,
+            extra={
+                "old_cursor": old_cursor,
+                "new_cursor": old_cursor,
+                "batch_limit": limit,
+                "remaining_count": 0,
+            },
+        )
+
+    inserted = 0
+    track_material_inserted = 0
+    stock_material_inserted = 0
+    for item in items:
+        inserted += persist_source_tag_matches(db, item)
+        track_material_inserted += create_pending_track_materials_for_source_item(db, item.id)
+        stock_material_inserted += create_pending_stock_materials_for_source_item(db, item.id)
+
+    new_cursor = int(items[-1].id)
+    remaining_count = int(db.scalar(select(func.count(SourceItem.id)).where(SourceItem.id > new_cursor)) or 0)
+    set_runtime_state(
+        db,
+        EXTRACT_TAGS_STATE_NAMESPACE,
+        EXTRACT_TAGS_SOURCE_ITEM_CURSOR_KEY,
+        str(new_cursor),
+        value_type="int",
+        ext={
+            "track_material_inserted_count": track_material_inserted,
+            "stock_material_inserted_count": stock_material_inserted,
+        },
+        commit=False,
+    )
+    db.commit()
+    return JobResult(
+        success=True,
+        message=f"extracted {inserted} source tags from {len(items)} new source items",
+        processed_count=len(items),
+        inserted_count=inserted,
+        extra={
+            "old_cursor": old_cursor,
+            "new_cursor": new_cursor,
+            "batch_limit": limit,
+            "remaining_count": remaining_count,
+        },
+    )
 
 
 def aggregate_heat(db: Session) -> JobResult:
