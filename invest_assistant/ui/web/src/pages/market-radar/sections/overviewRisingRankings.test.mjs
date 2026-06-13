@@ -112,6 +112,14 @@ if (helper.formatRankMovement({ rank_change: null, rank_movement: "new" }) !== "
   throw new Error("Expected new rank movement to display as new entry");
 }
 
+if (helper.formatCurrentRank({ rank_no: 12 }) !== "第 12 名") {
+  throw new Error("Expected current rank to display after the market heat item name");
+}
+
+if (helper.formatCurrentRank({ rank_no: null }) !== "") {
+  throw new Error("Expected missing current rank to render no rank suffix");
+}
+
 if (overview.includes("24h 热度排行")) {
   throw new Error("Overview should no longer render the 24h heat ranking chart");
 }
@@ -130,6 +138,10 @@ if (overview.includes("Segmented")) {
 
 if (!overview.includes("heat-board-segmented") || !overview.includes("toolbar-status-buttons") || !overview.includes("toolbar-filter-button")) {
   throw new Error("Overview heat boards should use the shared segmented button classes");
+}
+
+if (!overview.includes("market-rising-name-rank") || !overview.includes("formatCurrentRank(item)")) {
+  throw new Error("Overview heat boards should render the current rank after each item name");
 }
 
 const risingListRule = css.match(/\.market-rising-list \{[\s\S]*?\}/)?.[0] || "";

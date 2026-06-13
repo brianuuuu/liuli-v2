@@ -158,10 +158,10 @@ def fetch_futu_news_job(limit: int = 50, **kwargs) -> JobResult:
     )
 
 
-def extract_tags_job(**kwargs) -> JobResult:
+def extract_tags_job(batch_limit: int | None = None, **kwargs) -> JobResult:
     db = SessionLocal()
     try:
-        return service.extract_tags(db)
+        return service.extract_tags(db, batch_limit=batch_limit)
     finally:
         db.close()
 
@@ -169,6 +169,7 @@ def extract_tags_job(**kwargs) -> JobResult:
 def backfill_source_tags_job(
     tag_type: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     start_time: str | None = None,
     end_time: str | None = None,
     source_type: str | None = None,
@@ -181,6 +182,7 @@ def backfill_source_tags_job(
             db,
             tag_type=tag_type,
             tag_id=tag_id,
+            tag_ids=tag_ids,
             start_time=start_time,
             end_time=end_time,
             source_type=source_type,
@@ -634,6 +636,7 @@ JOBS = [
         cron_expr="*/5 * * * *",
         timeout_seconds=180,
         max_retries=1,
+        params_schema={"batch_limit": {"type": "number", "label": "每批处理条数", "default": 500, "min": 1}},
         tags=["tag", "market_radar"],
     ),
     JobDefinition(

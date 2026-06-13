@@ -1,7 +1,7 @@
 import { Button, Drawer, Form, Input, Modal, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createHotword, getTagTrend, listHotwords } from "../../../api/marketRadar";
+import { createHotword, getTagTrend, listHotwords, type RankingWindow } from "../../../api/marketRadar";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -21,6 +21,8 @@ const hotwordStatusOptions = [
   { value: "candidate", label: "候选" },
   { value: "archived", label: "停用" }
 ];
+
+const HOTWORD_TREND_WINDOW: RankingWindow = "24h";
 
 function HotwordStatusTag({ status }: { status?: string }) {
   const label = hotwordStatusOptions.find((item) => item.value === status)?.label || status || "-";
@@ -162,7 +164,7 @@ export function TagsSection() {
 
       <Drawer title={selected ? `${selected.name} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
         {trend.length ? (
-          <ChartCard title="历史热度" option={trendLineOption(trend, selected?.name)} height={300} />
+          <ChartCard title="历史热度" option={trendLineOption(trend, selected?.name, HOTWORD_TREND_WINDOW)} height={300} />
         ) : (
           <WorkbenchCard title="历史热度">
             <EmptyAction description={trendLoading ? "加载中" : "暂无趋势数据"} />
