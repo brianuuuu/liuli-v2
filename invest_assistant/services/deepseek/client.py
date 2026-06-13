@@ -96,6 +96,72 @@ def _chat_json(prompt, model: str, data_payload: dict) -> dict:
     return parsed
 
 
+def _chat_text(prompt, model: str, data_payload: dict) -> dict:
+    api_key = get_deepseek_api_key()
+    if not api_key:
+        raise RuntimeError("deepseek api key is not configured")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": prompt.system_prompt,
+            },
+            {
+                "role": "user",
+                "content": prompt.user_prompt + "\n\n" + json.dumps(data_payload, ensure_ascii=False, separators=(",", ":")),
+            },
+        ],
+        "thinking": {"type": "disabled"},
+        "stream": False,
+        "temperature": 0.2,
+    }
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = request.Request(
+        DEEPSEEK_API_URL,
+        data=data,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    started = perf_counter()
+    task_name = _prompt_task_name(prompt)
+    try:
+        with request.urlopen(req, timeout=120) as response:
+            raw = response.read().decode("utf-8")
+    except Exception as exc:
+        write_ai_debug_log(
+            provider="deepseek",
+            model=model,
+            task_name=task_name,
+            endpoint=DEEPSEEK_API_URL,
+            request_payload=payload,
+            status="failed",
+            duration_ms=int((perf_counter() - started) * 1000),
+            error_message=str(exc),
+        )
+        raise RuntimeError(f"deepseek request failed: {exc}") from exc
+
+    response_payload = json.loads(raw)
+    content = response_payload["choices"][0]["message"]["content"]
+    result = {"content": content, "usage": response_payload.get("usage") or {}}
+    write_ai_debug_log(
+        provider="deepseek",
+        model=model,
+        task_name=task_name,
+        endpoint=DEEPSEEK_API_URL,
+        request_payload=payload,
+        raw_response=raw,
+        parsed_response=result,
+        status="success",
+        duration_ms=int((perf_counter() - started) * 1000),
+    )
+    return result
+
+
 def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
     return _chat_json(prompt, model, {"news": news})
 
@@ -110,3 +176,7 @@ def review_stock_materials(materials: list[dict], prompt, model: str = DEFAULT_D
 
 def review_track_materials(materials: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
     return _chat_json(prompt, model, {"materials": materials})
+
+
+def generate_market_daily_report(payload: dict, prompt, model: str = "deepseek-v4-pro") -> dict:
+    return _chat_text(prompt, model, payload)

@@ -8,6 +8,7 @@ from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
 from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
+from invest_assistant.modules.knowledge_base.service import resolve_prompt_content
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.market_radar.models import TagHeatSnapshot
 from invest_assistant.shared.time_utils import utc_now
@@ -375,17 +376,23 @@ def test_create_app_seeds_default_deepseek_hotword_prompt_once():
         assert prompt.model == "deepseek-v4-flash"
         assert prompt.response_format == "json_object"
         assert prompt.status == "active"
-        assert "只返回合法JSON" in prompt.system_prompt
-        assert "可作为系统标签长期复用" in prompt.system_prompt
-        assert "专有名词或实体名词" in prompt.user_prompt
-        assert "不要返回新闻短句" in prompt.user_prompt
-        assert "没有合格名词就跳过" in prompt.user_prompt
+        assert prompt.system_prompt.endswith("/system.md")
+        assert prompt.user_prompt.endswith("/user.md")
+        resolved_prompt = resolve_prompt_content(prompt)
+        assert "只返回合法JSON" in resolved_prompt.system_prompt
+        assert "投资研究" in resolved_prompt.system_prompt
+        assert "产业链" in resolved_prompt.user_prompt
+        assert "不要返回新闻短句" in resolved_prompt.user_prompt
+        assert "如果新闻只是在讲" in resolved_prompt.user_prompt
         merge_prompt = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "market_radar.suggest_hotword_merges_deepseek").one()
         assert merge_prompt.title == "DeepSeek 热词近义合并建议"
         assert merge_prompt.provider == "deepseek"
         assert merge_prompt.response_format == "json_object"
-        assert "近义归并助手" in merge_prompt.system_prompt
-        assert "互作别名" in merge_prompt.user_prompt
+        assert merge_prompt.system_prompt.endswith("/system.md")
+        assert merge_prompt.user_prompt.endswith("/user.md")
+        resolved_merge_prompt = resolve_prompt_content(merge_prompt)
+        assert "近义归并助手" in resolved_merge_prompt.system_prompt
+        assert "互作别名" in resolved_merge_prompt.user_prompt
 
         prompt.title = "用户自定义标题"
         db.commit()

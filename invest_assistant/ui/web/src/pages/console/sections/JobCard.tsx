@@ -53,6 +53,7 @@ export function JobCard({
       <div className="job-card-meta">
         <span>模块 <strong>{job.module_name}</strong></span>
         <span>最近 <strong>{formatTime(job.last_run_at)}</strong></span>
+        <span>下次 <strong>{formatTime(job.next_run_at)}</strong></span>
         <span>触发 <strong>{triggerLabel}</strong></span>
         <span>启用 <strong>{enabled ? "是" : "否"}</strong></span>
       </div>
