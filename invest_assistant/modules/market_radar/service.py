@@ -157,7 +157,7 @@ def disable_tag(db: Session, tag: Tag) -> Tag:
     return tag
 
 
-def bind_stock_tag(db: Session, stock_id: int, payload: TagBindingCreate) -> dict:
+def bind_stock_tag(db: Session, stock_id: int, payload: TagBindingCreate, enqueue_backfill: bool = True) -> dict:
     tag = ensure_tag(db, payload.name, "stock", payload.source, payload.status)
     relation = db.scalar(select(StockTagRelation).where(StockTagRelation.stock_id == stock_id, StockTagRelation.tag_id == tag.id))
     if relation is None:
@@ -168,8 +168,9 @@ def bind_stock_tag(db: Session, stock_id: int, payload: TagBindingCreate) -> dic
         relation.status = payload.status
     db.commit()
     db.refresh(relation)
-    enqueue_tag_backfill(db, tag)
-    db.commit()
+    if enqueue_backfill:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return _tag_binding_dict(relation, tag)
 
 
@@ -193,7 +194,7 @@ def disable_stock_tag_binding(db: Session, relation_id: int) -> dict | None:
     return _tag_binding_dict(relation, tag)
 
 
-def bind_track_tag(db: Session, track_id: int, payload: TagBindingCreate) -> dict:
+def bind_track_tag(db: Session, track_id: int, payload: TagBindingCreate, enqueue_backfill: bool = True) -> dict:
     tag = ensure_tag(db, payload.name, "track", payload.source, payload.status)
     relation = db.scalar(select(TrackTagRelation).where(TrackTagRelation.track_id == track_id, TrackTagRelation.tag_id == tag.id))
     if relation is None:
@@ -204,8 +205,9 @@ def bind_track_tag(db: Session, track_id: int, payload: TagBindingCreate) -> dic
         relation.status = payload.status
     db.commit()
     db.refresh(relation)
-    enqueue_tag_backfill(db, tag)
-    db.commit()
+    if enqueue_backfill:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return _tag_binding_dict(relation, tag)
 
 
@@ -229,7 +231,7 @@ def disable_track_tag_binding(db: Session, relation_id: int) -> dict | None:
     return _tag_binding_dict(relation, tag)
 
 
-def create_hotword(db: Session, payload: HotwordCreate) -> dict:
+def create_hotword(db: Session, payload: HotwordCreate, enqueue_backfill: bool = True) -> dict:
     name = payload.name.strip()
     hotword = db.scalar(select(Hotword).where(func.lower(Hotword.name) == name.lower()))
     if hotword is None:
@@ -241,7 +243,12 @@ def create_hotword(db: Session, payload: HotwordCreate) -> dict:
         hotword.status = payload.status
     db.commit()
     db.refresh(hotword)
-    bind_hotword_tag(db, hotword.id, TagBindingCreate(name=hotword.name, source="system", status=hotword.status))
+    bind_hotword_tag(
+        db,
+        hotword.id,
+        TagBindingCreate(name=hotword.name, source="system", status=hotword.status),
+        enqueue_backfill=enqueue_backfill,
+    )
     return hotword_dict(db, hotword)
 
 
@@ -307,7 +314,7 @@ def get_hotword(db: Session, hotword_id: int) -> dict | None:
     return hotword_dict(db, hotword) if hotword is not None else None
 
 
-def bind_hotword_tag(db: Session, hotword_id: int, payload: TagBindingCreate) -> dict:
+def bind_hotword_tag(db: Session, hotword_id: int, payload: TagBindingCreate, enqueue_backfill: bool = True) -> dict:
     tag = ensure_tag(db, payload.name, "hotword", payload.source, payload.status)
     relation = db.scalar(
         select(HotwordTagRelation).where(HotwordTagRelation.hotword_id == hotword_id, HotwordTagRelation.tag_id == tag.id)
@@ -320,8 +327,9 @@ def bind_hotword_tag(db: Session, hotword_id: int, payload: TagBindingCreate) ->
         relation.status = payload.status
     db.commit()
     db.refresh(relation)
-    enqueue_tag_backfill(db, tag)
-    db.commit()
+    if enqueue_backfill:
+        enqueue_tag_backfill(db, tag)
+        db.commit()
     return _tag_binding_dict(relation, tag)
 
 
@@ -545,14 +553,16 @@ def persist_source_tag_matches(
     item: SourceItem,
     tag_type: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     overwrite: bool = False,
 ) -> int:
     text = f"{item.title}\n{item.content}".casefold()
     stmt = select(Tag).where(Tag.status == "active")
     if tag_type and tag_type != "all":
         stmt = stmt.where(Tag.type == tag_type)
-    if tag_id is not None:
-        stmt = stmt.where(Tag.id == tag_id)
+    scoped_tag_ids = _normalize_backfill_tag_ids(tag_id, tag_ids)
+    if scoped_tag_ids is not None:
+        stmt = stmt.where(Tag.id.in_(scoped_tag_ids))
     inserted = 0
     for tag in db.scalars(stmt):
         token = tag.name.strip()
@@ -576,10 +586,21 @@ def _parse_datetime(value: datetime | str | None) -> datetime | None:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def _normalize_backfill_tag_ids(tag_id: int | None = None, tag_ids: list[int] | None = None) -> list[int] | None:
+    values: list[int] = []
+    if tag_id is not None:
+        values.append(int(tag_id))
+    if tag_ids is not None:
+        values.extend(int(item) for item in tag_ids if item is not None)
+    normalized = sorted(set(values))
+    return normalized or None
+
+
 def backfill_source_tags(
     db: Session,
     tag_type: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     start_time: datetime | str | None = None,
     end_time: datetime | str | None = None,
     source_type: str | None = None,
@@ -597,19 +618,26 @@ def backfill_source_tags(
     if end_dt is not None:
         stmt = stmt.where(item_time <= end_dt)
     items = list(db.scalars(stmt))
+    scoped_tag_ids = _normalize_backfill_tag_ids(tag_id, tag_ids)
     inserted = 0
     material_inserted = 0
     for item in items:
-        inserted += persist_source_tag_matches(db, item, tag_type=tag_type, tag_id=tag_id, overwrite=overwrite)
+        inserted += persist_source_tag_matches(
+            db,
+            item,
+            tag_type=tag_type,
+            tag_ids=scoped_tag_ids,
+            overwrite=overwrite,
+        )
         material_inserted += create_pending_track_materials_for_source_item(
             db,
             item.id,
-            [tag_id] if tag_id is not None else None,
+            scoped_tag_ids,
         )
         create_pending_stock_materials_for_source_item(
             db,
             item.id,
-            [tag_id] if tag_id is not None else None,
+            scoped_tag_ids,
         )
     db.commit()
     return JobResult(
@@ -1000,7 +1028,7 @@ def approve_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion, payload:
         if track_id is None:
             if not payload.target_name:
                 raise ValueError("target_name is required for track")
-            track = create_track(db, TrackCreate(name=payload.target_name, status="candidate"))
+            track = create_track(db, TrackCreate(name=payload.target_name, status="candidate"), enqueue_backfill=False)
             track_id = int(track["id"])
         elif db.get(Track, track_id) is None:
             raise ValueError("track not found")
@@ -1008,7 +1036,7 @@ def approve_ai_tag_suggestion(db: Session, suggestion: AiTagSuggestion, payload:
     elif payload.target_type == "hotword":
         hotword_id = payload.target_id
         if hotword_id is None:
-            hotword = create_hotword(db, HotwordCreate(name=payload.target_name or final_name, status="active"))
+            hotword = create_hotword(db, HotwordCreate(name=payload.target_name or final_name, status="active"), enqueue_backfill=False)
             hotword_id = int(hotword["id"])
         elif db.get(Hotword, hotword_id) is None:
             raise ValueError("hotword not found")

@@ -169,6 +169,7 @@ def extract_tags_job(batch_limit: int | None = None, **kwargs) -> JobResult:
 def backfill_source_tags_job(
     tag_type: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     start_time: str | None = None,
     end_time: str | None = None,
     source_type: str | None = None,
@@ -181,6 +182,7 @@ def backfill_source_tags_job(
             db,
             tag_type=tag_type,
             tag_id=tag_id,
+            tag_ids=tag_ids,
             start_time=start_time,
             end_time=end_time,
             source_type=source_type,

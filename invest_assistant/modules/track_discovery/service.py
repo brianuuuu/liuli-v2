@@ -32,7 +32,7 @@ DEFAULT_RANK_CHANGE_WINDOW = "7d"
 DASHBOARD_RANKING_LIMIT = 10
 
 
-def create_track(db: Session, payload: TrackCreate) -> dict:
+def create_track(db: Session, payload: TrackCreate, enqueue_backfill: bool = True) -> dict:
     existing = db.scalar(select(Track).where(Track.name == payload.name))
     if existing is None:
         track = Track(**payload.model_dump())
@@ -44,7 +44,12 @@ def create_track(db: Session, payload: TrackCreate) -> dict:
             setattr(track, key, value)
     db.commit()
     db.refresh(track)
-    bind_track_tag(db, track.id, TagBindingCreate(name=track.name, source="system", status="active"))
+    bind_track_tag(
+        db,
+        track.id,
+        TagBindingCreate(name=track.name, source="system", status="active"),
+        enqueue_backfill=enqueue_backfill,
+    )
     return _track_dict(db, track)
 
 
