@@ -5,6 +5,7 @@ const navigation = readFileSync("invest_assistant/ui/web/src/app/navigation.tsx"
 const page = readFileSync("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx", "utf8");
 const todaySection = page.match(/function TodayDashboardSection\(\)[\s\S]*?function OperationsPanelSection/)?.[0] || "";
 const operationsSection = page.match(/function OperationsPanelSection\(\)[\s\S]*?function ReportTable/)?.[0] || "";
+const latestReportsSection = page.match(/function LatestReportsSection\(\)[\s\S]*?export function DashboardPage/)?.[0] || "";
 
 assert.match(navigation, /key:\s*"dashboard",\s*label:\s*"工作台"/);
 assert.doesNotMatch(navigation, /key:\s*"dashboard",\s*label:\s*"总览"/);
@@ -52,5 +53,8 @@ assert.doesNotMatch(page, /常用网页快捷入口/);
 assert.doesNotMatch(page, /待办处理入口/);
 assert.doesNotMatch(page, /AI 操作按钮/);
 assert.match(page, /workbench-report-list/);
-assert.match(page, /title="赛道分析报告"/);
-assert.match(page, /title="标的分析报告"/);
+assert.match(page, /import \{ DataPanel \} from "\.\.\/\.\.\/components\/common\/DataPanel"/);
+assert.match(latestReportsSection, /<DataPanel/);
+assert.doesNotMatch(page, /workbench-report-table/);
+assert.match(page, /\{\s*label:\s*"赛道",\s*value:\s*"track"\s*\}/);
+assert.match(page, /\{\s*label:\s*"标的",\s*value:\s*"stock"\s*\}/);

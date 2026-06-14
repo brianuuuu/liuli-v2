@@ -29,6 +29,7 @@ import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, runJob } from
 import { listReports, getReportContent } from "../../api/reports";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
+import { DataPanel } from "../../components/common/DataPanel";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { MarkdownViewer } from "../../components/common/MarkdownViewer";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -404,7 +405,6 @@ function ReportTable({
 }) {
   return (
     <Table
-      className="workbench-report-table"
       rowKey="id"
       size="small"
       loading={loading}
@@ -480,36 +480,39 @@ function LatestReportsSection() {
   return (
     <>
       <div className="workbench-dashboard workbench-report-list">
-        <div className="data-panel-toolbar">
-          <Space size={4} className="toolbar-status-buttons">
-            {reportKindOptions.map((item) => (
-              <Button
-                key={item.value}
-                size="small"
-                className={activeKind === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                onClick={() => {
-                  setActiveKind(item.value);
-                  setReportPage(1);
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </Space>
-        </div>
-        <ReportTable
-          rows={visibleReports}
-          loading={reports.loading}
-          page={reportPage}
-          pageSize={reportPageSize}
-          total={reports.data.total}
-          activeKind={activeKind}
-          onOpen={openReport}
-          onPageChange={(nextPage, nextPageSize) => {
-            setReportPage(nextPage);
-            setReportPageSize(nextPageSize);
-          }}
-        />
+        <DataPanel
+          toolbar={
+            <Space size={4} className="toolbar-status-buttons">
+              {reportKindOptions.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={activeKind === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => {
+                    setActiveKind(item.value);
+                    setReportPage(1);
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
+          }
+        >
+          <ReportTable
+            rows={visibleReports}
+            loading={reports.loading}
+            page={reportPage}
+            pageSize={reportPageSize}
+            total={reports.data.total}
+            activeKind={activeKind}
+            onOpen={openReport}
+            onPageChange={(nextPage, nextPageSize) => {
+              setReportPage(nextPage);
+              setReportPageSize(nextPageSize);
+            }}
+          />
+        </DataPanel>
       </div>
       <Modal
         title={activeReport?.title || "报告阅读"}
