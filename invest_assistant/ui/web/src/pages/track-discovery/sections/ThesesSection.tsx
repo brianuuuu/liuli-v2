@@ -165,7 +165,7 @@ export function TracksSection() {
           loading={tracks.loading}
           dataSource={rows}
           columns={columns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无已跟踪赛道" /> }}
         />
       </DataPanel>

@@ -50,7 +50,7 @@ export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, 
         dataSource={data}
         columns={formattedColumns}
         locale={{ emptyText: <EmptyAction description={emptyText} /> }}
-        pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true }}
         onRow={(record) => ({
           onClick: () => drawer.show(record)
         })}

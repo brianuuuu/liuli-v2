@@ -57,7 +57,7 @@ export function CompareSection() {
         loading={tracks.loading || snapshots.loading}
         dataSource={rows}
         columns={columns}
-        pagination={{ pageSize: 10 }}
+        pagination={{ defaultPageSize: 10 }}
         scroll={{ x: 1200 }}
         locale={{ emptyText: <EmptyAction description="暂无赛道对比数据" /> }}
       />

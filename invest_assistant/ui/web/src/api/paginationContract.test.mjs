@@ -17,6 +17,11 @@ const allSource = [...sourceByPath.values()].join("\n");
 
 assert.doesNotMatch(allSource, /limit:\s*200\b/, "growth list requests must not use limit: 200");
 assert.doesNotMatch(allSource, /pageSizeOptions:\s*\[[^\]]*\b200\b[^\]]*\]/, "table page size options must not include 200");
+assert.doesNotMatch(
+  allSource,
+  /pagination=\{\{[^}]*pageSize:\s*\d+/,
+  "client-side table pagination must use defaultPageSize so the page-size selector can change"
+);
 
 const serverPagedTables = [
   "invest_assistant/ui/web/src/pages/market-radar/sections/SourcesSection.tsx",
