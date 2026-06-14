@@ -22,6 +22,7 @@ import {
 import { Button, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import { getWorkbenchToday } from "../../api/console";
@@ -514,35 +515,28 @@ function LatestReportsSection() {
           />
         </DataPanel>
       </div>
-      <Modal
-        title={activeReport?.title || "报告阅读"}
-        open={Boolean(activeReport)}
-        onCancel={() => setActiveReport(null)}
-        footer={null}
-        width="min(1280px, 96vw)"
-        centered
-        rootClassName="workbench-report-modal"
-        destroyOnHidden
-      >
-        {activeReport ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Typography.Text type="secondary">
-              {activeReport.report_type} / {activeReport.source_module} / {formatTime(activeReport.created_at)}
-            </Typography.Text>
-            <div className="workbench-report-modal-content">
-              {contentLoading ? (
-                <Typography.Text type="secondary">读取中...</Typography.Text>
-              ) : activeReport.file_format === "md" && content ? (
-                <MarkdownViewer content={content} />
-              ) : (
-                <Typography.Paragraph copyable={Boolean(content)} style={{ whiteSpace: "pre-wrap" }}>
-                  {content || "暂无内容"}
-                </Typography.Paragraph>
-              )}
-            </div>
-          </Space>
-        ) : null}
-      </Modal>
+      {activeReport && createPortal(
+        <div className="full-screen-reader-overlay">
+          <div className="full-screen-reader-close" onClick={() => setActiveReport(null)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+          <div className="full-screen-reader-content">
+            {contentLoading ? (
+              <Typography.Text type="secondary">读取中...</Typography.Text>
+            ) : activeReport.file_format === "md" && content ? (
+              <MarkdownViewer content={content} />
+            ) : (
+              <Typography.Paragraph copyable={Boolean(content)} style={{ whiteSpace: "pre-wrap" }}>
+                {content || "暂无内容"}
+              </Typography.Paragraph>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
