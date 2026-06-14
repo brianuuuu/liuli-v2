@@ -563,8 +563,34 @@ body {
 
 .workbench-report-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+
+.workbench-report-table {
+  overflow: hidden;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+.workbench-report-table .ant-table {
+  background: transparent;
+}
+
+.workbench-report-modal .ant-modal-mask {
+  background: rgba(2, 6, 23, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .workbench-report-modal .ant-modal-mask {
+  background: rgba(2, 6, 23, 0.62);
+}
+
+.workbench-report-modal-content {
+  max-height: min(72vh, 780px);
+  overflow: auto;
+  padding: 0 4px 4px 0;
 }
 
 .workbench-action-grid {
@@ -4105,4 +4131,68 @@ body {
   border-radius: 6px;
   color: var(--ll-muted);
   font-size: 12px;
+}
+
+.liuli-markdown-viewer.markdown-body {
+  max-width: none;
+  color-scheme: light;
+  --color-canvas-default: transparent;
+  --color-canvas-subtle: var(--ll-panel-subtle);
+  --color-border-default: var(--ll-border);
+  --color-border-muted: var(--ll-border-soft);
+  --color-fg-default: var(--ll-text);
+  --color-fg-muted: var(--ll-muted);
+  --color-fg-subtle: var(--ll-muted);
+  --color-neutral-muted: rgba(148, 163, 184, 0.18);
+  --color-accent-fg: var(--ll-accent);
+  --color-accent-emphasis: var(--ll-accent);
+  --color-danger-fg: #dc2626;
+  color: var(--ll-text);
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.liuli-markdown-viewer.markdown-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.liuli-markdown-viewer.markdown-body table th,
+.liuli-markdown-viewer.markdown-body table td {
+  color: var(--ll-text);
+  background: var(--ll-panel);
+  border-color: var(--ll-border);
+}
+
+.liuli-markdown-viewer.markdown-body table tr:nth-child(2n) {
+  background: var(--ll-panel-subtle);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body {
+  color-scheme: dark;
+  --color-canvas-default: transparent;
+  --color-canvas-subtle: rgba(15, 23, 42, 0.64);
+  --color-border-default: rgba(148, 163, 184, 0.28);
+  --color-border-muted: rgba(148, 163, 184, 0.18);
+  --color-fg-default: var(--ll-text);
+  --color-fg-muted: var(--ll-muted);
+  --color-fg-subtle: var(--ll-muted);
+  --color-neutral-muted: rgba(148, 163, 184, 0.16);
+  --color-accent-fg: #60a5fa;
+  --color-accent-emphasis: #3b82f6;
+  --color-danger-fg: #f87171;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table th,
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table td {
+  color: var(--ll-text);
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table tr:nth-child(2n) {
+  background: rgba(30, 41, 59, 0.72);
 }
