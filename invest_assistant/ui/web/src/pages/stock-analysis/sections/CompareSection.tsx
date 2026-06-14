@@ -245,7 +245,7 @@ export function CompareSection() {
           loading={comparison.loading || tracks.loading}
           dataSource={scoreRows}
           columns={scoreColumns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description={emptyDescription(comparison.data.length)} /> }}
           scroll={{ x: 760 }}
         />
@@ -256,7 +256,7 @@ export function CompareSection() {
           loading={valuation.loading || tracks.loading}
           dataSource={valuationRows}
           columns={valuationColumns}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description={emptyDescription(valuation.data.length)} /> }}
           scroll={{ x: 1170 }}
         />

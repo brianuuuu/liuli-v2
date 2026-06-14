@@ -2,10 +2,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
+from invest_assistant.modules.knowledge_base import service as knowledge_service
+from invest_assistant.modules.knowledge_base.schemas import KnowledgePromptCreate
 from invest_assistant.modules.knowledge_base.service import (
     DEEPSEEK_HOTWORD_PROMPT_KEY,
+    DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY,
     DEFAULT_KNOWLEDGE_PROMPTS,
     ensure_default_prompts,
+    get_active_prompt_by_key,
+    resolve_prompt_content,
 )
 
 
@@ -30,29 +35,45 @@ def _hotword_prompt():
 
 def test_hotword_prompt_prefers_investable_industry_terms():
     prompt = _hotword_prompt()
+    resolved = resolve_prompt_content(prompt)
 
-    assert "产业名词" in prompt.system_prompt
-    assert "投资研究" in prompt.system_prompt
-    assert "产业链" in prompt.user_prompt
-    assert "市场热词" in prompt.user_prompt
-    assert "新兴技术" in prompt.user_prompt
-    assert "上市公司" in prompt.user_prompt
-    assert "企业家" in prompt.user_prompt
-    assert "投资主题" in prompt.user_prompt
-    assert "普通地名" in prompt.user_prompt
-    assert "泛称人群" in prompt.user_prompt
-    assert "单纯事件名" in prompt.user_prompt
+    assert prompt.system_prompt.endswith("/system.md")
+    assert prompt.user_prompt.endswith("/user.md")
+    assert "产业名词" in resolved.system_prompt
+    assert "投资研究" in resolved.system_prompt
+    assert "产业链" in resolved.user_prompt
+    assert "市场热词" in resolved.user_prompt
+    assert "新兴技术" in resolved.user_prompt
+    assert "上市公司" in resolved.user_prompt
+    assert "企业家" in resolved.user_prompt
+    assert "投资主题" in resolved.user_prompt
+    assert "普通地名" in resolved.user_prompt
+    assert "泛称人群" in resolved.user_prompt
+    assert "单纯事件名" in resolved.user_prompt
 
 
-def test_legacy_default_hotword_prompt_is_upgraded_without_overwriting_custom_prompt():
+def test_default_prompt_rows_store_paths_and_runtime_resolves_content():
     engine = create_engine("sqlite:///:memory:")
     KnowledgePrompt.__table__.create(bind=engine)
 
     with Session(engine) as db:
-        for payload in DEFAULT_KNOWLEDGE_PROMPTS:
-            if payload.prompt_key == DEEPSEEK_HOTWORD_PROMPT_KEY:
-                continue
-            db.add(KnowledgePrompt(**payload.model_dump()))
+        ensure_default_prompts(db)
+
+        stored = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == DEEPSEEK_HOTWORD_PROMPT_KEY).one()
+        assert stored.system_prompt.endswith("/system.md")
+        assert stored.user_prompt.endswith("/user.md")
+
+        resolved = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_PROMPT_KEY)
+        assert resolved is not None
+        assert "产业链" in resolved.user_prompt
+        assert stored.user_prompt.endswith("/user.md")
+
+
+def test_existing_prompt_rows_are_switched_to_default_paths():
+    engine = create_engine("sqlite:///:memory:")
+    KnowledgePrompt.__table__.create(bind=engine)
+
+    with Session(engine) as db:
         db.add(
             KnowledgePrompt(
                 prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -71,15 +92,121 @@ def test_legacy_default_hotword_prompt_is_upgraded_without_overwriting_custom_pr
         changed_count = ensure_default_prompts(db)
 
         updated = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == DEEPSEEK_HOTWORD_PROMPT_KEY).one()
-        assert changed_count == 1
+        assert changed_count == len(DEFAULT_KNOWLEDGE_PROMPTS)
         assert updated.title == "用户自定义标题"
-        assert "产业链" in updated.user_prompt
+        assert updated.system_prompt.endswith("/system.md")
+        assert updated.user_prompt.endswith("/user.md")
 
-        updated.user_prompt = "用户已经自定义过的 Prompt"
+
+def test_existing_custom_inline_prompt_is_migrated_to_files(tmp_path, monkeypatch):
+    prompt_root = tmp_path / "invest_assistant" / "modules" / "knowledge_base" / "prompts"
+    monkeypatch.setattr(knowledge_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(knowledge_service, "PROMPT_ROOT", prompt_root)
+
+    engine = create_engine("sqlite:///:memory:")
+    KnowledgePrompt.__table__.create(bind=engine)
+
+    with Session(engine) as db:
+        db.add(
+            KnowledgePrompt(
+                prompt_key="custom.prompt.test",
+                title="自定义标题",
+                target_task="custom.prompt.test",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                system_prompt="旧系统正文",
+                user_prompt="旧用户正文",
+                response_format="json_object",
+                status="active",
+            )
+        )
         db.commit()
 
-        changed_count = ensure_default_prompts(db)
+        changed_count = knowledge_service.ensure_default_prompts(db)
 
-        preserved = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == DEEPSEEK_HOTWORD_PROMPT_KEY).one()
-        assert changed_count == 0
-        assert preserved.user_prompt == "用户已经自定义过的 Prompt"
+        migrated = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "custom.prompt.test").one()
+        assert changed_count == len(knowledge_service.DEFAULT_KNOWLEDGE_PROMPTS) + 1
+        assert migrated.system_prompt.endswith("/custom/prompt/test/system.md")
+        assert migrated.user_prompt.endswith("/custom/prompt/test/user.md")
+        assert (tmp_path / migrated.system_prompt).read_text(encoding="utf-8") == "旧系统正文"
+        assert knowledge_service.get_active_prompt_by_key(db, "custom.prompt.test").user_prompt == "旧用户正文"
+
+
+def test_market_daily_report_prompt_paths_resolve_and_render_variables():
+    engine = create_engine("sqlite:///:memory:")
+    KnowledgePrompt.__table__.create(bind=engine)
+
+    with Session(engine) as db:
+        ensure_default_prompts(db)
+
+        stored = db.query(KnowledgePrompt).filter(
+            KnowledgePrompt.prompt_key == DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY
+        ).one()
+        assert stored.system_prompt.endswith("/system.md")
+        assert stored.user_prompt.endswith("/user.md")
+
+        resolved = get_active_prompt_by_key(
+            db,
+            DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY,
+            variables={"report_date": "2026-06-13"},
+        )
+        assert resolved is not None
+        assert "琉璃系统的市场雷达分析员" in resolved.system_prompt
+        assert "# 市场雷达日报｜2026-06-13" in resolved.user_prompt
+        assert "外部参考" in resolved.user_prompt
+
+
+def test_prompt_crud_writes_files_and_keeps_paths_in_database(tmp_path, monkeypatch):
+    prompt_root = tmp_path / "invest_assistant" / "modules" / "knowledge_base" / "prompts"
+    monkeypatch.setattr(knowledge_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(knowledge_service, "PROMPT_ROOT", prompt_root)
+
+    engine = create_engine("sqlite:///:memory:")
+    KnowledgePrompt.__table__.create(bind=engine)
+
+    with Session(engine) as db:
+        created = knowledge_service.create_prompt(
+            db,
+            KnowledgePromptCreate(
+                prompt_key="custom.prompt.test",
+                title="自定义 Prompt",
+                target_task="custom.prompt.test",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                system_prompt="系统正文 {{ name }}",
+                user_prompt="用户正文",
+                response_format="json_object",
+                status="active",
+            ),
+        )
+
+        stored = db.query(KnowledgePrompt).filter(KnowledgePrompt.prompt_key == "custom.prompt.test").one()
+        assert created.system_prompt == "系统正文 {{ name }}"
+        assert created.user_prompt == "用户正文"
+        assert stored.system_prompt.endswith("/custom/prompt/test/system.md")
+        assert stored.user_prompt.endswith("/custom/prompt/test/user.md")
+        assert (tmp_path / stored.system_prompt).read_text(encoding="utf-8") == "系统正文 {{ name }}"
+
+        resolved = knowledge_service.get_active_prompt_by_key(db, "custom.prompt.test", variables={"name": "琉璃"})
+        assert resolved.system_prompt == "系统正文 琉璃"
+
+        updated = knowledge_service.update_prompt(
+            db,
+            stored,
+            KnowledgePromptCreate(
+                prompt_key="custom.prompt.test",
+                title="自定义 Prompt",
+                target_task="custom.prompt.test",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                system_prompt="新的系统正文",
+                user_prompt="新的用户正文",
+                response_format="json_object",
+                status="active",
+            ),
+        )
+
+        db.refresh(stored)
+        assert updated.system_prompt == "新的系统正文"
+        assert stored.system_prompt.endswith("/custom/prompt/test/system.md")
+        assert (tmp_path / stored.system_prompt).read_text(encoding="utf-8") == "新的系统正文"

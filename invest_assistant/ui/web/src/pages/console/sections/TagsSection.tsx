@@ -84,7 +84,7 @@ export function TagsSection() {
           size="small"
           loading={tags.loading}
           dataSource={filteredTags}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           columns={[
             { title: "名称", dataIndex: "name" },
             { title: "类型", dataIndex: "type" },

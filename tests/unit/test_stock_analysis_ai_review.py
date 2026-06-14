@@ -8,7 +8,7 @@ from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
-from invest_assistant.modules.knowledge_base.service import DEFAULT_KNOWLEDGE_PROMPTS
+from invest_assistant.modules.knowledge_base.service import DEFAULT_KNOWLEDGE_PROMPTS, resolve_prompt_content
 from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.stock_analysis import jobs as stock_jobs
 from invest_assistant.modules.stock_analysis.models import StockMaterial
@@ -43,17 +43,12 @@ def make_session_factory():
 
 
 def add_review_prompt(db, model: str = "deepseek-v4-pro") -> None:
+    payload = next(item for item in DEFAULT_KNOWLEDGE_PROMPTS if item.prompt_key == REVIEW_JOB_NAME)
+    data = payload.model_dump()
+    data["model"] = model
     db.add(
         KnowledgePrompt(
-            prompt_key=REVIEW_JOB_NAME,
-            title="DeepSeek 标的事件审核",
-            target_task=REVIEW_JOB_NAME,
-            provider="deepseek",
-            model=model,
-            system_prompt="只返回合法JSON。",
-            user_prompt="审核标的事件是否值得纳入标的材料库。",
-            response_format="json_object",
-            status="active",
+            **data,
         )
     )
     db.commit()
@@ -93,7 +88,9 @@ def test_default_prompt_and_job_definition_are_registered():
     assert prompt.provider == "deepseek"
     assert prompt.model == "deepseek-v4-pro"
     assert prompt.response_format == "json_object"
-    assert "长期分析" in prompt.user_prompt
+    assert prompt.system_prompt.endswith("/system.md")
+    assert prompt.user_prompt.endswith("/user.md")
+    assert "长期分析" in resolve_prompt_content(prompt).user_prompt
 
     job = next((item for item in stock_jobs.JOBS if item.job_name == REVIEW_JOB_NAME), None)
     assert job is not None

@@ -545,7 +545,7 @@ function MaterialsTab({
           <span>材料动态</span>
           <Button size="small" type="primary" onClick={onAdd}>引用材料</Button>
         </div>
-        <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 980 }} />
+        <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 980 }} />
       </div>
     </WorkbenchCard>
   );
@@ -572,7 +572,7 @@ function StocksTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void }) {
           <span>关联标的</span>
           <Button size="small" type="primary" onClick={onAdd}>绑定标的</Button>
         </div>
-        <Table rowKey="id" size="small" dataSource={data.stocks} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 850 }} />
+        <Table rowKey="id" size="small" dataSource={data.stocks} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 850 }} />
       </div>
     </WorkbenchCard>
   );
@@ -618,7 +618,7 @@ function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void })
           <Button size="small" type="primary" onClick={onAdd}>新增快照</Button>
         </div>
         {data.analysis_snapshots.length ? <InlineChart option={snapshotScoreOption(data.analysis_snapshots, resolvedMode)} height={220} /> : <EmptyAction description="暂无分析快照趋势" />}
-        <Table rowKey="id" size="small" dataSource={data.analysis_snapshots} columns={columns} pagination={{ pageSize: 8 }} scroll={{ x: 980 }} />
+        <Table rowKey="id" size="small" dataSource={data.analysis_snapshots} columns={columns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 980 }} />
       </div>
     </WorkbenchCard>
   );

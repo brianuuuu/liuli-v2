@@ -19,9 +19,10 @@ import {
   FilterOutlined,
   BranchesOutlined
 } from "@ant-design/icons";
-import { Button, Drawer, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { Button, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import { getWorkbenchToday } from "../../api/console";
@@ -29,12 +30,15 @@ import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, runJob } from
 import { listReports, getReportContent } from "../../api/reports";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
+import { DataPanel } from "../../components/common/DataPanel";
 import { EmptyAction } from "../../components/common/EmptyAction";
+import { MarkdownViewer } from "../../components/common/MarkdownViewer";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import type { Report } from "../../types/api";
+import type { Page, Report } from "../../types/api";
+import { DEFAULT_REPORT_PAGE_SIZE, reportMatchesKind, reportPageParams, type ReportKind } from "./dashboardReports";
 
 const initialWorkbenchToday = {
   source_stats: {
@@ -86,12 +90,6 @@ const reportTypeLabels: Record<string, string> = {
 function formatTime(value?: string | null) {
   if (!value) return "-";
   return value.replace("T", " ").slice(0, 19);
-}
-
-function reportMatches(record: Report, kind: "track" | "stock") {
-  const text = `${record.source_module || ""} ${record.report_type || ""} ${record.target_type || ""}`.toLowerCase();
-  if (kind === "track") return text.includes("track") || text.includes("赛道");
-  return text.includes("stock") || text.includes("标的");
 }
 
 type MetricItem = {
@@ -373,44 +371,95 @@ function OperationsPanelSection() {
   );
 }
 
-function ReportTable({ title, rows, loading, onOpen }: { title: string; rows: Report[]; loading: boolean; onOpen: (record: Report) => void }) {
+const reportKindLabels: Record<ReportKind, string> = {
+  market: "市场",
+  track: "赛道",
+  stock: "标的"
+};
+
+const initialReportPage: Page<Report> = {
+  items: [],
+  total: 0,
+  limit: DEFAULT_REPORT_PAGE_SIZE,
+  offset: 0,
+  has_more: false
+};
+
+function ReportTable({
+  rows,
+  loading,
+  page,
+  pageSize,
+  total,
+  activeKind,
+  onOpen,
+  onPageChange
+}: {
+  rows: Report[];
+  loading: boolean;
+  page: number;
+  pageSize: number;
+  total: number;
+  activeKind: ReportKind;
+  onOpen: (record: Report) => void;
+  onPageChange: (page: number, pageSize: number) => void;
+}) {
   return (
-    <WorkbenchCard title={title}>
-      <Table
-        rowKey="id"
-        size="small"
-        loading={loading}
-        dataSource={rows}
-        pagination={false}
-        columns={[
-          { title: "标题", dataIndex: "title", ellipsis: true },
-          { title: "类型", dataIndex: "report_type", width: 120 },
-          { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag>{value || "-"}</Tag> },
-          { title: "时间", dataIndex: "created_at", width: 160, render: formatTime },
-          {
-            title: "阅读",
-            width: 88,
-            render: (_, record) => (
-              <Button size="small" icon={<FileTextOutlined />} onClick={() => onOpen(record)}>
-                打开
-              </Button>
-            )
-          }
-        ]}
-        locale={{ emptyText: <EmptyAction description={`暂无${title}`} /> }}
-      />
-    </WorkbenchCard>
+    <Table
+      rowKey="id"
+      size="small"
+      loading={loading}
+      dataSource={rows}
+      pagination={{
+        current: page,
+        pageSize,
+        total,
+        showSizeChanger: true,
+        pageSizeOptions: [20, 50, 100],
+        onChange: onPageChange
+      }}
+      columns={[
+        { title: "标题", dataIndex: "title", ellipsis: true },
+        { title: "类型", dataIndex: "report_type", width: 120 },
+        { title: "模块", dataIndex: "source_module", width: 140, ellipsis: true },
+        { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag>{value || "-"}</Tag> },
+        { title: "时间", dataIndex: "created_at", width: 160, render: formatTime },
+        {
+          title: "阅读",
+          width: 88,
+          render: (_, record) => (
+            <Button size="small" icon={<FileTextOutlined />} onClick={() => onOpen(record)}>
+              打开
+            </Button>
+          )
+        }
+      ]}
+      locale={{ emptyText: <EmptyAction description={`暂无${reportKindLabels[activeKind]}报告`} /> }}
+    />
   );
 }
 
 function LatestReportsSection() {
-  const reports = useAsyncData(useCallback(async () => (await listReports({ limit: 100, offset: 0 })).items, []), []);
+  const [activeKind, setActiveKind] = useState<ReportKind>("market");
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(DEFAULT_REPORT_PAGE_SIZE);
+  const reports = useAsyncData(
+    useCallback(async () => listReports(reportPageParams(reportPage, reportPageSize)), [reportPage, reportPageSize]),
+    initialReportPage
+  );
   const [activeReport, setActiveReport] = useState<Report | null>(null);
   const [content, setContent] = useState("");
   const [contentLoading, setContentLoading] = useState(false);
+  const reportKindOptions: Array<{ label: string; value: ReportKind }> = [
+    { label: "市场", value: "market" },
+    { label: "赛道", value: "track" },
+    { label: "标的", value: "stock" }
+  ];
 
-  const trackReports = useMemo(() => reports.data.filter((item) => reportMatches(item, "track")).slice(0, 10), [reports.data]);
-  const stockReports = useMemo(() => reports.data.filter((item) => reportMatches(item, "stock")).slice(0, 10), [reports.data]);
+  const visibleReports = useMemo(
+    () => reports.data.items.filter((item) => reportMatchesKind(item, activeKind)),
+    [activeKind, reports.data.items]
+  );
 
   async function openReport(record: Report) {
     setActiveReport(record);
@@ -432,21 +481,62 @@ function LatestReportsSection() {
   return (
     <>
       <div className="workbench-dashboard workbench-report-list">
-        <ReportTable title="赛道分析报告" rows={trackReports} loading={reports.loading} onOpen={openReport} />
-        <ReportTable title="标的分析报告" rows={stockReports} loading={reports.loading} onOpen={openReport} />
+        <DataPanel
+          toolbar={
+            <Space size={4} className="toolbar-status-buttons">
+              {reportKindOptions.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={activeKind === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => {
+                    setActiveKind(item.value);
+                    setReportPage(1);
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Space>
+          }
+        >
+          <ReportTable
+            rows={visibleReports}
+            loading={reports.loading}
+            page={reportPage}
+            pageSize={reportPageSize}
+            total={reports.data.total}
+            activeKind={activeKind}
+            onOpen={openReport}
+            onPageChange={(nextPage, nextPageSize) => {
+              setReportPage(nextPage);
+              setReportPageSize(nextPageSize);
+            }}
+          />
+        </DataPanel>
       </div>
-      <Drawer title={activeReport?.title || "报告阅读"} open={Boolean(activeReport)} onClose={() => setActiveReport(null)} size={760}>
-        {activeReport ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Typography.Text type="secondary">
-              {activeReport.report_type} / {activeReport.source_module} / {formatTime(activeReport.created_at)}
-            </Typography.Text>
-            <Typography.Paragraph copyable={Boolean(content)} style={{ whiteSpace: "pre-wrap" }}>
-              {contentLoading ? "读取中..." : content || "暂无内容"}
-            </Typography.Paragraph>
-          </Space>
-        ) : null}
-      </Drawer>
+      {activeReport && createPortal(
+        <div className="full-screen-reader-overlay">
+          <div className="full-screen-reader-close" onClick={() => setActiveReport(null)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+          <div className="full-screen-reader-content">
+            {contentLoading ? (
+              <Typography.Text type="secondary">读取中...</Typography.Text>
+            ) : activeReport.file_format === "md" && content ? (
+              <MarkdownViewer content={content} />
+            ) : (
+              <Typography.Paragraph copyable={Boolean(content)} style={{ whiteSpace: "pre-wrap" }}>
+                {content || "暂无内容"}
+              </Typography.Paragraph>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

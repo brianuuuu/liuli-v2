@@ -11,6 +11,11 @@ from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB_NAME
 from invest_assistant.modules.market_radar import service
+from invest_assistant.modules.market_radar.daily_report import (
+    DAILY_REPORT_JOB_NAME,
+    DEFAULT_DAILY_REPORT_MODEL,
+    generate_daily_report,
+)
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.stock_analysis.models import StockPoolItem
@@ -204,6 +209,23 @@ def aggregate_edges_job(**kwargs) -> JobResult:
     db = SessionLocal()
     try:
         return service.aggregate_edges(db)
+    finally:
+        db.close()
+
+
+def generate_daily_report_job(
+    report_date: str | None = None,
+    model: str | None = None,
+    **kwargs,
+) -> JobResult:
+    db = SessionLocal()
+    try:
+        parsed_report_date = date.fromisoformat(report_date) if report_date else None
+        return generate_daily_report(
+            db,
+            report_date=parsed_report_date,
+            model=model or DEFAULT_DAILY_REPORT_MODEL,
+        )
     finally:
         db.close()
 
@@ -718,5 +740,21 @@ JOBS = [
         timeout_seconds=180,
         max_retries=1,
         tags=["edge", "market_radar"],
+    ),
+    JobDefinition(
+        job_name=DAILY_REPORT_JOB_NAME,
+        module_name="market_radar",
+        display_name="生成市场雷达日报",
+        description="用 DeepSeek Pro 生成前一自然日市场雷达 Markdown 日报",
+        handler=generate_daily_report_job,
+        trigger_type="both",
+        cron_expr="0 3 * * *",
+        timeout_seconds=600,
+        max_retries=1,
+        params_schema={
+            "report_date": {"type": "string", "label": "报告日期", "placeholder": "YYYY-MM-DD，留空为前一自然日"},
+            "model": {"type": "string", "label": "DeepSeek 模型", "default": DEFAULT_DAILY_REPORT_MODEL},
+        },
+        tags=["ai", "report", "market_radar"],
     ),
 ]

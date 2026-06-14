@@ -620,7 +620,7 @@ function PromptSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={prompts.loading} dataSource={prompts.data} columns={promptColumns} pagination={{ pageSize: 10, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={prompts.loading} dataSource={prompts.data} columns={promptColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
       </DataPanel>
       <Modal title={editing ? "编辑 Prompt" : "新增 Prompt"} width={980} style={{ top: 24 }} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
         <Form form={form} layout="vertical">

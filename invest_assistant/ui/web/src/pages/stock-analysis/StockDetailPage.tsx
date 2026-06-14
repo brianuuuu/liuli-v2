@@ -679,7 +679,7 @@ function ScoresTab({ data, onAddScore }: { data: StockDetail; onAddScore: () => 
         <div className="stock-detail-panel-section first">
           <div className="stock-detail-subtitle">评分趋势</div>
           {data.score_history.length ? <InlineChart option={scoreTrendOption(data.score_history)} /> : <EmptyAction description="暂无评分趋势" />}
-          <Table rowKey="id" size="small" dataSource={data.score_history} columns={scoreColumns} pagination={{ pageSize: 8 }} />
+          <Table rowKey="id" size="small" dataSource={data.score_history} columns={scoreColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>
     </WorkbenchCard>
@@ -705,7 +705,7 @@ function ValuationTab({ data }: { data: StockDetail }) {
         <div className="stock-detail-panel-section first">
           <div className="stock-detail-subtitle">估值趋势</div>
           {data.valuation_history.length ? <InlineChart option={valuationTrendOption(data.valuation_history)} /> : <EmptyAction description="暂无估值趋势" />}
-          <Table rowKey="id" size="small" dataSource={data.valuation_history} columns={valuationColumns} pagination={{ pageSize: 8 }} scroll={{ x: 860 }} />
+          <Table rowKey="id" size="small" dataSource={data.valuation_history} columns={valuationColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 860 }} />
         </div>
       </div>
     </WorkbenchCard>
@@ -749,7 +749,7 @@ function MaterialsTab({
   return (
     <WorkbenchCard>
       <div className="stock-detail-panel">
-        <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 1100 }} />
+        <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 1100 }} />
       </div>
     </WorkbenchCard>
   );
@@ -789,7 +789,7 @@ function RelationsTab({
             <span>标签</span>
             {data.tags.length ? data.tags.map((item) => <Tag key={item.id}>{item.tag?.name || "-"}</Tag>) : <Typography.Text type="secondary">暂无标签</Typography.Text>}
           </div>
-          <Table rowKey="id" size="small" dataSource={data.tracks} columns={relationColumns} pagination={{ pageSize: 8 }} />
+          <Table rowKey="id" size="small" dataSource={data.tracks} columns={relationColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>
     </WorkbenchCard>
@@ -811,7 +811,7 @@ function NotesTab({ data, onAddNote }: { data: StockDetail; onAddNote: () => voi
           <Button size="small" type="primary" onClick={onAddNote}>新增笔记</Button>
         </div>
         <div className="stock-detail-panel-section first">
-          <Table rowKey="id" size="small" dataSource={data.notes} columns={noteColumns} pagination={{ pageSize: 8 }} />
+          <Table rowKey="id" size="small" dataSource={data.notes} columns={noteColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>
     </WorkbenchCard>

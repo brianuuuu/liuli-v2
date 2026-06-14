@@ -35,6 +35,24 @@ def _schedule_signature(config: JobConfig) -> str | None:
     return cron_expr.strip()
 
 
+def _scheduler_now(scheduler) -> datetime:
+    timezone = scheduler.timezone
+    if isinstance(timezone, str):
+        return datetime.now(BEIJING_TZ)
+    return datetime.now(timezone)
+
+
+def _next_run_time(job, trigger, scheduler) -> datetime | None:
+    next_run_time = getattr(job, "next_run_time", None)
+    if next_run_time is not None:
+        return _as_beijing(next_run_time)
+    try:
+        value = trigger.get_next_fire_time(None, _scheduler_now(scheduler))
+    except Exception:
+        return None
+    return _as_beijing(value) if value is not None else None
+
+
 def execute_scheduled_job(job_name: str) -> None:
     db = SessionLocal()
     try:
@@ -84,22 +102,33 @@ def recover_stale_running_requests(db: Session) -> int:
 def sync_scheduled_jobs(scheduler, db: Session) -> None:
     configs = list(db.scalars(select(JobConfig)))
     expected_job_ids = set()
+    changed = False
     for config in configs:
         if config.job_name not in JOB_REGISTRY:
             continue
         cron_expr = _schedule_signature(config)
         if cron_expr is None:
+            if config.next_run_at is not None:
+                config.next_run_at = None
+                changed = True
             continue
         job_id = _scheduled_job_id(config.job_name)
         expected_job_ids.add(job_id)
         existing_job = scheduler.get_job(job_id)
         if existing_job is not None and existing_job.name == cron_expr:
+            next_run_at = _next_run_time(existing_job, getattr(existing_job, "trigger", None), scheduler)
+            if config.next_run_at != next_run_at:
+                config.next_run_at = next_run_at
+                changed = True
             continue
         if existing_job is not None:
             scheduler.remove_job(job_id)
         try:
             trigger = CronTrigger.from_crontab(cron_expr, timezone=scheduler.timezone)
         except ValueError:
+            if config.next_run_at is not None:
+                config.next_run_at = None
+                changed = True
             continue
         scheduler.add_job(
             execute_scheduled_job,
@@ -112,10 +141,18 @@ def sync_scheduled_jobs(scheduler, db: Session) -> None:
             coalesce=True,
             misfire_grace_time=60,
         )
+        scheduled_job = scheduler.get_job(job_id)
+        if scheduled_job is not None:
+            next_run_at = _next_run_time(scheduled_job, trigger, scheduler)
+            if config.next_run_at != next_run_at:
+                config.next_run_at = next_run_at
+                changed = True
 
     for job in scheduler.get_jobs():
         if job.id.startswith(SCHEDULE_JOB_PREFIX) and job.id not in expected_job_ids:
             scheduler.remove_job(job.id)
+    if changed:
+        db.commit()
 
 
 def initialize_worker() -> object:

@@ -157,7 +157,7 @@ export function SystemConfigSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={configs.loading} dataSource={rows} columns={columns} pagination={{ pageSize: 10, showSizeChanger: true }} />
+        <Table rowKey="id" size="small" loading={configs.loading} dataSource={rows} columns={columns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
       </DataPanel>
 
       <Modal title={editing ? "编辑配置" : "新增配置"} width={560} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
