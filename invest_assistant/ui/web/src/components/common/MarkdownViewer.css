@@ -1,0 +1,237 @@
+.liuli-markdown-viewer.markdown-body {
+  max-width: none;
+  color-scheme: light;
+  --color-canvas-default: transparent;
+  --color-canvas-subtle: var(--ll-panel-subtle);
+  --color-border-default: var(--ll-border);
+  --color-border-muted: var(--ll-border-soft);
+  --color-fg-default: #334155;
+  --color-fg-muted: #64748b;
+  --color-fg-subtle: #94a3b8;
+  --color-neutral-muted: rgba(148, 163, 184, 0.18);
+  --color-accent-fg: #2563eb;
+  --color-accent-emphasis: #1d4ed8;
+  --color-danger-fg: #dc2626;
+  
+  color: var(--color-fg-default);
+  background: transparent;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.9;
+  font-weight: 400;
+  margin-bottom: 1em;
+}
+
+.liuli-markdown-viewer.markdown-body p {
+  margin: 0 0 16px;
+}
+
+.liuli-markdown-viewer.markdown-body h1,
+.liuli-markdown-viewer.markdown-body h2,
+.liuli-markdown-viewer.markdown-body h3,
+.liuli-markdown-viewer.markdown-body h4,
+.liuli-markdown-viewer.markdown-body h5,
+.liuli-markdown-viewer.markdown-body h6 {
+  color: #0f172a;
+  font-weight: 500;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  border-bottom: none;
+}
+
+.liuli-markdown-viewer.markdown-body h1 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--color-border-muted);
+  padding-bottom: 0.3em;
+}
+
+.liuli-markdown-viewer.markdown-body h2 {
+  font-size: 1.15rem;
+  padding-left: 14px;
+  border-left: 3px solid #668fbe;
+}
+
+.liuli-markdown-viewer.markdown-body h3 {
+  margin: 34px 0 20px;
+  font-size: 17px;
+  line-height: 1.55;
+  font-weight: 500;
+  border-top: 1px solid var(--color-border-muted);
+  padding-top: 36px;
+}
+
+.liuli-markdown-viewer.markdown-body h3:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 20px;
+}
+
+.liuli-markdown-viewer.markdown-body h4 {
+  margin: 26px 0 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--color-fg-muted);
+  letter-spacing: 0.02em;
+}
+
+.liuli-markdown-viewer.markdown-body h4::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 13px;
+  margin-right: 9px;
+  border-radius: 2px;
+  background: #668bb6;
+  vertical-align: -1px;
+}
+
+.liuli-markdown-viewer.markdown-body h4 + p {
+  margin-top: 0;
+}
+
+.liuli-markdown-viewer.markdown-body h5 { font-size: 1.05rem; }
+
+.liuli-markdown-viewer.markdown-body ul,
+.liuli-markdown-viewer.markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.liuli-markdown-viewer.markdown-body li {
+  margin-top: 0.25em;
+}
+
+.liuli-markdown-viewer.markdown-body li::marker {
+  color: var(--color-accent-fg);
+}
+
+.liuli-markdown-viewer.markdown-body table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.liuli-markdown-viewer.markdown-body table th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 600;
+  padding: 10px 14px;
+  text-align: left;
+  border: 1px solid var(--color-border-default);
+}
+
+.liuli-markdown-viewer.markdown-body table td {
+  padding: 10px 14px;
+  color: var(--color-fg-default);
+  border: 1px solid var(--color-border-default);
+  background: #ffffff;
+}
+
+.liuli-markdown-viewer.markdown-body table tr:nth-child(2n) td {
+  background: #fdfdfd;
+}
+
+.liuli-markdown-viewer.markdown-body blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  color: var(--color-fg-muted);
+  background: #f8fafc;
+  border-left: 4px solid var(--color-accent-fg);
+  border-radius: 0 6px 6px 0;
+}
+
+.liuli-markdown-viewer.markdown-body pre {
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 12px;
+  line-height: 1.5;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  border: 1px solid var(--color-border-muted);
+}
+
+.liuli-markdown-viewer.markdown-body code {
+  background: rgba(148, 163, 184, 0.15);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body {
+  color-scheme: dark;
+  --color-canvas-default: transparent;
+  --color-canvas-subtle: rgba(15, 23, 42, 0.64);
+  --color-border-default: rgba(148, 163, 184, 0.2);
+  --color-border-muted: rgba(148, 163, 184, 0.1);
+  --color-fg-default: #a1a1aa;
+  --color-fg-muted: #71717a;
+  --color-fg-subtle: #52525b;
+  --color-neutral-muted: rgba(148, 163, 184, 0.16);
+  --color-accent-fg: #60a5fa;
+  --color-accent-emphasis: #3b82f6;
+  --color-danger-fg: #f87171;
+  
+  color: var(--color-fg-default);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h1,
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h2 {
+  color: #e4e4e7;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h3,
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h4,
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h5,
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body h6 {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table th {
+  background: var(--ll-panel);
+  color: var(--color-fg-default);
+  border-color: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table tr {
+  background-color: transparent !important;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table td {
+  background: transparent !important;
+  color: var(--color-fg-default);
+  border-color: rgba(255, 255, 255, 0.08);
+  transition: background-color 0.2s;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table tr:nth-child(2n) td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body table tr:hover td {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body blockquote {
+  background: rgba(30, 41, 59, 0.4);
+  color: var(--color-fg-muted);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body pre {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--color-border-default);
+}
+
+[data-theme="dark"] .liuli-markdown-viewer.markdown-body code {
+  background: rgba(148, 163, 184, 0.15);
+}

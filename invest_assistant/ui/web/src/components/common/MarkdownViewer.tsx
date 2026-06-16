@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "github-markdown-css/github-markdown.css";
+import "./MarkdownViewer.css";
 
 type MarkdownViewerProps = {
   content: string;
