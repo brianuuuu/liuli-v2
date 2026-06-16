@@ -309,7 +309,7 @@ body {
   height: calc(100vh - 52px);
   overflow-y: auto;
   padding: 14px 20px 24px;
-  background: var(--ll-surface);
+  background: #fefefe;
 }
 
 .module-tabs {
