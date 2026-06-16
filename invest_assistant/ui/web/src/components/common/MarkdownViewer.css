@@ -1,3 +1,5 @@
+@import "github-markdown-css/github-markdown.css";
+
 .liuli-markdown-viewer.markdown-body {
   max-width: none;
   color-scheme: light;
