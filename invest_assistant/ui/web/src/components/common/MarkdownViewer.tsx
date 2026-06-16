@@ -8,7 +8,7 @@ type MarkdownViewerProps = {
 
 export function MarkdownViewer({ content }: MarkdownViewerProps) {
   return (
-    <div className="liuli-markdown-viewer markdown-body">
+    <div className="md-body">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );
