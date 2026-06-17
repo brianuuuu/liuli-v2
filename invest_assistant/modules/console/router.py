@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.alert_center.models import AlertEvent
-from invest_assistant.modules.basic.ai_audit.service import count_ai_request_logs, list_ai_request_logs
+from invest_assistant.modules.basic.ai_audit.service import count_ai_request_logs, list_ai_request_logs_page
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
@@ -259,22 +259,34 @@ def ai_log_stats(db: Session = Depends(get_db)) -> dict[str, int]:
     return count_ai_request_logs(db)
 
 
+def _ai_log_dict(item) -> dict:
+    return {
+        "id": item.id,
+        "request_id": item.request_id,
+        "provider": item.provider,
+        "model": item.model,
+        "task_name": item.task_name,
+        "status": item.status,
+        "prompt_tokens": item.prompt_tokens,
+        "completion_tokens": item.completion_tokens,
+        "total_tokens": item.total_tokens,
+        "duration_ms": item.duration_ms,
+        "error_message": item.error_message,
+        "created_at": _format_time(item.created_at),
+    }
+
+
 @router.get("/ai-logs")
-def ai_logs(limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db)) -> list[dict]:
-    return [
-        {
-            "id": item.id,
-            "request_id": item.request_id,
-            "provider": item.provider,
-            "model": item.model,
-            "task_name": item.task_name,
-            "status": item.status,
-            "prompt_tokens": item.prompt_tokens,
-            "completion_tokens": item.completion_tokens,
-            "total_tokens": item.total_tokens,
-            "duration_ms": item.duration_ms,
-            "error_message": item.error_message,
-            "created_at": _format_time(item.created_at),
-        }
-        for item in list_ai_request_logs(db, limit=limit)
-    ]
+def ai_logs(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> dict:
+    page = list_ai_request_logs_page(db, limit=limit, offset=offset)
+    return {
+        "items": [_ai_log_dict(item) for item in page.items],
+        "total": page.total,
+        "limit": page.limit,
+        "offset": page.offset,
+        "has_more": page.has_more,
+    }

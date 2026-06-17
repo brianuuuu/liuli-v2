@@ -1,6 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import "github-markdown-css/github-markdown.css";
+import "./MarkdownViewer.css";
 
 type MarkdownViewerProps = {
   content: string;
@@ -8,7 +8,7 @@ type MarkdownViewerProps = {
 
 export function MarkdownViewer({ content }: MarkdownViewerProps) {
   return (
-    <div className="liuli-markdown-viewer markdown-body">
+    <div className="md-body">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );

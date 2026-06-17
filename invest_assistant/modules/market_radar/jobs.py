@@ -7,6 +7,7 @@ from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
+from invest_assistant.modules.basic.system_config.service import get_runtime_state, set_runtime_state
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.service import get_active_prompt_by_key
 from invest_assistant.modules.market_radar.backfill_requests import BACKFILL_JOB_NAME
@@ -14,6 +15,7 @@ from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.daily_report import (
     DAILY_REPORT_JOB_NAME,
     DEFAULT_DAILY_REPORT_MODEL,
+    default_report_date,
     generate_daily_report,
 )
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
@@ -28,6 +30,37 @@ from invest_assistant.shared.time_utils import utc_now
 DEEPSEEK_HOTWORD_JOB_NAME = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_HOTWORD_MERGE_JOB_NAME = "market_radar.suggest_hotword_merges_deepseek"
 MERGE_SIMILARITY_THRESHOLD = 0.82
+
+DAILY_HOTWORD_STATE_NAMESPACE = f"job.{DEEPSEEK_HOTWORD_JOB_NAME}"
+DAILY_REPORT_STATE_NAMESPACE = f"job.{DAILY_REPORT_JOB_NAME}"
+PROCESSED_DATE_STATE_KEY = "last_processed_date"
+GENERATED_DATE_STATE_KEY = "last_generated_date"
+
+
+def _runtime_state_date_value(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _scheduled_date_already_done(
+    db,
+    namespace: str,
+    state_key: str,
+    target_date: date,
+    explicit_date: bool,
+) -> tuple[bool, str | None]:
+    if explicit_date:
+        return False, None
+    state = get_runtime_state(db, namespace, state_key)
+    state_value = state.state_value if state is not None else None
+    completed_date = _runtime_state_date_value(state_value)
+    if completed_date is None:
+        return False, state_value
+    return completed_date >= target_date, state_value
 
 
 def _fetch_cls_rows(limit: int) -> list[dict]:
@@ -220,12 +253,51 @@ def generate_daily_report_job(
 ) -> JobResult:
     db = SessionLocal()
     try:
-        parsed_report_date = date.fromisoformat(report_date) if report_date else None
-        return generate_daily_report(
+        explicit_report_date = bool(report_date)
+        parsed_report_date = date.fromisoformat(report_date) if report_date else default_report_date()
+        already_done, old_state = _scheduled_date_already_done(
+            db,
+            DAILY_REPORT_STATE_NAMESPACE,
+            GENERATED_DATE_STATE_KEY,
+            parsed_report_date,
+            explicit_report_date,
+        )
+        if already_done:
+            return JobResult(
+                success=True,
+                message=f"daily report already generated for {parsed_report_date.isoformat()}",
+                skipped_count=1,
+                extra={
+                    "report_date": parsed_report_date.isoformat(),
+                    "old_state": old_state,
+                    "new_state": old_state,
+                    "state_namespace": DAILY_REPORT_STATE_NAMESPACE,
+                    "state_key": GENERATED_DATE_STATE_KEY,
+                },
+            )
+
+        result = generate_daily_report(
             db,
             report_date=parsed_report_date,
             model=model or DEFAULT_DAILY_REPORT_MODEL,
         )
+        if result.success and result.inserted_count > 0:
+            set_runtime_state(
+                db,
+                DAILY_REPORT_STATE_NAMESPACE,
+                GENERATED_DATE_STATE_KEY,
+                parsed_report_date.isoformat(),
+                value_type="date",
+                ext={"job_name": DAILY_REPORT_JOB_NAME, "old_state": old_state},
+            )
+            result.extra = {
+                **(result.extra or {}),
+                "old_state": old_state,
+                "new_state": parsed_report_date.isoformat(),
+                "state_namespace": DAILY_REPORT_STATE_NAMESPACE,
+                "state_key": GENERATED_DATE_STATE_KEY,
+            }
+        return result
     finally:
         db.close()
 
@@ -437,10 +509,38 @@ def extract_daily_hotwords_deepseek_job(
 ) -> JobResult:
     db = SessionLocal()
     try:
+        explicit_target_date = bool(target_date)
         run_date = _parse_target_date(target_date)
+        already_done, old_state = _scheduled_date_already_done(
+            db,
+            DAILY_HOTWORD_STATE_NAMESPACE,
+            PROCESSED_DATE_STATE_KEY,
+            run_date,
+            explicit_target_date,
+        )
+        if already_done:
+            return JobResult(
+                success=True,
+                message=f"daily hotwords already extracted for {run_date.isoformat()}",
+                processed_count=0,
+                skipped_count=1,
+                extra={
+                    "target_date": run_date.isoformat(),
+                    "old_state": old_state,
+                    "new_state": old_state,
+                    "state_namespace": DAILY_HOTWORD_STATE_NAMESPACE,
+                    "state_key": PROCESSED_DATE_STATE_KEY,
+                },
+            )
+
         news = _today_news_payload(db, run_date, max(int(max_items), 1))
         if not news:
-            return JobResult(success=True, message="no news source items for target date", processed_count=0, skipped_count=1)
+            return JobResult(
+                success=True,
+                message="no news source items for target date",
+                processed_count=0,
+                skipped_count=1,
+            )
 
         prompt = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_JOB_NAME)
         if prompt is None:
@@ -496,13 +596,34 @@ def extract_daily_hotwords_deepseek_job(
                 )
             )
             db.commit()
+        set_runtime_state(
+            db,
+            DAILY_HOTWORD_STATE_NAMESPACE,
+            PROCESSED_DATE_STATE_KEY,
+            run_date.isoformat(),
+            value_type="date",
+            ext={
+                "job_name": DEEPSEEK_HOTWORD_JOB_NAME,
+                "old_state": old_state,
+                "processed_count": len(news),
+                "inserted_count": len(inserted),
+                "model": active_model,
+            },
+        )
         return JobResult(
             success=True,
             message=f"created {len(inserted)} hotword candidates",
             processed_count=len(news),
             inserted_count=len(inserted),
             skipped_count=max(len(response.get("hotwords") or []) - len(inserted), 0),
-            extra={"target_date": run_date.isoformat(), "model": active_model},
+            extra={
+                "target_date": run_date.isoformat(),
+                "model": active_model,
+                "old_state": old_state,
+                "new_state": run_date.isoformat(),
+                "state_namespace": DAILY_HOTWORD_STATE_NAMESPACE,
+                "state_key": PROCESSED_DATE_STATE_KEY,
+            },
         )
     finally:
         db.close()
