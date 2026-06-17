@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { DataSourceStatus } from "../types/api";
+import type { DataSourceStatus, Page } from "../types/api";
 
 export type SystemStatus = {
   api: string;
@@ -92,9 +92,10 @@ export type AiLogStats = {
 
 export type AiLogListParams = {
   limit?: number;
+  offset?: number;
 };
 
-let aiLogsRequest: Promise<AiRequestLog[]> | null = null;
+const aiLogsRequests = new Map<string, Promise<Page<AiRequestLog>>>();
 let aiLogStatsRequest: Promise<AiLogStats> | null = null;
 let workbenchTodayRequest: Promise<WorkbenchToday> | null = null;
 
@@ -135,13 +136,17 @@ export async function getAiLogStats(): Promise<AiLogStats> {
   return aiLogStatsRequest;
 }
 
-export async function getAiLogs(params: AiLogListParams = { limit: 20 }): Promise<AiRequestLog[]> {
-  if (aiLogsRequest) return aiLogsRequest;
-  aiLogsRequest = apiClient
-    .get<AiRequestLog[]>("/api/console/ai-logs", { params: { limit: 20, ...params } })
+export async function getAiLogs(params: AiLogListParams = { limit: 50, offset: 0 }): Promise<Page<AiRequestLog>> {
+  const requestParams = { limit: 50, offset: 0, ...params };
+  const requestKey = JSON.stringify(requestParams);
+  const existingRequest = aiLogsRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+  const request = apiClient
+    .get<Page<AiRequestLog>>("/api/console/ai-logs", { params: requestParams })
     .then((response) => response.data)
     .finally(() => {
-      aiLogsRequest = null;
+      aiLogsRequests.delete(requestKey);
     });
-  return aiLogsRequest;
+  aiLogsRequests.set(requestKey, request);
+  return request;
 }

@@ -1,4 +1,5 @@
 import { Drawer, Table, Typography } from "antd";
+import type { TableProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useDrawerState } from "../../hooks/useDrawerState";
 import { EmptyAction } from "./EmptyAction";
@@ -10,6 +11,8 @@ type RecordTableProps = {
   columns: ColumnsType<Record<string, unknown>>;
   emptyText: string;
   drawerTitle?: string;
+  pagination?: TableProps<Record<string, unknown>>["pagination"];
+  onChange?: TableProps<Record<string, unknown>>["onChange"];
 };
 
 function valueText(value: unknown) {
@@ -22,7 +25,7 @@ function valueText(value: unknown) {
   return str;
 }
 
-export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, drawerTitle }: RecordTableProps) {
+export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, drawerTitle, pagination, onChange }: RecordTableProps) {
   const drawer = useDrawerState<Record<string, unknown>>();
   const keyOf = (record: Record<string, unknown>, index?: number) => String(record[rowKey] ?? index ?? Math.random());
 
@@ -50,7 +53,8 @@ export function RecordTable({ rowKey = "id", loading, data, columns, emptyText, 
         dataSource={data}
         columns={formattedColumns}
         locale={{ emptyText: <EmptyAction description={emptyText} /> }}
-        pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+        pagination={pagination ?? { defaultPageSize: 10, showSizeChanger: true }}
+        onChange={onChange}
         onRow={(record) => ({
           onClick: () => drawer.show(record)
         })}
