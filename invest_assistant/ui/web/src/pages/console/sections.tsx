@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { getAiLogs } from "../../api/console";
 import { RecordTable } from "../../components/common/RecordTable";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -22,14 +22,30 @@ const logColumns = [
 ];
 
 function AiLogsSection() {
-  const aiLogs = useAsyncData(useCallback(() => getAiLogs({ limit: 20 }), []), []);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const aiLogs = useAsyncData(
+    useCallback(() => getAiLogs({ limit: pageSize, offset: (page - 1) * pageSize }), [page, pageSize]),
+    { items: [], total: 0, limit: pageSize, offset: 0, has_more: false }
+  );
   return (
     <RecordTable
       loading={aiLogs.loading}
-      data={aiLogs.data}
+      data={aiLogs.data.items}
       columns={logColumns}
       emptyText="暂无 AI 调用日志"
       drawerTitle="AI 日志详情"
+      pagination={{
+        current: page,
+        pageSize,
+        total: aiLogs.data.total,
+        showSizeChanger: true,
+        showTotal: (total) => `共 ${total} 条`
+      }}
+      onChange={(pagination) => {
+        setPage(pagination.current || 1);
+        setPageSize(pagination.pageSize || 50);
+      }}
     />
   );
 }
