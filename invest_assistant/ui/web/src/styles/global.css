@@ -7,7 +7,6 @@
   --ll-panel: #ffffff;
   --ll-panel-subtle: #f8fafc;
   --ll-surface: #f4f7fa;
-  --ll-content-background: #fefefe;
   --ll-text: #0f172a;
   --ll-muted: #64748b;
   --ll-accent: #2563eb;
@@ -310,7 +309,7 @@ body {
   height: calc(100vh - 52px);
   overflow-y: auto;
   padding: 14px 20px 24px;
-  background: var(--ll-content-background);
+  background: var(--ll-surface);
 }
 
 .module-tabs {
@@ -3646,7 +3645,6 @@ body {
   --ll-panel: #161b22;
   --ll-panel-subtle: #21262d;
   --ll-surface: #0d1117;
-  --ll-content-background: var(--ll-surface);
   --ll-text: #e6edf3;
   --ll-muted: #8b949e;
   --ll-accent: #2563eb;
