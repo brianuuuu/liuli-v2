@@ -15,7 +15,6 @@ from invest_assistant.modules.market_radar import service
 from invest_assistant.modules.market_radar.daily_report import (
     DAILY_REPORT_JOB_NAME,
     DEFAULT_DAILY_REPORT_MODEL,
-    default_report_date,
     generate_daily_report,
 )
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
@@ -32,35 +31,20 @@ DEEPSEEK_HOTWORD_MERGE_JOB_NAME = "market_radar.suggest_hotword_merges_deepseek"
 MERGE_SIMILARITY_THRESHOLD = 0.82
 
 DAILY_HOTWORD_STATE_NAMESPACE = f"job.{DEEPSEEK_HOTWORD_JOB_NAME}"
-DAILY_REPORT_STATE_NAMESPACE = f"job.{DAILY_REPORT_JOB_NAME}"
-PROCESSED_DATE_STATE_KEY = "last_processed_date"
-GENERATED_DATE_STATE_KEY = "last_generated_date"
+HOTWORD_SOURCE_ITEM_CURSOR_KEY = "source_item_last_id"
 
 
-def _runtime_state_date_value(value: str | None) -> date | None:
-    if not value:
-        return None
+def _runtime_state_int_value(value: str | None) -> int:
     try:
-        return date.fromisoformat(str(value))
-    except ValueError:
-        return None
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
-def _scheduled_date_already_done(
-    db,
-    namespace: str,
-    state_key: str,
-    target_date: date,
-    explicit_date: bool,
-) -> tuple[bool, str | None]:
-    if explicit_date:
-        return False, None
-    state = get_runtime_state(db, namespace, state_key)
+def _hotword_source_item_cursor(db) -> int:
+    state = get_runtime_state(db, DAILY_HOTWORD_STATE_NAMESPACE, HOTWORD_SOURCE_ITEM_CURSOR_KEY)
     state_value = state.state_value if state is not None else None
-    completed_date = _runtime_state_date_value(state_value)
-    if completed_date is None:
-        return False, state_value
-    return completed_date >= target_date, state_value
+    return _runtime_state_int_value(state_value)
 
 
 def _fetch_cls_rows(limit: int) -> list[dict]:
@@ -253,51 +237,12 @@ def generate_daily_report_job(
 ) -> JobResult:
     db = SessionLocal()
     try:
-        explicit_report_date = bool(report_date)
-        parsed_report_date = date.fromisoformat(report_date) if report_date else default_report_date()
-        already_done, old_state = _scheduled_date_already_done(
-            db,
-            DAILY_REPORT_STATE_NAMESPACE,
-            GENERATED_DATE_STATE_KEY,
-            parsed_report_date,
-            explicit_report_date,
-        )
-        if already_done:
-            return JobResult(
-                success=True,
-                message=f"daily report already generated for {parsed_report_date.isoformat()}",
-                skipped_count=1,
-                extra={
-                    "report_date": parsed_report_date.isoformat(),
-                    "old_state": old_state,
-                    "new_state": old_state,
-                    "state_namespace": DAILY_REPORT_STATE_NAMESPACE,
-                    "state_key": GENERATED_DATE_STATE_KEY,
-                },
-            )
-
-        result = generate_daily_report(
+        parsed_report_date = date.fromisoformat(report_date) if report_date else None
+        return generate_daily_report(
             db,
             report_date=parsed_report_date,
             model=model or DEFAULT_DAILY_REPORT_MODEL,
         )
-        if result.success and result.inserted_count > 0:
-            set_runtime_state(
-                db,
-                DAILY_REPORT_STATE_NAMESPACE,
-                GENERATED_DATE_STATE_KEY,
-                parsed_report_date.isoformat(),
-                value_type="date",
-                ext={"job_name": DAILY_REPORT_JOB_NAME, "old_state": old_state},
-            )
-            result.extra = {
-                **(result.extra or {}),
-                "old_state": old_state,
-                "new_state": parsed_report_date.isoformat(),
-                "state_namespace": DAILY_REPORT_STATE_NAMESPACE,
-                "state_key": GENERATED_DATE_STATE_KEY,
-            }
-        return result
     finally:
         db.close()
 
@@ -315,28 +260,34 @@ def _source_item_date(item: SourceItem) -> date:
     return utc_now().date()
 
 
-def _today_news_payload(db, target_date: date, max_items: int) -> list[dict]:
+def _today_news_items(db, target_date: date, max_items: int, cursor: int = 0) -> list[SourceItem]:
     rows = list(
         db.scalars(
             select(SourceItem)
             .where(SourceItem.source_type == "news")
+            .where(SourceItem.id > cursor)
             .order_by(SourceItem.publish_time.desc(), SourceItem.id.desc())
         )
     )
-    news = []
+    items = []
     for item in rows:
         if _source_item_date(item) != target_date:
             continue
-        news.append(
-            {
-                "title": item.title,
-                "content": item.content,
-                "publish_time": item.publish_time.isoformat() if item.publish_time is not None else None,
-            }
-        )
-        if len(news) >= max_items:
+        items.append(item)
+        if len(items) >= max_items:
             break
-    return news
+    return items
+
+
+def _news_payload(items: list[SourceItem]) -> list[dict]:
+    return [
+        {
+            "title": item.title,
+            "content": item.content,
+            "publish_time": item.publish_time.isoformat() if item.publish_time is not None else None,
+        }
+        for item in items
+    ]
 
 
 def _normalized_existing_hotword_names(db) -> set[str]:
@@ -505,41 +456,30 @@ def extract_daily_hotwords_deepseek_job(
     target_date: str | None = None,
     max_items: int = 200,
     model: str | None = None,
+    ignore_watermark: bool = False,
     **kwargs,
 ) -> JobResult:
     db = SessionLocal()
     try:
-        explicit_target_date = bool(target_date)
         run_date = _parse_target_date(target_date)
-        already_done, old_state = _scheduled_date_already_done(
-            db,
-            DAILY_HOTWORD_STATE_NAMESPACE,
-            PROCESSED_DATE_STATE_KEY,
-            run_date,
-            explicit_target_date,
-        )
-        if already_done:
+        old_cursor = _hotword_source_item_cursor(db)
+        effective_cursor = 0 if ignore_watermark else old_cursor
+        source_items = _today_news_items(db, run_date, max(int(max_items), 1), effective_cursor)
+        news = _news_payload(source_items)
+        if not news:
             return JobResult(
                 success=True,
-                message=f"daily hotwords already extracted for {run_date.isoformat()}",
+                message="no news source items after watermark for target date",
                 processed_count=0,
                 skipped_count=1,
                 extra={
                     "target_date": run_date.isoformat(),
-                    "old_state": old_state,
-                    "new_state": old_state,
+                    "old_cursor": old_cursor,
+                    "new_cursor": old_cursor,
                     "state_namespace": DAILY_HOTWORD_STATE_NAMESPACE,
-                    "state_key": PROCESSED_DATE_STATE_KEY,
+                    "state_key": HOTWORD_SOURCE_ITEM_CURSOR_KEY,
+                    "ignore_watermark": ignore_watermark,
                 },
-            )
-
-        news = _today_news_payload(db, run_date, max(int(max_items), 1))
-        if not news:
-            return JobResult(
-                success=True,
-                message="no news source items for target date",
-                processed_count=0,
-                skipped_count=1,
             )
 
         prompt = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_JOB_NAME)
@@ -596,18 +536,21 @@ def extract_daily_hotwords_deepseek_job(
                 )
             )
             db.commit()
+        new_cursor = max(old_cursor, *(int(item.id) for item in source_items))
         set_runtime_state(
             db,
             DAILY_HOTWORD_STATE_NAMESPACE,
-            PROCESSED_DATE_STATE_KEY,
-            run_date.isoformat(),
-            value_type="date",
+            HOTWORD_SOURCE_ITEM_CURSOR_KEY,
+            str(new_cursor),
+            value_type="int",
             ext={
                 "job_name": DEEPSEEK_HOTWORD_JOB_NAME,
-                "old_state": old_state,
+                "old_cursor": old_cursor,
                 "processed_count": len(news),
                 "inserted_count": len(inserted),
                 "model": active_model,
+                "target_date": run_date.isoformat(),
+                "ignore_watermark": ignore_watermark,
             },
         )
         return JobResult(
@@ -619,10 +562,11 @@ def extract_daily_hotwords_deepseek_job(
             extra={
                 "target_date": run_date.isoformat(),
                 "model": active_model,
-                "old_state": old_state,
-                "new_state": run_date.isoformat(),
+                "old_cursor": old_cursor,
+                "new_cursor": new_cursor,
                 "state_namespace": DAILY_HOTWORD_STATE_NAMESPACE,
-                "state_key": PROCESSED_DATE_STATE_KEY,
+                "state_key": HOTWORD_SOURCE_ITEM_CURSOR_KEY,
+                "ignore_watermark": ignore_watermark,
             },
         )
     finally:
@@ -835,6 +779,7 @@ JOBS = [
         params_schema={
             "target_date": {"type": "string", "label": "分析日期", "placeholder": "YYYY-MM-DD，留空为今天"},
             "max_items": {"type": "number", "label": "最多新闻条数", "default": 200, "min": 1},
+            "ignore_watermark": {"type": "boolean", "label": "忽略水位重跑", "default": False},
         },
         tags=["tag", "ai", "market_radar"],
     ),
