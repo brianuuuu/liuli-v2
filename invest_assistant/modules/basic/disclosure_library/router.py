@@ -19,9 +19,11 @@ router = APIRouter(prefix="/api/disclosures", tags=["disclosure_library"], depen
 def list_disclosures(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    q: str = "",
+    pool_only: bool = True,
     db: Session = Depends(get_db),
 ) -> Page[CompanyDisclosureRead]:
-    return service.list_disclosures_page(db, limit=limit, offset=offset)
+    return service.list_disclosures_page(db, limit=limit, offset=offset, q=q, pool_only=pool_only)
 
 
 @router.post("", response_model=CompanyDisclosureRead)

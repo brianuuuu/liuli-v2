@@ -58,14 +58,20 @@ function processStatusLabel(value?: string | null) {
 export function DisclosuresSection() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const disclosures = useAsyncData(useCallback(async () => listDisclosures({ limit: pageSize, offset: (page - 1) * pageSize }), [page, pageSize]), {
+  const [searchInput, setSearchInput] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const disclosures = useAsyncData(useCallback(async () => listDisclosures({
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    q: searchText.trim(),
+    pool_only: true
+  }), [page, pageSize, searchText]), {
     items: [],
     total: 0,
     limit: 50,
     offset: 0,
     has_more: false
   });
-  const [keyword, setKeyword] = useState("");
   const [detail, setDetail] = useState<Disclosure | null>(null);
   const [parsedContent, setParsedContent] = useState("");
   const [open, setOpen] = useState(false);
@@ -96,9 +102,28 @@ export function DisclosuresSection() {
   }
 
   async function fetchRemote() {
-    const result = await fetchDisclosures({ keyword: keyword.trim(), page_size: 30 });
+    const result = await fetchDisclosures({ keyword: searchInput.trim(), page_size: 30 });
     message.success(`已拉取 ${result.fetched} 条公告财报`);
     await disclosures.refresh();
+  }
+
+  function runListSearch(value: string) {
+    const nextSearchText = value.trim();
+    setSearchInput(value);
+    if (nextSearchText === searchText.trim() && page === 1) {
+      void disclosures.refresh();
+      return;
+    }
+    setSearchText(nextSearchText);
+    setPage(1);
+  }
+
+  function updateSearchInput(value: string) {
+    setSearchInput(value);
+    if (!value) {
+      setSearchText("");
+      setPage(1);
+    }
   }
 
   async function runAction(record: Disclosure, action: "sync_original" | "parse") {
@@ -159,10 +184,10 @@ export function DisclosuresSection() {
             <Input.Search
               size="small"
               allowClear
-              placeholder="巨潮关键词"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              onSearch={fetchRemote}
+              placeholder="公司名称 / 标题"
+              value={searchInput}
+              onChange={(event) => updateSearchInput(event.target.value)}
+              onSearch={runListSearch}
               style={{ width: 190 }}
             />
             <Button size="small" onClick={fetchRemote}>拉取公告</Button>

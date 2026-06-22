@@ -27,3 +27,8 @@ assert.match(source, /pending.*待同步/s, "Processing status options should lo
 assert.match(source, /downloaded.*已同步/s, "Processing status options should localize downloaded");
 assert.match(source, /parsed.*已解析/s, "Processing status options should localize parsed");
 assert.match(source, /parse_failed.*解析失败/s, "Processing status options should use backend parse_failed value");
+assert.match(source, /placeholder="公司名称 \/ 标题"/, "Disclosure list search should describe local company/title filtering");
+assert.match(source, /listDisclosures\(\{\s*limit:\s*pageSize,\s*offset:\s*\(page - 1\) \* pageSize,\s*q:\s*searchText\.trim\(\),\s*pool_only:\s*true/s, "Disclosure list should pass q and default pool_only filter");
+assert.match(source, /onSearch=\{runListSearch\}/, "Disclosure search box should run list search");
+assert.match(source, /<Button size="small" onClick=\{fetchRemote\}>拉取公告<\/Button>/, "Remote fetch button should remain available");
+assert.doesNotMatch(source, /value=\{keyword\}/, "Disclosure search input should not be only a remote fetch keyword");
