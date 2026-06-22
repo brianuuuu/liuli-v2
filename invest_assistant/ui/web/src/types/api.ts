@@ -7,7 +7,17 @@ export type UserMe = {
   id: number;
   username: string;
   display_name?: string | null;
-  role: string;
+  email?: string | null;
+  status: string;
+};
+
+export type ChangePasswordPayload = {
+  old_password: string;
+  new_password: string;
+};
+
+export type ChangePasswordResponse = {
+  success: boolean;
 };
 
 export type Id = number;
