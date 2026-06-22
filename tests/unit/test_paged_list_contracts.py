@@ -8,6 +8,7 @@ from invest_assistant.modules.alert_center import service as alert_service
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.disclosure_library import service as disclosure_service
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
+from invest_assistant.modules.basic.disclosure_library.schemas import CompanyDisclosureRead
 from invest_assistant.modules.basic.job_center import service as job_service
 from invest_assistant.modules.basic.job_center.models import JobRunLog, JobRunRequest
 from invest_assistant.modules.basic.report_library import service as report_service
@@ -199,6 +200,46 @@ def test_console_growth_lists_return_page_metadata():
     assert disclosure_page.total == 260
     assert disclosure_page.has_more is True
     assert alert_stats["unhandled"] == 130
+
+
+def test_disclosure_page_enriches_company_name_from_stock_master():
+    db = make_session()
+    base_time = datetime(2026, 6, 10, 9, 0)
+    bound_stock = Stock(stock_code="000001", stock_name="平安银行", exchange="SZSE", symbol="000001.SZ", status="active")
+    legacy_stock = Stock(stock_code="601021", stock_name="春秋航空", exchange="SSE", symbol="601021.SH", status="active")
+    db.add_all([bound_stock, legacy_stock])
+    db.commit()
+
+    db.add_all(
+        [
+            CompanyDisclosure(
+                stock_id=bound_stock.id,
+                source="cninfo",
+                disclosure_type="annual_report",
+                title="绑定标的财报",
+                report_period="2025",
+                publish_time=base_time + timedelta(minutes=2),
+            ),
+            CompanyDisclosure(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="旧代码公告",
+                report_period="601021",
+                publish_time=base_time + timedelta(minutes=1),
+            ),
+        ]
+    )
+    db.commit()
+
+    page = disclosure_service.list_disclosures_page(db, limit=10, offset=0)
+    rows = {item.title: item for item in page.items}
+
+    assert rows["绑定标的财报"].stock_name == "平安银行"
+    assert rows["绑定标的财报"].stock_code == "000001"
+    assert rows["旧代码公告"].stock_name == "春秋航空"
+    assert rows["旧代码公告"].stock_code == "601021"
+    assert CompanyDisclosureRead.model_validate(rows["绑定标的财报"]).stock_name == "平安银行"
+    assert CompanyDisclosureRead.model_validate(rows["旧代码公告"]).stock_name == "春秋航空"
 
 
 def test_track_dashboard_limits_trend_points_and_preserves_summary():

@@ -3,14 +3,12 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useState } from "react";
 import {
   createDisclosure,
-  disclosureToSourceItem,
   disclosuresToMissingSourceItems,
-  downloadDisclosure,
+  downloadDisclosure as syncDisclosureOriginal,
   fetchDisclosures,
   getParsedDisclosure,
   listDisclosures,
-  parseDisclosure,
-  updateDisclosure
+  parseDisclosure
 } from "../../../api/disclosures";
 import type { Disclosure } from "../../../types/api";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -32,6 +30,31 @@ type DisclosureFormValues = {
   parse_status: string;
 };
 
+const FINANCIAL_DISCLOSURE_TYPES = new Set(["annual_report", "quarterly_report", "interim_report"]);
+const PROCESS_STATUS_OPTIONS = [
+  { value: "pending", label: "待同步" },
+  { value: "downloaded", label: "已同步" },
+  { value: "parsed", label: "已解析" },
+  { value: "parse_failed", label: "解析失败" }
+];
+const PROCESS_STATUS_LABELS = Object.fromEntries(PROCESS_STATUS_OPTIONS.map((item) => [item.value, item.label]));
+
+function companyNameLabel(record: Disclosure) {
+  return record.stock_name || "-";
+}
+
+function reportPeriodLabel(record: Disclosure) {
+  if (!FINANCIAL_DISCLOSURE_TYPES.has(record.disclosure_type)) return "-";
+  const value = record.report_period?.trim();
+  if (!value || /^\d{6}$/.test(value)) return "-";
+  return value;
+}
+
+function processStatusLabel(value?: string | null) {
+  if (!value) return "-";
+  return PROCESS_STATUS_LABELS[value] || value;
+}
+
 export function DisclosuresSection() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -43,7 +66,6 @@ export function DisclosuresSection() {
     has_more: false
   });
   const [keyword, setKeyword] = useState("");
-  const [editing, setEditing] = useState<Disclosure | null>(null);
   const [detail, setDetail] = useState<Disclosure | null>(null);
   const [parsedContent, setParsedContent] = useState("");
   const [open, setOpen] = useState(false);
@@ -51,26 +73,7 @@ export function DisclosuresSection() {
   const [form] = Form.useForm<DisclosureFormValues>();
 
   function openCreate() {
-    setEditing(null);
     form.setFieldsValue({ source: "manual", disclosure_type: "announcement", parse_status: "pending" });
-    setOpen(true);
-  }
-
-  function openEdit(record: Disclosure) {
-    setEditing(record);
-    form.setFieldsValue({
-      stock_id: record.stock_id || undefined,
-      source: record.source || "manual",
-      disclosure_type: record.disclosure_type,
-      title: record.title,
-      publish_time: record.publish_time || undefined,
-      report_period: record.report_period || undefined,
-      source_url: record.source_url || undefined,
-      file_path: record.file_path || undefined,
-      parsed_text_path: record.parsed_text_path || undefined,
-      parsed_markdown_path: record.parsed_markdown_path || undefined,
-      parse_status: record.parse_status || "pending"
-    });
     setOpen(true);
   }
 
@@ -86,13 +89,8 @@ export function DisclosuresSection() {
       parsed_text_path: values.parsed_text_path || null,
       parsed_markdown_path: values.parsed_markdown_path || null
     };
-    if (editing) {
-      await updateDisclosure(editing.id, payload);
-      message.success("公告财报已更新");
-    } else {
-      await createDisclosure(payload);
-      message.success("公告财报已新增");
-    }
+    await createDisclosure(payload);
+    message.success("公告财报已新增");
     setOpen(false);
     await disclosures.refresh();
   }
@@ -103,10 +101,9 @@ export function DisclosuresSection() {
     await disclosures.refresh();
   }
 
-  async function runAction(record: Disclosure, action: "download" | "parse" | "source") {
-    if (action === "download") await downloadDisclosure(record.id);
+  async function runAction(record: Disclosure, action: "sync_original" | "parse") {
+    if (action === "sync_original") await syncDisclosureOriginal(record.id);
     if (action === "parse") await parseDisclosure(record.id);
-    if (action === "source") await disclosureToSourceItem(record.id);
     message.success("操作已完成");
     await disclosures.refresh();
   }
@@ -134,22 +131,21 @@ export function DisclosuresSection() {
   }
 
   const columns: ColumnsType<Disclosure> = [
-    { title: "标题", dataIndex: "title", ellipsis: true },
-    { title: "来源", dataIndex: "source", width: 90, render: (value) => value || "-" },
-    { title: "类型", dataIndex: "disclosure_type", width: 120 },
-    { title: "报告期", dataIndex: "report_period", width: 110, render: (value) => value || "-" },
-    { title: "解析", dataIndex: "parse_status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
-    { title: "发布时间", dataIndex: "publish_time", width: 160, render: formatTime },
+    { title: "标题", dataIndex: "title", width: 340, ellipsis: true },
+    { title: "公司名称", width: 128, render: (_, record) => companyNameLabel(record) },
+    { title: "报告期", width: 90, render: (_, record) => reportPeriodLabel(record) },
+    { title: "来源", dataIndex: "source", width: 76, render: (value) => value || "-" },
+    { title: "类型", dataIndex: "disclosure_type", width: 112 },
+    { title: "处理状态", dataIndex: "parse_status", width: 96, render: (value) => <Tag>{processStatusLabel(value)}</Tag> },
+    { title: "发布时间", dataIndex: "publish_time", width: 150, render: formatTime },
     {
       title: "操作",
-      width: 260,
+      width: 200,
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => showDetail(record)}>详情</Button>
-          <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
-          <Button size="small" onClick={() => runAction(record, "download")}>下载</Button>
+          <Button size="small" onClick={() => runAction(record, "sync_original")}>同步原文</Button>
           <Button size="small" onClick={() => runAction(record, "parse")}>解析</Button>
-          <Button size="small" onClick={() => runAction(record, "source")}>入雷达</Button>
         </Space>
       )
     }
@@ -182,6 +178,7 @@ export function DisclosuresSection() {
           loading={disclosures.loading}
           dataSource={disclosures.data.items}
           columns={columns}
+          scroll={{ x: 1180 }}
           pagination={{
             current: page,
             pageSize,
@@ -196,7 +193,7 @@ export function DisclosuresSection() {
         />
       </DataPanel>
 
-      <Modal title={editing ? "编辑公告财报" : "新增公告财报"} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>
+      <Modal title="新增公告财报" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input />
@@ -208,8 +205,8 @@ export function DisclosuresSection() {
             <Form.Item name="disclosure_type" label="类型" style={{ width: "33%" }} rules={[{ required: true }]}>
               <Input />
             </Form.Item>
-            <Form.Item name="parse_status" label="解析状态" style={{ width: "33%" }}>
-              <Select options={[{ value: "pending", label: "pending" }, { value: "downloaded", label: "downloaded" }, { value: "parsed", label: "parsed" }, { value: "failed", label: "failed" }]} />
+            <Form.Item name="parse_status" label="处理状态" style={{ width: "33%" }}>
+              <Select options={PROCESS_STATUS_OPTIONS} />
             </Form.Item>
           </Space.Compact>
           <Space.Compact block>

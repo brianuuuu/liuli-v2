@@ -33,6 +33,8 @@ class CompanyDisclosureUpdate(BaseModel):
 
 class CompanyDisclosureRead(CompanyDisclosureCreate):
     id: int
+    stock_code: str | None = None
+    stock_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
