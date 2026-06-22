@@ -4,6 +4,8 @@ import { apiClient } from "./client";
 export type PageParams = {
   limit?: number;
   offset?: number;
+  q?: string;
+  pool_only?: boolean;
 };
 
 export type DisclosureCreate = {

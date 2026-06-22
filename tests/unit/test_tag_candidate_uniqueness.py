@@ -1,5 +1,6 @@
 from uuid import uuid4
 from pathlib import Path
+from datetime import datetime
 import os
 import subprocess
 import sys
@@ -62,7 +63,15 @@ def test_hotword_generation_skips_all_existing_suggestions_and_counts_rejected(m
     SessionLocal = make_session("generation-duplicates")
     db = SessionLocal()
     try:
-        db.add(SourceItem(source_type="news", source_name="manual", title="AI 新闻", content="AI绠楀姏 再次出现"))
+        db.add(
+            SourceItem(
+                source_type="news",
+                source_name="manual",
+                title="AI 新闻",
+                content="AI绠楀姏 再次出现",
+                publish_time=datetime(2026, 5, 26, 9, 0),
+            )
+        )
         db.add(AiTagSuggestion(suggested_text="AI绠楀姏", score=8.0, status="rejected", rejected_count=2))
         db.add(AiTagSuggestion(suggested_text="机器人", score=7.0, status="pending"))
         db.add(AiTagSuggestion(suggested_text="低空经济", score=6.0, status="approved"))

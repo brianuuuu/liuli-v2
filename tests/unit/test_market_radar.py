@@ -179,7 +179,15 @@ def test_deepseek_daily_hotword_job_writes_ai_tag_suggestions(monkeypatch):
     reset_db()
     db = SessionLocal()
     try:
-        db.add(SourceItem(source_type="news", source_name="manual", title="商业航天升温", content="商业航天 新闻集中出现"))
+        db.add(
+            SourceItem(
+                source_type="news",
+                source_name="manual",
+                title="商业航天升温",
+                content="商业航天 新闻集中出现",
+                publish_time=datetime(2026, 5, 25, 9, 0),
+            )
+        )
         db.commit()
     finally:
         db.close()

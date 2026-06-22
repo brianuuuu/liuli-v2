@@ -8,6 +8,7 @@ from invest_assistant.modules.alert_center import service as alert_service
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.disclosure_library import service as disclosure_service
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
+from invest_assistant.modules.basic.disclosure_library.schemas import CompanyDisclosureRead
 from invest_assistant.modules.basic.job_center import service as job_service
 from invest_assistant.modules.basic.job_center.models import JobRunLog, JobRunRequest
 from invest_assistant.modules.basic.report_library import service as report_service
@@ -17,7 +18,7 @@ from invest_assistant.modules.market_radar import service as market_service
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.stock_analysis import service as stock_service
-from invest_assistant.modules.stock_analysis.models import StockMaterial
+from invest_assistant.modules.stock_analysis.models import StockMaterial, StockPoolItem
 from invest_assistant.modules.track_discovery import service as track_service
 from invest_assistant.modules.track_discovery.models import TrackMaterial
 from invest_assistant.modules.track_discovery.schemas import TrackCreate
@@ -185,7 +186,7 @@ def test_console_growth_lists_return_page_metadata():
 
     alert_page = alert_service.list_events_page(db, limit=200, offset=0)
     report_page = report_service.list_reports_page(db, limit=50, offset=200)
-    disclosure_page = disclosure_service.list_disclosures_page(db, limit=80, offset=160)
+    disclosure_page = disclosure_service.list_disclosures_page(db, limit=80, offset=160, pool_only=False)
     alert_stats = alert_service.event_stats(db)
 
     assert len(alert_page.items) == 100
@@ -199,6 +200,85 @@ def test_console_growth_lists_return_page_metadata():
     assert disclosure_page.total == 260
     assert disclosure_page.has_more is True
     assert alert_stats["unhandled"] == 130
+
+
+def test_disclosure_page_enriches_company_name_from_stock_master():
+    db = make_session()
+    base_time = datetime(2026, 6, 10, 9, 0)
+    bound_stock = Stock(stock_code="000001", stock_name="平安银行", exchange="SZSE", symbol="000001.SZ", status="active")
+    legacy_stock = Stock(stock_code="601021", stock_name="春秋航空", exchange="SSE", symbol="601021.SH", status="active")
+    outside_stock = Stock(stock_code="603890", stock_name="春秋电子", exchange="SSE", symbol="603890.SH", status="active")
+    title_only_stock = Stock(stock_code="688552", stock_name="航天南湖", exchange="SSE", symbol="688552.SH", status="active")
+    db.add_all([bound_stock, legacy_stock, outside_stock, title_only_stock])
+    db.commit()
+    db.add_all(
+        [
+            StockPoolItem(stock_id=bound_stock.id, status="focused", source="test"),
+            StockPoolItem(stock_id=legacy_stock.id, status="focused", source="test"),
+            StockPoolItem(stock_id=title_only_stock.id, status="focused", source="test"),
+        ]
+    )
+    db.commit()
+
+    db.add_all(
+        [
+            CompanyDisclosure(
+                stock_id=bound_stock.id,
+                source="cninfo",
+                disclosure_type="annual_report",
+                title="绑定标的财报",
+                report_period="2025",
+                publish_time=base_time + timedelta(minutes=2),
+            ),
+            CompanyDisclosure(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="旧代码公告",
+                report_period="601021",
+                publish_time=base_time + timedelta(minutes=1),
+            ),
+            CompanyDisclosure(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="股票交易异常波动公告",
+                report_period="603890",
+                publish_time=base_time + timedelta(minutes=3),
+            ),
+            CompanyDisclosure(
+                source="cninfo",
+                disclosure_type="announcement",
+                title="2025年年度权益分派实施公告",
+                report_period="688552",
+                publish_time=base_time + timedelta(minutes=4),
+            ),
+        ]
+    )
+    db.commit()
+
+    page = disclosure_service.list_disclosures_page(db, limit=10, offset=0)
+    rows = {item.title: item for item in page.items}
+
+    assert page.total == 3
+    assert rows["绑定标的财报"].stock_name == "平安银行"
+    assert rows["绑定标的财报"].stock_code == "000001"
+    assert rows["旧代码公告"].stock_name == "春秋航空"
+    assert rows["旧代码公告"].stock_code == "601021"
+    assert "股票交易异常波动公告" not in rows
+    assert CompanyDisclosureRead.model_validate(rows["绑定标的财报"]).stock_name == "平安银行"
+    assert CompanyDisclosureRead.model_validate(rows["旧代码公告"]).stock_name == "春秋航空"
+
+    company_search_page = disclosure_service.list_disclosures_page(db, q="春秋航空", limit=10, offset=0)
+    assert company_search_page.total == 1
+    assert [item.title for item in company_search_page.items] == ["旧代码公告"]
+    assert company_search_page.items[0].stock_name == "春秋航空"
+
+    title_search_page = disclosure_service.list_disclosures_page(db, q="年度权益", limit=10, offset=0)
+    assert title_search_page.total == 1
+    assert [item.title for item in title_search_page.items] == ["2025年年度权益分派实施公告"]
+
+    all_page = disclosure_service.list_disclosures_page(db, pool_only=False, limit=10, offset=0)
+    assert all_page.total == 4
+    assert {item.stock_name for item in all_page.items} >= {"平安银行", "春秋航空", "春秋电子", "航天南湖"}
 
 
 def test_track_dashboard_limits_trend_points_and_preserves_summary():

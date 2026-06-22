@@ -1,7 +1,7 @@
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.disclosure_library import cninfo_client, parser, repository
@@ -24,12 +24,28 @@ def list_disclosures(db: Session) -> list[CompanyDisclosure]:
     return repository.list_disclosures(db)
 
 
-def list_disclosures_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[CompanyDisclosure]:
+def list_disclosures_page(
+    db: Session,
+    limit: int | None = 50,
+    offset: int = 0,
+    q: str | None = None,
+    pool_only: bool = True,
+) -> Page[CompanyDisclosure]:
     stmt = select(CompanyDisclosure).order_by(
         CompanyDisclosure.publish_time.desc().nullslast(),
         CompanyDisclosure.id.desc(),
     )
-    return page_from_statement(db, stmt, limit=limit, offset=offset)
+    conditions = []
+    if pool_only:
+        conditions.append(_disclosure_in_stock_pool_condition())
+    search_text = str(q or "").strip()
+    if search_text:
+        conditions.append(_disclosure_search_condition(search_text))
+    if conditions:
+        stmt = stmt.where(*conditions)
+    page = page_from_statement(db, stmt, limit=limit, offset=offset)
+    _attach_stock_fields(db, page.items)
+    return page
 
 
 def get_disclosure(db: Session, disclosure_id: int) -> CompanyDisclosure | None:
@@ -53,6 +69,73 @@ def resolve_path(path: str | None) -> Path | None:
 def fetch_cninfo(db: Session, keyword: str = "", page_num: int = 1, page_size: int = 30) -> list[CompanyDisclosure]:
     payloads = cninfo_client.fetch_cninfo_metadata(keyword=keyword, page_num=page_num, page_size=page_size)
     return [repository.upsert_disclosure(db, payload) for payload in payloads]
+
+
+def _attach_stock_fields(db: Session, items: list[CompanyDisclosure]) -> None:
+    if not items:
+        return
+    stock_ids = {item.stock_id for item in items if item.stock_id}
+    legacy_codes = {item.report_period for item in items if _is_stock_code(item.report_period)}
+
+    stocks_by_id: dict[int, Stock] = {}
+    if stock_ids:
+        stocks_by_id = {stock.id: stock for stock in db.scalars(select(Stock).where(Stock.id.in_(stock_ids)))}
+
+    stocks_by_code: dict[str, Stock] = {}
+    if legacy_codes:
+        stocks_by_code = {
+            stock.stock_code: stock for stock in db.scalars(select(Stock).where(Stock.stock_code.in_(legacy_codes)))
+        }
+
+    for item in items:
+        stock = stocks_by_id.get(item.stock_id) if item.stock_id else None
+        legacy_code = item.report_period if _is_stock_code(item.report_period) else None
+        if stock is None and legacy_code:
+            stock = stocks_by_code.get(legacy_code)
+        item.stock_code = stock.stock_code if stock else None
+        item.stock_name = stock.stock_name if stock else None
+
+
+def _is_stock_code(value: str | None) -> bool:
+    return bool(value and len(value) == 6 and value.isdigit())
+
+
+def _disclosure_in_stock_pool_condition():
+    stock_id_in_pool = select(StockPoolItem.id).where(
+        StockPoolItem.stock_id == CompanyDisclosure.stock_id
+    ).exists()
+    legacy_code_in_pool = (
+        select(Stock.id)
+        .join(StockPoolItem, StockPoolItem.stock_id == Stock.id)
+        .where(Stock.stock_code == CompanyDisclosure.report_period)
+        .exists()
+    )
+    return or_(stock_id_in_pool, legacy_code_in_pool)
+
+
+def _disclosure_search_condition(search_text: str):
+    pattern = f"%{search_text}%"
+    stock_by_id_matches = (
+        select(Stock.id)
+        .where(
+            and_(
+                Stock.id == CompanyDisclosure.stock_id,
+                or_(Stock.stock_name.ilike(pattern), Stock.stock_code.ilike(pattern)),
+            )
+        )
+        .exists()
+    )
+    stock_by_code_matches = (
+        select(Stock.id)
+        .where(
+            and_(
+                Stock.stock_code == CompanyDisclosure.report_period,
+                or_(Stock.stock_name.ilike(pattern), Stock.stock_code.ilike(pattern)),
+            )
+        )
+        .exists()
+    )
+    return or_(CompanyDisclosure.title.ilike(pattern), stock_by_id_matches, stock_by_code_matches)
 
 
 def fetch_stock_announcements(
