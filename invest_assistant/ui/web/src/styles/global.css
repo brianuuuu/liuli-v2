@@ -561,6 +561,13 @@ body {
   gap: 10px;
 }
 
+.portfolio-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .workbench-report-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

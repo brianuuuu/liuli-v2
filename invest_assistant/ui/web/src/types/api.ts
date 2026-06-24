@@ -792,6 +792,61 @@ export type StockDetail = {
 };
 
 
+export type Portfolio = {
+  id: number;
+  user_id?: number | null;
+  name: string;
+  base_currency: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type PortfolioPosition = {
+  id: number;
+  portfolio_id: number;
+  group_id?: number | null;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  symbol?: string | null;
+  quantity: number;
+  cost_price?: number | null;
+  current_price?: number | null;
+  previous_close?: number | null;
+  market_value?: number | null;
+  previous_market_value?: number | null;
+  day_pnl?: number | null;
+  day_pct?: number | null;
+  quote_time?: string | null;
+  price_source?: string | null;
+  target_weight?: number | null;
+  note?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type PortfolioSummary = {
+  position_count: number;
+  market_value: number;
+  previous_market_value: number;
+  day_pnl: number;
+  day_pct?: number | null;
+  latest_quote_time?: string | null;
+};
+
+export type PortfolioQuoteWarning = {
+  stock_code: string;
+  message: string;
+};
+
+export type PortfolioDashboard = {
+  portfolio: Portfolio;
+  summary: PortfolioSummary;
+  positions: PortfolioPosition[];
+  warnings: PortfolioQuoteWarning[];
+};
+
 export type PortfolioGroup = {
   id: number;
   portfolio_id: number;
