@@ -4,7 +4,6 @@ from time import perf_counter
 from sqlalchemy import select
 
 from invest_assistant.bootstrap.database import SessionLocal
-from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.service import create_ai_request_log
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
 from invest_assistant.modules.basic.system_config.service import get_runtime_state, set_runtime_state
@@ -525,17 +524,6 @@ def extract_daily_hotwords_deepseek_job(
             total_tokens=int(usage.get("total_tokens") or 0),
         )
         inserted = _create_hotword_candidates(db, list(response.get("hotwords") or []), model)
-        if inserted:
-            db.add(
-                AlertEvent(
-                    rule_id=None,
-                    event_level="info",
-                    title=f"今日新增 {len(inserted)} 个新闻热词候选",
-                    message="；".join(f"{name} {score}/10" for name, score in inserted),
-                    status="unread",
-                )
-            )
-            db.commit()
         new_cursor = max(old_cursor, *(int(item.id) for item in source_items))
         set_runtime_state(
             db,

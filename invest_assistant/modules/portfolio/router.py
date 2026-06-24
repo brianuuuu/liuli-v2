@@ -39,14 +39,29 @@ def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{portfolio_id}", response_model=PortfolioRead)
 def update_portfolio(portfolio_id: int, payload: PortfolioCreate, db: Session = Depends(get_db)):
-    item = service.get_portfolio(db, portfolio_id)
+    item = service.update_portfolio(db, portfolio_id, payload)
     if item is None:
         raise HTTPException(status_code=404, detail="portfolio not found")
-    item.name = payload.name
-    item.base_currency = payload.base_currency
-    db.commit()
-    db.refresh(item)
     return item
+
+
+@router.delete("/{portfolio_id}")
+def delete_portfolio(portfolio_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
+    try:
+        deleted = service.delete_portfolio(db, portfolio_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    return {"success": True}
+
+
+@router.get("/{portfolio_id}/dashboard")
+def get_dashboard(portfolio_id: int, db: Session = Depends(get_db)) -> dict:
+    dashboard = service.get_dashboard(db, portfolio_id)
+    if dashboard is None:
+        raise HTTPException(status_code=404, detail="portfolio not found")
+    return dashboard
 
 
 @router.get("/{portfolio_id}/groups", response_model=list[PortfolioGroupRead])
@@ -76,31 +91,39 @@ def list_positions(portfolio_id: int, db: Session = Depends(get_db)) -> list:
 
 @router.post("/{portfolio_id}/positions", response_model=PortfolioPositionRead)
 def create_position(portfolio_id: int, payload: PortfolioPositionCreate, db: Session = Depends(get_db)):
-    return service.create_position(db, portfolio_id, payload)
+    try:
+        return service.create_or_update_position(db, portfolio_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/{portfolio_id}/positions/{position_id}", response_model=PortfolioPositionRead)
 def update_position(portfolio_id: int, position_id: int, payload: PortfolioPositionCreate, db: Session = Depends(get_db)):
-    position = db.get(service.PortfolioPosition, position_id)
+    try:
+        position = service.update_position(db, portfolio_id, position_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if position is None:
         raise HTTPException(status_code=404, detail="position not found")
-    for key, value in payload.model_dump().items():
-        setattr(position, key, value)
-    if position.market_value is None and position.current_price is not None:
-        position.market_value = position.quantity * position.current_price
-    db.commit()
-    db.refresh(position)
     return position
 
 
 @router.delete("/{portfolio_id}/positions/{position_id}")
 def delete_position(portfolio_id: int, position_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
-    position = db.get(service.PortfolioPosition, position_id)
-    if position is None:
+    deleted = service.delete_position(db, portfolio_id, position_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="position not found")
-    db.delete(position)
-    db.commit()
     return {"success": True}
+
+
+@router.post("/{portfolio_id}/positions/refresh-quotes")
+def refresh_position_quotes(portfolio_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return service.refresh_position_quotes(db, portfolio_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/{portfolio_id}/review", response_model=list[PortfolioReviewRead])

@@ -3,12 +3,19 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.alert_center import service
-from invest_assistant.modules.alert_center.schemas import AlertEventCreate, AlertEventRead, AlertRuleCreate, AlertRuleRead
+from invest_assistant.modules.alert_center.schemas import AlertEventRead, AlertRuleCreate, AlertRuleRead
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/alerts", tags=["alert_center"], dependencies=[Depends(get_current_user)])
+
+
+def _get_active_rule_or_404(rule_id: int, db: Session):
+    rule = db.get(service.AlertRule, rule_id)
+    if rule is None or rule.status == "deleted":
+        raise HTTPException(status_code=404, detail="rule not found")
+    return rule
 
 
 @router.get("/rules", response_model=list[AlertRuleRead])
@@ -23,9 +30,7 @@ def create_rule(payload: AlertRuleCreate, db: Session = Depends(get_db), user: U
 
 @router.put("/rules/{rule_id}", response_model=AlertRuleRead)
 def update_rule(rule_id: int, payload: AlertRuleCreate, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
-    rule = db.get(service.AlertRule, rule_id)
-    if rule is None:
-        raise HTTPException(status_code=404, detail="rule not found")
+    rule = _get_active_rule_or_404(rule_id, db)
     for key, value in payload.model_dump().items():
         setattr(rule, key, value)
     db.commit()
@@ -35,13 +40,17 @@ def update_rule(rule_id: int, payload: AlertRuleCreate, db: Session = Depends(ge
 
 @router.delete("/rules/{rule_id}", response_model=AlertRuleRead)
 def delete_rule(rule_id: int, db: Session = Depends(get_db)):
-    rule = db.get(service.AlertRule, rule_id)
-    if rule is None:
-        raise HTTPException(status_code=404, detail="rule not found")
-    rule.enabled = False
-    db.commit()
-    db.refresh(rule)
-    return rule
+    return service.delete_rule(db, _get_active_rule_or_404(rule_id, db))
+
+
+@router.post("/rules/{rule_id}/enable", response_model=AlertRuleRead)
+def enable_rule(rule_id: int, db: Session = Depends(get_db)):
+    return service.set_rule_enabled(db, _get_active_rule_or_404(rule_id, db), True)
+
+
+@router.post("/rules/{rule_id}/disable", response_model=AlertRuleRead)
+def disable_rule(rule_id: int, db: Session = Depends(get_db)):
+    return service.set_rule_enabled(db, _get_active_rule_or_404(rule_id, db), False)
 
 
 @router.get("/events", response_model=Page[AlertEventRead])
@@ -58,9 +67,9 @@ def event_stats(db: Session = Depends(get_db)) -> dict[str, int]:
     return service.event_stats(db)
 
 
-@router.post("/events", response_model=AlertEventRead)
-def create_event(payload: AlertEventCreate, db: Session = Depends(get_db)):
-    return service.create_event(db, payload)
+@router.post("/events/read-all")
+def read_all_events(db: Session = Depends(get_db)) -> dict[str, int]:
+    return {"updated_count": service.mark_all_unread_events_read(db)}
 
 
 @router.get("/events/{event_id}", response_model=AlertEventRead)
@@ -85,3 +94,12 @@ def handle_event(event_id: int, db: Session = Depends(get_db)):
     if event is None:
         raise HTTPException(status_code=404, detail="event not found")
     return service.mark_event(db, event, "handled")
+
+
+@router.delete("/events/{event_id}")
+def delete_event(event_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
+    event = service.get_event(db, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    service.delete_event(db, event)
+    return {"deleted": True}

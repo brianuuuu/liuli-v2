@@ -63,7 +63,7 @@ def test_workbench_today_returns_compact_aggregates_and_recent_requests():
             StockPoolItem(stock_id=stock.id, status="candidate"),
             StockMaterial(stock_id=stock.id, material_type="source_item", material_id=1, status="pending"),
             TrackMaterial(track_id=track.id, material_type="source_item", material_id=1, status="pending"),
-            AlertEvent(title="预警", message="message", status="unread", event_time=today),
+            AlertEvent(rule_id=1, title="预警", message="message", status="unread", event_time=today),
             JobConfig(job_name="failed.job", module_name="test", display_name="失败任务", description="", last_status="failed"),
         ]
     )

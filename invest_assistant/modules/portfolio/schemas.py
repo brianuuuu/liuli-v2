@@ -38,9 +38,12 @@ class PortfolioPositionCreate(BaseModel):
     group_id: int | None = None
     stock_id: int
     quantity: float
-    cost_price: float
+    cost_price: float | None = None
     current_price: float | None = None
+    previous_close: float | None = None
     market_value: float | None = None
+    quote_time: datetime | None = None
+    price_source: str | None = None
     target_weight: float | None = None
     note: str | None = None
     status: str = "active"
