@@ -18,6 +18,7 @@ JOBS = [
         display_name="执行预警规则",
         description="评估已启用的预警规则并生成预警事件",
         handler=evaluate_rules_job,
-        trigger_type="manual",
+        trigger_type="both",
+        cron_expr="*/5 * * * *",
     )
 ]

@@ -159,6 +159,7 @@ def test_console_growth_lists_return_page_metadata():
     for index in range(260):
         db.add(
             AlertEvent(
+                rule_id=1,
                 title=f"alert-{index}",
                 message="message",
                 status="unread" if index % 2 == 0 else "handled",

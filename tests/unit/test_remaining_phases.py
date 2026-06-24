@@ -7,6 +7,7 @@ from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.stock_master.schemas import StockImportItem
 from invest_assistant.modules.basic.stock_master.service import import_stocks
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
+from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.knowledge_base.models import KnowledgePrompt
 from invest_assistant.modules.knowledge_base.service import resolve_prompt_content
 from invest_assistant.modules.market_radar.models import Tag
@@ -141,13 +142,15 @@ def test_alert_center_rule_event_flow():
         headers=headers,
     )
     assert rule.status_code == 200
-    event = client.post(
-        "/api/alerts/events",
-        json={"rule_id": rule.json()["id"], "event_level": "info", "title": "热度预警", "message": "AI算力升温", "status": "unread"},
-        headers=headers,
-    )
-    assert event.status_code == 200
-    handled = client.post(f"/api/alerts/events/{event.json()['id']}/handle", headers=headers)
+    db = SessionLocal()
+    try:
+        event = AlertEvent(rule_id=rule.json()["id"], event_level="info", title="热度预警", message="AI算力升温", status="unread")
+        db.add(event)
+        db.commit()
+        event_id = event.id
+    finally:
+        db.close()
+    handled = client.post(f"/api/alerts/events/{event_id}/handle", headers=headers)
     assert handled.status_code == 200
     assert handled.json()["status"] == "handled"
 
@@ -156,19 +159,14 @@ def test_dashboard_exposes_unhandled_todo_events_and_ai_logs():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
-    client.post(
-        "/api/alerts/events",
-        json={"rule_id": None, "event_level": "info", "title": "今日新增 2 个新闻热词候选", "message": "AI算力 9/10", "status": "unread"},
-        headers=headers,
-    )
-    handled = client.post(
-        "/api/alerts/events",
-        json={"rule_id": None, "event_level": "warning", "title": "已处理事件", "message": "ignore", "status": "handled"},
-        headers=headers,
-    )
-    assert handled.status_code == 200
     db = SessionLocal()
     try:
+        db.add_all(
+            [
+                AlertEvent(rule_id=1, event_level="warning", title="规则触发预警", message="AI算力升温", status="unread"),
+                AlertEvent(rule_id=2, event_level="warning", title="已处理事件", message="ignore", status="handled"),
+            ]
+        )
         db.add(
             AiRequestLog(
                 request_id="test-request",
@@ -188,7 +186,7 @@ def test_dashboard_exposes_unhandled_todo_events_and_ai_logs():
     ai_logs = client.get("/api/console/ai-logs", headers=headers)
 
     assert dashboard.status_code == 200
-    assert dashboard.json()["todo_events"][0]["title"] == "今日新增 2 个新闻热词候选"
+    assert dashboard.json()["todo_events"][0]["title"] == "规则触发预警"
     assert all(item["status"] != "handled" for item in dashboard.json()["todo_events"])
     assert ai_logs.status_code == 200
     assert ai_logs.json()[0]["provider"] == "deepseek"
@@ -244,10 +242,11 @@ def test_alert_center_heat_rule_job_creates_deduplicated_event():
 
     events = client.get("/api/alerts/events", headers=headers)
     assert events.status_code == 200
-    assert len(events.json()) == 1
-    assert events.json()[0]["rule_id"] == rule["id"]
-    assert events.json()[0]["event_level"] == "warning"
-    assert "AI算力" in events.json()[0]["title"]
+    event_items = events.json()["items"]
+    assert len(event_items) == 1
+    assert event_items[0]["rule_id"] == rule["id"]
+    assert event_items[0]["event_level"] == "warning"
+    assert "AI算力" in event_items[0]["title"]
 
 
 def test_portfolio_flow():

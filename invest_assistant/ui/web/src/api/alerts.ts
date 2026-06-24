@@ -29,7 +29,32 @@ export async function listAlertRules(): Promise<Record<string, unknown>[]> {
   return response.data;
 }
 
-export async function markAlertHandled(eventId: number): Promise<Record<string, unknown>> {
-  const response = await apiClient.post<Record<string, unknown>>(`/api/alerts/events/${eventId}/handle`);
+export async function markAllAlertsRead(): Promise<{ updated_count: number }> {
+  const response = await apiClient.post<{ updated_count: number }>("/api/alerts/events/read-all");
+  return response.data;
+}
+
+export async function markAlertRead(eventId: number): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>(`/api/alerts/events/${eventId}/read`);
+  return response.data;
+}
+
+export async function deleteAlertEvent(eventId: number): Promise<{ deleted: boolean }> {
+  const response = await apiClient.delete<{ deleted: boolean }>(`/api/alerts/events/${eventId}`);
+  return response.data;
+}
+
+export async function enableAlertRule(ruleId: number): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>(`/api/alerts/rules/${ruleId}/enable`);
+  return response.data;
+}
+
+export async function disableAlertRule(ruleId: number): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>(`/api/alerts/rules/${ruleId}/disable`);
+  return response.data;
+}
+
+export async function deleteAlertRule(ruleId: number): Promise<Record<string, unknown>> {
+  const response = await apiClient.delete<Record<string, unknown>>(`/api/alerts/rules/${ruleId}`);
   return response.data;
 }
