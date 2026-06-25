@@ -9,7 +9,7 @@
 
 > 面向个人投资者的“研究-执行-复盘”辅助系统。将新闻、公告、赛道、标的、预警与组合管理串成可持续演进的数据与认知闭环。
 
-> 当前系统规格文档：[`docs/liuli_system_spec_v26.md`](docs/liuli_system_spec_v26.md)。v25 文档保留为历史基线，不再覆盖修改。
+> 当前权威系统规格文档：[`docs/liuli_system_spec_v26.md`](docs/liuli_system_spec_v26.md)。v26 是完整技术快照，可作为后续 `liuli_system_spec_release.md` 的长期维护基线。
 
 ---
 
