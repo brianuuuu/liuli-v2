@@ -9,6 +9,8 @@
 
 > 面向个人投资者的“研究-执行-复盘”辅助系统。将新闻、公告、赛道、标的、预警与组合管理串成可持续演进的数据与认知闭环。
 
+> 当前系统规格文档：[`docs/liuli_system_spec_v26.md`](docs/liuli_system_spec_v26.md)。v25 文档保留为历史基线，不再覆盖修改。
+
 ---
 
 ## ✨ 快速开始
@@ -51,9 +53,9 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173
 
 ## 🧭 系统架构
 
-当前实现采用「FastAPI + 模块化后端 + React Web + SQLite（默认）」的单体分层架构：
+当前实现以 v26 系统规格为准，采用「FastAPI + 模块化后端 + React Web + SQLite（默认）」的单体分层架构：
 
-- **前端层**：`invest_assistant/ui/web` 提供业务工作台与控制台。
+- **前端层**：`invest_assistant/ui/web` 提供工作台、六个业务模块与控制台。
 - **API 层**：`invest_assistant/main.py` + `bootstrap/app.py` 组装 FastAPI 与所有业务路由。
 - **领域模块层**：`invest_assistant/modules/*` 按业务模块拆分 `models/schemas/service/router/jobs`。
 - **任务调度与执行层**：
@@ -62,14 +64,14 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173
   - Worker 轮询执行 `job_run_request`
 - **数据层**：SQLAlchemy + 默认 SQLite `var/db/liuli.sqlite3`。
 - **文件层**：`var/raw`、`var/processed`、`var/reports`、`var/exports` 等目录承载原始/处理后资产。
-- **AI 相关模块**：知识库包含 `skills/agents/feedback` 数据结构；配置层预留 `openai_api_key`、`qwen_api_key`，当前主要是模块结构与任务入口，深度 AI 链路为后续演进项。
-- **外部数据源**：已见到巨潮资讯（公告财报）与财联社新闻抓取任务。
+- **AI 相关模块**：知识库包含笔记分组、Prompt、Skills、Agents、反馈记录；DeepSeek 适配与 `ai_request_log` 审计已落地，配置层继续承载多服务商 Key。
+- **外部数据源**：已接入/预留巨潮资讯（公告财报）、财联社信息流、Tushare、AkShare 与 DeepSeek。
 
 ### 架构图（Mermaid）
 
 ```mermaid
 flowchart LR
-  U[用户 / 研究员] --> W[Web React + Ant Design + ECharts]
+  U[用户 / 研究员] --> W[Web React + Ant Design + ECharts<br/>工作台 + 六业务模块 + 控制台]
   W --> API[FastAPI API]
 
   API --> M1[Market Radar]
@@ -105,11 +107,11 @@ flowchart LR
 
 | 层级 | 技术 |
 |---|---|
-| 前端（Web） | React 18, TypeScript, Vite 5, Ant Design 6, React Router 6, Axios, ECharts + echarts-for-react |
+| 前端（Web） | React 18, TypeScript, Vite 5, Ant Design 6, React Router 6, Axios, ECharts + echarts-for-react；`lightweight-charts` 仅用于后续 K 线/分时图场景 |
 | 后端（API） | Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2 |
 | 调度/任务 | APScheduler, 自研 Job Center + Worker 轮询执行 |
 | 鉴权 | python-jose, passlib[bcrypt], python-multipart |
-| 数据库 | SQLite（默认，`database_url` 可通过环境变量覆盖） |
+| 数据库 | SQLite（默认，`database_url` 可覆盖）；依赖已预留 PostgreSQL `psycopg[binary]` |
 | 测试 | Pytest（unit + integration） |
 
 ---
@@ -150,7 +152,7 @@ flowchart LR
 
 ### 7) Console（控制台）
 - **定位**：运维与配置面板，不承载业务能力归属。
-- **主要能力**：系统状态、任务中心、数据源管理入口、基础库/配置巡检。
+- **主要能力**：系统状态、任务中心、数据源、股票基础库、标签索引、公告财报库、系统配置、AI 审计日志。
 - **数据流向**：Console 操作 → 基础模块（job_center/system_config/stock_master 等）→ DB。
 
 ---
@@ -173,8 +175,8 @@ flowchart LR
 | Stock Analysis | `/api/stock-analysis` | `GET/POST/PUT /pool`, `GET /candidates`, `GET /stocks/{id}`, `GET/POST /stocks/{id}/notes`, `GET/POST /stocks/{id}/scores`, `GET/POST /compare-groups`, `GET /reports` |
 | Alert Center | `/api/alerts` | `GET/POST/PUT/DELETE /rules`, `GET/POST /events`, `POST /events/{id}/read`, `POST /events/{id}/handle` |
 | Portfolio | `/api/portfolios` | `GET/POST /`, `GET/PUT /{id}`, `GET/POST /{id}/groups`, `GET/POST/PUT/DELETE /{id}/positions`, `GET/POST /{id}/review` |
-| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT /skills`, `GET/POST/PUT /agents`, `POST /agents/{id}/run`, `GET /feedback-logs` |
-| Console | `/api/console` | `GET /dashboard`, `GET /system-status`, `GET /data-sources`, `GET /ai-logs` |
+| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT /note-groups`, `GET/POST/PUT /skills`, `GET/POST/PUT /agents`, `GET/POST/PUT/DELETE /prompts`, `POST /agents/{id}/run`, `GET /feedback-logs` |
+| Console | `/api/console` | `GET /dashboard`, `GET /workbench-today`, `GET /system-status`, `GET /data-sources`, `GET /ai-logs/stats`, `GET /ai-logs` |
 
 ---
 
