@@ -11,6 +11,7 @@ from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
+    MarketIndexRealtimeQuote,
     StockCompareGroup,
     StockDailyBar,
     StockPoolItem,
@@ -31,6 +32,119 @@ from invest_assistant.modules.stock_analysis.schemas import (
 )
 from invest_assistant.services.tushare import client as tushare_client
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
+
+
+MAJOR_A_SHARE_INDICES = [
+    {"code": "000001.SH", "name": "上证指数"},
+    {"code": "399001.SZ", "name": "深证成指"},
+    {"code": "399006.SZ", "name": "创业板指"},
+    {"code": "000688.SH", "name": "科创50"},
+    {"code": "000300.SH", "name": "沪深300"},
+    {"code": "000905.SH", "name": "中证500"},
+]
+
+
+def refresh_major_indices_realtime(db: Session) -> JobResult:
+    index_codes = [item["code"] for item in MAJOR_A_SHARE_INDICES]
+    index_names = {item["code"]: item["name"] for item in MAJOR_A_SHARE_INDICES}
+    try:
+        quote_rows = tushare_client.fetch_realtime_index_quote_rows(index_codes)
+    except RuntimeError as exc:
+        _mark_major_indices_failed(db, str(exc))
+        return JobResult(success=False, message=str(exc), processed_count=len(MAJOR_A_SHARE_INDICES))
+
+    quotes_by_code = {str(row.get("code") or "").strip().upper(): row for row in quote_rows}
+    updated_count = 0
+    missing_codes: list[str] = []
+    for code in index_codes:
+        quote = quotes_by_code.get(code)
+        if quote is None:
+            missing_codes.append(code)
+            _upsert_market_index_quote(db, code, index_names[code], status="failed", error_message="quote not found")
+            continue
+        _upsert_market_index_quote(
+            db,
+            code,
+            index_names[code],
+            price=quote.get("price"),
+            change=quote.get("change"),
+            pct_chg=quote.get("pct_chg"),
+            quote_time=quote.get("quote_time"),
+            source=quote.get("source"),
+            status="success",
+            error_message=None,
+        )
+        updated_count += 1
+    db.commit()
+    return JobResult(
+        success=not missing_codes,
+        message=f"updated {updated_count} major index quotes",
+        processed_count=len(index_codes),
+        updated_count=updated_count,
+        extra={"missing_codes": missing_codes},
+    )
+
+
+def list_major_index_quotes(db: Session) -> list[dict]:
+    rows = {
+        item.code: item
+        for item in db.scalars(select(MarketIndexRealtimeQuote).where(MarketIndexRealtimeQuote.code.in_([item["code"] for item in MAJOR_A_SHARE_INDICES])))
+    }
+    return [_market_index_quote_dict(rows.get(item["code"]), item["code"], item["name"]) for item in MAJOR_A_SHARE_INDICES]
+
+
+def _mark_major_indices_failed(db: Session, message: str) -> None:
+    for item in MAJOR_A_SHARE_INDICES:
+        _upsert_market_index_quote(db, item["code"], item["name"], status="failed", error_message=message)
+    db.commit()
+
+
+def _upsert_market_index_quote(
+    db: Session,
+    code: str,
+    name: str,
+    *,
+    price: float | None = None,
+    change: float | None = None,
+    pct_chg: float | None = None,
+    quote_time: datetime | None = None,
+    source: str | None = None,
+    status: str = "unknown",
+    error_message: str | None = None,
+) -> MarketIndexRealtimeQuote:
+    item = db.scalar(select(MarketIndexRealtimeQuote).where(MarketIndexRealtimeQuote.code == code))
+    if item is None:
+        item = MarketIndexRealtimeQuote(code=code, name=name)
+        db.add(item)
+    item.name = name
+    if status == "success" or price is not None:
+        item.price = price
+    if status == "success" or change is not None:
+        item.change = change
+    if status == "success" or pct_chg is not None:
+        item.pct_chg = pct_chg
+    if status == "success" or quote_time is not None:
+        item.quote_time = quote_time
+    if status == "success" or source is not None:
+        item.source = source
+    item.status = status
+    item.error_message = error_message
+    return item
+
+
+def _market_index_quote_dict(item: MarketIndexRealtimeQuote | None, code: str, name: str) -> dict:
+    return {
+        "code": code,
+        "name": name,
+        "price": item.price if item is not None else None,
+        "change": item.change if item is not None else None,
+        "pct_chg": item.pct_chg if item is not None else None,
+        "quote_time": item.quote_time.isoformat() if item is not None and item.quote_time is not None else None,
+        "source": item.source if item is not None else None,
+        "status": item.status if item is not None else "empty",
+        "message": item.error_message if item is not None else None,
+        "updated_at": item.updated_at.isoformat() if item is not None and item.updated_at is not None else None,
+    }
 
 
 def create_pool_item(db: Session, payload: StockPoolCreate) -> dict:

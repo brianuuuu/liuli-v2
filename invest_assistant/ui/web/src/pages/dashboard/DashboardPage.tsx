@@ -17,15 +17,16 @@ import {
   HistoryOutlined,
   AuditOutlined,
   FilterOutlined,
-  BranchesOutlined
+  BranchesOutlined,
+  SyncOutlined
 } from "@ant-design/icons";
 import { Button, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
-import { getWorkbenchToday } from "../../api/console";
+import { getWorkbenchToday, refreshWorkbenchMarket } from "../../api/console";
 import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../api/jobs";
 import { listReports, getReportContent } from "../../api/reports";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -41,6 +42,24 @@ import type { Page, Report } from "../../types/api";
 import { DEFAULT_REPORT_PAGE_SIZE, reportMatchesKind, reportPageParams, type ReportKind } from "./dashboardReports";
 
 const initialWorkbenchToday = {
+  market_indices: {
+    items: []
+  },
+  portfolio_today: {
+    portfolio_count: 0,
+    position_count: 0,
+    total_value: 0,
+    position_market_value: 0,
+    cash_amount: 0,
+    day_pnl: 0,
+    day_pct: null,
+    latest_quote_time: null
+  },
+  market_refresh: {
+    status: "idle",
+    last_requested_at: null,
+    jobs: []
+  },
   source_stats: {
     total: 0,
     news: 0,
@@ -92,6 +111,38 @@ function formatTime(value?: string | null) {
   return value.replace("T", " ").slice(0, 19);
 }
 
+function formatCompactNumber(value?: number | null, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  return Number(value).toLocaleString("zh-CN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
+
+function formatMoney(value?: number | null) {
+  return formatCompactNumber(value, 2);
+}
+
+function formatSignedNumber(value?: number | null, suffix = "") {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatCompactNumber(value, 2)}${suffix}`;
+}
+
+function trendClass(value?: number | null) {
+  if (value === null || value === undefined) return "flat";
+  if (value > 0) return "up";
+  if (value < 0) return "down";
+  return "flat";
+}
+
+function marketRefreshLabel(status?: string) {
+  if (status === "running") return "刷新中";
+  if (status === "success") return "已完成";
+  if (status === "failed") return "刷新失败";
+  return "未刷新";
+}
+
 type MetricItem = {
   key: string;
   label: string;
@@ -141,8 +192,51 @@ function MetricGroup({ title, items, columns = 3 }: { title: string; items: Metr
 function TodayDashboardSection() {
   const { resolvedMode } = useLiuliTheme();
   const today = useAsyncData(useCallback(getWorkbenchToday, []), initialWorkbenchToday);
+  const [marketSubmitting, setMarketSubmitting] = useState(false);
+  const [marketPolling, setMarketPolling] = useState(false);
 
   const todaySourceCounts = today.data.source_stats;
+  const marketIndices = today.data.market_indices.items;
+  const portfolioToday = today.data.portfolio_today;
+  const marketRefresh = today.data.market_refresh;
+  const marketRefreshStatus = marketPolling ? "running" : marketRefresh.status;
+
+  useEffect(() => {
+    if (!marketPolling) return;
+    const intervalId = window.setInterval(() => {
+      void today.refresh();
+    }, 2500);
+    const timeoutId = window.setTimeout(() => {
+      window.clearInterval(intervalId);
+      setMarketPolling(false);
+      void today.refresh();
+    }, 12000);
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [marketPolling, today.refresh]);
+
+  useEffect(() => {
+    if (!marketPolling) return;
+    if (marketRefresh.status === "success" || marketRefresh.status === "failed") {
+      setMarketPolling(false);
+    }
+  }, [marketPolling, marketRefresh.status]);
+
+  async function submitRefreshMarket() {
+    setMarketSubmitting(true);
+    try {
+      await refreshWorkbenchMarket();
+      setMarketPolling(true);
+      message.success("已提交行情刷新任务");
+      await today.refresh();
+    } catch {
+      message.error("行情刷新任务提交失败");
+    } finally {
+      setMarketSubmitting(false);
+    }
+  }
 
   const sourceChartOption = useMemo(() => {
     const labels = Object.keys(sourceTypeGroups) as Array<keyof typeof sourceTypeGroups>;
@@ -174,6 +268,78 @@ function TodayDashboardSection() {
 
   return (
     <div className="workbench-dashboard">
+      <WorkbenchCard
+        title="市场与组合"
+        extra={
+          <Space size={12} wrap>
+            <span className={`workbench-market-status ${marketRefreshStatus}`}>{marketRefreshLabel(marketRefreshStatus)}</span>
+            <span className="workbench-market-time">最近刷新 {formatTime(marketRefresh.last_requested_at)}</span>
+            <Button
+              size="small"
+              type="primary"
+              icon={<SyncOutlined />}
+              loading={marketSubmitting}
+              onClick={submitRefreshMarket}
+            >
+              刷新行情
+            </Button>
+          </Space>
+        }
+      >
+        <div className="workbench-market-combo">
+          <section className="workbench-market-indices">
+            <div className="workbench-panel-title">A股主要指数</div>
+            {marketIndices.length === 0 ? (
+              <EmptyAction description="暂无实时行情" />
+            ) : (
+              <div className="workbench-index-grid">
+                {marketIndices.map((item) => (
+                  <div className={`workbench-index-tile ${item.status === "failed" ? "failed" : ""}`} key={item.code}>
+                    <div className="workbench-index-head">
+                      <span>{item.name}</span>
+                      <span>{item.code}</span>
+                    </div>
+                    <div className="workbench-index-price">{formatCompactNumber(item.price)}</div>
+                    <div className={`workbench-index-change ${trendClass(item.pct_chg)}`}>
+                      <span>{item.status === "failed" ? "刷新失败" : formatSignedNumber(item.change)}</span>
+                      <span>{item.status === "failed" ? "-" : formatSignedNumber(item.pct_chg, "%")}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className="workbench-portfolio-today">
+            <div className="workbench-panel-title">组合今日表现</div>
+            <div className="workbench-portfolio-total">
+              <span>总市值</span>
+              <strong>{formatMoney(portfolioToday.total_value)}</strong>
+            </div>
+            <div className="workbench-portfolio-stats">
+              <div>
+                <span>今日盈亏</span>
+                <strong className={trendClass(portfolioToday.day_pnl)}>{formatSignedNumber(portfolioToday.day_pnl)}</strong>
+              </div>
+              <div>
+                <span>今日涨跌幅</span>
+                <strong className={trendClass(portfolioToday.day_pct)}>{formatSignedNumber(portfolioToday.day_pct, "%")}</strong>
+              </div>
+              <div>
+                <span>组合数</span>
+                <strong>{portfolioToday.portfolio_count}</strong>
+              </div>
+              <div>
+                <span>持仓数</span>
+                <strong>{portfolioToday.position_count}</strong>
+              </div>
+            </div>
+            <div className="workbench-portfolio-meta">
+              最近报价 {formatTime(portfolioToday.latest_quote_time)}
+            </div>
+          </section>
+        </div>
+      </WorkbenchCard>
+
       <div className="workbench-metric-sections">
         <MetricGroup
           title="新增"

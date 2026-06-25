@@ -14,6 +14,7 @@ from invest_assistant.services.deepseek import client as deepseek_client
 
 REVIEW_STOCK_EVENTS_JOB_NAME = "stock_analysis.review_stock_events_deepseek"
 SYNC_DAILY_BARS_JOB_NAME = "stock_analysis.sync_daily_bars"
+REFRESH_MAJOR_INDICES_JOB_NAME = "stock_analysis.refresh_major_indices_realtime"
 DEFAULT_STOCK_EVENT_REVIEW_MODEL = "deepseek-v4-pro"
 DEFAULT_REVIEW_BATCH_SIZE = 20
 DEFAULT_REVIEW_MAX_ITEMS = 100
@@ -236,7 +237,26 @@ def sync_daily_bars_job(
         db.close()
 
 
+def refresh_major_indices_realtime_job(**kwargs) -> JobResult:
+    db = SessionLocal()
+    try:
+        return stock_service.refresh_major_indices_realtime(db)
+    finally:
+        db.close()
+
+
 JOBS = [
+    JobDefinition(
+        job_name=REFRESH_MAJOR_INDICES_JOB_NAME,
+        module_name="stock_analysis",
+        display_name="刷新A股主要指数实时行情",
+        description="通过 Tushare 实时行情接口刷新六个 A 股主要指数缓存",
+        handler=refresh_major_indices_realtime_job,
+        trigger_type="manual",
+        timeout_seconds=180,
+        max_retries=0,
+        tags=["stock_analysis", "market_index", "tushare"],
+    ),
     JobDefinition(
         job_name=SYNC_DAILY_BARS_JOB_NAME,
         module_name="stock_analysis",

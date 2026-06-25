@@ -861,4 +861,64 @@ export type PortfolioGroup = {
   updated_at?: string | null;
 };
 
+export type PortfolioCashBalance = {
+  id?: number | null;
+  portfolio_id: number;
+  amount: number;
+  currency: string;
+  note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type PortfolioCashFlow = {
+  id: number;
+  portfolio_id: number;
+  flow_type: string;
+  amount: number;
+  currency: string;
+  flow_date: string;
+  note?: string | null;
+  created_at?: string | null;
+};
+
+export type PortfolioOverviewAllocationRow = {
+  type: string;
+  stock_id?: number;
+  stock_code?: string | null;
+  label: string;
+  market_value: number;
+  weight: number;
+};
+
+export type PortfolioOverview = {
+  scope: "all" | "single" | string;
+  portfolio_id?: number | null;
+  portfolio_options: Portfolio[];
+  summary: {
+    portfolio_count: number;
+    position_count: number;
+    position_market_value: number;
+    cash_amount: number;
+    total_value: number;
+    day_pnl: number;
+    day_pct?: number | null;
+    year_pnl: number;
+  };
+  allocation_rows: PortfolioOverviewAllocationRow[];
+  pie_items: PortfolioOverviewAllocationRow[];
+};
+
+export type PortfolioValueSnapshot = {
+  portfolio_id?: number | null;
+  snapshot_date: string;
+  total_value: number;
+  position_market_value: number;
+  cash_amount: number;
+  day_pnl?: number | null;
+  day_pct?: number | null;
+  position_count: number;
+  source?: string | null;
+};
+
 export type AnyRecord = Record<string, unknown>;

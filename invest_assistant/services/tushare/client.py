@@ -130,6 +130,45 @@ def fetch_realtime_quote_rows(symbols: list[str]) -> list[dict]:
     raise RuntimeError("tushare realtime quote API is unavailable")
 
 
+def fetch_realtime_index_quote_rows(ts_codes: list[str]) -> list[dict]:
+    normalized_codes = [str(code or "").strip().upper() for code in ts_codes if str(code or "").strip()]
+    if not normalized_codes:
+        return []
+
+    try:
+        import tushare as ts
+    except Exception as exc:
+        raise RuntimeError(f"tushare is unavailable: {exc}") from exc
+
+    primary_error: Exception | None = None
+    token = get_tushare_token()
+    if token and hasattr(ts, "realtime_quote"):
+        try:
+            ts.set_token(token)
+            frame = ts.realtime_quote(ts_code=",".join(normalized_codes))
+            rows = _normalize_realtime_index_frame(frame, normalized_codes, source="tushare.realtime_quote")
+            if rows:
+                return rows
+        except Exception as exc:
+            primary_error = exc
+
+    if hasattr(ts, "get_realtime_quotes"):
+        try:
+            query_codes = [_index_realtime_code(code) for code in normalized_codes]
+            frame = ts.get_realtime_quotes(query_codes)
+            rows = _normalize_realtime_index_frame(frame, normalized_codes, source="tushare.get_realtime_quotes")
+            if rows:
+                return rows
+        except Exception as exc:
+            if primary_error is not None:
+                raise RuntimeError(f"failed to fetch realtime index quotes: {primary_error}; fallback failed: {exc}") from exc
+            raise RuntimeError(f"failed to fetch realtime index quotes: {exc}") from exc
+
+    if primary_error is not None:
+        raise RuntimeError(f"failed to fetch realtime index quotes: {primary_error}") from primary_error
+    raise RuntimeError("tushare realtime index quote API is unavailable")
+
+
 def _normalize_realtime_frame(frame, *, source: str) -> list[dict]:
     if frame is None or getattr(frame, "empty", False):
         return []
@@ -159,11 +198,74 @@ def _normalize_realtime_frame(frame, *, source: str) -> list[dict]:
     return rows
 
 
+def _normalize_realtime_index_frame(frame, requested_codes: list[str], *, source: str) -> list[dict]:
+    if frame is None or getattr(frame, "empty", False):
+        return []
+    columns = set(getattr(frame, "columns", []))
+    required = {"price", "pre_close"}
+    if not required.issubset(columns):
+        missing = ", ".join(sorted(required - columns))
+        raise RuntimeError(f"Tushare realtime index quote missing columns: {missing}")
+
+    rows: list[dict] = []
+    requested_by_bare = {_bare_stock_code(code): code for code in requested_codes}
+    requested_by_query = {_index_realtime_code(code).upper(): code for code in requested_codes}
+    for index, (_row_index, row) in enumerate(frame.iterrows()):
+        payload = dict(row)
+        price = _float_or_none(payload.get("price"))
+        pre_close = _float_or_none(payload.get("pre_close"))
+        if price is None or pre_close is None:
+            continue
+        raw_code = str(payload.get("code") or payload.get("ts_code") or payload.get("symbol") or "").strip().lower()
+        code = (
+            _normalize_requested_index_code(raw_code, requested_by_bare, requested_by_query)
+            or (requested_codes[index] if index < len(requested_codes) else None)
+        )
+        if not code:
+            continue
+        change_value = _float_or_none(payload.get("change"))
+        pct_value = _float_or_none(payload.get("pct_chg") or payload.get("pct_change"))
+        if change_value is None:
+            change_value = price - pre_close
+        if pct_value is None:
+            pct_value = change_value / pre_close * 100 if pre_close else None
+        rows.append(
+            {
+                "code": code,
+                "price": price,
+                "change": change_value,
+                "pct_chg": pct_value,
+                "quote_time": _parse_quote_time(payload.get("date"), payload.get("time")),
+                "source": source,
+            }
+        )
+    return rows
+
+
+def _normalize_requested_index_code(raw_code: str, requested_by_bare: dict[str, str], requested_by_query: dict[str, str]) -> str | None:
+    if not raw_code:
+        return None
+    upper_code = raw_code.upper()
+    if upper_code in requested_by_query:
+        return requested_by_query[upper_code]
+    bare_code = _bare_stock_code(upper_code)
+    return requested_by_bare.get(bare_code)
+
+
 def _bare_stock_code(value) -> str:
     text = str(value or "").strip().upper()
     if "." in text:
         text = text.split(".", 1)[0]
     return text
+
+
+def _index_realtime_code(ts_code: str) -> str:
+    text = str(ts_code or "").strip().upper()
+    if text.endswith(".SH"):
+        return f"sh{_bare_stock_code(text)}"
+    if text.endswith(".SZ"):
+        return f"sz{_bare_stock_code(text)}"
+    return text.lower()
 
 
 def _parse_quote_time(date_value, time_value) -> datetime | None:

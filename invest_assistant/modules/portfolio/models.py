@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 import shutil
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import text
@@ -68,6 +68,61 @@ class PortfolioReview(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     risk_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class PortfolioCashBalance(Base):
+    __tablename__ = "portfolio_cash_balance"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", name="uq_portfolio_cash_balance_portfolio_id"),
+        Index("ix_portfolio_cash_balance_portfolio_id", "portfolio_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    currency: Mapped[str] = mapped_column(String(16), nullable=False, default="CNY")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class PortfolioCashFlow(Base):
+    __tablename__ = "portfolio_cash_flow"
+    __table_args__ = (
+        Index("ix_portfolio_cash_flow_portfolio_id", "portfolio_id"),
+        Index("ix_portfolio_cash_flow_flow_date", "flow_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    flow_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(16), nullable=False, default="CNY")
+    flow_date: Mapped[date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class PortfolioValueSnapshot(Base):
+    __tablename__ = "portfolio_value_snapshot"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "snapshot_date", name="uq_portfolio_value_snapshot_portfolio_date"),
+        Index("ix_portfolio_value_snapshot_portfolio_id", "portfolio_id"),
+        Index("ix_portfolio_value_snapshot_snapshot_date", "snapshot_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    total_value: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    position_market_value: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    cash_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    day_pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
+    day_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    position_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 def ensure_portfolio_schema(engine: Engine) -> None:
