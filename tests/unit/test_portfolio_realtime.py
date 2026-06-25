@@ -204,6 +204,34 @@ def test_tushare_realtime_quotes_prefers_realtime_quote_and_normalizes(monkeypat
     ]
 
 
+def test_tushare_realtime_quotes_fallback_records_get_realtime_quotes_source(monkeypatch):
+    captured = {}
+
+    class FakeFrame:
+        columns = ["name", "price", "pre_close", "date", "time", "code"]
+
+        @property
+        def empty(self):
+            return False
+
+        def iterrows(self):
+            yield 0, {"name": "平安银行", "price": "11.20", "pre_close": "10.00", "date": "2026-06-24", "time": "10:30:00", "code": "000001"}
+
+    def fake_get_realtime_quotes(codes):
+        captured["codes"] = codes
+        return FakeFrame()
+
+    fake_ts = SimpleNamespace(get_realtime_quotes=fake_get_realtime_quotes)
+    monkeypatch.setitem(sys.modules, "tushare", fake_ts)
+    monkeypatch.setattr(tushare_client, "get_tushare_token", lambda: "")
+
+    rows = tushare_client.fetch_realtime_quote_rows(["000001.SZ"])
+
+    assert captured == {"codes": ["000001"]}
+    assert rows[0]["source"] == "tushare.get_realtime_quotes"
+    assert rows[0]["stock_code"] == "000001"
+
+
 def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()

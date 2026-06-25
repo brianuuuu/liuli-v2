@@ -11,6 +11,7 @@ from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRe
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.market_radar import service as market_service
 from invest_assistant.modules.market_radar.models import SourceItem
+from invest_assistant.modules.portfolio.models import PortfolioPosition
 from invest_assistant.modules.stock_analysis.models import StockDailyBar, StockMaterial, StockPoolItem
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial
 
@@ -158,12 +159,14 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     stock_daily_bar_count = db.scalar(
         db.query(func.count(StockDailyBar.id)).filter(StockDailyBar.source == "tushare").statement
     ) or 0
-
     stock_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_master.sync_stock_basic").one_or_none()
     news_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one_or_none()
     futu_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one_or_none()
     eastmoney_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_stock_news").one_or_none()
     stock_daily_bar_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_analysis.sync_daily_bars").one_or_none()
+    portfolio_snapshot_job = (
+        db.query(JobConfig).filter(JobConfig.job_name == "portfolio.capture_daily_value_snapshot").one_or_none()
+    )
     cninfo_disclosure_job = (
         db.query(JobConfig).filter(JobConfig.job_name == "disclosure_library.fetch_stock_announcements").one_or_none()
     )
@@ -189,6 +192,11 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
     latest_stock_daily_bar_time = db.scalar(
         db.query(func.max(StockDailyBar.updated_at)).filter(StockDailyBar.source == "tushare").statement
     )
+    latest_tushare_realtime_quote_time = db.scalar(
+        db.query(func.max(PortfolioPosition.quote_time))
+        .filter(PortfolioPosition.price_source == "tushare.get_realtime_quotes")
+        .statement
+    )
 
     return [
         {
@@ -209,6 +217,19 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
             "status": stock_daily_bar_job.last_status if stock_daily_bar_job is not None else "unknown",
             "last_sync_at": _format_time(
                 stock_daily_bar_job.last_run_at if stock_daily_bar_job is not None else latest_stock_daily_bar_time
+            ),
+        },
+        {
+            "key": "portfolio-realtime-quotes",
+            "name": "实时行情（Tushare）",
+            "module": "portfolio",
+            "provider": "Tushare",
+            "record_count": None,
+            "status": portfolio_snapshot_job.last_status if portfolio_snapshot_job is not None else "unknown",
+            "last_sync_at": _format_time(
+                portfolio_snapshot_job.last_run_at
+                if portfolio_snapshot_job is not None
+                else latest_tushare_realtime_quote_time
             ),
         },
         {
