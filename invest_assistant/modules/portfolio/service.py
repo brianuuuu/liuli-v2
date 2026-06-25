@@ -411,16 +411,63 @@ def refresh_position_quotes(db: Session, portfolio_id: int) -> dict:
     if not rows:
         return {"updated_count": 0, "warnings": [], "dashboard": get_dashboard(db, portfolio_id)}
 
-    symbols = [_stock_symbol(stock) for _position, stock in rows]
+    result = _refresh_position_rows(rows)
+    if result["updated_count"] == 0 and rows:
+        raise RuntimeError("no realtime quotes matched portfolio positions")
+    db.commit()
+    warnings = [
+        {"stock_code": item["stock_code"], "message": item["message"]}
+        for item in result["warnings"]
+    ]
+    return {"updated_count": result["updated_count"], "warnings": warnings, "dashboard": get_dashboard(db, portfolio_id)}
+
+
+def refresh_portfolio_realtime_quotes(db: Session, portfolio_ids: list[int] | None = None) -> dict:
+    portfolios = [db.get(Portfolio, portfolio_id) for portfolio_id in portfolio_ids] if portfolio_ids else list_portfolios(db)
+    portfolios = [portfolio for portfolio in portfolios if portfolio is not None]
+    rows_by_portfolio = {portfolio.id: _position_rows(db, portfolio.id) for portfolio in portfolios}
+    rows: list[tuple[PortfolioPosition, Stock]] = []
+    for portfolio_rows in rows_by_portfolio.values():
+        rows.extend(portfolio_rows)
+
+    if not rows:
+        return {
+            "processed_count": len(portfolios),
+            "updated_count": 0,
+            "position_count": 0,
+            "warnings": [],
+        }
+
+    try:
+        result = _refresh_position_rows(rows)
+    except RuntimeError as exc:
+        warnings = [{"portfolio_id": portfolio.id, "message": str(exc)} for portfolio in portfolios]
+        return {
+            "processed_count": len(portfolios),
+            "updated_count": 0,
+            "position_count": len(rows),
+            "warnings": warnings,
+        }
+    db.commit()
+    return {
+        "processed_count": len(portfolios),
+        "updated_count": result["updated_count"],
+        "position_count": len(rows),
+        "warnings": result["warnings"],
+    }
+
+
+def _refresh_position_rows(rows: list[tuple[PortfolioPosition, Stock]]) -> dict:
+    symbols = sorted({_stock_symbol(stock) for _position, stock in rows})
     quote_rows = tushare_client.fetch_realtime_quote_rows(symbols)
     quotes_by_code = {str(row["stock_code"]).strip(): row for row in quote_rows}
     updated_count = 0
-    warnings: list[dict[str, str]] = []
+    warnings: list[dict[str, str | int]] = []
     for position, stock in rows:
         stock_code = str(stock.stock_code or "").strip()
         quote = quotes_by_code.get(stock_code)
         if quote is None:
-            warnings.append({"stock_code": stock_code, "message": "quote not found"})
+            warnings.append({"portfolio_id": position.portfolio_id, "stock_code": stock_code, "message": "quote not found"})
             continue
         position.current_price = quote["price"]
         position.previous_close = quote["pre_close"]
@@ -428,11 +475,7 @@ def refresh_position_quotes(db: Session, portfolio_id: int) -> dict:
         position.quote_time = quote.get("quote_time")
         position.price_source = quote.get("source")
         updated_count += 1
-
-    if updated_count == 0 and rows:
-        raise RuntimeError("no realtime quotes matched portfolio positions")
-    db.commit()
-    return {"updated_count": updated_count, "warnings": warnings, "dashboard": get_dashboard(db, portfolio_id)}
+    return {"updated_count": updated_count, "warnings": warnings}
 
 
 def _position_rows(db: Session, portfolio_id: int) -> list[tuple[PortfolioPosition, Stock]]:

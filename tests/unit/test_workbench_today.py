@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,8 +9,11 @@ from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.ai_audit.models import AiRequestLog
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.console.router import workbench_today
+from invest_assistant.modules.console.router import refresh_market_today, workbench_today
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
+from invest_assistant.modules.portfolio import service as portfolio_service
+from invest_assistant.modules.portfolio.schemas import PortfolioCreate, PortfolioPositionCreate
+from invest_assistant.modules.stock_analysis.models import MarketIndexRealtimeQuote
 from invest_assistant.modules.stock_analysis.models import StockMaterial, StockPoolItem
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial
 from invest_assistant.shared.time_utils import beijing_now
@@ -100,3 +104,61 @@ def test_workbench_today_returns_compact_aggregates_and_recent_requests():
     assert len(result["recent_run_requests"]) == 8
     assert result["recent_run_requests"][0]["job_name"] == "job-9"
     assert "params_json" not in result["recent_run_requests"][0]
+
+
+def test_workbench_today_returns_cached_market_and_portfolio_today_data():
+    db = make_session()
+    now = datetime(2026, 6, 25, 10, 31, 26)
+    stock = Stock(stock_code="000001", stock_name="平安银行", exchange="SZSE", symbol="000001.SZ")
+    db.add(stock)
+    db.flush()
+    portfolio = portfolio_service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+    position = portfolio_service.create_or_update_position(
+        db,
+        portfolio.id,
+        PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+    )
+    position.current_price = 11
+    position.previous_close = 10
+    position.market_value = 1100
+    position.quote_time = now
+    position.price_source = "tushare.realtime_quote"
+    db.add(
+        MarketIndexRealtimeQuote(
+            code="000001.SH",
+            name="上证指数",
+            price=3012.44,
+            change=12.58,
+            pct_chg=0.42,
+            quote_time=now,
+            source="tushare.realtime_quote",
+            status="success",
+        )
+    )
+    db.commit()
+
+    result = workbench_today(db)
+
+    index_by_code = {item["code"]: item for item in result["market_indices"]["items"]}
+    assert index_by_code["000001.SH"]["name"] == "上证指数"
+    assert index_by_code["000001.SH"]["price"] == 3012.44
+    assert result["portfolio_today"]["total_value"] == 1100
+    assert result["portfolio_today"]["day_pnl"] == 100
+    assert result["portfolio_today"]["day_pct"] == 10
+    assert result["portfolio_today"]["latest_quote_time"] == now.isoformat()
+
+
+def test_refresh_market_today_submits_jobs_without_calling_tushare():
+    db = make_session()
+    user = SimpleNamespace(id=7)
+
+    result = refresh_market_today(db=db, user=user)
+    requests = db.query(JobRunRequest).order_by(JobRunRequest.id.asc()).all()
+
+    assert result["status"] == "submitted"
+    assert [item.job_name for item in requests] == [
+        "stock_analysis.refresh_major_indices_realtime",
+        "portfolio.refresh_all_realtime_quotes",
+    ]
+    assert result["request_ids"] == [item.id for item in requests]
+    assert all(item.status == "pending" for item in requests)

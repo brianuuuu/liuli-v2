@@ -507,7 +507,7 @@ export function PortfolioPage() {
               <Button onClick={() => openCashFlow("withdraw")}>出金</Button>
               <Button onClick={() => openCashFlow("adjustment")}>现金校准</Button>
               <Button onClick={openCreatePosition}>新增持仓</Button>
-              <Button onClick={refreshQuotes} loading={saving}>刷新实时价格</Button>
+              <Button onClick={refreshQuotes} loading={saving}>刷新当前组合</Button>
             </Space>
           )}
         >

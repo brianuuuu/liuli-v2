@@ -4,6 +4,7 @@ from invest_assistant.modules.portfolio import service
 
 
 CAPTURE_DAILY_VALUE_SNAPSHOT_JOB_NAME = "portfolio.capture_daily_value_snapshot"
+REFRESH_ALL_REALTIME_QUOTES_JOB_NAME = "portfolio.refresh_all_realtime_quotes"
 
 
 def capture_daily_value_snapshot_job(**kwargs) -> JobResult:
@@ -23,7 +24,35 @@ def capture_daily_value_snapshot_job(**kwargs) -> JobResult:
         db.close()
 
 
+def refresh_all_realtime_quotes_job(**kwargs) -> JobResult:
+    db = SessionLocal()
+    try:
+        result = service.refresh_portfolio_realtime_quotes(db)
+        warning_count = len(result["warnings"])
+        return JobResult(
+            success=True,
+            message=f"refreshed {result['updated_count']} portfolio positions",
+            processed_count=result["processed_count"],
+            updated_count=result["updated_count"],
+            skipped_count=warning_count,
+            extra=result,
+        )
+    finally:
+        db.close()
+
+
 JOBS = [
+    JobDefinition(
+        job_name=REFRESH_ALL_REALTIME_QUOTES_JOB_NAME,
+        module_name="portfolio",
+        display_name="刷新全部组合实时行情",
+        description="异步刷新全部组合持仓实时行情缓存，不保存每日市值快照",
+        handler=refresh_all_realtime_quotes_job,
+        trigger_type="manual",
+        timeout_seconds=900,
+        max_retries=0,
+        tags=["portfolio", "realtime_quote", "tushare"],
+    ),
     JobDefinition(
         job_name=CAPTURE_DAILY_VALUE_SNAPSHOT_JOB_NAME,
         module_name="portfolio",

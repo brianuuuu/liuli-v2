@@ -51,7 +51,42 @@ export type WorkbenchOperationJob = {
   last_status?: string | null;
 };
 
+export type WorkbenchMarketIndex = {
+  code: string;
+  name: string;
+  price?: number | null;
+  change?: number | null;
+  pct_chg?: number | null;
+  quote_time?: string | null;
+  source?: string | null;
+  status: string;
+  message?: string | null;
+  updated_at?: string | null;
+};
+
+export type WorkbenchPortfolioToday = {
+  portfolio_count: number;
+  position_count: number;
+  total_value: number;
+  position_market_value: number;
+  cash_amount: number;
+  day_pnl: number;
+  day_pct?: number | null;
+  latest_quote_time?: string | null;
+};
+
+export type WorkbenchMarketRefresh = {
+  status: string;
+  last_requested_at?: string | null;
+  jobs: WorkbenchRunRequest[];
+};
+
 export type WorkbenchToday = {
+  market_indices: {
+    items: WorkbenchMarketIndex[];
+  };
+  portfolio_today: WorkbenchPortfolioToday;
+  market_refresh: WorkbenchMarketRefresh;
   source_stats: {
     total: number;
     news: number;
@@ -118,6 +153,12 @@ export async function getWorkbenchToday(): Promise<WorkbenchToday> {
       workbenchTodayRequest = null;
     });
   return workbenchTodayRequest;
+}
+
+export async function refreshWorkbenchMarket(): Promise<{ status: string; request_ids: number[]; jobs: string[] }> {
+  const response = await apiClient.post<{ status: string; request_ids: number[]; jobs: string[] }>("/api/console/workbench-today/refresh-market");
+  workbenchTodayRequest = null;
+  return response.data;
 }
 
 export async function getDataSources(): Promise<DataSourceStatus[]> {

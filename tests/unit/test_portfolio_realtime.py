@@ -319,6 +319,47 @@ def test_capture_daily_value_snapshot_is_idempotent_and_includes_cash(monkeypatc
         db.close()
 
 
+def test_refresh_all_realtime_quotes_updates_multiple_portfolios(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        first = seed_stock(db, code="000001", name="平安银行", exchange="SZSE", symbol="000001.SZ")
+        second = seed_stock(db, code="600000", name="浦发银行", exchange="SSE", symbol="600000.SH")
+        first_portfolio = service.create_portfolio(db, PortfolioCreate(name="组合A"), user_id=1)
+        second_portfolio = service.create_portfolio(db, PortfolioCreate(name="组合B"), user_id=1)
+        service.create_or_update_position(db, first_portfolio.id, PortfolioPositionCreate(stock_id=first.id, quantity=100))
+        service.create_or_update_position(db, second_portfolio.id, PortfolioPositionCreate(stock_id=second.id, quantity=50))
+        monkeypatch.setattr(
+            service.tushare_client,
+            "fetch_realtime_quote_rows",
+            lambda symbols: [
+                {
+                    "stock_code": "000001",
+                    "price": 11.0,
+                    "pre_close": 10.0,
+                    "quote_time": datetime(2026, 6, 25, 10, 30),
+                    "source": "tushare.realtime_quote",
+                },
+                {
+                    "stock_code": "600000",
+                    "price": 12.0,
+                    "pre_close": 10.0,
+                    "quote_time": datetime(2026, 6, 25, 10, 30),
+                    "source": "tushare.realtime_quote",
+                },
+            ],
+        )
+
+        result = service.refresh_portfolio_realtime_quotes(db)
+
+        assert result["processed_count"] == 2
+        assert result["updated_count"] == 2
+        assert service.get_dashboard(db, first_portfolio.id)["summary"]["market_value"] == 1100
+        assert service.get_dashboard(db, second_portfolio.id)["summary"]["market_value"] == 600
+    finally:
+        db.close()
+
+
 def test_portfolio_snapshot_job_registered_for_daily_five_pm():
     definition = next(job for job in jobs.JOBS if job.job_name == "portfolio.capture_daily_value_snapshot")
 
@@ -326,3 +367,11 @@ def test_portfolio_snapshot_job_registered_for_daily_five_pm():
     assert definition.display_name == "保存组合每日市值快照"
     assert definition.trigger_type == "both"
     assert definition.cron_expr == "0 17 * * *"
+
+
+def test_portfolio_refresh_all_realtime_quotes_job_registered():
+    definition = next(job for job in jobs.JOBS if job.job_name == "portfolio.refresh_all_realtime_quotes")
+
+    assert definition.module_name == "portfolio"
+    assert definition.display_name == "刷新全部组合实时行情"
+    assert definition.trigger_type == "manual"
