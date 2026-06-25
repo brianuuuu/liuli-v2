@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from types import SimpleNamespace
 import sys
 
@@ -9,8 +9,9 @@ from sqlalchemy.orm import sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.portfolio import service
-from invest_assistant.modules.portfolio.models import PortfolioPosition
-from invest_assistant.modules.portfolio.schemas import PortfolioCreate, PortfolioPositionCreate
+from invest_assistant.modules.portfolio import jobs
+from invest_assistant.modules.portfolio.models import PortfolioPosition, PortfolioValueSnapshot
+from invest_assistant.modules.portfolio.schemas import PortfolioCashFlowCreate, PortfolioCashUpdate, PortfolioCreate, PortfolioPositionCreate
 from invest_assistant.services.tushare import client as tushare_client
 
 
@@ -201,3 +202,99 @@ def test_tushare_realtime_quotes_prefers_realtime_quote_and_normalizes(monkeypat
             "source": "tushare.realtime_quote",
         }
     ]
+
+
+def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 10
+        position.previous_close = 9
+        db.commit()
+
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="deposit", amount=1000, flow_date=date(2026, 1, 2)))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="withdraw", amount=200, flow_date=date(2026, 2, 2)))
+
+        cash = service.get_cash_balance(db, portfolio.id)
+        overview = service.get_overview(db, portfolio.id)
+
+        assert cash["amount"] == 800
+        assert overview["summary"]["position_market_value"] == 1000
+        assert overview["summary"]["cash_amount"] == 800
+        assert overview["summary"]["total_value"] == 1800
+        assert overview["summary"]["year_pnl"] == 1000
+        assert overview["allocation_rows"][0]["type"] == "total"
+        assert overview["allocation_rows"][0]["market_value"] == 1000
+        assert overview["allocation_rows"][0]["weight"] == 100
+        assert any(row["type"] == "stock" and row["label"] == "平安银行" and row["market_value"] == 1000 for row in overview["allocation_rows"])
+        assert all(row["type"] != "cash" for row in overview["allocation_rows"])
+        assert overview["pie_items"] == [row for row in overview["allocation_rows"] if row["type"] == "stock"]
+    finally:
+        db.close()
+
+
+def test_cash_adjustment_sets_cash_balance(tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="现金组合"), user_id=1)
+
+        service.update_cash_balance(db, portfolio.id, PortfolioCashUpdate(amount=300, note="初始现金"))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="adjustment", amount=450, flow_date=date(2026, 6, 25)))
+
+        assert service.get_cash_balance(db, portfolio.id)["amount"] == 450
+    finally:
+        db.close()
+
+
+def test_capture_daily_value_snapshot_is_idempotent_and_includes_cash(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        service.create_or_update_position(db, portfolio.id, PortfolioPositionCreate(stock_id=stock.id, quantity=100))
+        service.update_cash_balance(db, portfolio.id, PortfolioCashUpdate(amount=500))
+        monkeypatch.setattr(
+            service.tushare_client,
+            "fetch_realtime_quote_rows",
+            lambda symbols: [
+                {
+                    "stock_code": "000001",
+                    "price": 12.0,
+                    "pre_close": 10.0,
+                    "quote_time": datetime(2026, 6, 25, 15, 0),
+                    "source": "tushare.realtime_quote",
+                }
+            ],
+        )
+
+        first = service.capture_daily_value_snapshots(db, snapshot_date=date(2026, 6, 25), source="manual")
+        second = service.capture_daily_value_snapshots(db, snapshot_date=date(2026, 6, 25), source="manual")
+        snapshots = list(db.scalars(select(PortfolioValueSnapshot).where(PortfolioValueSnapshot.portfolio_id == portfolio.id)))
+
+        assert first["processed_count"] == 1
+        assert second["processed_count"] == 1
+        assert len(snapshots) == 1
+        assert snapshots[0].position_market_value == 1200
+        assert snapshots[0].cash_amount == 500
+        assert snapshots[0].total_value == 1700
+        assert snapshots[0].source == "manual"
+    finally:
+        db.close()
+
+
+def test_portfolio_snapshot_job_registered_for_daily_five_pm():
+    definition = next(job for job in jobs.JOBS if job.job_name == "portfolio.capture_daily_value_snapshot")
+
+    assert definition.module_name == "portfolio"
+    assert definition.display_name == "保存组合每日市值快照"
+    assert definition.trigger_type == "both"
+    assert definition.cron_expr == "0 17 * * *"

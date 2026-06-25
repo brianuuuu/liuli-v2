@@ -6,6 +6,10 @@ from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.modules.portfolio import service
 from invest_assistant.modules.portfolio.schemas import (
+    PortfolioCashFlowCreate,
+    PortfolioCashFlowRead,
+    PortfolioCashRead,
+    PortfolioCashUpdate,
     PortfolioCreate,
     PortfolioGroupCreate,
     PortfolioGroupRead,
@@ -14,6 +18,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioRead,
     PortfolioReviewCreate,
     PortfolioReviewRead,
+    PortfolioValueSnapshotRead,
 )
 
 router = APIRouter(prefix="/api/portfolios", tags=["portfolio"], dependencies=[Depends(get_current_user)])
@@ -27,6 +32,16 @@ def list_portfolios(db: Session = Depends(get_db)) -> list:
 @router.post("", response_model=PortfolioRead)
 def create_portfolio(payload: PortfolioCreate, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
     return service.create_portfolio(db, payload, user.id)
+
+
+@router.get("/overview")
+def get_overview(portfolio_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+    return service.get_overview(db, portfolio_id)
+
+
+@router.get("/value-snapshots", response_model=list[PortfolioValueSnapshotRead])
+def list_value_snapshots(portfolio_id: int | None = None, days: int = 180, db: Session = Depends(get_db)) -> list:
+    return service.list_value_snapshots(db, portfolio_id, days)
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioRead)
@@ -124,6 +139,35 @@ def refresh_position_quotes(portfolio_id: int, db: Session = Depends(get_db)) ->
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/{portfolio_id}/cash", response_model=PortfolioCashRead)
+def get_cash_balance(portfolio_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return service.get_cash_balance(db, portfolio_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/{portfolio_id}/cash", response_model=PortfolioCashRead)
+def update_cash_balance(portfolio_id: int, payload: PortfolioCashUpdate, db: Session = Depends(get_db)) -> dict:
+    try:
+        return service.update_cash_balance(db, portfolio_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{portfolio_id}/cash-flows", response_model=list[PortfolioCashFlowRead])
+def list_cash_flows(portfolio_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_cash_flows(db, portfolio_id)
+
+
+@router.post("/{portfolio_id}/cash-flows", response_model=PortfolioCashFlowRead)
+def create_cash_flow(portfolio_id: int, payload: PortfolioCashFlowCreate, db: Session = Depends(get_db)):
+    try:
+        return service.create_cash_flow(db, portfolio_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{portfolio_id}/review", response_model=list[PortfolioReviewRead])

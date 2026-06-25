@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -68,3 +68,45 @@ class PortfolioReviewRead(PortfolioReviewCreate):
     portfolio_id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class PortfolioCashUpdate(BaseModel):
+    amount: float
+    currency: str = "CNY"
+    note: str | None = None
+
+
+class PortfolioCashRead(PortfolioCashUpdate):
+    id: int | None = None
+    portfolio_id: int
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PortfolioCashFlowCreate(BaseModel):
+    flow_type: str
+    amount: float
+    currency: str = "CNY"
+    flow_date: date | None = None
+    note: str | None = None
+
+
+class PortfolioCashFlowRead(PortfolioCashFlowCreate):
+    id: int
+    portfolio_id: int
+    flow_date: date
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PortfolioValueSnapshotRead(BaseModel):
+    portfolio_id: int | None = None
+    snapshot_date: date
+    total_value: float
+    position_market_value: float
+    cash_amount: float
+    day_pnl: float | None = None
+    day_pct: float | None = None
+    position_count: int
+    source: str | None = None

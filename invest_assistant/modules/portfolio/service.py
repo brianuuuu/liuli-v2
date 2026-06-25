@@ -1,9 +1,28 @@
+from datetime import date
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.portfolio.models import Portfolio, PortfolioGroup, PortfolioPosition, PortfolioReview
-from invest_assistant.modules.portfolio.schemas import PortfolioCreate, PortfolioGroupCreate, PortfolioPositionCreate, PortfolioReviewCreate
+from invest_assistant.modules.portfolio.models import (
+    Portfolio,
+    PortfolioCashBalance,
+    PortfolioCashFlow,
+    PortfolioGroup,
+    PortfolioPosition,
+    PortfolioReview,
+    PortfolioValueSnapshot,
+)
+from invest_assistant.modules.portfolio.schemas import (
+    PortfolioCashFlowCreate,
+    PortfolioCashUpdate,
+    PortfolioCreate,
+    PortfolioGroupCreate,
+    PortfolioPositionCreate,
+    PortfolioReviewCreate,
+)
+from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.services.tushare import client as tushare_client
 
 
@@ -51,6 +70,9 @@ def _portfolio_related_count(db: Session, portfolio_id: int) -> int:
         db.scalar(select(func.count(PortfolioGroup.id)).where(PortfolioGroup.portfolio_id == portfolio_id)) or 0,
         db.scalar(select(func.count(PortfolioPosition.id)).where(PortfolioPosition.portfolio_id == portfolio_id)) or 0,
         db.scalar(select(func.count(PortfolioReview.id)).where(PortfolioReview.portfolio_id == portfolio_id)) or 0,
+        db.scalar(select(func.count(PortfolioCashBalance.id)).where(PortfolioCashBalance.portfolio_id == portfolio_id)) or 0,
+        db.scalar(select(func.count(PortfolioCashFlow.id)).where(PortfolioCashFlow.portfolio_id == portfolio_id)) or 0,
+        db.scalar(select(func.count(PortfolioValueSnapshot.id)).where(PortfolioValueSnapshot.portfolio_id == portfolio_id)) or 0,
     ]
     return int(sum(counts))
 
@@ -148,6 +170,238 @@ def get_dashboard(db: Session, portfolio_id: int) -> dict | None:
         "positions": positions,
         "warnings": [],
     }
+
+
+def get_cash_balance(db: Session, portfolio_id: int) -> dict:
+    portfolio = db.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        raise ValueError("portfolio not found")
+    item = db.scalar(select(PortfolioCashBalance).where(PortfolioCashBalance.portfolio_id == portfolio_id))
+    if item is None:
+        return {
+            "id": None,
+            "portfolio_id": portfolio_id,
+            "amount": 0.0,
+            "currency": portfolio.base_currency or "CNY",
+            "note": None,
+            "created_at": None,
+            "updated_at": None,
+        }
+    return _cash_balance_dict(item)
+
+
+def update_cash_balance(db: Session, portfolio_id: int, payload: PortfolioCashUpdate) -> dict:
+    if db.get(Portfolio, portfolio_id) is None:
+        raise ValueError("portfolio not found")
+    item = db.scalar(select(PortfolioCashBalance).where(PortfolioCashBalance.portfolio_id == portfolio_id))
+    if item is None:
+        item = PortfolioCashBalance(portfolio_id=portfolio_id)
+        db.add(item)
+    item.amount = float(payload.amount or 0)
+    item.currency = payload.currency or "CNY"
+    item.note = payload.note
+    db.commit()
+    db.refresh(item)
+    upsert_value_snapshot(db, portfolio_id, source="manual")
+    return _cash_balance_dict(item)
+
+
+def create_cash_flow(db: Session, portfolio_id: int, payload: PortfolioCashFlowCreate) -> PortfolioCashFlow:
+    if db.get(Portfolio, portfolio_id) is None:
+        raise ValueError("portfolio not found")
+    flow_type = str(payload.flow_type or "").strip()
+    if flow_type not in {"deposit", "withdraw", "adjustment", "dividend", "interest"}:
+        raise ValueError("unsupported cash flow type")
+    amount = float(payload.amount or 0)
+    flow_date = payload.flow_date or _today_shanghai()
+    item = PortfolioCashFlow(
+        portfolio_id=portfolio_id,
+        flow_type=flow_type,
+        amount=amount,
+        currency=payload.currency or "CNY",
+        flow_date=flow_date,
+        note=payload.note,
+    )
+    db.add(item)
+    balance = _cash_balance_model(db, portfolio_id, payload.currency or "CNY")
+    if flow_type == "withdraw":
+        balance.amount = float(balance.amount or 0) - amount
+    elif flow_type == "adjustment":
+        balance.amount = amount
+    else:
+        balance.amount = float(balance.amount or 0) + amount
+    balance.currency = payload.currency or balance.currency or "CNY"
+    db.commit()
+    db.refresh(item)
+    upsert_value_snapshot(db, portfolio_id, source="manual")
+    return item
+
+
+def list_cash_flows(db: Session, portfolio_id: int) -> list[PortfolioCashFlow]:
+    return list(
+        db.scalars(
+            select(PortfolioCashFlow)
+            .where(PortfolioCashFlow.portfolio_id == portfolio_id)
+            .order_by(PortfolioCashFlow.flow_date.desc(), PortfolioCashFlow.id.desc())
+        )
+    )
+
+
+def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
+    portfolios = [db.get(Portfolio, portfolio_id)] if portfolio_id else list_portfolios(db)
+    portfolios = [portfolio for portfolio in portfolios if portfolio is not None]
+    selected_id = portfolio_id if portfolio_id is not None else None
+    portfolio_options = [_portfolio_dict(item) for item in list_portfolios(db)]
+    allocation: dict[int, dict] = {}
+    total_position_value = 0.0
+    total_previous_value = 0.0
+    total_day_pnl = 0.0
+    total_position_count = 0
+    total_cash = 0.0
+    for portfolio in portfolios:
+        rows = _position_rows(db, portfolio.id)
+        positions = [_position_dict(position, stock) for position, stock in rows]
+        for position in positions:
+            value = float(position["market_value"] or 0)
+            stock_id = int(position["stock_id"])
+            item = allocation.setdefault(
+                stock_id,
+                {
+                    "type": "stock",
+                    "stock_id": stock_id,
+                    "stock_code": position.get("stock_code"),
+                    "label": position.get("stock_name") or position.get("stock_code") or position.get("symbol") or str(stock_id),
+                    "market_value": 0.0,
+                },
+            )
+            item["market_value"] += value
+        summary = _summary(positions)
+        total_position_value += float(summary["market_value"] or 0)
+        total_previous_value += float(summary["previous_market_value"] or 0)
+        total_day_pnl += float(summary["day_pnl"] or 0)
+        total_position_count += int(summary["position_count"] or 0)
+        total_cash += float(get_cash_balance(db, portfolio.id)["amount"] or 0)
+    total_value = total_position_value + total_cash
+    previous_total = total_previous_value + total_cash
+    allocation_rows = _allocation_rows(allocation, total_position_value)
+    return {
+        "scope": "single" if portfolio_id else "all",
+        "portfolio_id": selected_id,
+        "portfolio_options": portfolio_options,
+        "summary": {
+            "portfolio_count": len(portfolios),
+            "position_count": total_position_count,
+            "position_market_value": total_position_value,
+            "cash_amount": total_cash,
+            "total_value": total_value,
+            "day_pnl": total_day_pnl,
+            "day_pct": total_day_pnl / previous_total * 100 if previous_total else None,
+            "year_pnl": _year_pnl(db, [item.id for item in portfolios], total_value),
+        },
+        "allocation_rows": allocation_rows,
+        "pie_items": [row for row in allocation_rows if row["type"] != "total" and row["market_value"] > 0],
+    }
+
+
+def upsert_value_snapshot(
+    db: Session,
+    portfolio_id: int,
+    snapshot_date: date | None = None,
+    source: str = "scheduled",
+) -> PortfolioValueSnapshot:
+    snapshot_date = snapshot_date or _today_shanghai()
+    dashboard = get_dashboard(db, portfolio_id)
+    if dashboard is None:
+        raise ValueError("portfolio not found")
+    summary = dashboard["summary"]
+    cash_amount = float(get_cash_balance(db, portfolio_id)["amount"] or 0)
+    position_market_value = float(summary["market_value"] or 0)
+    item = db.scalar(
+        select(PortfolioValueSnapshot).where(
+            PortfolioValueSnapshot.portfolio_id == portfolio_id,
+            PortfolioValueSnapshot.snapshot_date == snapshot_date,
+        )
+    )
+    if item is None:
+        item = PortfolioValueSnapshot(portfolio_id=portfolio_id, snapshot_date=snapshot_date)
+        db.add(item)
+    item.position_market_value = position_market_value
+    item.cash_amount = cash_amount
+    item.total_value = position_market_value + cash_amount
+    item.day_pnl = summary["day_pnl"]
+    item.day_pct = summary["day_pct"]
+    item.position_count = summary["position_count"]
+    item.source = source
+    item.updated_at = utc_now()
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def capture_daily_value_snapshots(
+    db: Session,
+    snapshot_date: date | None = None,
+    source: str = "scheduled",
+    refresh_quotes: bool = True,
+) -> dict:
+    snapshot_date = snapshot_date or _today_shanghai()
+    processed_count = 0
+    updated_count = 0
+    warnings: list[dict] = []
+    for portfolio in list_portfolios(db):
+        if refresh_quotes and _portfolio_has_positions(db, portfolio.id):
+            try:
+                refresh_result = refresh_position_quotes(db, portfolio.id)
+                warnings.extend(refresh_result.get("warnings") or [])
+            except RuntimeError as exc:
+                warnings.append({"portfolio_id": portfolio.id, "message": str(exc)})
+        before = db.scalar(
+            select(PortfolioValueSnapshot).where(
+                PortfolioValueSnapshot.portfolio_id == portfolio.id,
+                PortfolioValueSnapshot.snapshot_date == snapshot_date,
+            )
+        )
+        upsert_value_snapshot(db, portfolio.id, snapshot_date=snapshot_date, source=source)
+        processed_count += 1
+        updated_count += 1 if before is not None else 0
+    return {
+        "processed_count": processed_count,
+        "updated_count": updated_count,
+        "warnings": warnings,
+        "snapshot_date": snapshot_date.isoformat(),
+    }
+
+
+def list_value_snapshots(db: Session, portfolio_id: int | None = None, days: int = 180) -> list[dict]:
+    limit = max(int(days or 180), 1)
+    stmt = select(PortfolioValueSnapshot).order_by(PortfolioValueSnapshot.snapshot_date.desc(), PortfolioValueSnapshot.id.desc())
+    if portfolio_id:
+        stmt = stmt.where(PortfolioValueSnapshot.portfolio_id == portfolio_id)
+    rows = list(db.scalars(stmt.limit(limit * max(1, len(list_portfolios(db)) or 1))))
+    if portfolio_id:
+        return [_snapshot_dict(item) for item in reversed(rows[:limit])]
+    by_date: dict[date, dict] = {}
+    for item in rows:
+        bucket = by_date.setdefault(
+            item.snapshot_date,
+            {
+                "portfolio_id": None,
+                "snapshot_date": item.snapshot_date,
+                "total_value": 0.0,
+                "position_market_value": 0.0,
+                "cash_amount": 0.0,
+                "day_pnl": 0.0,
+                "day_pct": None,
+                "position_count": 0,
+                "source": "aggregate",
+            },
+        )
+        bucket["total_value"] += float(item.total_value or 0)
+        bucket["position_market_value"] += float(item.position_market_value or 0)
+        bucket["cash_amount"] += float(item.cash_amount or 0)
+        bucket["day_pnl"] += float(item.day_pnl or 0)
+        bucket["position_count"] += int(item.position_count or 0)
+    return list(reversed([by_date[key] for key in sorted(by_date.keys(), reverse=True)[:limit]]))
 
 
 def refresh_position_quotes(db: Session, portfolio_id: int) -> dict:
@@ -274,3 +528,108 @@ def create_review(db: Session, portfolio_id: int, payload: PortfolioReviewCreate
 
 def list_reviews(db: Session, portfolio_id: int) -> list[PortfolioReview]:
     return list(db.scalars(select(PortfolioReview).where(PortfolioReview.portfolio_id == portfolio_id).order_by(PortfolioReview.id.desc())))
+
+
+def _cash_balance_model(db: Session, portfolio_id: int, currency: str = "CNY") -> PortfolioCashBalance:
+    item = db.scalar(select(PortfolioCashBalance).where(PortfolioCashBalance.portfolio_id == portfolio_id))
+    if item is None:
+        item = PortfolioCashBalance(portfolio_id=portfolio_id, amount=0, currency=currency or "CNY")
+        db.add(item)
+        db.flush()
+    return item
+
+
+def _cash_balance_dict(item: PortfolioCashBalance) -> dict:
+    return {
+        "id": item.id,
+        "portfolio_id": item.portfolio_id,
+        "amount": item.amount,
+        "currency": item.currency,
+        "note": item.note,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[dict]:
+    rows = [
+        {
+            "type": "total",
+            "label": "总和",
+            "market_value": total_value,
+            "weight": 100.0 if total_value else 0.0,
+        }
+    ]
+    for item in sorted(allocation.values(), key=lambda row: float(row["market_value"] or 0), reverse=True):
+        value = float(item["market_value"] or 0)
+        rows.append(
+            {
+                "type": "stock",
+                "stock_id": item["stock_id"],
+                "stock_code": item.get("stock_code"),
+                "label": item["label"],
+                "market_value": value,
+                "weight": value / total_value * 100 if total_value else 0.0,
+            }
+        )
+    return rows
+
+
+def _portfolio_has_positions(db: Session, portfolio_id: int) -> bool:
+    return bool(db.scalar(select(func.count(PortfolioPosition.id)).where(PortfolioPosition.portfolio_id == portfolio_id)) or 0)
+
+
+def _today_shanghai() -> date:
+    return utc_now().astimezone(ZoneInfo("Asia/Shanghai")).date()
+
+
+def _year_pnl(db: Session, portfolio_ids: list[int], current_total_value: float) -> float:
+    if not portfolio_ids:
+        return 0.0
+    year_start = date(_today_shanghai().year, 1, 1)
+    deposits = _cash_flow_sum(db, portfolio_ids, {"deposit"}, year_start)
+    withdrawals = _cash_flow_sum(db, portfolio_ids, {"withdraw"}, year_start)
+    start_value = _start_value_for_year(db, portfolio_ids, year_start)
+    return current_total_value - start_value - deposits + withdrawals
+
+
+def _cash_flow_sum(db: Session, portfolio_ids: list[int], flow_types: set[str], start_date: date) -> float:
+    return float(
+        db.scalar(
+            select(func.coalesce(func.sum(PortfolioCashFlow.amount), 0)).where(
+                PortfolioCashFlow.portfolio_id.in_(portfolio_ids),
+                PortfolioCashFlow.flow_type.in_(flow_types),
+                PortfolioCashFlow.flow_date >= start_date,
+            )
+        )
+        or 0
+    )
+
+
+def _start_value_for_year(db: Session, portfolio_ids: list[int], year_start: date) -> float:
+    total = 0.0
+    for portfolio_id in portfolio_ids:
+        snapshot = db.scalar(
+            select(PortfolioValueSnapshot)
+            .where(
+                PortfolioValueSnapshot.portfolio_id == portfolio_id,
+                PortfolioValueSnapshot.snapshot_date <= year_start,
+            )
+            .order_by(PortfolioValueSnapshot.snapshot_date.desc(), PortfolioValueSnapshot.id.desc())
+        )
+        total += float(snapshot.total_value or 0) if snapshot is not None else 0.0
+    return total
+
+
+def _snapshot_dict(item: PortfolioValueSnapshot) -> dict:
+    return {
+        "portfolio_id": item.portfolio_id,
+        "snapshot_date": item.snapshot_date,
+        "total_value": item.total_value,
+        "position_market_value": item.position_market_value,
+        "cash_amount": item.cash_amount,
+        "day_pnl": item.day_pnl,
+        "day_pct": item.day_pct,
+        "position_count": item.position_count,
+        "source": item.source,
+    }
