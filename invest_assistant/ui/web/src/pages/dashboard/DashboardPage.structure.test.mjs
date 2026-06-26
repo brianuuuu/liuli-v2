@@ -3,9 +3,16 @@ import { readFileSync } from "node:fs";
 
 const navigation = readFileSync("invest_assistant/ui/web/src/app/navigation.tsx", "utf8");
 const page = readFileSync("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx", "utf8");
+const globalCss = readFileSync("invest_assistant/ui/web/src/styles/global.css", "utf8");
 const todaySection = page.match(/function TodayDashboardSection\(\)[\s\S]*?function OperationsPanelSection/)?.[0] || "";
 const operationsSection = page.match(/function OperationsPanelSection\(\)[\s\S]*?function ReportTable/)?.[0] || "";
 const latestReportsSection = page.match(/function LatestReportsSection\(\)[\s\S]*?export function DashboardPage/)?.[0] || "";
+
+function cssRule(selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [...globalCss.matchAll(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "g"))];
+  return matches.at(-1)?.[1] || "";
+}
 
 assert.match(navigation, /key:\s*"dashboard",\s*label:\s*"工作台"/);
 assert.doesNotMatch(navigation, /key:\s*"dashboard",\s*label:\s*"总览"/);
@@ -26,6 +33,15 @@ assert.match(page, /workbench-action-grid/);
 assert.doesNotMatch(page, /title="待办队列摘要"/);
 assert.match(todaySection, /title="最近执行记录"/);
 assert.match(todaySection, /市场与组合/);
+assert.match(todaySection, /className="workbench-market-card"/);
+assert.match(todaySection, /组合表现/);
+assert.doesNotMatch(todaySection, /组合今日表现/);
+assert.match(todaySection, /workbench-market-meta/);
+assert.match(todaySection, /formatShortDateTime/);
+assert.match(todaySection, /formatShortTime/);
+assert.match(todaySection, /workbench-index-icon/);
+assert.match(todaySection, /indexBadgeText/);
+assert.match(todaySection, /workbench-portfolio-card/);
 assert.match(todaySection, /刷新行情/);
 assert.match(todaySection, /market_indices/);
 assert.match(todaySection, /portfolio_today/);
@@ -47,6 +63,19 @@ assert.doesNotMatch(todaySection, /getAlertEventStats/);
 assert.doesNotMatch(todaySection, /listSourceItems\(\{\s*limit:\s*200\s*\}\)/);
 assert.doesNotMatch(todaySection, /getAiLogs/);
 assert.doesNotMatch(todaySection, /listMarketTags/);
+assert.doesNotMatch(globalCss, /workbench-index-tile::before/);
+assert.doesNotMatch(globalCss, /:has\(\.workbench-index-change/);
+assert.match(globalCss, /workbench-index-icon/);
+assert.match(cssRule(".workbench-index-tile"), /border:\s*1px solid var\(--ll-border-soft\);/);
+assert.match(cssRule(".workbench-index-tile"), /background:\s*var\(--ll-panel-subtle\);/);
+assert.doesNotMatch(globalCss, /\[data-theme="dark"\]\s+\.workbench-index-tile/);
+assert.match(cssRule(".workbench-market-card .ant-card-head"), /border-bottom-color:\s*var\(--ll-border\)\s*!important;/);
+assert.match(cssRule(".workbench-market-card .ant-card-head"), /box-shadow:\s*inset 0 -1px 0 var\(--ll-border\);/);
+assert.match(cssRule(".workbench-portfolio-today"), /gap:\s*0;/);
+assert.match(cssRule(".workbench-portfolio-card"), /border:\s*1px solid var\(--ll-border-soft\);/);
+assert.match(cssRule(".workbench-portfolio-card"), /background:\s*var\(--ll-panel-subtle\);/);
+assert.doesNotMatch(cssRule(".workbench-portfolio-total"), /background:/);
+assert.doesNotMatch(cssRule(".workbench-portfolio-stats div"), /background:/);
 assert.match(operationsSection, /getWorkbenchToday/);
 assert.doesNotMatch(operationsSection, /getTrackDashboard/);
 assert.doesNotMatch(operationsSection, /listAiTagSuggestions/);

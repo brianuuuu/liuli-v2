@@ -111,6 +111,18 @@ function formatTime(value?: string | null) {
   return value.replace("T", " ").slice(0, 19);
 }
 
+function formatShortDateTime(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(5, 16);
+}
+
+function formatShortTime(value?: string | null, reference?: string | null) {
+  if (!value) return "-";
+  const normalized = value.replace("T", " ");
+  const referenceDate = reference ? reference.replace("T", " ").slice(0, 10) : normalized.slice(0, 10);
+  return normalized.slice(0, 10) === referenceDate ? normalized.slice(11, 16) : normalized.slice(5, 16);
+}
+
 function formatCompactNumber(value?: number | null, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
   return Number(value).toLocaleString("zh-CN", {
@@ -141,6 +153,27 @@ function marketRefreshLabel(status?: string) {
   if (status === "success") return "已完成";
   if (status === "failed") return "刷新失败";
   return "未刷新";
+}
+
+function indexBadgeText(name?: string | null, code?: string | null) {
+  const label = `${name || ""} ${code || ""}`;
+  if (label.includes("沪深300") || label.includes("000300")) return "300";
+  if (label.includes("中证500") || label.includes("000905")) return "500";
+  if (label.includes("科创")) return "科";
+  if (label.includes("创业")) return "创";
+  if (label.includes("深证")) return "深";
+  if (label.includes("上证")) return "沪";
+  return (name || code || "指").slice(0, 1);
+}
+
+function indexToneClass(name?: string | null, code?: string | null) {
+  const label = `${name || ""} ${code || ""}`;
+  if (label.includes("沪深300") || label.includes("000300")) return "hs300";
+  if (label.includes("中证500") || label.includes("000905")) return "csi500";
+  if (label.includes("科创")) return "star";
+  if (label.includes("创业")) return "growth";
+  if (label.includes("深证")) return "shenzhen";
+  return "shanghai";
 }
 
 type MetricItem = {
@@ -200,6 +233,7 @@ function TodayDashboardSection() {
   const portfolioToday = today.data.portfolio_today;
   const marketRefresh = today.data.market_refresh;
   const marketRefreshStatus = marketPolling ? "running" : marketRefresh.status;
+  const marketDataTime = marketRefresh.last_requested_at ?? portfolioToday.latest_quote_time;
 
   useEffect(() => {
     if (!marketPolling) return;
@@ -270,10 +304,11 @@ function TodayDashboardSection() {
     <div className="workbench-dashboard">
       <WorkbenchCard
         title="市场与组合"
+        className="workbench-market-card"
         extra={
           <Space size={12} wrap>
             <span className={`workbench-market-status ${marketRefreshStatus}`}>{marketRefreshLabel(marketRefreshStatus)}</span>
-            <span className="workbench-market-time">最近刷新 {formatTime(marketRefresh.last_requested_at)}</span>
+            <span className="workbench-market-time">数据 {formatShortDateTime(marketDataTime)}</span>
             <Button
               size="small"
               type="primary"
@@ -288,16 +323,24 @@ function TodayDashboardSection() {
       >
         <div className="workbench-market-combo">
           <section className="workbench-market-indices">
-            <div className="workbench-panel-title">A股主要指数</div>
+            <div className="workbench-panel-title-row">
+              <div className="workbench-panel-title">A股主要指数</div>
+              <div className="workbench-market-meta">行情刷新 {formatShortTime(marketRefresh.last_requested_at, marketDataTime)}</div>
+            </div>
             {marketIndices.length === 0 ? (
               <EmptyAction description="暂无实时行情" />
             ) : (
               <div className="workbench-index-grid">
                 {marketIndices.map((item) => (
                   <div className={`workbench-index-tile ${item.status === "failed" ? "failed" : ""}`} key={item.code}>
-                    <div className="workbench-index-head">
-                      <span>{item.name}</span>
-                      <span>{item.code}</span>
+                    <div className="workbench-index-top">
+                      <span className={`workbench-index-icon ${indexToneClass(item.name, item.code)}`}>
+                        {indexBadgeText(item.name, item.code)}
+                      </span>
+                      <div className="workbench-index-head">
+                        <span>{item.name}</span>
+                        <span>{item.code}</span>
+                      </div>
                     </div>
                     <div className="workbench-index-price">{formatCompactNumber(item.price)}</div>
                     <div className={`workbench-index-change ${trendClass(item.pct_chg)}`}>
@@ -310,31 +353,37 @@ function TodayDashboardSection() {
             )}
           </section>
           <section className="workbench-portfolio-today">
-            <div className="workbench-panel-title">组合今日表现</div>
-            <div className="workbench-portfolio-total">
-              <span>总市值</span>
-              <strong>{formatMoney(portfolioToday.total_value)}</strong>
+            <div className="workbench-panel-title-row">
+              <div className="workbench-panel-title">组合表现</div>
+              <div className="workbench-market-meta">组合报价 {formatShortTime(portfolioToday.latest_quote_time, marketDataTime)}</div>
             </div>
-            <div className="workbench-portfolio-stats">
-              <div>
-                <span>今日盈亏</span>
-                <strong className={trendClass(portfolioToday.day_pnl)}>{formatSignedNumber(portfolioToday.day_pnl)}</strong>
+            <div className="workbench-portfolio-card">
+              <div className="workbench-portfolio-total">
+                <span>总市值</span>
+                <strong>{formatMoney(portfolioToday.total_value)}</strong>
               </div>
-              <div>
-                <span>今日涨跌幅</span>
-                <strong className={trendClass(portfolioToday.day_pct)}>{formatSignedNumber(portfolioToday.day_pct, "%")}</strong>
+              <div className="workbench-portfolio-stats">
+                <div>
+                  <span>今日盈亏</span>
+                  <strong className={trendClass(portfolioToday.day_pnl)}>{formatSignedNumber(portfolioToday.day_pnl)}</strong>
+                </div>
+                <div>
+                  <span>今日涨跌幅</span>
+                  <strong className={trendClass(portfolioToday.day_pct)}>{formatSignedNumber(portfolioToday.day_pct, "%")}</strong>
+                </div>
+                <div>
+                  <span>持仓市值</span>
+                  <strong>{formatMoney(portfolioToday.position_market_value)}</strong>
+                </div>
+                <div>
+                  <span>现金余额</span>
+                  <strong>{formatMoney(portfolioToday.cash_amount)}</strong>
+                </div>
               </div>
-              <div>
-                <span>组合数</span>
-                <strong>{portfolioToday.portfolio_count}</strong>
+              <div className="workbench-portfolio-meta">
+                <span>{portfolioToday.portfolio_count} 个组合</span>
+                <span>{portfolioToday.position_count} 个持仓</span>
               </div>
-              <div>
-                <span>持仓数</span>
-                <strong>{portfolioToday.position_count}</strong>
-              </div>
-            </div>
-            <div className="workbench-portfolio-meta">
-              最近报价 {formatTime(portfolioToday.latest_quote_time)}
             </div>
           </section>
         </div>
