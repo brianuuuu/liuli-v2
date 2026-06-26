@@ -63,7 +63,47 @@ const flowTypeLabels: Record<string, string> = {
   interest: "利息"
 };
 
-const allocationColors = ["#2563eb", "#0f766e", "#b45309", "#7c3aed", "#475569", "#be123c", "#15803d", "#0369a1"];
+const lightAllocationColors = [
+  "#2563eb",
+  "#0f766e",
+  "#f59e0b",
+  "#7c3aed",
+  "#dc2626",
+  "#0891b2",
+  "#65a30d",
+  "#db2777",
+  "#475569",
+  "#ea580c",
+  "#059669",
+  "#9333ea"
+];
+
+const darkAllocationColors = [
+  "#60a5fa",
+  "#2dd4bf",
+  "#fbbf24",
+  "#a78bfa",
+  "#f87171",
+  "#22d3ee",
+  "#a3e635",
+  "#f472b6",
+  "#94a3b8",
+  "#fb923c",
+  "#34d399",
+  "#c084fc"
+];
+
+function allocationColorsForMode(mode: "light" | "dark") {
+  return mode === "dark" ? darkAllocationColors : lightAllocationColors;
+}
+
+function tooltipBackgroundColor(mode: "light" | "dark") {
+  return mode === "dark" ? "rgba(13, 17, 23, 0.96)" : "rgba(255, 255, 255, 0.96)";
+}
+
+function chartMutedTextColor(mode: "light" | "dark") {
+  return mode === "dark" ? "#8b949e" : "#64748b";
+}
 
 function formatMoney(value?: number | null) {
   if (value === null || value === undefined) return "-";
@@ -356,37 +396,88 @@ export function PortfolioPage() {
   ];
 
   function legendFormatter(data: PortfolioOverview["pie_items"]) {
+    const total = data.reduce((sum, item) => sum + item.market_value, 0);
     const values = new Map(data.map((item) => [item.label, item.market_value]));
     return (name: string) => {
       const value = values.get(name);
-      return value === undefined ? name : `${name}  ${formatMoney(value)}`;
+      if (value === undefined) return name;
+      const percent = total > 0 ? (value / total) * 100 : 0;
+      return `${name}  ${formatPercent(percent)}  ${formatMoney(value)}`;
     };
   }
 
   function pieOption(data: PortfolioOverview["pie_items"]): EChartsOption {
+    const total = data.reduce((sum, item) => sum + item.market_value, 0);
+    const textColor = chartTextColor(resolvedMode);
+    const mutedColor = chartMutedTextColor(resolvedMode);
+    const panelColor = resolvedMode === "dark" ? "#161b22" : "#ffffff";
     return {
-      color: allocationColors,
+      color: allocationColorsForMode(resolvedMode),
       tooltip: {
         trigger: "item",
-        formatter: (params: any) => `${params.name}<br/>${formatMoney(params.value)} (${formatPercent(params.percent)})`
+        backgroundColor: tooltipBackgroundColor(resolvedMode),
+        borderColor: chartGridColor(resolvedMode),
+        textStyle: { color: textColor },
+        formatter: (params: any) => `${params.name}<br/>市值：${formatMoney(params.value)}<br/>占比：${formatPercent(params.percent)}`
       },
       legend: {
-        left: 8,
+        left: 4,
         top: "middle",
         orient: "vertical",
-        itemGap: 10,
+        itemWidth: 12,
+        itemHeight: 8,
+        itemGap: 12,
         formatter: legendFormatter(data),
-        textStyle: { color: chartTextColor(resolvedMode), width: 180, overflow: "truncate" }
+        textStyle: { color: textColor, width: 240, overflow: "truncate" }
       },
+      graphic: [
+        {
+          type: "text",
+          left: "63%",
+          top: "43%",
+          style: {
+            text: "持仓市值",
+            fill: mutedColor,
+            fontSize: 12,
+            fontWeight: 500,
+            textAlign: "center"
+          }
+        },
+        {
+          type: "text",
+          left: "63%",
+          top: "51%",
+          style: {
+            text: formatMoney(total),
+            fill: textColor,
+            fontSize: 18,
+            fontWeight: 700,
+            textAlign: "center"
+          }
+        }
+      ],
       series: [
         {
           name: "市值占比",
           type: "pie",
-          radius: ["44%", "68%"],
-          center: ["68%", "50%"],
+          radius: ["46%", "70%"],
+          center: ["63%", "52%"],
           avoidLabelOverlap: true,
           label: { show: false },
           labelLine: { show: false },
+          itemStyle: {
+            borderColor: panelColor,
+            borderRadius: 4,
+            borderWidth: 3
+          },
+          emphasis: {
+            scale: true,
+            scaleSize: 6,
+            itemStyle: {
+              shadowBlur: 14,
+              shadowColor: resolvedMode === "dark" ? "rgba(0, 0, 0, 0.35)" : "rgba(15, 23, 42, 0.16)"
+            }
+          },
           data: data.map((item) => ({ name: item.label, value: item.market_value }))
         }
       ]
@@ -394,29 +485,46 @@ export function PortfolioPage() {
   }
 
   function lineOption(rows: PortfolioValueSnapshot[]): EChartsOption {
+    const textColor = chartTextColor(resolvedMode);
+    const gridColor = chartGridColor(resolvedMode);
     return {
       color: ["#2563eb", "#10b981", "#64748b"],
-      tooltip: { trigger: "axis" },
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: tooltipBackgroundColor(resolvedMode),
+        borderColor: gridColor,
+        textStyle: { color: textColor },
+        valueFormatter: (value) => formatMoney(Number(value))
+      },
       legend: {
         top: 0,
-        textStyle: { color: chartTextColor(resolvedMode) }
+        textStyle: { color: textColor }
       },
       grid: { top: 38, left: 54, right: 18, bottom: 34 },
       xAxis: {
         type: "category",
         data: rows.map((item) => item.snapshot_date),
-        axisLabel: { color: chartTextColor(resolvedMode) },
-        axisLine: { lineStyle: { color: chartGridColor(resolvedMode) } }
+        axisLabel: { color: textColor },
+        axisLine: { lineStyle: { color: gridColor } },
+        axisTick: { show: false }
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: chartTextColor(resolvedMode), formatter: (value: number) => `${Math.round(value / 10000)}万` },
-        splitLine: { lineStyle: { color: chartGridColor(resolvedMode) } }
+        axisLabel: { color: textColor, formatter: (value: number) => `${Math.round(value / 10000)}万` },
+        splitLine: { lineStyle: { color: gridColor } }
       },
       series: [
-        { name: "总市值", type: "line", smooth: true, showSymbol: false, data: rows.map((item) => item.total_value) },
-        { name: "持仓市值", type: "line", smooth: true, showSymbol: false, data: rows.map((item) => item.position_market_value) },
-        { name: "现金", type: "line", smooth: true, showSymbol: false, data: rows.map((item) => item.cash_amount) }
+        {
+          name: "总市值",
+          type: "line",
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 3 },
+          areaStyle: { color: resolvedMode === "dark" ? "rgba(96, 165, 250, 0.10)" : "rgba(37, 99, 235, 0.08)" },
+          data: rows.map((item) => item.total_value)
+        },
+        { name: "持仓市值", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 2 }, data: rows.map((item) => item.position_market_value) },
+        { name: "现金", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 2, type: "dashed" }, data: rows.map((item) => item.cash_amount) }
       ]
     };
   }

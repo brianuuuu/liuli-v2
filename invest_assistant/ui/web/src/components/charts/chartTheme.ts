@@ -7,5 +7,5 @@ export function chartGridColor(mode: "light" | "dark") {
 }
 
 export function chartBackgroundColor(mode: "light" | "dark") {
-  return mode === "dark" ? "#141414" : "#ffffff";
+  return "transparent";
 }

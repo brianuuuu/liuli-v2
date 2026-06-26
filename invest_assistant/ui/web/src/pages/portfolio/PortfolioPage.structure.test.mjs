@@ -2,11 +2,12 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const page = fs.readFileSync(new URL("./PortfolioPage.tsx", import.meta.url), "utf8");
+const chartTheme = fs.readFileSync(new URL("../../components/charts/chartTheme.ts", import.meta.url), "utf8");
 
 assert.match(page, /新建组合/);
 assert.match(page, /重命名/);
 assert.match(page, /删除组合/);
-assert.match(page, /刷新实时价格/);
+assert.match(page, /刷新当前组合/);
 assert.match(page, /新增持仓/);
 assert.match(page, /请选择标的/);
 assert.match(page, /股数/);
@@ -21,7 +22,13 @@ assert.match(page, /市值占比/);
 assert.match(page, /组合市值曲线/);
 assert.match(page, /标的市值占比/);
 assert.match(page, /legendFormatter/);
-assert.match(page, /center: \["68%", "50%"\]/);
+assert.match(page, /lightAllocationColors/);
+assert.match(page, /darkAllocationColors/);
+assert.match(page, /allocationColorsForMode/);
+assert.match(page, /持仓市值/);
+assert.match(page, /graphic/);
+assert.match(page, /center: \["63%", "52%"\]/);
+assert.match(chartTheme, /return "transparent"/);
 assert.match(page, /现金余额/);
 assert.match(page, /资金流水/);
 assert.match(page, /组合复盘/);
