@@ -433,14 +433,16 @@ def get_review_performance(
     )
     benchmark_by_date = {item.trade_date: item for item in benchmark_rows}
     curve_points = _review_curve_points(db, portfolio_ids, snapshots, benchmark_by_date)
+    if not curve_points:
+        return _empty_review_performance(db, portfolio_id, normalized_period, benchmark_code, today)
     calendar = _review_calendar(curve_points, normalized_period)
-    last_point = curve_points[-1] if curve_points else {}
+    last_point = curve_points[-1]
     return {
         "scope": "single" if portfolio_id else "all",
         "portfolio_id": portfolio_id,
         "period": normalized_period,
-        "start_date": snapshots[0]["date"].isoformat(),
-        "end_date": snapshots[-1]["date"].isoformat(),
+        "start_date": curve_points[0]["date"],
+        "end_date": last_point["date"],
         "portfolio_options": [_portfolio_dict(item) for item in list_portfolios(db)],
         "benchmark": {
             "code": benchmark_code,
@@ -526,6 +528,9 @@ def _review_snapshot_points(db: Session, portfolio_ids: list[int], start_date: d
 
 
 def _review_curve_points(db: Session, portfolio_ids: list[int], snapshots: list[dict], benchmark_by_date: dict[date, object]) -> list[dict]:
+    snapshots = [item for item in snapshots if _benchmark_close_for_date(benchmark_by_date, item["date"]) is not None]
+    if not snapshots:
+        return []
     base_value = float(snapshots[0]["total_value"] or 0)
     if base_value <= 0:
         return []

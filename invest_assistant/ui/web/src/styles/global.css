@@ -854,6 +854,10 @@ body {
   margin-bottom: 12px;
 }
 
+.portfolio-review-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .portfolio-overview-grid {
   display: grid;
   grid-template-columns: minmax(360px, 0.9fr) minmax(360px, 1.1fr);
@@ -2703,6 +2707,10 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .portfolio-review-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .track-analysis-foot {
     grid-column: span 2;
   }
@@ -2722,6 +2730,7 @@ body {
   .track-dashboard-metrics,
   .market-overview-grid,
   .market-rising-card-body,
+  .portfolio-review-metrics,
   .stock-dashboard-metrics,
   .stock-detail-metrics,
   .track-detail-metrics,
