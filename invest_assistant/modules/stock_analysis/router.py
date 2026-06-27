@@ -49,8 +49,12 @@ def get_dashboard(stock_id: int | None = None, db: Session = Depends(get_db)) ->
 
 
 @router.get("/pool", response_model=list[StockPoolRead])
-def list_pool(db: Session = Depends(get_db)) -> list:
-    return service.list_pool(db)
+def list_pool(
+    q: str | None = None,
+    limit: int | None = Query(None, ge=1, le=50),
+    db: Session = Depends(get_db),
+) -> list:
+    return service.list_pool(db, q=q, limit=limit)
 
 
 @router.post("/pool", response_model=StockPoolRead)

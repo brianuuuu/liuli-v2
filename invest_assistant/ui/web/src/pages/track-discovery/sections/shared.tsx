@@ -40,9 +40,25 @@ export function StatusTag({ status }: { status?: string | null }) {
 }
 
 export function DirectionTag({ direction }: { direction?: string | null }) {
-  const color = direction === "support" ? "green" : direction === "weaken" ? "red" : direction === "noise" ? "default" : "blue";
-  const label = direction === "support" ? "支持" : direction === "weaken" ? "削弱" : direction === "noise" ? "噪音" : "中性";
+  const color = directionTagColor(direction);
+  const label = directionLabel(direction);
   return <Tag color={color}>{label}</Tag>;
+}
+
+export function directionLabel(direction?: string | null) {
+  return direction === "support" ? "支持" : direction === "weaken" ? "削弱" : direction === "noise" ? "噪音" : "中性";
+}
+
+export function directionTagColor(direction?: string | null) {
+  return direction === "support" ? "green" : direction === "weaken" ? "red" : direction === "noise" ? "default" : "blue";
+}
+
+export function directionAccentColor(direction?: string | null) {
+  if (direction === "support") return "#16a34a";
+  if (direction === "weaken") return "#dc2626";
+  if (direction === "noise") return "#64748b";
+  if (direction === "neutral") return "#2563eb";
+  return "var(--ll-accent)";
 }
 
 export function candidateTitle(candidate: TrackCandidate) {

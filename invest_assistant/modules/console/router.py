@@ -25,7 +25,6 @@ WORKBENCH_OPERATION_JOBS = (
     "track_discovery.review_track_events_deepseek",
     "stock_analysis.review_stock_events_deepseek",
     "market_radar.extract_daily_hotwords_deepseek",
-    "market_radar.suggest_hotword_merges_deepseek",
 )
 MARKET_REFRESH_JOBS = (
     "stock_analysis.refresh_major_indices_realtime",

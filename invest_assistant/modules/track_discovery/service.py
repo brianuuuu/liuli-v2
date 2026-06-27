@@ -53,10 +53,22 @@ def create_track(db: Session, payload: TrackCreate, enqueue_backfill: bool = Tru
     return _track_dict(db, track)
 
 
-def list_tracks(db: Session, status: str | None = None) -> list[dict]:
+def list_tracks(db: Session, status: str | None = None, q: str | None = None, limit: int | None = None) -> list[dict]:
     stmt = select(Track).order_by(Track.updated_at.desc(), Track.id.desc())
     if status:
         stmt = stmt.where(Track.status == status)
+    keyword = (q or "").strip()
+    if keyword:
+        pattern = f"%{keyword}%"
+        stmt = stmt.where(
+            or_(
+                Track.name.ilike(pattern),
+                Track.description.ilike(pattern),
+                Track.current_view.ilike(pattern),
+            )
+        )
+    if limit is not None:
+        stmt = stmt.limit(limit)
     tracks = list(db.scalars(stmt))
     return [_track_dict(db, track) for track in tracks]
 

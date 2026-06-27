@@ -59,8 +59,6 @@ def install_hotword_job_fakes(monkeypatch, SessionLocal, calls: list[list[str]])
         "get_active_prompt_by_key",
         lambda db, key: type("Prompt", (), {"model": "deepseek-v4-flash"})(),
     )
-    monkeypatch.setattr(market_jobs, "_suggest_hotword_merges", lambda db, candidates, model: {})
-
     def extract_hotwords(news, prompt, model):
         calls.append([item["title"] for item in news])
         return {

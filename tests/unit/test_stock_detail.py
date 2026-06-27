@@ -171,6 +171,40 @@ def test_stock_detail_materials_resolve_company_disclosure_metadata():
     assert detail["disclosures"][0]["title"] == "美的集团：2025年年度报告"
 
 
+def test_stock_detail_materials_are_sorted_by_material_time_desc():
+    db = make_session()
+    stock = Stock(stock_code="000333", stock_name="美的集团", symbol="000333.SZ")
+    db.add(stock)
+    db.flush()
+    newer = SourceItem(
+        source_type="news",
+        source_name="manual",
+        title="较新的材料",
+        content="newer",
+        publish_time=datetime(2026, 3, 26, tzinfo=timezone.utc),
+    )
+    older = SourceItem(
+        source_type="news",
+        source_name="manual",
+        title="较旧的材料",
+        content="older",
+        publish_time=datetime(2026, 3, 10, tzinfo=timezone.utc),
+    )
+    db.add_all([newer, older])
+    db.flush()
+    db.add_all(
+        [
+            StockMaterial(stock_id=stock.id, material_type="source_item", material_id=newer.id, status="pending"),
+            StockMaterial(stock_id=stock.id, material_type="source_item", material_id=older.id, status="pending"),
+        ]
+    )
+    db.commit()
+
+    detail = get_stock_detail(db, stock.id)
+
+    assert [item["material_title"] for item in detail["materials"]] == ["较新的材料", "较旧的材料"]
+
+
 def test_disclosure_to_stock_analysis_requires_stock_id():
     db = make_session()
     disclosure = CompanyDisclosure(

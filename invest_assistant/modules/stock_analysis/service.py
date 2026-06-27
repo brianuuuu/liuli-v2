@@ -181,12 +181,27 @@ def update_pool_item(db: Session, pool_id: int, payload: StockPoolCreate) -> dic
     return _pool_item_dict(db, item)
 
 
-def list_pool(db: Session) -> list[dict]:
-    rows = db.execute(
+def list_pool(db: Session, q: str | None = None, limit: int | None = None) -> list[dict]:
+    stmt = (
         select(StockPoolItem, Stock)
         .join(Stock, Stock.id == StockPoolItem.stock_id)
         .order_by(StockPoolItem.updated_at.desc())
-    ).all()
+    )
+    keyword = (q or "").strip()
+    if keyword:
+        pattern = f"%{keyword}%"
+        stmt = stmt.where(
+            or_(
+                Stock.symbol.ilike(pattern),
+                Stock.stock_code.ilike(pattern),
+                Stock.stock_name.ilike(pattern),
+                Stock.name_pinyin.ilike(pattern),
+                Stock.name_abbr.ilike(pattern),
+            )
+        )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    rows = db.execute(stmt).all()
     return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
 
 
@@ -1224,13 +1239,22 @@ def _isoformat(value: object) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else None
 
 
+def _material_sort_value(item: dict) -> str:
+    value = item.get("material_time") or _isoformat(item.get("updated_at")) or _isoformat(item.get("created_at")) or ""
+    return str(value)
+
+
+def _sort_material_dicts_desc(items: list[dict]) -> list[dict]:
+    return sorted(items, key=lambda item: (_material_sort_value(item), int(item.get("id") or 0)), reverse=True)
+
+
 def list_stock_materials(db: Session, stock_id: int) -> list[dict]:
     stmt = (
         select(StockMaterial)
         .where(StockMaterial.stock_id == stock_id)
         .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
     )
-    return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+    return _sort_material_dicts_desc([_stock_material_dict(db, item) for item in db.scalars(stmt)])
 
 
 def _stock_materials_page(

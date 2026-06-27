@@ -1,6 +1,7 @@
 import { CheckOutlined, CloseOutlined, EditOutlined, EyeOutlined, PlusOutlined, AreaChartOutlined, SlidersOutlined, BulbOutlined, NotificationOutlined, RobotOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, InputNumber, Radio, Select, Space, Tag, Typography, message } from "antd";
 import ReactECharts from "echarts-for-react";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
 import { createTrackMaterial, listTrackDiscoveryMaterials, listTracks, updateTrackMaterial } from "../../../api/trackDiscovery";
@@ -10,7 +11,7 @@ import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { useLiuliTheme } from "../../../app/theme";
 import type { TrackMaterial } from "../../../types/api";
-import { DirectionTag, formatTime } from "./shared";
+import { DirectionTag, directionAccentColor, formatTime } from "./shared";
 import {
   compactMaterialSummary,
   groupMaterialsByDate,
@@ -552,7 +553,10 @@ export function MaterialsSection() {
 
                       {/* Row 4: Note */}
                       {item.note && item.note.trim() && (
-                        <div className="track-material-card-note">
+                        <div
+                          className="track-material-card-note"
+                          style={{ "--track-material-note-border": directionAccentColor(item.direction) } as CSSProperties}
+                        >
                           <span className="note-label">赛道判断：</span>
                           <span className="note-content">{item.note}</span>
                         </div>

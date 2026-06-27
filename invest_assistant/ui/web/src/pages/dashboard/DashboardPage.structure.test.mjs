@@ -82,6 +82,8 @@ assert.doesNotMatch(operationsSection, /listAiTagSuggestions/);
 assert.doesNotMatch(operationsSection, /listAllStockMaterials/);
 assert.doesNotMatch(operationsSection, /getAlertEventStats/);
 assert.doesNotMatch(operationsSection, /listJobs/);
+assert.doesNotMatch(operationsSection, /AI 热词合并建议/);
+assert.doesNotMatch(operationsSection, /market_radar\.suggest_hotword_merges_deepseek/);
 assert.doesNotMatch(operationsSection, /title="最近执行记录"/);
 assert.doesNotMatch(page, /getTrackDashboard/);
 assert.doesNotMatch(page, /常用网页快捷入口/);

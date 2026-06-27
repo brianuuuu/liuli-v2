@@ -26,8 +26,6 @@ from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
 from invest_assistant.shared.time_utils import utc_now
 
 DEEPSEEK_HOTWORD_JOB_NAME = "market_radar.extract_daily_hotwords_deepseek"
-DEEPSEEK_HOTWORD_MERGE_JOB_NAME = "market_radar.suggest_hotword_merges_deepseek"
-MERGE_SIMILARITY_THRESHOLD = 0.82
 
 DAILY_HOTWORD_STATE_NAMESPACE = f"job.{DEEPSEEK_HOTWORD_JOB_NAME}"
 HOTWORD_SOURCE_ITEM_CURSOR_KEY = "source_item_last_id"
@@ -318,83 +316,12 @@ def _normalized_existing_hotword_names(db) -> set[str]:
     return tag_names | track_names | stock_names | hotword_names | suggestions
 
 
-def _existing_hotword_merge_options(db) -> list[dict]:
-    hotwords = list(db.scalars(select(Hotword).where(Hotword.status != "disabled").order_by(Hotword.name.asc())))
-    return [{"hotword_id": item.id, "name": item.name, "tags": []} for item in hotwords]
-
-
 def _normalize_score(value) -> int:
     try:
         score = int(round(float(value)))
     except (TypeError, ValueError):
         score = 0
     return max(0, min(score, 10))
-
-
-def _normalize_similarity(value) -> float:
-    try:
-        similarity = float(value)
-    except (TypeError, ValueError):
-        similarity = 0
-    return max(0, min(similarity, 1))
-
-
-def _suggest_hotword_merges(db, candidates: list[dict], model: str) -> dict[str, dict]:
-    if not candidates:
-        return {}
-    existing_hotwords = _existing_hotword_merge_options(db)
-    if not existing_hotwords:
-        return {}
-    prompt = get_active_prompt_by_key(db, DEEPSEEK_HOTWORD_MERGE_JOB_NAME)
-    if prompt is None:
-        return {}
-    active_model = model or prompt.model
-    started = perf_counter()
-    try:
-        response = deepseek_client.suggest_hotword_merges(
-            [{"name": item["name"]} for item in candidates],
-            existing_hotwords,
-            prompt,
-            active_model,
-        )
-    except Exception as exc:
-        create_ai_request_log(
-            db,
-            provider="deepseek",
-            model=active_model,
-            task_name=DEEPSEEK_HOTWORD_MERGE_JOB_NAME,
-            status="failed",
-            duration_ms=int((perf_counter() - started) * 1000),
-            error_message=str(exc),
-        )
-        return {}
-
-    usage = response.get("usage") or {}
-    create_ai_request_log(
-        db,
-        provider="deepseek",
-        model=active_model,
-        task_name=DEEPSEEK_HOTWORD_MERGE_JOB_NAME,
-        status="success",
-        duration_ms=int((perf_counter() - started) * 1000),
-        prompt_tokens=int(usage.get("prompt_tokens") or 0),
-        completion_tokens=int(usage.get("completion_tokens") or 0),
-        total_tokens=int(usage.get("total_tokens") or 0),
-    )
-    valid_target_ids = {item["hotword_id"] for item in existing_hotwords}
-    suggestions: dict[str, dict] = {}
-    for item in response.get("suggestions") or []:
-        candidate_name = str(item.get("candidate_name") or "").strip()
-        target_tag_id = item.get("target_tag_id")
-        similarity = _normalize_similarity(item.get("similarity"))
-        if not candidate_name or target_tag_id not in valid_target_ids or similarity < MERGE_SIMILARITY_THRESHOLD:
-            continue
-        suggestions[candidate_name.casefold()] = {
-            "suggested_target_tag_id": target_tag_id,
-            "merge_similarity": similarity,
-            "merge_reason": str(item.get("reason") or "").strip() or None,
-        }
-    return suggestions
 
 
 def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
@@ -432,19 +359,16 @@ def _candidate_payloads_from_hotwords(db, hotwords: list[dict]) -> list[dict]:
     return payloads
 
 
-def _create_hotword_candidates(db, hotwords: list[dict], model: str | None = None) -> list[tuple[str, int]]:
+def _create_hotword_candidates(db, hotwords: list[dict]) -> list[tuple[str, int]]:
     payloads = _candidate_payloads_from_hotwords(db, hotwords)
-    merge_suggestions = _suggest_hotword_merges(db, payloads, model)
     inserted: list[tuple[str, int]] = []
     for item in payloads:
-        merge_suggestion = merge_suggestions.get(item["name"].casefold(), {})
         service.create_ai_tag_suggestion(
             db,
             service.ai_suggestion_from_hotword_payload(
                 item["name"],
                 item["score"],
                 item["reason"],
-                ext={"merge_suggestion": merge_suggestion} if merge_suggestion else {},
             ),
         )
         inserted.append((item["name"], item["score"]))
@@ -523,7 +447,7 @@ def extract_daily_hotwords_deepseek_job(
             completion_tokens=int(usage.get("completion_tokens") or 0),
             total_tokens=int(usage.get("total_tokens") or 0),
         )
-        inserted = _create_hotword_candidates(db, list(response.get("hotwords") or []), model)
+        inserted = _create_hotword_candidates(db, list(response.get("hotwords") or []))
         new_cursor = max(old_cursor, *(int(item.id) for item in source_items))
         set_runtime_state(
             db,

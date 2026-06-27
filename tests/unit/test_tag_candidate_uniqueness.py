@@ -94,8 +94,6 @@ def test_hotword_generation_skips_all_existing_suggestions_and_counts_rejected(m
         ],
         "usage": {},
     })
-    monkeypatch.setattr(market_radar_jobs, "_suggest_hotword_merges", lambda db, candidates, model: {})
-
     result = market_radar_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-05-26")
 
     assert result.success
