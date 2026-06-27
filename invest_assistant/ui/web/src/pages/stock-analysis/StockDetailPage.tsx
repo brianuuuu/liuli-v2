@@ -1,4 +1,4 @@
-import { Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
@@ -73,6 +73,28 @@ const directionLabels: Record<string, string> = {
 
 function numberText(value?: number | null, suffix = "") {
   return value === null || value === undefined ? "-" : `${Number(value).toFixed(2).replace(/\.00$/, "")}${suffix}`;
+}
+
+function stockKlineLatestSummary(value?: number | null, suffix = "") {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  return `${Number(value).toFixed(2)}${suffix}`;
+}
+
+function stockKlineChangeClass(value?: number | null) {
+  if (value === null || value === undefined || value === 0) {
+    return "flat";
+  }
+  return value > 0 ? "positive" : "negative";
+}
+
+function stockKlinePctText(value?: number | null) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${stockKlineLatestSummary(value, "%")}`;
 }
 
 function statusText(status?: string | null) {
@@ -478,6 +500,7 @@ function KlineTab({ stockId }: { stockId: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visibleMas, setVisibleMas] = useState<MaKey[]>(["ma5", "ma20", "ma250"]);
+  const latest = rows.length ? rows[rows.length - 1] : null;
 
   const loadBars = useCallback(
     async (refresh = false) => {
@@ -503,25 +526,27 @@ function KlineTab({ stockId }: { stockId: number }) {
     void loadBars(false);
   }, [loadBars]);
 
+  function toggleVisibleMa(key: MaKey) {
+    setVisibleMas((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
+  }
+
   return (
     <WorkbenchCard>
       <div className="stock-detail-panel stock-kline-panel">
         <div className="stock-detail-panel-toolbar stock-kline-toolbar">
-          <span>日线行情</span>
+          <div className="stock-kline-toolbar-title">
+            <span>日线行情</span>
+            <StockKlineMaLegend visibleMas={visibleMas} onToggleMa={toggleVisibleMa} />
+          </div>
           <Space size={12} wrap>
-            <Checkbox.Group
-              className="stock-kline-ma-toggle"
-              options={(Object.keys(maSeriesConfig) as MaKey[]).map((key) => ({ label: maSeriesConfig[key].label, value: key }))}
-              value={visibleMas}
-              onChange={(values) => setVisibleMas(values as MaKey[])}
-            />
+            {latest ? <StockKlineLatestSummary latest={latest} /> : null}
             <Button size="small" type="primary" loading={loading} onClick={() => loadBars(true)}>刷新行情</Button>
           </Space>
         </div>
         <div className="stock-detail-panel-section first">
           {error ? (
             <EmptyAction description={`行情数据加载失败：${error}`} />
-          ) : rows.length ? (
+          ) : rows.length && latest ? (
             <DailyBarChart rows={rows} visibleMas={visibleMas} />
           ) : (
             <EmptyAction description={loading ? "行情加载中" : "暂无行情数据"} />
@@ -529,6 +554,44 @@ function KlineTab({ stockId }: { stockId: number }) {
         </div>
       </div>
     </WorkbenchCard>
+  );
+}
+
+function StockKlineMaLegend({ visibleMas, onToggleMa }: { visibleMas: MaKey[]; onToggleMa: (key: MaKey) => void }) {
+  return (
+    <div className="stock-kline-legend">
+      {(Object.keys(maSeriesConfig) as MaKey[]).map((key) => (
+        <button
+          key={key}
+          type="button"
+          className={`stock-kline-legend-button ${visibleMas.includes(key) ? "active" : ""}`}
+          aria-pressed={visibleMas.includes(key)}
+          onClick={() => onToggleMa(key)}
+        >
+          <i style={{ backgroundColor: maSeriesConfig[key].color }} />
+          {maSeriesConfig[key].label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StockKlineLatestSummary({ latest }: { latest: StockDailyBar }) {
+  return (
+    <div className="stock-kline-latest-summary">
+      <span>
+        最新涨幅：
+        <strong className={stockKlineChangeClass(latest.pct_chg)}>{stockKlinePctText(latest.pct_chg)}</strong>
+      </span>
+      <span>
+        最新价格：
+        <strong>{stockKlineLatestSummary(latest.close)}</strong>
+      </span>
+      <span>
+        更新时间：
+        <strong>{latest.trade_date || "-"}</strong>
+      </span>
+    </div>
   );
 }
 
@@ -635,14 +698,6 @@ function DailyBarChart({ rows, visibleMas }: { rows: StockDailyBar[]; visibleMas
 
   return (
     <div className="stock-kline-chart-wrap">
-      <div className="stock-kline-legend">
-        {(Object.keys(maSeriesConfig) as MaKey[]).map((key) => (
-          <span key={key} className={visibleMas.includes(key) ? "active" : ""}>
-            <i style={{ backgroundColor: maSeriesConfig[key].color }} />
-            {maSeriesConfig[key].label}
-          </span>
-        ))}
-      </div>
       <div ref={containerRef} className="stock-kline-chart" />
     </div>
   );

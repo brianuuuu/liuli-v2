@@ -39,6 +39,32 @@ if (!page.includes("getStockDailyBars") || !page.includes("refresh: true")) {
   throw new Error("K-line tab should load daily bars and provide a refresh action");
 }
 
+if (
+  !page.includes("stockKlineLatestSummary") ||
+  !page.includes("最新涨幅") ||
+  !page.includes("最新价格") ||
+  !page.includes("更新时间") ||
+  !page.includes("latest.pct_chg") ||
+  !page.includes("latest.close") ||
+  !page.includes("latest.trade_date")
+) {
+  throw new Error("K-line tab should show latest pct change, price, and update date above the chart");
+}
+
+if (page.includes("Checkbox.Group") || page.includes("stock-kline-ma-toggle")) {
+  throw new Error("K-line MA selection should not use the top toolbar checkbox group");
+}
+
+if (
+  !page.includes("StockKlineMaLegend") ||
+  !page.includes("stock-kline-toolbar-title") ||
+  !page.includes("toggleVisibleMa") ||
+  !page.includes("onToggleMa") ||
+  !page.includes("stock-kline-legend-button")
+) {
+  throw new Error("K-line MA selection should be controlled by clickable MA legend items next to the 日线行情 title");
+}
+
 if (!page.includes("largestVisibleMa") || !page.includes("maVisibleRangeMonths")) {
   throw new Error("MA toggles should choose the visible range by the largest selected MA");
 }
