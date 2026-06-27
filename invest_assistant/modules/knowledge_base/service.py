@@ -34,6 +34,7 @@ DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY = "market_radar.generate_daily_report"
 DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
 DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
+RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_ROOT = Path(__file__).resolve().with_name("prompts")
@@ -377,6 +378,15 @@ def create_prompt(db: Session, payload: KnowledgePromptCreate) -> KnowledgePromp
 def ensure_default_prompts(db: Session) -> int:
     changed = 0
     default_keys = {payload.prompt_key for payload in DEFAULT_KNOWLEDGE_PROMPTS}
+    retired_prompts = db.scalars(
+        select(KnowledgePrompt).where(
+            KnowledgePrompt.prompt_key.in_(RETIRED_DEFAULT_PROMPT_KEYS),
+            KnowledgePrompt.status != "deleted",
+        )
+    )
+    for item in retired_prompts:
+        item.status = "deleted"
+        changed += 1
     for payload in DEFAULT_KNOWLEDGE_PROMPTS:
         existing = db.scalar(select(KnowledgePrompt).where(KnowledgePrompt.prompt_key == payload.prompt_key))
         if existing is not None:
@@ -388,7 +398,10 @@ def ensure_default_prompts(db: Session) -> int:
         db.add(KnowledgePrompt(**payload.model_dump()))
         changed += 1
     custom_prompts = db.scalars(
-        select(KnowledgePrompt).where(KnowledgePrompt.prompt_key.not_in(default_keys), KnowledgePrompt.status != "deleted")
+        select(KnowledgePrompt).where(
+            KnowledgePrompt.prompt_key.not_in(default_keys | RETIRED_DEFAULT_PROMPT_KEYS),
+            KnowledgePrompt.status != "deleted",
+        )
     )
     for item in custom_prompts:
         if _ensure_custom_prompt_paths(item):
@@ -399,7 +412,16 @@ def ensure_default_prompts(db: Session) -> int:
 
 
 def list_prompts(db: Session) -> list[KnowledgePromptRead]:
-    rows = list(db.scalars(select(KnowledgePrompt).where(KnowledgePrompt.status != "deleted").order_by(KnowledgePrompt.id.desc())))
+    rows = list(
+        db.scalars(
+            select(KnowledgePrompt)
+            .where(
+                KnowledgePrompt.status != "deleted",
+                KnowledgePrompt.prompt_key.not_in(RETIRED_DEFAULT_PROMPT_KEYS),
+            )
+            .order_by(KnowledgePrompt.id.desc())
+        )
+    )
     return [_prompt_read(item) for item in rows]
 
 
@@ -412,6 +434,8 @@ def get_active_prompt_by_key(
     prompt_key: str,
     variables: dict[str, Any] | None = None,
 ) -> ResolvedPrompt | None:
+    if prompt_key in RETIRED_DEFAULT_PROMPT_KEYS:
+        return None
     item = db.scalar(select(KnowledgePrompt).where(KnowledgePrompt.prompt_key == prompt_key, KnowledgePrompt.status == "active"))
     return resolve_prompt_content(item, variables=variables) if item is not None else None
 
