@@ -91,6 +91,44 @@ def fetch_a_stock_daily_bar_rows(
     return rows
 
 
+def fetch_market_index_daily_bar_rows(
+    ts_code: str,
+    *,
+    start_date: str,
+    end_date: str,
+) -> list[dict]:
+    token = get_tushare_token()
+    if not token:
+        raise RuntimeError("tushare token is not configured")
+
+    try:
+        import tushare as ts
+    except Exception as exc:
+        raise RuntimeError(f"tushare is unavailable: {exc}") from exc
+
+    try:
+        ts.set_token(token)
+        pro = ts.pro_api(token)
+        df = pro.index_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
+    except Exception as exc:
+        raise RuntimeError(f"failed to fetch market index daily bars from Tushare for {ts_code}: {exc}") from exc
+
+    if df is None or getattr(df, "empty", False):
+        return []
+
+    required_columns = {"trade_date", "open", "high", "low", "close"}
+    missing_columns = required_columns - set(df.columns)
+    if missing_columns:
+        raise RuntimeError(f"Tushare index daily bars missing columns: {', '.join(sorted(missing_columns))}")
+
+    rows: list[dict] = []
+    for _, row in df.iterrows():
+        payload = dict(row)
+        payload.setdefault("ts_code", ts_code)
+        rows.append(payload)
+    return rows
+
+
 def fetch_realtime_quote_rows(symbols: list[str]) -> list[dict]:
     normalized_symbols = [str(symbol or "").strip().upper() for symbol in symbols if str(symbol or "").strip()]
     if not normalized_symbols:

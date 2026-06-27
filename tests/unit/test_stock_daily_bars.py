@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.stock_analysis import service
-from invest_assistant.modules.stock_analysis.models import StockDailyBar, StockPoolItem
+from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar, StockDailyBar, StockPoolItem
 from invest_assistant.services.tushare import client as tushare_client
 
 
@@ -167,3 +167,74 @@ def test_stock_daily_bars_job_is_registered():
     assert job.cron_expr == "30 18 * * 1-5"
     assert job.params_schema["pool_status"]["default"] == "focused,watching,candidate"
     assert job.params_schema["max_stocks"]["default"] == 200
+
+
+def test_refresh_market_index_daily_bars_upserts_without_stock_row(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        rows = [
+            {
+                "ts_code": "000300.SH",
+                "trade_date": "20260102",
+                "open": 3900.0,
+                "high": 3920.0,
+                "low": 3880.0,
+                "close": 3910.0,
+                "pre_close": 3890.0,
+                "change": 20.0,
+                "pct_chg": 0.5141,
+                "vol": 1000.0,
+                "amount": 2000.0,
+            },
+            {
+                "ts_code": "000300.SH",
+                "trade_date": "20260105",
+                "open": 3910.0,
+                "high": 3960.0,
+                "low": 3900.0,
+                "close": 3950.0,
+                "pre_close": 3910.0,
+                "change": 40.0,
+                "pct_chg": 1.023,
+                "vol": 1200.0,
+                "amount": 2200.0,
+            },
+        ]
+        captured = {}
+
+        def fake_fetch(code, **kwargs):
+            captured["code"] = code
+            captured["kwargs"] = kwargs
+            return rows
+
+        monkeypatch.setattr(service.tushare_client, "fetch_market_index_daily_bar_rows", fake_fetch)
+
+        first = service.refresh_market_index_daily_bars(
+            db,
+            "000300.SH",
+            name="沪深300",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+        )
+        second = service.refresh_market_index_daily_bars(
+            db,
+            "000300.SH",
+            name="沪深300",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 1, 31),
+        )
+        bars = list(db.scalars(select(MarketIndexDailyBar).order_by(MarketIndexDailyBar.trade_date.asc())))
+
+        assert captured["code"] == "000300.SH"
+        assert captured["kwargs"] == {"start_date": "20260101", "end_date": "20260131"}
+        assert first.inserted_count == 2
+        assert first.updated_count == 0
+        assert second.inserted_count == 0
+        assert second.updated_count == 2
+        assert len(bars) == 2
+        assert bars[0].code == "000300.SH"
+        assert bars[0].name == "沪深300"
+        assert bars[0].close == 3910.0
+    finally:
+        db.close()

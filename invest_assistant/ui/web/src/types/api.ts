@@ -921,4 +921,47 @@ export type PortfolioValueSnapshot = {
   source?: string | null;
 };
 
+export type PortfolioReviewCurvePoint = {
+  date: string;
+  total_value: number;
+  portfolio_return_pct?: number | null;
+  benchmark_return_pct?: number | null;
+  excess_return_pct?: number | null;
+  daily_return_pct?: number | null;
+  external_flow?: number | null;
+  benchmark_close?: number | null;
+};
+
+export type PortfolioReviewCalendarItem = {
+  key: string;
+  label: string;
+  return_pct?: number | null;
+  value?: number | null;
+};
+
+export type PortfolioReviewPerformance = {
+  scope: "all" | "single" | string;
+  portfolio_id?: number | null;
+  period: "month" | "year" | "all" | string;
+  start_date: string;
+  end_date: string;
+  portfolio_options: Portfolio[];
+  benchmark: {
+    code: string;
+    name: string;
+  };
+  summary: {
+    portfolio_return_pct?: number | null;
+    benchmark_return_pct?: number | null;
+    excess_return_pct?: number | null;
+    max_drawdown_pct?: number | null;
+    effective_days: number;
+  };
+  curve_points: PortfolioReviewCurvePoint[];
+  calendar: {
+    granularity: "day" | "month" | "year" | string;
+    items: PortfolioReviewCalendarItem[];
+  };
+};
+
 export type AnyRecord = Record<string, unknown>;

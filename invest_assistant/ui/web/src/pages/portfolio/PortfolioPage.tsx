@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import {
   getPortfolioCash,
   getPortfolioDashboard,
   getPortfolioOverview,
+  getPortfolioReviewPerformance,
   listPortfolioCashFlows,
   listPortfolioValueSnapshots,
   listPortfolios,
@@ -34,6 +35,7 @@ import type {
   PortfolioDashboard,
   PortfolioOverview,
   PortfolioPosition,
+  PortfolioReviewPerformance,
   PortfolioValueSnapshot,
   Stock
 } from "../../types/api";
@@ -55,12 +57,33 @@ type CashFlowFormValue = {
   note?: string;
 };
 
+type ReviewPeriod = "month" | "year" | "all";
+
 const flowTypeLabels: Record<string, string> = {
   deposit: "入金",
   withdraw: "出金",
   adjustment: "现金校准",
   dividend: "分红",
   interest: "利息"
+};
+
+const initialReviewPerformance: PortfolioReviewPerformance = {
+  scope: "all",
+  portfolio_id: null,
+  period: "year",
+  start_date: "",
+  end_date: "",
+  portfolio_options: [],
+  benchmark: { code: "000300.SH", name: "沪深300" },
+  summary: {
+    portfolio_return_pct: null,
+    benchmark_return_pct: null,
+    excess_return_pct: null,
+    max_drawdown_pct: null,
+    effective_days: 0
+  },
+  curve_points: [],
+  calendar: { granularity: "month", items: [] }
 };
 
 const lightAllocationColors = [
@@ -140,6 +163,8 @@ export function PortfolioPage() {
   const [activeTab, setActiveTab] = useState("portfolios");
   const [overviewPortfolioId, setOverviewPortfolioId] = useState<number | null>(null);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [reviewPortfolioId, setReviewPortfolioId] = useState<number | null>(null);
+  const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("year");
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
@@ -181,6 +206,10 @@ export function PortfolioPage() {
     }, [selectedPortfolioId]),
     []
   );
+  const reviewPerformance = useAsyncData<PortfolioReviewPerformance>(
+    useCallback(() => getPortfolioReviewPerformance(reviewPortfolioId, reviewPeriod), [reviewPortfolioId, reviewPeriod]),
+    initialReviewPerformance
+  );
 
   useEffect(() => {
     if (selectedPortfolioId || portfolios.loading) return;
@@ -197,7 +226,7 @@ export function PortfolioPage() {
     if (nextPortfolioId !== undefined) {
       setSelectedPortfolioId(nextPortfolioId);
     }
-    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cash.refresh(), cashFlows.refresh()]);
+    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cash.refresh(), cashFlows.refresh(), reviewPerformance.refresh()]);
   }
 
   function openCreatePortfolio() {
@@ -529,6 +558,151 @@ export function PortfolioPage() {
     };
   }
 
+  function reviewLineOption(data: PortfolioReviewPerformance): EChartsOption {
+    const textColor = chartTextColor(resolvedMode);
+    const gridColor = chartGridColor(resolvedMode);
+    const rows = data.curve_points;
+    return {
+      color: ["#b42318", "#2563eb", "#64748b"],
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: tooltipBackgroundColor(resolvedMode),
+        borderColor: gridColor,
+        textStyle: { color: textColor },
+        valueFormatter: (value) => formatPercent(Number(value))
+      },
+      legend: { top: 0, textStyle: { color: textColor } },
+      grid: { top: 42, left: 54, right: 18, bottom: 36 },
+      xAxis: {
+        type: "category",
+        data: rows.map((item) => item.date),
+        axisLabel: { color: textColor },
+        axisLine: { lineStyle: { color: gridColor } },
+        axisTick: { show: false }
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: textColor, formatter: (value: number) => `${value.toFixed(0)}%` },
+        splitLine: { lineStyle: { color: gridColor } }
+      },
+      series: [
+        {
+          name: "组合收益率",
+          type: "line",
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 3 },
+          data: rows.map((item) => item.portfolio_return_pct ?? null)
+        },
+        {
+          name: data.benchmark.name || "沪深300",
+          type: "line",
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 2 },
+          data: rows.map((item) => item.benchmark_return_pct ?? null)
+        },
+        {
+          name: "超额收益",
+          type: "line",
+          smooth: true,
+          showSymbol: false,
+          lineStyle: { width: 2, type: "dashed" },
+          data: rows.map((item) => item.excess_return_pct ?? null)
+        }
+      ]
+    };
+  }
+
+  function reviewCalendarOption(data: PortfolioReviewPerformance): EChartsOption {
+    const textColor = chartTextColor(resolvedMode);
+    const gridColor = chartGridColor(resolvedMode);
+    const values = data.calendar.items.map((item) => Number(item.return_pct ?? 0));
+    const maxValue = Math.max(1, ...values.map((item) => Math.abs(item)));
+    if (data.calendar.granularity === "day") {
+      return {
+        tooltip: {
+          backgroundColor: tooltipBackgroundColor(resolvedMode),
+          borderColor: gridColor,
+          textStyle: { color: textColor },
+          formatter: (params: any) => `${params.value?.[0] ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[1] ?? 0))}`
+        },
+        visualMap: {
+          min: -maxValue,
+          max: maxValue,
+          orient: "horizontal",
+          left: "center",
+          bottom: 0,
+          inRange: { color: ["#047857", "#f8fafc", "#b42318"] },
+          textStyle: { color: textColor }
+        },
+        calendar: {
+          top: 24,
+          left: 28,
+          right: 28,
+          bottom: 54,
+          range: [data.start_date, data.end_date],
+          cellSize: ["auto", 18],
+          itemStyle: { borderColor: gridColor },
+          splitLine: { lineStyle: { color: gridColor } },
+          dayLabel: { color: textColor },
+          monthLabel: { color: textColor },
+          yearLabel: { show: false }
+        },
+        series: [
+          {
+            type: "heatmap",
+            coordinateSystem: "calendar",
+            data: data.calendar.items.map((item) => [item.key, item.return_pct ?? 0])
+          }
+        ]
+      };
+    }
+    return {
+      tooltip: {
+        backgroundColor: tooltipBackgroundColor(resolvedMode),
+        borderColor: gridColor,
+        textStyle: { color: textColor },
+        formatter: (params: any) => `${data.calendar.items[Number(params.value?.[0])]?.label ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[2] ?? 0))}`
+      },
+      grid: { top: 24, left: 24, right: 18, bottom: 42 },
+      xAxis: {
+        type: "category",
+        data: data.calendar.items.map((item) => item.label),
+        axisLabel: { color: textColor },
+        axisLine: { lineStyle: { color: gridColor } },
+        axisTick: { show: false }
+      },
+      yAxis: {
+        type: "category",
+        data: ["盈亏率"],
+        axisLabel: { color: textColor },
+        axisLine: { lineStyle: { color: gridColor } },
+        axisTick: { show: false }
+      },
+      visualMap: {
+        min: -maxValue,
+        max: maxValue,
+        orient: "horizontal",
+        left: "center",
+        bottom: 0,
+        inRange: { color: ["#047857", "#f8fafc", "#b42318"] },
+        textStyle: { color: textColor }
+      },
+      series: [
+        {
+          type: "heatmap",
+          data: data.calendar.items.map((item, index) => [index, 0, item.return_pct ?? 0]),
+          label: {
+            show: true,
+            color: textColor,
+            formatter: (params: any) => formatPercent(Number(params.value?.[2] ?? 0))
+          }
+        }
+      ]
+    };
+  }
+
   function renderMetrics(summary?: PortfolioOverview["summary"]) {
     return (
       <div className="portfolio-summary metric-grid">
@@ -583,7 +757,7 @@ export function PortfolioPage() {
     const summary = dashboard.data?.summary;
     return (
       <div className="portfolio-dashboard">
-        <WorkbenchCard>
+        <WorkbenchCard title="组合复盘">
           <Space wrap>
             <Select
               style={{ width: 260 }}
@@ -667,13 +841,57 @@ export function PortfolioPage() {
   }
 
   function renderReview() {
-    const summary = overview.data?.summary;
+    const data = reviewPerformance.data;
+    const summary = data.summary;
+    const periodLabel = data.period === "month" ? "当月" : data.period === "all" ? "有效记录以来" : "当年";
+    const calendarTitle = data.calendar.granularity === "day" ? "每日盈亏日历" : data.calendar.granularity === "year" ? "年度盈亏年历" : "每月盈亏月历";
     return (
       <div className="portfolio-dashboard">
-        {renderMetrics(summary)}
-        <WorkbenchCard title="组合复盘">
-          <EmptyAction description="暂无组合复盘；可结合市值快照和出入金流水分析年度盈亏" />
+        <WorkbenchCard>
+          <Space wrap>
+            <Select
+              style={{ width: 260 }}
+              value={reviewPortfolioId ?? 0}
+              loading={portfolios.loading}
+              options={[
+                { value: 0, label: "所有组合" },
+                ...portfolios.data.map((item) => ({ value: item.id, label: item.name }))
+              ]}
+              onChange={(value) => setReviewPortfolioId(value === 0 ? null : value)}
+            />
+            <Segmented
+              value={reviewPeriod}
+              options={[
+                { value: "month", label: "当月" },
+                { value: "year", label: "当年" },
+                { value: "all", label: "有效记录以来" }
+              ]}
+              onChange={(value) => setReviewPeriod(value as ReviewPeriod)}
+            />
+            <Button onClick={() => reviewPerformance.refresh()} loading={reviewPerformance.loading}>刷新复盘</Button>
+            <Tag>{data.benchmark.name || "沪深300"}</Tag>
+            <Tag>{periodLabel}</Tag>
+          </Space>
         </WorkbenchCard>
+        <div className="portfolio-summary metric-grid">
+          <div className="metric-panel"><div className="metric-panel-label">组合收益率</div><div className="metric-panel-value" style={{ color: pnlColor(summary.portfolio_return_pct) }}>{formatPercent(summary.portfolio_return_pct)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">沪深300</div><div className="metric-panel-value" style={{ color: pnlColor(summary.benchmark_return_pct) }}>{formatPercent(summary.benchmark_return_pct)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">超额收益</div><div className="metric-panel-value" style={{ color: pnlColor(summary.excess_return_pct) }}>{formatPercent(summary.excess_return_pct)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">最大回撤</div><div className="metric-panel-value" style={{ color: pnlColor(summary.max_drawdown_pct) }}>{formatPercent(summary.max_drawdown_pct)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">有效记录</div><div className="metric-panel-value">{summary.effective_days}</div></div>
+        </div>
+        <div className="portfolio-overview-grid">
+          {data.curve_points.length ? (
+            <ChartCard title="收益率曲线对比" option={reviewLineOption(data)} height={340} />
+          ) : (
+            <WorkbenchCard title="收益率曲线对比"><EmptyAction description="暂无有效市值快照；任务中心每日 17:00 生成后显示" /></WorkbenchCard>
+          )}
+          {data.calendar.items.length ? (
+            <ChartCard title={`盈亏日历 · ${calendarTitle}`} option={reviewCalendarOption(data)} height={340} />
+          ) : (
+            <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`}><EmptyAction description="暂无可用于复盘的盈亏记录" /></WorkbenchCard>
+          )}
+        </div>
       </div>
     );
   }

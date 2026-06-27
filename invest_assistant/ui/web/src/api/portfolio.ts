@@ -7,6 +7,7 @@ import type {
   PortfolioGroup,
   PortfolioOverview,
   PortfolioPosition,
+  PortfolioReviewPerformance,
   PortfolioValueSnapshot
 } from "../types/api";
 
@@ -72,6 +73,21 @@ export async function getPortfolioOverview(portfolioId?: number | null): Promise
 export async function listPortfolioValueSnapshots(portfolioId?: number | null, days = 180): Promise<PortfolioValueSnapshot[]> {
   const response = await apiClient.get<PortfolioValueSnapshot[]>("/api/portfolios/value-snapshots", {
     params: { ...(portfolioId ? { portfolio_id: portfolioId } : {}), days }
+  });
+  return response.data;
+}
+
+export async function getPortfolioReviewPerformance(
+  portfolioId?: number | null,
+  period = "year",
+  refreshBenchmark = true
+): Promise<PortfolioReviewPerformance> {
+  const response = await apiClient.get<PortfolioReviewPerformance>("/api/portfolios/review-performance", {
+    params: {
+      period,
+      refresh_benchmark: refreshBenchmark,
+      ...(portfolioId ? { portfolio_id: portfolioId } : {})
+    }
   });
   return response.data;
 }

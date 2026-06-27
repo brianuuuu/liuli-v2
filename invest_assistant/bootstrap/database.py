@@ -79,6 +79,7 @@ def create_all_tables() -> None:
     from invest_assistant.modules.knowledge_base.models import ensure_knowledge_base_schema
     from invest_assistant.modules.market_radar.models import ensure_market_radar_schema
     from invest_assistant.modules.portfolio.models import ensure_portfolio_schema
+    from invest_assistant.modules.stock_analysis.models import ensure_stock_analysis_schema
     from invest_assistant.modules.track_discovery.models import ensure_track_discovery_schema
 
     ensure_job_center_schema(engine)
@@ -87,6 +88,7 @@ def create_all_tables() -> None:
     ensure_knowledge_base_schema(engine)
     ensure_market_radar_schema(engine)
     ensure_portfolio_schema(engine)
+    ensure_stock_analysis_schema(engine)
     ensure_track_discovery_schema(engine)
 
     from invest_assistant.modules.knowledge_base.service import ensure_default_prompts
