@@ -1239,13 +1239,22 @@ def _isoformat(value: object) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else None
 
 
+def _material_sort_value(item: dict) -> str:
+    value = item.get("material_time") or _isoformat(item.get("updated_at")) or _isoformat(item.get("created_at")) or ""
+    return str(value)
+
+
+def _sort_material_dicts_desc(items: list[dict]) -> list[dict]:
+    return sorted(items, key=lambda item: (_material_sort_value(item), int(item.get("id") or 0)), reverse=True)
+
+
 def list_stock_materials(db: Session, stock_id: int) -> list[dict]:
     stmt = (
         select(StockMaterial)
         .where(StockMaterial.stock_id == stock_id)
         .order_by(StockMaterial.updated_at.desc(), StockMaterial.id.desc())
     )
-    return [_stock_material_dict(db, item) for item in db.scalars(stmt)]
+    return _sort_material_dicts_desc([_stock_material_dict(db, item) for item in db.scalars(stmt)])
 
 
 def _stock_materials_page(
