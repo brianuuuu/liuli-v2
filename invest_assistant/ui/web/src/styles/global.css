@@ -1646,7 +1646,7 @@ body {
 
 .track-material-card-note {
   background: var(--ll-panel-subtle);
-  border-left: 3px solid var(--ll-accent);
+  border-left: 3px solid var(--track-material-note-border, var(--ll-accent));
   padding: 8px 12px;
   border-radius: 0 6px 6px 0;
   font-size: 13px;
