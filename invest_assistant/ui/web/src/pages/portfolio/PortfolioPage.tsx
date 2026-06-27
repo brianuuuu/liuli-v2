@@ -128,6 +128,10 @@ function chartMutedTextColor(mode: "light" | "dark") {
   return mode === "dark" ? "#8b949e" : "#64748b";
 }
 
+function reviewHeatmapColors(mode: "light" | "dark") {
+  return mode === "dark" ? ["#047857", "#1f2937", "#b42318"] : ["#047857", "#f8fafc", "#b42318"];
+}
+
 function formatMoney(value?: number | null) {
   if (value === null || value === undefined) return "-";
   return value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -619,45 +623,12 @@ export function PortfolioPage() {
     const gridColor = chartGridColor(resolvedMode);
     const values = data.calendar.items.map((item) => Number(item.return_pct ?? 0));
     const maxValue = Math.max(1, ...values.map((item) => Math.abs(item)));
-    if (data.calendar.granularity === "day") {
-      return {
-        tooltip: {
-          backgroundColor: tooltipBackgroundColor(resolvedMode),
-          borderColor: gridColor,
-          textStyle: { color: textColor },
-          formatter: (params: any) => `${params.value?.[0] ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[1] ?? 0))}`
-        },
-        visualMap: {
-          min: -maxValue,
-          max: maxValue,
-          orient: "horizontal",
-          left: "center",
-          bottom: 0,
-          inRange: { color: ["#047857", "#f8fafc", "#b42318"] },
-          textStyle: { color: textColor }
-        },
-        calendar: {
-          top: 24,
-          left: 28,
-          right: 28,
-          bottom: 54,
-          range: [data.start_date, data.end_date],
-          cellSize: ["auto", 18],
-          itemStyle: { borderColor: gridColor },
-          splitLine: { lineStyle: { color: gridColor } },
-          dayLabel: { color: textColor },
-          monthLabel: { color: textColor },
-          yearLabel: { show: false }
-        },
-        series: [
-          {
-            type: "heatmap",
-            coordinateSystem: "calendar",
-            data: data.calendar.items.map((item) => [item.key, item.return_pct ?? 0])
-          }
-        ]
-      };
-    }
+    const minSlots = data.calendar.granularity === "day" ? 10 : 6;
+    const paddedLabels = [
+      ...data.calendar.items.map((item) => item.label),
+      ...Array.from({ length: Math.max(0, minSlots - data.calendar.items.length) }, () => "")
+    ];
+    const showValueLabel = data.calendar.items.length <= 12;
     return {
       tooltip: {
         backgroundColor: tooltipBackgroundColor(resolvedMode),
@@ -665,11 +636,11 @@ export function PortfolioPage() {
         textStyle: { color: textColor },
         formatter: (params: any) => `${data.calendar.items[Number(params.value?.[0])]?.label ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[2] ?? 0))}`
       },
-      grid: { top: 24, left: 24, right: 18, bottom: 42 },
+      grid: { top: 58, left: 42, right: 22, bottom: 92, height: 58 },
       xAxis: {
         type: "category",
-        data: data.calendar.items.map((item) => item.label),
-        axisLabel: { color: textColor },
+        data: paddedLabels,
+        axisLabel: { color: textColor, hideOverlap: true },
         axisLine: { lineStyle: { color: gridColor } },
         axisTick: { show: false }
       },
@@ -677,7 +648,7 @@ export function PortfolioPage() {
         type: "category",
         data: ["盈亏率"],
         axisLabel: { color: textColor },
-        axisLine: { lineStyle: { color: gridColor } },
+        axisLine: { show: false },
         axisTick: { show: false }
       },
       visualMap: {
@@ -685,16 +656,20 @@ export function PortfolioPage() {
         max: maxValue,
         orient: "horizontal",
         left: "center",
-        bottom: 0,
-        inRange: { color: ["#047857", "#f8fafc", "#b42318"] },
+        bottom: 20,
+        inRange: { color: reviewHeatmapColors(resolvedMode) },
         textStyle: { color: textColor }
       },
       series: [
         {
           type: "heatmap",
           data: data.calendar.items.map((item, index) => [index, 0, item.return_pct ?? 0]),
+          itemStyle: {
+            borderColor: gridColor,
+            borderWidth: 1
+          },
           label: {
-            show: true,
+            show: showValueLabel,
             color: textColor,
             formatter: (params: any) => formatPercent(Number(params.value?.[2] ?? 0))
           }
@@ -873,7 +848,7 @@ export function PortfolioPage() {
             <Tag>{periodLabel}</Tag>
           </Space>
         </WorkbenchCard>
-        <div className="portfolio-summary metric-grid">
+        <div className="portfolio-summary metric-grid portfolio-review-metrics">
           <div className="metric-panel"><div className="metric-panel-label">组合收益率</div><div className="metric-panel-value" style={{ color: pnlColor(summary.portfolio_return_pct) }}>{formatPercent(summary.portfolio_return_pct)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">沪深300</div><div className="metric-panel-value" style={{ color: pnlColor(summary.benchmark_return_pct) }}>{formatPercent(summary.benchmark_return_pct)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">超额收益</div><div className="metric-panel-value" style={{ color: pnlColor(summary.excess_return_pct) }}>{formatPercent(summary.excess_return_pct)}</div></div>

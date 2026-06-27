@@ -463,6 +463,31 @@ def test_review_performance_uses_cash_flow_adjusted_returns_for_single_portfolio
         db.close()
 
 
+def test_review_performance_uses_only_common_portfolio_and_benchmark_dates(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 30))
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 25), 1000)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 26), 980)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 27), 970)
+        add_index_bar(db, date(2026, 6, 25), 4000)
+        add_index_bar(db, date(2026, 6, 26), 3960)
+
+        result = service.get_review_performance(db, portfolio_id=portfolio.id, period="month", refresh_benchmark=False)
+
+        assert [point["date"] for point in result["curve_points"]] == ["2026-06-25", "2026-06-26"]
+        assert [item["key"] for item in result["calendar"]["items"]] == ["2026-06-25", "2026-06-26"]
+        assert result["summary"]["effective_days"] == 2
+        assert round(result["summary"]["portfolio_return_pct"], 2) == -2.0
+        assert round(result["summary"]["benchmark_return_pct"], 2) == -1.0
+        assert round(result["summary"]["excess_return_pct"], 2) == -1.0
+        assert result["end_date"] == "2026-06-26"
+    finally:
+        db.close()
+
+
 def test_review_performance_aggregates_all_portfolios_and_uses_year_calendar(monkeypatch, tmp_path):
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()
