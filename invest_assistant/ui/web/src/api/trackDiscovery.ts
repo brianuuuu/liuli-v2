@@ -64,11 +64,24 @@ export type TagBindingPayload = {
   status?: string;
 };
 
-export async function listTracks(status?: string): Promise<Track[]> {
+export type TrackListParams = {
+  status?: string;
+  q?: string;
+  limit?: number;
+};
+
+export async function listTracks(paramsOrStatus?: TrackListParams | string): Promise<Track[]> {
+  const params = typeof paramsOrStatus === "string" ? { status: paramsOrStatus } : paramsOrStatus;
   const response = await apiClient.get<Track[]>("/api/track-discovery/tracks", {
-    params: status ? { status } : undefined
+    params
   });
   return response.data;
+}
+
+export async function searchTracks(keyword: string, limit = 8): Promise<Track[]> {
+  const q = keyword.trim();
+  if (!q) return [];
+  return listTracks({ q, limit });
 }
 
 let trackDashboardRequest: Promise<TrackDashboard> | null = null;

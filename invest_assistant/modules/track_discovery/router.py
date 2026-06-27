@@ -45,8 +45,13 @@ def _parse_material_status_filter(status: str | None) -> list[str] | None:
 
 
 @router.get("/tracks", response_model=list[TrackRead])
-def list_tracks(status: str | None = None, db: Session = Depends(get_db)) -> list:
-    return service.list_tracks(db, status)
+def list_tracks(
+    status: str | None = None,
+    q: str | None = None,
+    limit: int | None = Query(None, ge=1, le=50),
+    db: Session = Depends(get_db),
+) -> list:
+    return service.list_tracks(db, status=status, q=q, limit=limit)
 
 
 @router.get("/dashboard")

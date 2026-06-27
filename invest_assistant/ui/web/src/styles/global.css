@@ -410,6 +410,31 @@ body {
   width: 280px;
 }
 
+.global-search-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.global-search-option-type {
+  color: var(--ll-accent);
+  font-size: 12px;
+}
+
+.global-search-option-main {
+  overflow: hidden;
+  color: var(--ll-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-search-option-meta {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
 .theme-select {
   width: 70px;
 }
@@ -3966,13 +3991,26 @@ body {
 }
 
 [data-theme="dark"] .global-search .ant-input,
+[data-theme="dark"] .global-search .ant-input-affix-wrapper,
 [data-theme="dark"] .global-search.ant-input-affix-wrapper,
 [data-theme="dark"] .job-center-search .ant-input,
 [data-theme="dark"] .job-center-search.ant-input-affix-wrapper {
   background: #0d1117;
   border-color: var(--ll-border);
+  color: var(--ll-text);
 }
 
+[data-theme="dark"] .global-search .ant-input::placeholder {
+  color: var(--ll-muted);
+}
+
+[data-theme="dark"] .global-search .ant-input-prefix,
+[data-theme="dark"] .global-search .ant-input-suffix {
+  color: var(--ll-muted);
+}
+
+[data-theme="dark"] .global-search .ant-input-affix-wrapper:hover,
+[data-theme="dark"] .global-search .ant-input-affix-wrapper:focus-within,
 [data-theme="dark"] .global-search.ant-input-affix-wrapper:hover,
 [data-theme="dark"] .global-search.ant-input-affix-wrapper:focus-within,
 [data-theme="dark"] .job-center-search.ant-input-affix-wrapper:hover,

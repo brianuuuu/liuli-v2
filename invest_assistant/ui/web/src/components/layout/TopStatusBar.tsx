@@ -8,14 +8,17 @@ import {
   SunOutlined,
   UserOutlined
 } from "@ant-design/icons";
-import { Button, Dropdown, Form, Input, Modal, Space, message } from "antd";
-import type { MenuProps } from "antd";
+import { AutoComplete, Button, Dropdown, Form, Input, Modal, Space, message } from "antd";
+import type { AutoCompleteProps, MenuProps } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { changePassword, getMe, logout } from "../../api/auth";
 import { tokenStorageKey } from "../../api/client";
 import { listJobs, listRunRequests } from "../../api/jobs";
+import { searchStockPool } from "../../api/stockAnalysis";
+import { searchTracks } from "../../api/trackDiscovery";
 import { useLiuliTheme } from "../../app/theme";
-import type { JobConfig, JobRunRequest, UserMe } from "../../types/api";
+import type { JobConfig, JobRunRequest, StockPoolItem, Track, UserMe } from "../../types/api";
 import { getTaskStatus } from "./taskStatus";
 
 type PasswordFormValues = {
@@ -24,12 +27,65 @@ type PasswordFormValues = {
   confirm_password: string;
 };
 
+type GlobalSearchOption = {
+  value: string;
+  label: JSX.Element;
+  route: string;
+};
+
+function statusText(status?: string | null) {
+  const labels: Record<string, string> = {
+    active: "活跃",
+    archived: "归档",
+    candidate: "候选",
+    focused: "重点",
+    paused: "暂停",
+    rejected: "排除",
+    watching: "观察"
+  };
+  return status ? labels[status] || status : "-";
+}
+
+function stockOption(item: StockPoolItem): GlobalSearchOption {
+  const title = [item.stock_name, item.stock_code].filter(Boolean).join(" ");
+  const trackCount = item.tracks?.length || 0;
+  return {
+    value: `stock:${item.stock_id}`,
+    route: `/stock-analysis/stocks/${item.stock_id}`,
+    label: (
+      <div className="global-search-option">
+        <span className="global-search-option-type">标的</span>
+        <span className="global-search-option-main">{title || `标的 ${item.stock_id}`}</span>
+        <span className="global-search-option-meta">{statusText(item.status)} · {trackCount} 赛道</span>
+      </div>
+    )
+  };
+}
+
+function trackOption(item: Track): GlobalSearchOption {
+  return {
+    value: `track:${item.id}`,
+    route: `/track-discovery/tracks/${item.id}`,
+    label: (
+      <div className="global-search-option">
+        <span className="global-search-option-type">赛道</span>
+        <span className="global-search-option-main">{item.name}</span>
+        <span className="global-search-option-meta">{statusText(item.status)}{item.stage ? ` · ${item.stage}` : ""}</span>
+      </div>
+    )
+  };
+}
+
 export function TopStatusBar() {
+  const navigate = useNavigate();
   const { resolvedMode, setMode } = useLiuliTheme();
   const [jobs, setJobs] = useState<JobConfig[]>([]);
   const [requests, setRequests] = useState<JobRunRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserMe | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [searchOptions, setSearchOptions] = useState<AutoCompleteProps["options"]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordForm] = Form.useForm<PasswordFormValues>();
@@ -57,6 +113,41 @@ export function TopStatusBar() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    const keyword = searchText.trim();
+    if (!keyword) {
+      setSearchOptions([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const [stocks, tracks] = await Promise.all([searchStockPool(keyword), searchTracks(keyword)]);
+        if (!active) return;
+        const nextOptions: AutoCompleteProps["options"] = [];
+        if (stocks.length) {
+          nextOptions.push({ label: "标的池", options: stocks.map(stockOption) });
+        }
+        if (tracks.length) {
+          nextOptions.push({ label: "赛道库", options: tracks.map(trackOption) });
+        }
+        setSearchOptions(nextOptions);
+      } catch {
+        if (active) setSearchOptions([]);
+      } finally {
+        if (active) setSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchText]);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +207,14 @@ export function TopStatusBar() {
     }
   }
 
+  function handleSearchSelect(_value: string, option: unknown) {
+    const route = (option as { route?: string }).route;
+    if (!route) return;
+    setSearchText("");
+    setSearchOptions([]);
+    navigate(route);
+  }
+
   async function submitPasswordChange() {
     let values: PasswordFormValues;
     try {
@@ -144,13 +243,22 @@ export function TopStatusBar() {
     <>
       <div className="top-status-bar">
         <Space size={8} className="top-status-left">
-          <Input
-            size="small"
+          <AutoComplete
             className="global-search"
-            prefix={<SearchOutlined />}
-            placeholder="搜索股票/赛道/公告/知识库"
-            suffix={<span className="search-shortcut">⌘ K</span>}
-          />
+            popupClassName="global-search-popup"
+            value={searchText}
+            options={searchOptions}
+            onChange={setSearchText}
+            onSelect={handleSearchSelect}
+            notFoundContent={searchText.trim() && !searchLoading ? "未找到标的池或赛道库结果" : null}
+          >
+            <Input
+              size="small"
+              prefix={<SearchOutlined />}
+              placeholder="搜索标的池 / 赛道库"
+              suffix={<span className="search-shortcut">⌘ K</span>}
+            />
+          </AutoComplete>
           <span className={`status-chip ${taskStatus.className}`}><i />{taskStatus.label}</span>
         </Space>
         <Space size={6} className="top-status-right">

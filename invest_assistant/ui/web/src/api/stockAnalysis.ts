@@ -52,6 +52,11 @@ export type PageParams = {
   offset?: number;
 };
 
+export type StockPoolListParams = {
+  q?: string;
+  limit?: number;
+};
+
 export type StockMaterialListParams = PageParams & {
   status?: string;
   stock_id?: number;
@@ -80,9 +85,15 @@ export async function getStockDailyBars(stockId: number, params: StockDailyBarsP
   return response.data;
 }
 
-export async function listStockPool(): Promise<StockPoolItem[]> {
-  const response = await apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool");
+export async function listStockPool(params: StockPoolListParams = {}): Promise<StockPoolItem[]> {
+  const response = await apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { params });
   return response.data;
+}
+
+export async function searchStockPool(keyword: string, limit = 8): Promise<StockPoolItem[]> {
+  const q = keyword.trim();
+  if (!q) return [];
+  return listStockPool({ q, limit });
 }
 
 export async function createStockPoolItem(payload: StockPoolPayload): Promise<StockPoolItem> {

@@ -181,12 +181,27 @@ def update_pool_item(db: Session, pool_id: int, payload: StockPoolCreate) -> dic
     return _pool_item_dict(db, item)
 
 
-def list_pool(db: Session) -> list[dict]:
-    rows = db.execute(
+def list_pool(db: Session, q: str | None = None, limit: int | None = None) -> list[dict]:
+    stmt = (
         select(StockPoolItem, Stock)
         .join(Stock, Stock.id == StockPoolItem.stock_id)
         .order_by(StockPoolItem.updated_at.desc())
-    ).all()
+    )
+    keyword = (q or "").strip()
+    if keyword:
+        pattern = f"%{keyword}%"
+        stmt = stmt.where(
+            or_(
+                Stock.symbol.ilike(pattern),
+                Stock.stock_code.ilike(pattern),
+                Stock.stock_name.ilike(pattern),
+                Stock.name_pinyin.ilike(pattern),
+                Stock.name_abbr.ilike(pattern),
+            )
+        )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    rows = db.execute(stmt).all()
     return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
 
 
