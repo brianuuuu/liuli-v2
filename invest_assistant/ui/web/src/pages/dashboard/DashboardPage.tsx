@@ -17,7 +17,6 @@ import {
   HistoryOutlined,
   AuditOutlined,
   FilterOutlined,
-  BranchesOutlined,
   SyncOutlined
 } from "@ant-design/icons";
 import { Button, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
@@ -485,15 +484,6 @@ function OperationsPanelSection() {
       lastRunAt: jobByName.get("market_radar.extract_daily_hotwords_deepseek")?.last_run_at,
       icon: <FilterOutlined />,
       color: "#d97706"
-    },
-    {
-      key: "ai-hotword-merge",
-      name: "AI 热词合并建议",
-      pending: pendingSuggestionCount,
-      jobName: "market_radar.suggest_hotword_merges_deepseek",
-      lastRunAt: jobByName.get("market_radar.suggest_hotword_merges_deepseek")?.last_run_at,
-      icon: <BranchesOutlined />,
-      color: "#7c3aed"
     }
   ];
 

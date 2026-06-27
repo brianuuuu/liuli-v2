@@ -31,7 +31,6 @@ from invest_assistant.modules.knowledge_base.schemas import (
 from invest_assistant.modules.market_radar.models import Tag
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
-DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY = "market_radar.suggest_hotword_merges_deepseek"
 DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY = "market_radar.generate_daily_report"
 DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
 DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
@@ -170,17 +169,6 @@ DEFAULT_KNOWLEDGE_PROMPTS = [
         model="deepseek-v4-flash",
         system_prompt=_prompt_path("market_radar/extract_daily_hotwords_deepseek/system.md"),
         user_prompt=_prompt_path("market_radar/extract_daily_hotwords_deepseek/user.md"),
-        response_format="json_object",
-        status="active",
-    ),
-    KnowledgePromptCreate(
-        prompt_key=DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY,
-        title="DeepSeek 热词近义合并建议",
-        target_task=DEEPSEEK_HOTWORD_MERGE_PROMPT_KEY,
-        provider="deepseek",
-        model="deepseek-v4-flash",
-        system_prompt=_prompt_path("market_radar/suggest_hotword_merges_deepseek/system.md"),
-        user_prompt=_prompt_path("market_radar/suggest_hotword_merges_deepseek/user.md"),
         response_format="json_object",
         status="active",
     ),

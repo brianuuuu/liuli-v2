@@ -166,10 +166,6 @@ def extract_hotwords(news: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MOD
     return _chat_json(prompt, model, {"news": news})
 
 
-def suggest_hotword_merges(candidates: list[dict], existing_hotwords: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
-    return _chat_json(prompt, model, {"candidates": candidates, "existing_hotwords": existing_hotwords})
-
-
 def review_stock_materials(materials: list[dict], prompt, model: str = DEFAULT_DEEPSEEK_MODEL) -> dict:
     return _chat_json(prompt, model, {"materials": materials})
 

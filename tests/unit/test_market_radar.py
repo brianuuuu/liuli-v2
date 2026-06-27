@@ -200,8 +200,6 @@ def test_deepseek_daily_hotword_job_writes_ai_tag_suggestions(monkeypatch):
         "invest_assistant.services.deepseek.client.extract_hotwords",
         lambda news, prompt, model: {"hotwords": [{"name": "商业航天", "score": 8, "reason": "关注度上升"}], "usage": {}},
     )
-    monkeypatch.setattr("invest_assistant.modules.market_radar.jobs._suggest_hotword_merges", lambda db, candidates, model: {})
-
     result = market_radar_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-05-25")
 
     assert result.success
