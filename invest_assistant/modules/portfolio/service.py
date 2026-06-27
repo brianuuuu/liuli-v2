@@ -14,6 +14,7 @@ from invest_assistant.modules.portfolio.models import (
     PortfolioReview,
     PortfolioValueSnapshot,
 )
+from invest_assistant.modules.stock_analysis import service as stock_analysis_service
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashFlowCreate,
     PortfolioCashUpdate,
@@ -402,6 +403,255 @@ def list_value_snapshots(db: Session, portfolio_id: int | None = None, days: int
         bucket["day_pnl"] += float(item.day_pnl or 0)
         bucket["position_count"] += int(item.position_count or 0)
     return list(reversed([by_date[key] for key in sorted(by_date.keys(), reverse=True)[:limit]]))
+
+
+def get_review_performance(
+    db: Session,
+    portfolio_id: int | None = None,
+    period: str = "year",
+    benchmark_code: str = "000300.SH",
+    refresh_benchmark: bool = True,
+) -> dict:
+    normalized_period = period if period in {"month", "year", "all"} else "year"
+    today = _today_shanghai()
+    portfolio_ids = [portfolio_id] if portfolio_id else [item.id for item in list_portfolios(db)]
+    portfolio_ids = [item for item in portfolio_ids if db.get(Portfolio, item) is not None]
+    range_start = _review_range_start(db, portfolio_ids, normalized_period, today)
+    if range_start is None:
+        return _empty_review_performance(db, portfolio_id, normalized_period, benchmark_code, today)
+
+    snapshots = _review_snapshot_points(db, portfolio_ids, range_start, today)
+    if not snapshots:
+        return _empty_review_performance(db, portfolio_id, normalized_period, benchmark_code, today)
+
+    benchmark_rows = stock_analysis_service.list_market_index_daily_bars(
+        db,
+        benchmark_code,
+        start_date=snapshots[0]["date"],
+        end_date=today,
+        refresh=refresh_benchmark,
+    )
+    benchmark_by_date = {item.trade_date: item for item in benchmark_rows}
+    curve_points = _review_curve_points(db, portfolio_ids, snapshots, benchmark_by_date)
+    calendar = _review_calendar(curve_points, normalized_period)
+    last_point = curve_points[-1] if curve_points else {}
+    return {
+        "scope": "single" if portfolio_id else "all",
+        "portfolio_id": portfolio_id,
+        "period": normalized_period,
+        "start_date": snapshots[0]["date"].isoformat(),
+        "end_date": snapshots[-1]["date"].isoformat(),
+        "portfolio_options": [_portfolio_dict(item) for item in list_portfolios(db)],
+        "benchmark": {
+            "code": benchmark_code,
+            "name": stock_analysis_service._market_index_name(benchmark_code),
+        },
+        "summary": {
+            "portfolio_return_pct": last_point.get("portfolio_return_pct"),
+            "benchmark_return_pct": last_point.get("benchmark_return_pct"),
+            "excess_return_pct": last_point.get("excess_return_pct"),
+            "max_drawdown_pct": _max_drawdown_pct(curve_points),
+            "effective_days": len(curve_points),
+        },
+        "curve_points": curve_points,
+        "calendar": calendar,
+    }
+
+
+def _empty_review_performance(db: Session, portfolio_id: int | None, period: str, benchmark_code: str, today: date) -> dict:
+    return {
+        "scope": "single" if portfolio_id else "all",
+        "portfolio_id": portfolio_id,
+        "period": period,
+        "start_date": today.isoformat(),
+        "end_date": today.isoformat(),
+        "portfolio_options": [_portfolio_dict(item) for item in list_portfolios(db)],
+        "benchmark": {"code": benchmark_code, "name": stock_analysis_service._market_index_name(benchmark_code)},
+        "summary": {
+            "portfolio_return_pct": None,
+            "benchmark_return_pct": None,
+            "excess_return_pct": None,
+            "max_drawdown_pct": None,
+            "effective_days": 0,
+        },
+        "curve_points": [],
+        "calendar": {"granularity": _calendar_granularity(period), "items": []},
+    }
+
+
+def _review_range_start(db: Session, portfolio_ids: list[int], period: str, today: date) -> date | None:
+    if period == "month":
+        return date(today.year, today.month, 1)
+    if period == "year":
+        return date(today.year, 1, 1)
+    if not portfolio_ids:
+        return None
+    first_snapshot = db.scalar(
+        select(func.min(PortfolioValueSnapshot.snapshot_date)).where(PortfolioValueSnapshot.portfolio_id.in_(portfolio_ids))
+    )
+    return first_snapshot
+
+
+def _review_snapshot_points(db: Session, portfolio_ids: list[int], start_date: date, end_date: date) -> list[dict]:
+    if not portfolio_ids:
+        return []
+    rows = list(
+        db.scalars(
+            select(PortfolioValueSnapshot)
+            .where(
+                PortfolioValueSnapshot.portfolio_id.in_(portfolio_ids),
+                PortfolioValueSnapshot.snapshot_date >= start_date,
+                PortfolioValueSnapshot.snapshot_date <= end_date,
+            )
+            .order_by(PortfolioValueSnapshot.snapshot_date.asc(), PortfolioValueSnapshot.portfolio_id.asc(), PortfolioValueSnapshot.id.asc())
+        )
+    )
+    by_date: dict[date, dict] = {}
+    for item in rows:
+        bucket = by_date.setdefault(
+            item.snapshot_date,
+            {
+                "date": item.snapshot_date,
+                "total_value": 0.0,
+                "position_market_value": 0.0,
+                "cash_amount": 0.0,
+                "position_count": 0,
+            },
+        )
+        bucket["total_value"] += float(item.total_value or 0)
+        bucket["position_market_value"] += float(item.position_market_value or 0)
+        bucket["cash_amount"] += float(item.cash_amount or 0)
+        bucket["position_count"] += int(item.position_count or 0)
+    return [by_date[key] for key in sorted(by_date)]
+
+
+def _review_curve_points(db: Session, portfolio_ids: list[int], snapshots: list[dict], benchmark_by_date: dict[date, object]) -> list[dict]:
+    base_value = float(snapshots[0]["total_value"] or 0)
+    if base_value <= 0:
+        return []
+    base_date = snapshots[0]["date"]
+    flow_by_date = _review_external_flows_by_date(db, portfolio_ids, base_date, snapshots[-1]["date"])
+    benchmark_base = _benchmark_close_for_date(benchmark_by_date, base_date)
+    cumulative_external_flow = 0.0
+    previous_value = base_value
+    points: list[dict] = []
+    for index, item in enumerate(snapshots):
+        item_date = item["date"]
+        day_external_flow = flow_by_date.get(item_date, 0.0) if item_date > base_date else 0.0
+        cumulative_external_flow += day_external_flow
+        total_value = float(item["total_value"] or 0)
+        portfolio_return = (total_value - base_value - cumulative_external_flow) / base_value * 100
+        daily_return = 0.0 if index == 0 or previous_value <= 0 else (total_value - previous_value - day_external_flow) / previous_value * 100
+        benchmark_close = _benchmark_close_for_date(benchmark_by_date, item_date)
+        benchmark_return = (
+            (benchmark_close - benchmark_base) / benchmark_base * 100
+            if benchmark_close is not None and benchmark_base
+            else None
+        )
+        excess_return = portfolio_return - benchmark_return if benchmark_return is not None else None
+        points.append(
+            {
+                "date": item_date.isoformat(),
+                "total_value": total_value,
+                "portfolio_return_pct": portfolio_return,
+                "benchmark_return_pct": benchmark_return,
+                "excess_return_pct": excess_return,
+                "daily_return_pct": daily_return,
+                "external_flow": day_external_flow,
+                "benchmark_close": benchmark_close,
+            }
+        )
+        previous_value = total_value
+    return points
+
+
+def _review_external_flows_by_date(db: Session, portfolio_ids: list[int], start_date: date, end_date: date) -> dict[date, float]:
+    rows = list(
+        db.scalars(
+            select(PortfolioCashFlow)
+            .where(
+                PortfolioCashFlow.portfolio_id.in_(portfolio_ids),
+                PortfolioCashFlow.flow_date > start_date,
+                PortfolioCashFlow.flow_date <= end_date,
+            )
+            .order_by(PortfolioCashFlow.flow_date.asc(), PortfolioCashFlow.id.asc())
+        )
+    )
+    result: dict[date, float] = {}
+    for item in rows:
+        amount = _external_flow_amount(item)
+        result[item.flow_date] = result.get(item.flow_date, 0.0) + amount
+    return result
+
+
+def _external_flow_amount(item: PortfolioCashFlow) -> float:
+    amount = float(item.amount or 0)
+    if item.flow_type == "withdraw":
+        return -amount
+    if item.flow_type in {"deposit", "adjustment"}:
+        return amount
+    return 0.0
+
+
+def _benchmark_close_for_date(benchmark_by_date: dict[date, object], target_date: date) -> float | None:
+    row = benchmark_by_date.get(target_date)
+    return float(row.close) if row is not None and getattr(row, "close", None) is not None else None
+
+
+def _review_calendar(curve_points: list[dict], period: str) -> dict:
+    granularity = _calendar_granularity(period)
+    if granularity == "day":
+        return {
+            "granularity": granularity,
+            "items": [
+                {
+                    "key": point["date"],
+                    "label": point["date"][5:],
+                    "return_pct": point["daily_return_pct"],
+                    "value": point["daily_return_pct"],
+                }
+                for point in curve_points
+            ],
+        }
+
+    buckets: dict[str, dict] = {}
+    order: list[str] = []
+    previous_point: dict | None = None
+    for point in curve_points:
+        key = point["date"][:7] if granularity == "month" else point["date"][:4]
+        if key not in buckets:
+            buckets[key] = {"start": previous_point, "end": point}
+            order.append(key)
+        buckets[key]["end"] = point
+        previous_point = point
+    items = []
+    for key in order:
+        bucket = buckets[key]
+        start = bucket["start"]
+        end = bucket["end"]
+        return_pct = 0.0 if start is None else float(end["portfolio_return_pct"] or 0) - float(start["portfolio_return_pct"] or 0)
+        items.append({"key": key, "label": key, "return_pct": return_pct, "value": return_pct})
+    return {"granularity": granularity, "items": items}
+
+
+def _calendar_granularity(period: str) -> str:
+    if period == "month":
+        return "day"
+    if period == "year":
+        return "month"
+    return "year"
+
+
+def _max_drawdown_pct(curve_points: list[dict]) -> float | None:
+    if not curve_points:
+        return None
+    peak = 0.0
+    max_drawdown = 0.0
+    for point in curve_points:
+        value = float(point["portfolio_return_pct"] or 0)
+        peak = max(peak, value)
+        max_drawdown = min(max_drawdown, value - peak)
+    return max_drawdown
 
 
 def refresh_position_quotes(db: Session, portfolio_id: int) -> dict:

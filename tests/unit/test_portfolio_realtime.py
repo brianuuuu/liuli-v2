@@ -10,8 +10,9 @@ from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.portfolio import service
 from invest_assistant.modules.portfolio import jobs
-from invest_assistant.modules.portfolio.models import PortfolioPosition, PortfolioValueSnapshot
+from invest_assistant.modules.portfolio.models import PortfolioCashFlow, PortfolioPosition, PortfolioValueSnapshot
 from invest_assistant.modules.portfolio.schemas import PortfolioCashFlowCreate, PortfolioCashUpdate, PortfolioCreate, PortfolioPositionCreate
+from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar
 from invest_assistant.services.tushare import client as tushare_client
 
 
@@ -375,3 +376,121 @@ def test_portfolio_refresh_all_realtime_quotes_job_registered():
     assert definition.module_name == "portfolio"
     assert definition.display_name == "刷新全部组合实时行情"
     assert definition.trigger_type == "manual"
+
+
+def add_value_snapshot(db, portfolio_id, snapshot_date, total_value, day_pnl=0.0):
+    item = PortfolioValueSnapshot(
+        portfolio_id=portfolio_id,
+        snapshot_date=snapshot_date,
+        total_value=total_value,
+        position_market_value=total_value,
+        cash_amount=0,
+        day_pnl=day_pnl,
+        day_pct=None,
+        position_count=1,
+        source="test",
+    )
+    db.add(item)
+    db.commit()
+    return item
+
+
+def add_index_bar(db, trade_date, close):
+    item = MarketIndexDailyBar(
+        code="000300.SH",
+        name="沪深300",
+        trade_date=trade_date,
+        open=close,
+        high=close,
+        low=close,
+        close=close,
+        pre_close=None,
+        change=None,
+        pct_chg=None,
+        vol=None,
+        amount=None,
+        source="test",
+    )
+    db.add(item)
+    db.commit()
+    return item
+
+
+def add_cash_flow(db, portfolio_id, flow_type, amount, flow_date):
+    item = PortfolioCashFlow(
+        portfolio_id=portfolio_id,
+        flow_type=flow_type,
+        amount=amount,
+        currency="CNY",
+        flow_date=flow_date,
+        note=None,
+    )
+    db.add(item)
+    db.commit()
+    return item
+
+
+def test_review_performance_uses_cash_flow_adjusted_returns_for_single_portfolio(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 30))
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 1), 1000)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 2), 1200)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 3), 1250)
+        add_cash_flow(db, portfolio.id, "deposit", 100, date(2026, 6, 2))
+        add_cash_flow(db, portfolio.id, "withdraw", 50, date(2026, 6, 3))
+        add_index_bar(db, date(2026, 6, 1), 4000)
+        add_index_bar(db, date(2026, 6, 2), 4040)
+        add_index_bar(db, date(2026, 6, 3), 4080)
+
+        result = service.get_review_performance(db, portfolio_id=portfolio.id, period="month", refresh_benchmark=False)
+
+        assert result["scope"] == "single"
+        assert result["portfolio_id"] == portfolio.id
+        assert result["benchmark"]["code"] == "000300.SH"
+        assert [point["date"] for point in result["curve_points"]] == ["2026-06-01", "2026-06-02", "2026-06-03"]
+        assert result["curve_points"][0]["portfolio_return_pct"] == 0
+        assert round(result["curve_points"][1]["portfolio_return_pct"], 2) == 10.0
+        assert round(result["curve_points"][2]["portfolio_return_pct"], 2) == 20.0
+        assert round(result["curve_points"][2]["benchmark_return_pct"], 2) == 2.0
+        assert round(result["summary"]["portfolio_return_pct"], 2) == 20.0
+        assert result["calendar"]["granularity"] == "day"
+        assert [item["label"] for item in result["calendar"]["items"]] == ["06-01", "06-02", "06-03"]
+        assert round(result["calendar"]["items"][1]["return_pct"], 2) == 10.0
+    finally:
+        db.close()
+
+
+def test_review_performance_aggregates_all_portfolios_and_uses_year_calendar(monkeypatch, tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 30))
+        first = service.create_portfolio(db, PortfolioCreate(name="组合A"), user_id=1)
+        second = service.create_portfolio(db, PortfolioCreate(name="组合B"), user_id=1)
+        add_value_snapshot(db, first.id, date(2026, 1, 1), 1000)
+        add_value_snapshot(db, second.id, date(2026, 1, 1), 500)
+        add_value_snapshot(db, first.id, date(2026, 2, 1), 1100)
+        add_value_snapshot(db, second.id, date(2026, 2, 1), 550)
+        add_value_snapshot(db, first.id, date(2026, 3, 1), 1150)
+        add_value_snapshot(db, second.id, date(2026, 3, 1), 600)
+        add_cash_flow(db, first.id, "deposit", 100, date(2026, 3, 1))
+        add_index_bar(db, date(2026, 1, 1), 4000)
+        add_index_bar(db, date(2026, 2, 1), 4200)
+        add_index_bar(db, date(2026, 3, 1), 4400)
+
+        result = service.get_review_performance(db, portfolio_id=None, period="year", refresh_benchmark=False)
+
+        assert result["scope"] == "all"
+        assert result["portfolio_id"] is None
+        assert [point["total_value"] for point in result["curve_points"]] == [1500.0, 1650.0, 1750.0]
+        assert round(result["curve_points"][1]["portfolio_return_pct"], 2) == 10.0
+        assert round(result["curve_points"][2]["portfolio_return_pct"], 2) == 10.0
+        assert result["calendar"]["granularity"] == "month"
+        assert [item["label"] for item in result["calendar"]["items"]] == ["2026-01", "2026-02", "2026-03"]
+        assert round(result["calendar"]["items"][1]["return_pct"], 2) == 10.0
+        assert round(result["calendar"]["items"][2]["return_pct"], 2) == 0.0
+    finally:
+        db.close()

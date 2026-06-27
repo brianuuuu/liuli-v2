@@ -11,6 +11,7 @@ from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
+    MarketIndexDailyBar,
     MarketIndexRealtimeQuote,
     StockCompareGroup,
     StockDailyBar,
@@ -93,6 +94,103 @@ def list_major_index_quotes(db: Session) -> list[dict]:
     return [_market_index_quote_dict(rows.get(item["code"]), item["code"], item["name"]) for item in MAJOR_A_SHARE_INDICES]
 
 
+def refresh_market_index_daily_bars(
+    db: Session,
+    code: str,
+    *,
+    name: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> JobResult:
+    normalized_code = _normalize_market_index_code(code)
+    index_name = name or _market_index_name(normalized_code)
+    end = end_date or date.today()
+    start = start_date or end - timedelta(days=366)
+    rows = tushare_client.fetch_market_index_daily_bar_rows(
+        normalized_code,
+        start_date=start.strftime("%Y%m%d"),
+        end_date=end.strftime("%Y%m%d"),
+    )
+    normalized = _normalize_market_index_daily_bar_rows(rows, code=normalized_code)
+    if not normalized:
+        return JobResult(success=True, message=f"no daily bars fetched for {normalized_code}", skipped_count=1)
+
+    existing = {
+        item.trade_date: item
+        for item in db.scalars(
+            select(MarketIndexDailyBar).where(
+                MarketIndexDailyBar.code == normalized_code,
+                MarketIndexDailyBar.trade_date.in_([row["trade_date"] for row in normalized]),
+                MarketIndexDailyBar.source == "tushare",
+            )
+        )
+    }
+    inserted = 0
+    updated = 0
+    for row in normalized:
+        payload = {
+            "code": normalized_code,
+            "name": index_name,
+            "trade_date": row["trade_date"],
+            "open": row["open"],
+            "high": row["high"],
+            "low": row["low"],
+            "close": row["close"],
+            "pre_close": row.get("pre_close"),
+            "change": row.get("change"),
+            "pct_chg": row.get("pct_chg"),
+            "vol": row.get("vol"),
+            "amount": row.get("amount"),
+            "source": "tushare",
+        }
+        item = existing.get(row["trade_date"])
+        if item is None:
+            db.add(MarketIndexDailyBar(**payload))
+            inserted += 1
+        else:
+            for key, value in payload.items():
+                setattr(item, key, value)
+            updated += 1
+    db.commit()
+    return JobResult(
+        success=True,
+        message=f"synced {len(normalized)} daily bars for {normalized_code}",
+        fetched_count=len(normalized),
+        processed_count=1,
+        inserted_count=inserted,
+        updated_count=updated,
+        extra={"code": normalized_code},
+    )
+
+
+def list_market_index_daily_bars(
+    db: Session,
+    code: str,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    refresh: bool = False,
+) -> list[MarketIndexDailyBar]:
+    normalized_code = _normalize_market_index_code(code)
+    stmt = select(MarketIndexDailyBar).where(MarketIndexDailyBar.code == normalized_code)
+    if start_date is not None:
+        stmt = stmt.where(MarketIndexDailyBar.trade_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(MarketIndexDailyBar.trade_date <= end_date)
+    stmt = stmt.order_by(MarketIndexDailyBar.trade_date.asc(), MarketIndexDailyBar.id.asc())
+    rows = list(db.scalars(stmt))
+    if refresh or not rows:
+        refresh_market_index_daily_bars(
+            db,
+            normalized_code,
+            name=_market_index_name(normalized_code),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        rows = list(db.scalars(stmt))
+    return rows
+
+
 def _mark_major_indices_failed(db: Session, message: str) -> None:
     for item in MAJOR_A_SHARE_INDICES:
         _upsert_market_index_quote(db, item["code"], item["name"], status="failed", error_message=message)
@@ -145,6 +243,46 @@ def _market_index_quote_dict(item: MarketIndexRealtimeQuote | None, code: str, n
         "message": item.error_message if item is not None else None,
         "updated_at": item.updated_at.isoformat() if item is not None and item.updated_at is not None else None,
     }
+
+
+def _normalize_market_index_code(code: str) -> str:
+    return str(code or "000300.SH").strip().upper() or "000300.SH"
+
+
+def _market_index_name(code: str) -> str:
+    names = {item["code"]: item["name"] for item in MAJOR_A_SHARE_INDICES}
+    return names.get(_normalize_market_index_code(code), _normalize_market_index_code(code))
+
+
+def _normalize_market_index_daily_bar_rows(rows: list[dict], *, code: str) -> list[dict]:
+    normalized: list[dict] = []
+    for row in rows:
+        trade_date = _parse_trade_date(row.get("trade_date"))
+        if trade_date is None:
+            continue
+        open_price = _float_or_none(row.get("open"))
+        high_price = _float_or_none(row.get("high"))
+        low_price = _float_or_none(row.get("low"))
+        close_price = _float_or_none(row.get("close"))
+        if None in (open_price, high_price, low_price, close_price):
+            continue
+        normalized.append(
+            {
+                "code": row.get("ts_code") or code,
+                "trade_date": trade_date,
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "pre_close": _float_or_none(row.get("pre_close")),
+                "change": _float_or_none(row.get("change")),
+                "pct_chg": _float_or_none(row.get("pct_chg")),
+                "vol": _float_or_none(row.get("vol")),
+                "amount": _float_or_none(row.get("amount")),
+            }
+        )
+    normalized.sort(key=lambda item: item["trade_date"])
+    return normalized
 
 
 def create_pool_item(db: Session, payload: StockPoolCreate) -> dict:

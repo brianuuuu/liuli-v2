@@ -44,6 +44,26 @@ def list_value_snapshots(portfolio_id: int | None = None, days: int = 180, db: S
     return service.list_value_snapshots(db, portfolio_id, days)
 
 
+@router.get("/review-performance")
+def get_review_performance(
+    portfolio_id: int | None = None,
+    period: str = "year",
+    benchmark_code: str = "000300.SH",
+    refresh_benchmark: bool = True,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return service.get_review_performance(
+            db,
+            portfolio_id=portfolio_id,
+            period=period,
+            benchmark_code=benchmark_code,
+            refresh_benchmark=refresh_benchmark,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/{portfolio_id}", response_model=PortfolioRead)
 def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
     item = service.get_portfolio(db, portfolio_id)
