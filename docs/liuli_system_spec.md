@@ -7,7 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
-- v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件、不放 Console、不新增表直到需要审计或动态启停。
+- v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
 - v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表；按当前代码补齐 API、Job 和表结构，并将本文件作为唯一长期规格源。
 - v24：重构标签模型为“信息层 source_item → 语言层 tag → 业务层 stock/track/hotword”；取消 stock_alias/track_alias/hotword_alias/tag_candidate；新增 stock_tag_relation、track_tag_relation、hotword、hotword_tag_relation、ai_tag_suggestion；明确 tag 是语言入口，实体通过 relation 绑定多个 tag，source_tag 是信息流命中关系，实体热度通过绑定关系聚合；同步更新 API、表结构汇总和架构图。
 - v23：补充三类别名维护入口；明确标的别名主入口在股票基础库、辅入口在标的详情；赛道绑定标签主入口在赛道详情；市场热词别名主入口在市场热词详情、辅入口在标签索引；AI 推荐词审核页提供快捷转别名入口。
@@ -771,7 +771,8 @@ Codex 连接 liuli 的基础集成入口
 ```text
 MCP server 初始化
 MCP tool 注册与描述
-Bearer Token 校验
+Bearer Token 校验，token/client 配置读取 system_config.mcp.clients
+开发期详细调试日志 mcp_debug.log
 工具入参/出参裁剪
 调用各业务模块 service
 统一错误映射和审计扩展点
@@ -785,6 +786,7 @@ modules/basic/mcp/
 ├── server.py
 ├── auth.py
 ├── registry.py
+├── debug_logger.py
 ├── service.py
 ├── schemas.py
 └── tools/
@@ -799,7 +801,8 @@ modules/basic/mcp/
 
 ```text
 basic/mcp 是对外协议层，不是 Console 页面能力；
-Console 后续最多展示 MCP 状态，不承载 MCP 业务实现；
+Console 不新增 MCP 子模块，第一版通过“系统配置”维护 mcp.clients；
+Console 后续最多展示 MCP 状态和审计，不承载 MCP 业务实现；
 knowledge_base/tool_registry.py 仍只服务系统内部 Agent Python 函数工具；
 MCP tool wrapper 必须调用各模块 service，不直接写 SQL。
 ```
@@ -5740,6 +5743,7 @@ modules/basic/mcp/
 ├── server.py              # 创建 MCP server，设置 instructions，注册 tools
 ├── auth.py                # MCP Bearer Token 校验
 ├── registry.py            # MCP 工具清单、风险等级、只读标记、allowlist
+├── debug_logger.py        # MCP 开发期详细调试日志，写入 var/logs/mcp_debug.log
 ├── service.py             # DB session 包装、工具调用分发、统一异常边界
 ├── schemas.py             # MCP tool 入参/出参 Pydantic 类型
 └── tools/
@@ -5750,13 +5754,53 @@ modules/basic/mcp/
     └── portfolio.py
 ```
 
-第一版不建表。
+第一版不新增 MCP 专用表。MCP 的外部 client/token 配置复用现有 `system_config`：
+
+```text
+config_key = mcp.clients
+config_type = json
+module_name = mcp
+enabled = true
+```
+
+`config_value` 推荐保存 client map，便于个人系统在“系统配置”页面直接维护 Codex、opencode 等调用方：
+
+```json
+{
+  "codex": {
+    "enabled": true,
+    "token": "long-random-token",
+    "allowed_tools": [
+      "market_radar.search_source_items",
+      "track_discovery.get_track_detail",
+      "stock_analysis.get_stock_profile",
+      "report_library.read_report_content",
+      "portfolio.get_overview"
+    ],
+    "max_result_limit": 50,
+    "local_only": true,
+    "note": "Codex local access"
+  },
+  "opencode": {
+    "enabled": true,
+    "token": "another-long-random-token",
+    "allowed_tools": [
+      "market_radar.search_source_items",
+      "stock_analysis.get_stock_profile"
+    ],
+    "max_result_limit": 50,
+    "local_only": true
+  }
+}
+```
+
+`basic/mcp/auth.py` 只读取 `system_config.mcp.clients` 并解析启用的 client；Bearer Token 命中某个启用 client 后，再按该 client 的 `allowed_tools` 和全局工具 registry 做交集校验。个人单用户系统第一版允许 token 明文保存在 `system_config`，后续如需要过期时间、撤销历史、hash 存储或细粒度审计，再新增 MCP 专用表。
 
 后续只有出现以下需求时，才考虑增加 MCP 表：
 
 ```text
 动态启停 MCP 工具
-按 token / client 分配工具权限
+token 过期、撤销历史或 hash 存储
 记录 MCP 调用审计
 统计 Codex 使用频率
 ```
@@ -5775,7 +5819,8 @@ modules/basic/mcp/
 MCP 入口不挂在 /api 下；
 MCP 使用独立 Bearer Token；
 不复用 Web 登录态和浏览器 Cookie；
-Token 从 .env / Settings 读取；
+liuli 服务端从系统配置 `mcp.clients` 读取可接受 token；
+Codex、opencode 等客户端可继续用本机环境变量保存自己的 bearer token；
 默认只监听本机或受控网络入口。
 ```
 
@@ -5826,6 +5871,7 @@ MCP tool wrapper 只做协议层工作；
 业务查询调用对应模块 service；
 返回结果必须裁剪字段和数量；
 错误统一映射成 MCP tool error；
+每次调用必须写入 mcp_debug.log，便于开发期排查 client、tool、入参、耗时、异常；
 文件读取必须走 report_library / disclosure_library 等受控 service；
 任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level。
 ```
@@ -5856,6 +5902,53 @@ MCP server 初始化时必须提供 server-wide instructions，前 512 字符要
 本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
 ```
 
+### 开发期调试日志
+
+MCP 第一版必须提供独立开发期调试日志，不复用 `api.log`、`worker.log`、`job_run_log` 或 AI 审计日志。
+
+```text
+log_path = var/logs/mcp_debug.log
+max_bytes = 10 * 1024 * 1024
+backup_count = 5
+rotation_names = mcp_debug.log.1 ... mcp_debug.log.5
+```
+
+滚动规则：
+
+```text
+当前文件达到 10MB 后滚动；
+mcp_debug.log.1 保存最近一次滚出的文件；
+mcp_debug.log.5 为最旧归档；
+超过 5 个归档时覆盖最旧文件；
+命名必须保持 mcp_debug.log.1 这种格式。
+```
+
+记录内容：
+
+```text
+request_id / created_at；
+client_name，不记录 bearer token 明文；
+remote_addr / user_agent / protocol；
+tool_name / read_only / risk_level；
+sanitized_arguments；
+allowed_tools 命中结果；
+调用的业务 service 名称；
+duration_ms / status；
+result_count / result_size / truncated；
+error_type / error_message / stack_trace。
+```
+
+配置：
+
+```text
+config_key = mcp.debug_log.enabled
+config_type = boolean
+module_name = mcp
+开发期默认 true，稳定后可在系统配置中关闭。
+```
+
+该日志定位为本机开发排障材料，不是长期审计数据。第一版不做 Console 页面展示；后续如果需要查询、统计、留存策略或多用户审计，再新增 MCP 调用审计表。
+
 ### 安全与审计
 
 第一版要求：
@@ -5863,19 +5956,21 @@ MCP server 初始化时必须提供 server-wide instructions，前 512 字符要
 ```text
 默认只读；
 Bearer Token 必填；
+开发期写入独立 mcp_debug.log，10MB 单文件、5 个归档滚动；
 工具 allowlist 代码注册；
 单次返回数量有上限；
 文件内容读取限制在业务 service 允许的目录；
+系统配置列表展示 mcp.clients 时应遮罩 token 值，编辑弹窗可维护完整 JSON；
 不把数据库连接、API Key、Token、原始敏感配置暴露给 Codex。
 ```
 
 后续增强：
 
 ```text
-MCP 调用日志
+MCP 调用审计表
 按工具统计使用次数
 按工具配置风险等级
-Console 展示 MCP 状态和调用审计
+Console 仅展示 MCP 状态和调用审计，不承载 MCP 业务实现
 高风险写入工具执行前增加人工确认
 ```
 
