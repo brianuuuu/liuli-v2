@@ -44,6 +44,11 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "medium",
         "service_name": "report_library.service.resolve_report_path",
     },
+    "report_library.upload_markdown_report": {
+        "read_only": False,
+        "risk_level": "medium",
+        "service_name": "report_library.service.create_markdown_report_file_and_index",
+    },
     "portfolio.get_overview": {
         "read_only": True,
         "risk_level": "low",

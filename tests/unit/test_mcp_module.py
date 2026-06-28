@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -158,6 +159,105 @@ def test_mcp_execute_read_tool_enforces_allowlist_and_limit(monkeypatch):
         raise AssertionError("expected PermissionError")
 
 
+def test_mcp_upload_markdown_report_writes_file_and_index(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.report_library import read_report_content, upload_markdown_report
+    from invest_assistant.modules.basic.report_library.models import Report
+    from invest_assistant.shared.time_utils import BEIJING_TZ
+
+    monkeypatch.chdir(tmp_path)
+    SessionLocal = make_session()
+    db = SessionLocal()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["report_library.upload_markdown_report", "report_library.read_report_content"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    result = upload_markdown_report(
+        db=db,
+        client=client,
+        title="组合复盘",
+        source_module="portfolio",
+        markdown="# 组合复盘\n\n正文第一段。\n\n更多内容。",
+        now=datetime(2026, 6, 28, 22, 0, 0, tzinfo=BEIJING_TZ),
+    )
+
+    data = result["data"]
+    assert data["title"] == "组合复盘"
+    assert data["source_module"] == "portfolio"
+    assert data["status"] == "published"
+    assert data["content_size"] > 0
+    assert data["file_path"] == "reports/portfolio/2026-06/mcp-upload-20260628-220000.md"
+    assert (tmp_path / "var" / data["file_path"]).read_text(encoding="utf-8").startswith("# 组合复盘")
+
+    report = db.get(Report, data["report_id"])
+    assert report is not None
+    assert report.report_type == "mcp_upload"
+    assert report.file_format == "md"
+    assert report.generated_by == "mcp"
+    assert report.summary == "正文第一段。"
+
+    content = read_report_content(db=db, client=client, report_id=data["report_id"])
+    assert content["data"]["content"].startswith("# 组合复盘")
+
+
+def test_mcp_upload_markdown_report_requires_allowlist(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.report_library import upload_markdown_report
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["report_library.read_report_content"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    try:
+        upload_markdown_report(db=db, client=client, title="报告", source_module="portfolio", markdown="# 报告")
+    except PermissionError as exc:
+        assert "not allowed" in str(exc)
+    else:
+        raise AssertionError("expected PermissionError")
+
+
+def test_mcp_upload_markdown_report_rejects_invalid_payloads(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.report_library import upload_markdown_report
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["report_library.upload_markdown_report"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    cases = [
+        {"title": "", "source_module": "portfolio", "markdown": "# 报告"},
+        {"title": "报告", "source_module": "../portfolio", "markdown": "# 报告"},
+        {"title": "报告", "source_module": "unknown", "markdown": "# 报告"},
+        {"title": "报告", "source_module": "portfolio", "markdown": ""},
+        {"title": "报告", "source_module": "portfolio", "markdown": "x" * (1024 * 1024 + 1)},
+    ]
+    for payload in cases:
+        try:
+            upload_markdown_report(db=db, client=client, **payload)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected ValueError for {payload}")
+
+
 def test_mcp_stock_daily_bars_wrapper_never_refreshes(monkeypatch):
     from invest_assistant.modules.basic.mcp.auth import McpClientConfig
     from invest_assistant.modules.basic.mcp.tools.stock_analysis import get_daily_bars
@@ -237,6 +337,61 @@ def test_mcp_asgi_app_accepts_valid_system_config_token(monkeypatch):
     assert response.json()["result"]["serverInfo"]["name"] == "liuli"
 
 
+def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from invest_assistant.modules.basic.mcp import server
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    db = SessionLocal()
+    add_config(
+        db,
+        "mcp.clients",
+        json.dumps({"codex": {"enabled": True, "token": "secret-token", "allowed_tools": ["portfolio.get_overview"]}}),
+    )
+    db.close()
+    monkeypatch.setattr(server, "SessionLocal", SessionLocal)
+
+    init_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"},
+        },
+    }
+    with TestClient(server.create_mcp_asgi_app()) as client:
+        init_response = client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream"},
+            json=init_payload,
+        )
+        session_id = init_response.headers["mcp-session-id"]
+        client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream", "mcp-session-id": session_id},
+            json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+        )
+        tools_response = client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream", "mcp-session-id": session_id},
+            json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        )
+
+    assert "UTF-8" in init_response.json()["result"]["instructions"]
+    tools = {item["name"]: item["description"] for item in tools_response.json()["result"]["tools"]}
+    assert "信息流" in tools["market_radar.search_source_items"]
+    assert "track_id" in tools["track_discovery.get_track_detail"]
+    assert "股票代码" in tools["stock_analysis.get_stock_profile"]
+    assert "report_id" in tools["report_library.read_report_content"]
+    assert "Markdown" in tools["report_library.upload_markdown_report"]
+    assert "组合总览" in tools["portfolio.get_overview"]
+
+
 def test_mount_mcp_app_uses_top_level_mcp_path():
     from fastapi import FastAPI
     from starlette.responses import PlainTextResponse
@@ -299,3 +454,13 @@ def test_console_mcp_status_counts_enabled_clients_and_tools():
     assert status["enabled_clients"] == 1
     assert status["tools"] >= 1
     assert status["debug_log"] == "disabled"
+
+
+def test_mcp_registry_marks_upload_report_as_controlled_write_tool():
+    from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
+
+    metadata = get_tool_metadata("report_library.upload_markdown_report")
+
+    assert metadata is not None
+    assert metadata["read_only"] is False
+    assert metadata["risk_level"] == "medium"

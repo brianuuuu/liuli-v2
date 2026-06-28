@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
 - v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
 - v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表；按当前代码补齐 API、Job 和表结构，并将本文件作为唯一长期规格源。
 - v24：重构标签模型为“信息层 source_item → 语言层 tag → 业务层 stock/track/hotword”；取消 stock_alias/track_alias/hotword_alias/tag_candidate；新增 stock_tag_relation、track_tag_relation、hotword、hotword_tag_relation、ai_tag_suggestion；明确 tag 是语言入口，实体通过 relation 绑定多个 tag，source_tag 是信息流命中关系，实体热度通过绑定关系聚合；同步更新 API、表结构汇总和架构图。
@@ -5775,7 +5776,8 @@ enabled = true
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
       "report_library.read_report_content",
-      "portfolio.get_overview"
+      "portfolio.get_overview",
+      "report_library.upload_markdown_report"
     ],
     "max_result_limit": 50,
     "local_only": true,
@@ -5836,7 +5838,7 @@ default_tools_approval_mode = "prompt"
 
 ### 第一版工具范围
 
-第一版只暴露只读工具：
+第一版默认暴露只读查询工具：
 
 ```text
 market_radar.search_source_items
@@ -5851,6 +5853,14 @@ report_library.read_report_content
 portfolio.get_overview
 ```
 
+受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
+
+```text
+report_library.upload_markdown_report
+```
+
+`report_library.upload_markdown_report` 只接收 Markdown 文本、报告标题和 `source_module`，固定写入 `var/reports/{source_module}/YYYY-MM/`，同时创建 `report` 索引；不允许客户端指定任意路径或文件名。
+
 不暴露：
 
 ```text
@@ -5861,6 +5871,7 @@ portfolio.get_overview
 Shell / subprocess
 任务中心任意 job 触发
 修改组合、预警、标签、赛道、标的
+任意文件上传
 ```
 
 ### 工具实现规则
@@ -5873,7 +5884,7 @@ MCP tool wrapper 只做协议层工作；
 错误统一映射成 MCP tool error；
 每次调用必须写入 mcp_debug.log，便于开发期排查 client、tool、入参、耗时、异常；
 文件读取必须走 report_library / disclosure_library 等受控 service；
-任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level。
+任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level，并由 client allowed_tools 单独放开。
 ```
 
 正确依赖：
