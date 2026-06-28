@@ -11,6 +11,9 @@ from invest_assistant.modules.basic.disclosure_library.models import CompanyDisc
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.job_center import service as job_service
+from invest_assistant.modules.basic.mcp.auth import load_mcp_clients
+from invest_assistant.modules.basic.mcp.debug_logger import is_mcp_debug_log_enabled
+from invest_assistant.modules.basic.mcp.registry import registered_tool_names
 from invest_assistant.modules.market_radar import service as market_service
 from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.portfolio import service as portfolio_service
@@ -107,6 +110,24 @@ def _market_refresh_summary(db: Session) -> dict:
         "status": status,
         "last_requested_at": _format_time(latest_time),
         "jobs": [_run_request_summary(latest_by_job[job_name]) for job_name in MARKET_REFRESH_JOBS if job_name in latest_by_job],
+    }
+
+
+def mcp_status(db: Session) -> dict:
+    clients = load_mcp_clients(db)
+    enabled_clients = [client for client in clients if client.enabled]
+    if not clients:
+        status = "not_configured"
+    elif not enabled_clients:
+        status = "disabled"
+    else:
+        status = "ok"
+    return {
+        "status": status,
+        "clients": len(clients),
+        "enabled_clients": len(enabled_clients),
+        "tools": len(registered_tool_names()),
+        "debug_log": "enabled" if is_mcp_debug_log_enabled(db) else "disabled",
     }
 
 
@@ -211,9 +232,9 @@ def refresh_market_today(
 
 
 @router.get("/system-status")
-def system_status(db: Session = Depends(get_db)) -> dict[str, str]:
+def system_status(db: Session = Depends(get_db)) -> dict:
     db.execute(text("SELECT 1"))
-    return {"api": "ok", "database": "ok"}
+    return {"api": "ok", "database": "ok", "mcp": mcp_status(db)}
 
 
 @router.get("/data-sources")

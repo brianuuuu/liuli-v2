@@ -1,6 +1,9 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from invest_assistant.bootstrap.database import create_all_tables
+from invest_assistant.modules.basic.mcp.server import create_mcp_asgi_app
 from invest_assistant.modules.basic.auth.router import router as auth_router
 from invest_assistant.modules.basic.disclosure_library.router import router as disclosure_library_router
 from invest_assistant.modules.basic.job_center.router import router as job_center_router
@@ -16,9 +19,20 @@ from invest_assistant.modules.stock_analysis.router import router as stock_analy
 from invest_assistant.modules.track_discovery.router import router as track_discovery_router
 
 
+def mount_mcp_app(app: FastAPI, mcp_asgi_app) -> None:
+    app.mount("/mcp", mcp_asgi_app)
+
+
 def create_app() -> FastAPI:
     create_all_tables()
-    app = FastAPI(title="liuli", version="0.1.0")
+    mcp_asgi_app = create_mcp_asgi_app()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        async with mcp_asgi_app.router.lifespan_context(mcp_asgi_app):
+            yield
+
+    app = FastAPI(title="liuli", version="0.1.0", lifespan=lifespan)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -37,4 +51,5 @@ def create_app() -> FastAPI:
     app.include_router(alert_center_router)
     app.include_router(portfolio_router)
     app.include_router(knowledge_base_router)
+    mount_mcp_app(app, mcp_asgi_app)
     return app

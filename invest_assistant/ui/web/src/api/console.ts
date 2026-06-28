@@ -4,6 +4,13 @@ import type { DataSourceStatus, Page } from "../types/api";
 export type SystemStatus = {
   api: string;
   database: string;
+  mcp: {
+    status: string;
+    clients: number;
+    enabled_clients: number;
+    tools: number;
+    debug_log: string;
+  };
 };
 
 export type DashboardTodoEvent = {

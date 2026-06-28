@@ -17,6 +17,7 @@ dependencies = [
   "pypinyin>=0.51.0",
   "tushare>=1.4.24",
   "akshare>=1.16.0",
+  "mcp>=1.27,<2",
 ]
 
 [project.optional-dependencies]

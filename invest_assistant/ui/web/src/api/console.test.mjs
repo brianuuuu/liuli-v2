@@ -9,7 +9,9 @@ assert.match(api, /export async function getAiLogStats\(\)/, "console API must e
 assert.match(api, /const\s+aiLogsRequests\s*=\s*new Map<string, Promise<Page<AiRequestLog>>>/, "AI log list must dedupe in-flight requests by params");
 assert.match(api, /const\s+requestKey\s*=\s*JSON\.stringify\(requestParams\)/, "AI log list must key in-flight requests by pagination params");
 assert.match(api, /offset\?:\s*number/, "AI log list params must support offset pagination");
+assert.match(api, /mcp:\s*\{[\s\S]*enabled_clients:\s*number/, "system status type must expose MCP status details");
 
 assert.match(sections, /getAiLogs\(\{\s*limit:\s*pageSize,\s*offset:\s*\(page - 1\) \* pageSize\s*\}\)/, "AI logs tab must request the selected server-side page");
 assert.match(statusSection, /getAiLogStats/, "console status must use aggregate AI log stats");
 assert.doesNotMatch(statusSection, /getAiLogs/, "console status must not fetch the AI log list for a count");
+assert.match(statusSection, /title="MCP"/, "console status section must render an MCP status card");

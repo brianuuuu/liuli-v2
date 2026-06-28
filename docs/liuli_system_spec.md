@@ -1,4 +1,4 @@
-# liuli 系统规格说明书 v25
+# liuli 系统规格说明书
 
 > 项目名称：`liuli`  
 > 定位：个人投资辅助系统  
@@ -7,7 +7,8 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
-- v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表。
+- v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
+- v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表；按当前代码补齐 API、Job 和表结构，并将本文件作为唯一长期规格源。
 - v24：重构标签模型为“信息层 source_item → 语言层 tag → 业务层 stock/track/hotword”；取消 stock_alias/track_alias/hotword_alias/tag_candidate；新增 stock_tag_relation、track_tag_relation、hotword、hotword_tag_relation、ai_tag_suggestion；明确 tag 是语言入口，实体通过 relation 绑定多个 tag，source_tag 是信息流命中关系，实体热度通过绑定关系聚合；同步更新 API、表结构汇总和架构图。
 - v23：补充三类别名维护入口；明确标的别名主入口在股票基础库、辅入口在标的详情；赛道绑定标签主入口在赛道详情；市场热词别名主入口在市场热词详情、辅入口在标签索引；AI 推荐词审核页提供快捷转别名入口。
 - v22：收敛 `job_config` 表设计；任务调度参数、启停、Cron、超时、重试、参数 Schema、标签等不再摊平成字段，统一进入 `config_json / ext_json`；`job_config` 只保存任务身份、展示信息、配置 JSON 和最近运行状态。
@@ -538,7 +539,8 @@ invest_assistant/
 │   │   ├── job_center/
 │   │   ├── report_library/
 │   │   ├── disclosure_library/
-│   │   └── ai_audit/
+│   │   ├── ai_audit/
+│   │   └── mcp/                  # 规划：对外 MCP 服务，供 Codex 等外部工具使用
 │   │
 │   ├── market_radar/
 │   ├── track_discovery/
@@ -689,8 +691,11 @@ tools/
 ```sql
 stock
 - id
+- symbol
 - stock_code
 - stock_name
+- name_pinyin
+- name_abbr
 - market
 - exchange
 - status
@@ -701,7 +706,6 @@ stock
 后续扩展：
 
 ```text
-stock_alias
 stock_industry
 stock_market_status
 stock_sync_log
@@ -750,6 +754,61 @@ system_config
 
 ---
 
+### 12.4 basic/mcp
+
+`basic/mcp` 是规划中的对外 MCP 服务模块，用于把 liuli 的受控业务能力暴露给 Codex 等 MCP Client。
+
+定位：
+
+```text
+对外工具协议适配
+受控只读能力导出
+Codex 连接 liuli 的基础集成入口
+```
+
+它不拥有市场雷达、赛道发现、标的分析、组合管理等业务逻辑，只负责：
+
+```text
+MCP server 初始化
+MCP tool 注册与描述
+Bearer Token 校验，token/client 配置读取 system_config.mcp.clients
+开发期详细调试日志 mcp_debug.log
+工具入参/出参裁剪
+调用各业务模块 service
+统一错误映射和审计扩展点
+```
+
+目录规划：
+
+```text
+modules/basic/mcp/
+├── __init__.py
+├── server.py
+├── auth.py
+├── registry.py
+├── debug_logger.py
+├── service.py
+├── schemas.py
+└── tools/
+    ├── market_radar.py
+    ├── track_discovery.py
+    ├── stock_analysis.py
+    ├── report_library.py
+    └── portfolio.py
+```
+
+说明：
+
+```text
+basic/mcp 是对外协议层，不是 Console 页面能力；
+Console 不新增 MCP 子模块，第一版通过“系统配置”维护 mcp.clients；
+Console 后续最多展示 MCP 状态和审计，不承载 MCP 业务实现；
+knowledge_base/tool_registry.py 仍只服务系统内部 Agent Python 函数工具；
+MCP tool wrapper 必须调用各模块 service，不直接写 SQL。
+```
+
+---
+
 ## 13. basic/ai_audit AI 请求审计
 
 ### 13.1 定位
@@ -765,7 +824,7 @@ AI 请求日志
 AI 调用审计
 AI Token 用量统计
 AI 上下文使用统计
-AI 成本与失败率追踪
+AI 失败率追踪
 ```
 
 它服务于所有可能调用 AI 的模块：
@@ -788,10 +847,9 @@ AI 不需要单独配置中心，但必须有 AI 请求审计日志表。
 
 ```text
 modules/basic/ai_audit/
+├── __init__.py
 ├── models.py
-├── schemas.py
-├── service.py
-└── router.py
+└── service.py
 ```
 
 ### 13.3 核心表
@@ -802,58 +860,25 @@ modules/basic/ai_audit/
 ai_request_log
 - id
 - request_id              -- 本次 AI 请求唯一 ID
-- source_module           -- 来源模块：market_radar / stock_analysis / knowledge_base
-- task_name               -- 任务名：tag_extraction / report_generation / skill_extraction
 - provider                -- 厂家：openai / qwen / kimi / deepseek / gemini
-- model_name              -- 模型名
-- prompt_version          -- Prompt 版本，可选
+- model                   -- 模型名
+- task_name               -- 任务名：tag_extraction / report_generation / skill_extraction
+- status                  -- success / failed
 
-- input_tokens            -- 输入 token
-- output_tokens           -- 输出 token
+- prompt_tokens           -- 输入 token
+- completion_tokens       -- 输出 token
 - total_tokens            -- 总 token
-- context_window          -- 模型最大上下文窗口
-- context_used_tokens     -- 本次实际上下文 token
-- context_usage_ratio     -- 上下文使用比例
-
-- input_chars             -- 输入字符数
-- output_chars            -- 输出字符数
-- messages_count          -- messages 数量
-- input_hash              -- 输入内容 hash，用于去重和追溯
-- output_hash             -- 输出内容 hash
-
-- raw_request_path        -- 原始请求保存路径，可选
-- raw_response_path       -- 原始响应保存路径，可选
-
-- latency_ms              -- 耗时
-- success                 -- 是否成功
-- error_code              -- 错误码
+- duration_ms             -- 耗时
 - error_message           -- 错误信息
-
-- cost_amount             -- 估算成本，可选
-- currency                -- CNY / USD，可选
-
-- related_type            -- 关联对象类型：source_item / report / disclosure / stock / track
-- related_id              -- 关联对象 ID
-
 - created_at
 ```
 
 ### 13.4 是否保存完整请求上下文
 
-默认不直接把完整请求/响应存入数据库。
-
-推荐方式：
+当前实现不保存完整请求/响应，也不保存原始请求文件路径。
 
 ```text
-数据库保存元数据、Token、Hash、路径；
-完整请求/响应可选保存到 var/ai_logs。
-```
-
-数据库中只保存：
-
-```text
-raw_request_path
-raw_response_path
+ai_request_log 只保存 provider、model、task_name、status、token、耗时和错误信息。
 ```
 
 ### 13.5 AI 调用记录流程
@@ -882,18 +907,15 @@ ai_request_log
 
 ```text
 时间
-来源模块
 任务名
 厂家
 模型
 输入 Token
 输出 Token
 总 Token
-上下文使用比例
 耗时
-是否成功
+状态
 错误信息
-成本估算
 ```
 
 ### 13.7 后续可选聚合表
@@ -906,18 +928,16 @@ ai_request_log
 ai_usage_daily_snapshot
 - id
 - stat_date
-- source_module
 - task_name
 - provider
-- model_name
+- model
 - request_count
 - success_count
 - failed_count
-- input_tokens
-- output_tokens
+- prompt_tokens
+- completion_tokens
 - total_tokens
-- total_cost
-- avg_latency_ms
+- avg_duration_ms
 - created_at
 ```
 
@@ -1133,15 +1153,27 @@ last_error_message
 
 ```text
 market_radar.fetch_news
+market_radar.fetch_stock_news
+market_radar.fetch_futu_news
 market_radar.extract_tags
+market_radar.backfill_source_tags
+market_radar.extract_daily_hotwords_deepseek
 market_radar.aggregate_heat
 market_radar.aggregate_edges
+market_radar.generate_daily_report
 
 stock_master.sync_stock_basic
+stock_analysis.refresh_major_indices_realtime
+stock_analysis.sync_daily_bars
+stock_analysis.review_stock_events_deepseek
 
 disclosure_library.fetch_stock_announcements
+disclosure_library.download_file
 disclosure_library.parse_pdf
 
+track_discovery.review_track_events_deepseek
+portfolio.refresh_all_realtime_quotes
+portfolio.capture_daily_value_snapshot
 alert_center.evaluate_rules
 ```
 
@@ -1170,9 +1202,12 @@ class JobResult:
 
 ```text
 market_radar/jobs.py
-stock_master/jobs.py
-disclosure_library/jobs.py
+stock_analysis/jobs.py
+track_discovery/jobs.py
+portfolio/jobs.py
 alert_center/jobs.py
+modules/basic/stock_master/jobs.py
+modules/basic/disclosure_library/jobs.py
 knowledge_base/jobs.py
 ```
 
@@ -1226,17 +1261,52 @@ JOBS = [
 from invest_assistant.modules.market_radar.jobs import JOBS as MARKET_RADAR_JOBS
 from invest_assistant.modules.basic.stock_master.jobs import JOBS as STOCK_MASTER_JOBS
 from invest_assistant.modules.basic.disclosure_library.jobs import JOBS as DISCLOSURE_JOBS
+from invest_assistant.modules.stock_analysis.jobs import JOBS as STOCK_ANALYSIS_JOBS
+from invest_assistant.modules.track_discovery.jobs import JOBS as TRACK_DISCOVERY_JOBS
+from invest_assistant.modules.portfolio.jobs import JOBS as PORTFOLIO_JOBS
+from invest_assistant.modules.alert_center.jobs import JOBS as ALERT_CENTER_JOBS
+from invest_assistant.modules.knowledge_base.jobs import JOBS as KNOWLEDGE_BASE_JOBS
 
 ALL_JOBS = [
-    *MARKET_RADAR_JOBS,
     *STOCK_MASTER_JOBS,
+    *STOCK_ANALYSIS_JOBS,
     *DISCLOSURE_JOBS,
+    *MARKET_RADAR_JOBS,
+    *TRACK_DISCOVERY_JOBS,
+    *PORTFOLIO_JOBS,
+    *ALERT_CENTER_JOBS,
+    *KNOWLEDGE_BASE_JOBS,
 ]
 
 JOB_REGISTRY = {
     job.job_name: job
     for job in ALL_JOBS
 }
+```
+
+当前 `JOB_REGISTRY` 中已注册：
+
+```text
+stock_master.sync_stock_basic
+stock_analysis.refresh_major_indices_realtime
+stock_analysis.sync_daily_bars
+stock_analysis.review_stock_events_deepseek
+disclosure_library.fetch_stock_announcements
+disclosure_library.download_file
+disclosure_library.parse_pdf
+market_radar.fetch_stock_news
+market_radar.fetch_news
+market_radar.fetch_futu_news
+market_radar.extract_tags
+market_radar.backfill_source_tags
+market_radar.extract_daily_hotwords_deepseek
+market_radar.aggregate_heat
+market_radar.aggregate_edges
+market_radar.generate_daily_report
+track_discovery.review_track_events_deepseek
+portfolio.refresh_all_realtime_quotes
+portfolio.capture_daily_value_snapshot
+alert_center.evaluate_rules
 ```
 
 ### 14.8 模块任务数量较多时怎么拆
@@ -2727,7 +2797,7 @@ knowledge_base/
 ├── ai.py
 ├── agents/                # 多个业务 Agent 的 YAML 描述文件
 │   ├── market_summary_agent.yaml
-│   ├── track_evidence_agent.yaml
+│   ├── track_material_review_agent.yaml
 │   ├── stock_research_agent.yaml
 │   ├── disclosure_summary_agent.yaml
 │   ├── alert_explain_agent.yaml
@@ -3952,6 +4022,7 @@ Tushare
 巨潮资讯
 东方财富
 AI 服务
+MCP
 ```
 
 接入原则：
@@ -3966,6 +4037,7 @@ AI 服务
 ```text
 cninfo_client 第一版可放 basic/disclosure_library 内；
 Tushare / AkShare 高概率多模块复用，可放 services/tushare、services/akshare。
+对外 MCP 是系统对外暴露能力的协议层，放 modules/basic/mcp，不放 services。
 ```
 
 ---
@@ -4008,6 +4080,7 @@ Gemini
 | Web 框架 | React + Vite | 轻量、快速、适合后台系统 |
 | Web UI | Ant Design | 表格、表单、控制台组件 |
 | 认知图表 | ECharts | 热度、趋势、关系图、看板 |
+| 对外工具协议 | MCP Streamable HTTP | 规划用于 Codex 连接 liuli，只暴露受控业务工具 |
 | 金融图表 | lightweight-charts | K线、分时、成交量、价格事件点 |
 | Android | Kotlin + Jetpack Compose | 移动端记录、新闻、报告、预警 |
 | 数据源 | AkShare / Tushare / 财联社 / 巨潮 / 东方财富 | 行情、新闻、公告财报 |
@@ -4061,9 +4134,9 @@ disclosure_library.jobs 注册
 ### 阶段 4：赛道发现
 
 ```text
-track_thesis
-验证指标
-证据链
+track
+track_material
+track_analysis_snapshot
 状态变化
 从 market_radar 引用热度数据
 从 disclosure_library 引用公告财报证据
@@ -4220,18 +4293,18 @@ stock_track_relation 是研究确认关系。
 
 ```text
 track 是赛道业务实体；
-tag(type=track) 是 track 在市场雷达标签系统中的一对一投影；
-track_alias 维护赛道绑定标签；
-市场雷达通过 tag 关联 stock 和 track。
+tag 是市场雷达识别信息流时使用的语言词项；
+track_tag_relation 维护赛道与多个 tag 的绑定；
+市场雷达通过 tag 和 relation 关联 stock / track / hotword。
 ```
 
 当前模型：
 
 ```text
 track                 赛道主表
-track_alias           赛道绑定标签
-tag(type=track)       赛道标签投影
-track_thesis          赛道研究假设
+track_tag_relation    赛道-标签绑定
+track_material        赛道材料与赛道视角判断
+track_analysis_snapshot 赛道阶段性分析快照
 stock_track_relation  标的-赛道确认关系
 tag_edge_snapshot     市场自动共现信号
 ```
@@ -4250,6 +4323,7 @@ tag 作为市场信息流和业务实体之间的连接层。
 
 > 本节集中展示系统主要 API。具体请求/响应字段以后以 OpenAPI 文档为准。  
 > 约定：所有业务接口默认以 `/api` 开头；除登录接口外，均需要鉴权。
+> 本节按当前 `invest_assistant/modules/**/router.py` 对齐，避免继续保留未实现或旧路径。
 
 ### 33.1 鉴权 API
 
@@ -4265,33 +4339,38 @@ tag 作为市场信息流和业务实体之间的连接层。
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/console/dashboard` | 控制台首页汇总 |
+| GET | `/api/console/workbench-today` | 今日工作台汇总 |
+| POST | `/api/console/workbench-today/refresh-market` | 触发市场刷新相关任务 |
 | GET | `/api/console/system-status` | 系统状态 |
 | GET | `/api/console/data-sources` | 数据源状态列表 |
-| GET | `/api/console/ai-logs` | AI 调用日志 |
-| GET | `/api/console/system-config` | 系统配置列表 |
-| PUT | `/api/console/system-config/{config_key}` | 更新系统配置 |
+| GET | `/api/console/ai-logs/stats` | AI 调用日志统计 |
+| GET | `/api/console/ai-logs` | AI 调用日志列表 |
 
 ### 33.3 任务中心 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/jobs` | 查询任务配置列表 |
-| GET | `/api/jobs/{job_name}` | 查询任务详情 |
 | POST | `/api/jobs/sync-definitions` | 从代码中的 `JOBS` 同步任务定义到 `job_config` |
-| POST | `/api/jobs/{job_name}/run` | 手动触发任务，写入 `job_run_request` |
-| PUT | `/api/jobs/{job_name}` | 更新任务配置，如启停、cron、超时 |
-| GET | `/api/jobs/{job_name}/logs` | 查询任务执行日志 |
 | GET | `/api/jobs/run-requests` | 查询手动触发请求列表 |
+| GET | `/api/jobs/{job_name}` | 查询任务详情 |
+| PUT | `/api/jobs/{job_name}` | 更新任务配置，如启停、cron、超时 |
+| POST | `/api/jobs/{job_name}/run` | 手动触发任务，写入 `job_run_request` |
+| GET | `/api/jobs/{job_name}/logs` | 查询任务执行日志 |
 
-### 33.4 AI 请求审计 API
+### 33.4 AI 请求审计入口
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/ai-audit/logs` | AI 请求审计日志列表 |
-| GET | `/api/ai-audit/logs/{id}` | AI 请求审计日志详情 |
-| GET | `/api/ai-audit/usage-summary` | AI 用量汇总，支持按模块、任务、厂家、模型统计 |
-| GET | `/api/ai-audit/provider-summary` | 按 AI 厂家统计调用次数、Token、成本和失败率 |
-| GET | `/api/ai-audit/model-summary` | 按模型统计调用次数、Token、成本和失败率 |
+| GET | `/api/console/ai-logs/stats` | AI 调用次数和 Token 汇总 |
+| GET | `/api/console/ai-logs` | AI 请求审计日志分页列表 |
+
+说明：
+
+```text
+当前没有独立 /api/ai-audit 路由；
+ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
+```
 
 ### 33.5 股票基础库 API
 
@@ -4302,10 +4381,6 @@ tag 作为市场信息流和业务实体之间的连接层。
 | GET | `/api/stocks/search` | 按代码/名称/绑定标签搜索股票 |
 | POST | `/api/stocks/import` | 导入股票基础数据 |
 | PUT | `/api/stocks/{stock_id}` | 修正股票基础信息 |
-| GET | `/api/stocks/{stock_id}/tags` | 查询股票绑定标签 |
-| POST | `/api/stocks/{stock_id}/tags` | 给股票绑定标签 |
-| DELETE | `/api/stocks/{stock_id}/tags/{tag_id}` | 解除股票标签绑定 |
-
 
 ### 33.6 系统配置 API
 
@@ -4315,20 +4390,24 @@ tag 作为市场信息流和业务实体之间的连接层。
 | GET | `/api/system-config/{config_key}` | 查询单项配置 |
 | PUT | `/api/system-config/{config_key}` | 修改单项配置 |
 | POST | `/api/system-config` | 新增配置项 |
+| DELETE | `/api/system-config/{config_key}` | 删除配置项 |
 
 ### 33.7 公告财报库 API
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/disclosures` | 公告/财报列表 |
+| POST | `/api/disclosures` | 新增公告/财报索引 |
 | GET | `/api/disclosures/{id}` | 公告/财报详情 |
+| PUT | `/api/disclosures/{id}` | 更新公告/财报元数据 |
 | POST | `/api/disclosures/fetch` | 手动拉取巨潮公告/财报，生成任务请求 |
+| POST | `/api/disclosures/to-source-items-missing` | 将缺失的公告批量补写到市场雷达信息流 |
 | POST | `/api/disclosures/{id}/download` | 下载或重新下载原始文件 |
 | POST | `/api/disclosures/{id}/parse` | 解析 PDF/原文为文本或 Markdown |
 | GET | `/api/disclosures/{id}/file` | 读取原始文件 |
 | GET | `/api/disclosures/{id}/parsed` | 读取解析后的文本/Markdown |
 | POST | `/api/disclosures/{id}/to-source-item` | 将重大公告写入 `source_item`，供市场雷达使用 |
-| POST | `/api/disclosures/{id}/to-track-evidence` | 加入赛道动态 |
+| POST | `/api/disclosures/{id}/to-track-material` | 加入赛道材料 |
 | POST | `/api/disclosures/{id}/to-stock-analysis` | 加入标的分析材料 |
 
 ### 33.8 报告库 API
@@ -4348,16 +4427,34 @@ tag 作为市场信息流和业务实体之间的连接层。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/market-radar/dashboard` | 市场看板 |
-| GET | `/api/market-radar/feed` | 信息流列表 |
-| GET | `/api/market-radar/feed/{source_item_id}` | 信息流详情 |
-| GET | `/api/market-radar/tags/heat` | 标签热度 |
-| GET | `/api/market-radar/edges` | 标签共现关系 |
-| GET | `/api/market-radar/ai-tag-suggestions` | AI 推荐词列表 |
-| POST | `/api/market-radar/ai-tag-suggestions/{id}/approve` | 审核通过 AI 推荐词 |
-| POST | `/api/market-radar/ai-tag-suggestions/{id}/reject` | 拒绝 AI 推荐词 |
+| GET | `/api/market-radar/overview` | 市场看板汇总 |
+| GET | `/api/market-radar/source-items` | 信息流列表 |
+| POST | `/api/market-radar/source-items` | 新增信息流条目 |
+| POST | `/api/market-radar/source-items/sync-cls` | 同步财联社信息流 |
+| GET | `/api/market-radar/source-items/daily-stats` | 信息流日统计 |
+| GET | `/api/market-radar/source-items/{source_item_id}` | 信息流详情 |
+| GET | `/api/market-radar/tags` | 标签词列表 |
+| POST | `/api/market-radar/tags` | 新增标签词 |
+| GET | `/api/market-radar/tags/{tag_id}` | 标签词详情 |
+| PUT | `/api/market-radar/tags/{tag_id}` | 更新标签词 |
+| DELETE | `/api/market-radar/tags/{tag_id}` | 归档标签词 |
+| GET | `/api/market-radar/tags/{tag_id}/trend` | 标签热度趋势 |
+| GET | `/api/market-radar/tags/{tag_id}/sources` | 标签命中的信息流 |
 | GET | `/api/market-radar/hotwords` | 市场热词列表 |
 | POST | `/api/market-radar/hotwords` | 新增市场热词 |
+| GET | `/api/market-radar/hotwords/stats` | 市场热词统计 |
+| GET | `/api/market-radar/hotwords/{hotword_id}/tags` | 市场热词绑定标签 |
+| POST | `/api/market-radar/hotwords/{hotword_id}/tags` | 新增市场热词标签绑定 |
+| DELETE | `/api/market-radar/hotwords/tag-relations/{relation_id}` | 删除市场热词标签绑定 |
+| GET | `/api/market-radar/rankings` | 热度排名 |
+| GET | `/api/market-radar/graphs/stock-track` | 标的-赛道关系图 |
+| GET | `/api/market-radar/graphs/stock-hotword` | 标的-热词关系图 |
+| GET | `/api/market-radar/graphs/track-hotword` | 赛道-热词关系图 |
+| GET | `/api/market-radar/ai-tag-suggestions` | AI 推荐词列表 |
+| POST | `/api/market-radar/ai-tag-suggestions` | 新增 AI 推荐词 |
+| POST | `/api/market-radar/ai-tag-suggestions/{id}/approve` | 审核通过 AI 推荐词 |
+| POST | `/api/market-radar/ai-tag-suggestions/{id}/reject` | 拒绝 AI 推荐词 |
+| POST | `/api/market-radar/ai-tag-suggestions/{id}/restore` | 恢复已拒绝推荐词 |
 
 ### 33.10 赛道发现 API
 
@@ -4365,19 +4462,24 @@ tag 作为市场信息流和业务实体之间的连接层。
 |---|---|---|
 | GET | `/api/track-discovery/dashboard` | 赛道看板 |
 | GET | `/api/track-discovery/tracks` | 赛道库列表 |
+| GET | `/api/track-discovery/dashboard` | 赛道看板 |
+| GET | `/api/track-discovery/materials` | 赛道材料全局列表 |
 | POST | `/api/track-discovery/tracks` | 新增赛道 |
 | GET | `/api/track-discovery/tracks/{track_id}` | 赛道详情 |
+| GET | `/api/track-discovery/tracks/{track_id}/detail` | 赛道详情聚合视图 |
 | PUT | `/api/track-discovery/tracks/{track_id}` | 更新赛道 |
+| DELETE | `/api/track-discovery/tracks/{track_id}` | 删除赛道 |
+| POST | `/api/track-discovery/tracks/{track_id}/status` | 更新赛道状态/阶段 |
 | GET | `/api/track-discovery/tracks/{track_id}/tags` | 赛道绑定标签 |
 | POST | `/api/track-discovery/tracks/{track_id}/tags` | 新增赛道绑定标签 |
+| DELETE | `/api/track-discovery/tracks/tag-relations/{relation_id}` | 删除赛道标签绑定 |
 | GET | `/api/track-discovery/tracks/{track_id}/stocks` | 赛道绑定标的，读取 stock_track_relation |
 | POST | `/api/track-discovery/tracks/{track_id}/stocks` | 新增赛道绑定标的，写 stock_track_relation |
-| GET | `/api/track-discovery/materials` | 赛道动态材料列表 |
-| POST | `/api/track-discovery/materials` | 新增赛道引用材料 |
-| PUT | `/api/track-discovery/materials/{material_id}` | 更新赛道材料判断 |
-| GET | `/api/track-discovery/analysis-snapshots` | 赛道分析快照 |
-| POST | `/api/track-discovery/analysis-snapshots` | 新增赛道分析快照 |
-| GET | `/api/track-discovery/compare` | 赛道对比 |
+| GET | `/api/track-discovery/tracks/{track_id}/materials` | 某赛道材料列表 |
+| POST | `/api/track-discovery/tracks/{track_id}/materials` | 新增赛道引用材料 |
+| PUT | `/api/track-discovery/tracks/materials/{material_id}` | 更新赛道材料判断 |
+| GET | `/api/track-discovery/tracks/{track_id}/analysis-snapshots` | 赛道分析快照 |
+| POST | `/api/track-discovery/tracks/{track_id}/analysis-snapshots` | 新增赛道分析快照 |
 
 ### 33.11 标的分析 API
 
@@ -4386,13 +4488,31 @@ tag 作为市场信息流和业务实体之间的连接层。
 | GET | `/api/stock-analysis/dashboard` | 标的看板 |
 | GET | `/api/stock-analysis/pool` | 标的池列表 |
 | POST | `/api/stock-analysis/pool` | 加入标的池 |
+| PUT | `/api/stock-analysis/pool/{pool_id}` | 更新标的池条目状态 |
+| GET | `/api/stock-analysis/candidates` | 候选标的列表 |
 | GET | `/api/stock-analysis/stocks/{stock_id}` | 标的详情 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/detail` | 标的详情聚合视图 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/daily-bars` | 标的日线/K线数据 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/notes` | 标的研究笔记 |
+| POST | `/api/stock-analysis/stocks/{stock_id}/notes` | 新增标的研究笔记 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/scores` | 标的评分快照 |
+| POST | `/api/stock-analysis/stocks/{stock_id}/scores` | 新增标的评分快照 |
+| GET | `/api/stock-analysis/score-comparison` | 标的评分对比 |
+| GET | `/api/stock-analysis/valuation-comparison` | 标的估值对比 |
+| GET | `/api/stock-analysis/compare-groups` | 标的对比组列表 |
+| POST | `/api/stock-analysis/compare-groups` | 新增标的对比组 |
+| GET | `/api/stock-analysis/reports` | 标的分析报告列表 |
 | GET | `/api/stock-analysis/stocks/{stock_id}/tracks` | 标的所属赛道，读取 stock_track_relation |
 | POST | `/api/stock-analysis/stocks/{stock_id}/tracks` | 新增标的赛道关系，写 stock_track_relation |
+| PUT | `/api/stock-analysis/track-relations/{relation_id}` | 更新标的赛道关系 |
+| DELETE | `/api/stock-analysis/track-relations/{relation_id}` | 删除标的赛道关系 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/tags` | 标的绑定标签 |
+| POST | `/api/stock-analysis/stocks/{stock_id}/tags` | 新增标的标签绑定 |
+| DELETE | `/api/stock-analysis/stocks/tag-relations/{relation_id}` | 删除标的标签绑定 |
 | GET | `/api/stock-analysis/materials` | 标的事件材料列表 |
-| POST | `/api/stock-analysis/materials` | 新增标的引用材料 |
+| GET | `/api/stock-analysis/stocks/{stock_id}/materials` | 某标的材料列表 |
+| POST | `/api/stock-analysis/stocks/{stock_id}/materials` | 新增标的引用材料 |
 | PUT | `/api/stock-analysis/materials/{material_id}` | 更新标的材料判断 |
-| GET | `/api/stock-analysis/compare` | 标的对比 |
 
 
 ### 33.12 预警中心 API
@@ -4403,10 +4523,15 @@ tag 作为市场信息流和业务实体之间的连接层。
 | POST | `/api/alerts/rules` | 新增预警规则 |
 | PUT | `/api/alerts/rules/{id}` | 修改预警规则 |
 | DELETE | `/api/alerts/rules/{id}` | 删除/停用预警规则 |
+| POST | `/api/alerts/rules/{id}/enable` | 启用预警规则 |
+| POST | `/api/alerts/rules/{id}/disable` | 停用预警规则 |
 | GET | `/api/alerts/events` | 预警事件列表 |
+| GET | `/api/alerts/events/stats` | 预警事件统计 |
+| POST | `/api/alerts/events/read-all` | 全部标记已读 |
 | GET | `/api/alerts/events/{id}` | 预警事件详情 |
 | POST | `/api/alerts/events/{id}/read` | 标记已读 |
 | POST | `/api/alerts/events/{id}/handle` | 标记已处理并写处理备注 |
+| DELETE | `/api/alerts/events/{id}` | 删除预警事件 |
 
 ### 33.13 组合管理 API
 
@@ -4414,8 +4539,13 @@ tag 作为市场信息流和业务实体之间的连接层。
 |---|---|---|
 | GET | `/api/portfolios` | 组合列表 |
 | POST | `/api/portfolios` | 新建组合 |
+| GET | `/api/portfolios/overview` | 全组合概览 |
+| GET | `/api/portfolios/value-snapshots` | 组合市值快照序列 |
+| GET | `/api/portfolios/review-performance` | 组合复盘表现汇总 |
 | GET | `/api/portfolios/{id}` | 组合详情 |
 | PUT | `/api/portfolios/{id}` | 更新组合 |
+| DELETE | `/api/portfolios/{id}` | 删除组合 |
+| GET | `/api/portfolios/{id}/dashboard` | 单组合看板 |
 | GET | `/api/portfolios/{id}/groups` | 分组列表 |
 | POST | `/api/portfolios/{id}/groups` | 新增组合分组 |
 | PUT | `/api/portfolios/{id}/groups/{group_id}` | 修改组合分组 |
@@ -4423,6 +4553,11 @@ tag 作为市场信息流和业务实体之间的连接层。
 | POST | `/api/portfolios/{id}/positions` | 新增/调整持仓 |
 | PUT | `/api/portfolios/{id}/positions/{position_id}` | 修改持仓 |
 | DELETE | `/api/portfolios/{id}/positions/{position_id}` | 删除持仓 |
+| POST | `/api/portfolios/{id}/positions/refresh-quotes` | 刷新组合持仓实时行情 |
+| GET | `/api/portfolios/{id}/cash` | 查询组合现金余额 |
+| PUT | `/api/portfolios/{id}/cash` | 更新组合现金余额 |
+| GET | `/api/portfolios/{id}/cash-flows` | 查询现金流水 |
+| POST | `/api/portfolios/{id}/cash-flows` | 新增现金流水 |
 | GET | `/api/portfolios/{id}/review` | 组合复盘 |
 | POST | `/api/portfolios/{id}/review` | 新增组合复盘 |
 
@@ -4435,6 +4570,12 @@ tag 作为市场信息流和业务实体之间的连接层。
 | GET | `/api/knowledge/notes/{id}` | 笔记详情 |
 | PUT | `/api/knowledge/notes/{id}` | 编辑笔记 |
 | DELETE | `/api/knowledge/notes/{id}` | 删除/归档笔记 |
+| POST | `/api/knowledge/notes/{id}/archive` | 归档知识笔记 |
+| POST | `/api/knowledge/notes/{id}/restore` | 恢复知识笔记 |
+| GET | `/api/knowledge/note-groups` | 知识笔记分组列表 |
+| POST | `/api/knowledge/note-groups` | 新增知识笔记分组 |
+| PUT | `/api/knowledge/note-groups/{id}` | 编辑知识笔记分组 |
+| POST | `/api/knowledge/note-groups/{id}/archive` | 归档知识笔记分组 |
 | GET | `/api/knowledge/skills` | Skills 列表 |
 | POST | `/api/knowledge/skills` | 新增 Skill |
 | PUT | `/api/knowledge/skills/{id}` | 编辑 Skill |
@@ -4442,53 +4583,52 @@ tag 作为市场信息流和业务实体之间的连接层。
 | POST | `/api/knowledge/agents` | 新增 Agent 编排 |
 | PUT | `/api/knowledge/agents/{id}` | 编辑 Agent |
 | POST | `/api/knowledge/agents/{id}/run` | 运行 Agent，反哺业务模块 |
+| GET | `/api/knowledge/prompts` | Prompt 列表 |
+| POST | `/api/knowledge/prompts` | 新增 Prompt |
+| PUT | `/api/knowledge/prompts/{id}` | 编辑 Prompt |
+| DELETE | `/api/knowledge/prompts/{id}` | 删除/归档 Prompt |
 | GET | `/api/knowledge/feedback-logs` | 业务反哺记录 |
+
+### 33.15 对外 MCP 入口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| MCP | `/mcp` | 规划中的 Streamable HTTP MCP 入口，供 Codex 使用 |
+
+说明：
+
+```text
+MCP 入口不放在 /api 下；
+它是协议入口，不是普通 REST API；
+第一版只暴露受控只读工具。
+```
 
 ---
 
 ## 34. 表结构汇总
 
-> 本节集中展示主要数据表。每张表名后附简要说明；详细 DDL、索引、约束以迁移文件为准。
+> 本节按当前 SQLAlchemy `Base.metadata` 对齐。字段清单以 `invest_assistant/modules/**/models.py` 为准；SQLite 兼容升级由 `create_all_tables()` 和各模块 `ensure_*_schema()` 维护。
 
 ### 34.1 basic/auth
 
 #### `user_account`：用户登录账户表，负责系统访问安全
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| username | 登录用户名 |
-| password_hash | 密码哈希 |
-| display_name | 显示名 |
-| email | 邮箱，可选 |
-| status | 状态 |
-| last_login_at | 最近登录时间 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, username, password_hash, display_name, email, status, last_login_at, created_at, updated_at
+```
 
 ---
 
 ### 34.2 basic/stock_master
 
-#### `stock`：A股股票基础主数据表，保存客观交易品种信息
+#### `stock`：股票基础主数据表，保存客观交易品种信息
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_code | 股票代码 |
-| stock_name | 股票名称 |
-| market | 市场，如 A股、港股、美股 |
-| exchange | 交易所 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-说明：
+字段：
 
 ```text
-stock 是系统内部标准股票主数据；
-同步 A 股基础库时不批量生成 tag；
-加入 stock_pool 后才 ensure 同名 tag 并写 stock_tag_relation。
+id, symbol, stock_code, stock_name, name_pinyin, name_abbr, market, exchange, status, created_at, updated_at
 ```
 
 ---
@@ -4497,17 +4637,19 @@ stock 是系统内部标准股票主数据；
 
 #### `system_config`：系统运行配置表，保存非敏感、可调整的业务配置
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| config_key | 配置键 |
-| config_value | 配置值 |
-| config_type | 类型，如 string/int/bool/json |
-| module_name | 所属模块 |
-| description | 描述 |
-| enabled | 是否启用 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, config_key, config_value, config_type, module_name, description, enabled, created_at, updated_at
+```
+
+#### `runtime_state`：运行态状态表，保存任务水位、游标和模块运行状态
+
+字段：
+
+```text
+id, namespace, state_key, state_value, value_type, ext_json, created_at, updated_at
+```
 
 ---
 
@@ -4515,100 +4657,39 @@ stock 是系统内部标准股票主数据；
 
 #### `ai_request_log`：AI 请求审计日志表，每一次 AI 请求一条记录
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| request_id | 本次 AI 请求唯一 ID |
-| source_module | 来源模块 |
-| task_name | AI 任务名 |
-| provider | AI 厂家，如 openai/qwen/kimi/deepseek/gemini |
-| model_name | 模型名 |
-| prompt_version | Prompt 版本 |
-| input_tokens | 输入 Token 数 |
-| output_tokens | 输出 Token 数 |
-| total_tokens | 总 Token 数 |
-| context_window | 模型最大上下文窗口 |
-| context_used_tokens | 本次实际上下文 Token |
-| context_usage_ratio | 上下文使用比例 |
-| input_chars | 输入字符数 |
-| output_chars | 输出字符数 |
-| messages_count | messages 数量 |
-| input_hash | 输入内容 Hash |
-| output_hash | 输出内容 Hash |
-| raw_request_path | 原始请求文件路径 |
-| raw_response_path | 原始响应文件路径 |
-| latency_ms | 请求耗时 |
-| success | 是否成功 |
-| error_code | 错误码 |
-| error_message | 错误信息 |
-| cost_amount | 估算成本 |
-| currency | 币种 |
-| related_type | 关联对象类型 |
-| related_id | 关联对象 ID |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, request_id, provider, model, task_name, status, prompt_tokens, completion_tokens, total_tokens, duration_ms, error_message, created_at
+```
+
+---
 
 ### 34.5 basic/job_center
 
 #### `job_config`：任务配置表，保存任务身份、展示信息、配置 JSON 和最近运行状态
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| job_name | 全局唯一任务名，例如 market_radar.fetch_news |
-| module_name | 所属模块 |
-| display_name | 展示名称 |
-| description | 描述 |
-| config_json | 任务可执行配置，JSON |
-| ext_json | 展示、分类、标签等扩展信息，JSON |
-| last_run_at | 最近执行时间 |
-| last_status | 最近执行状态 |
-| next_run_at | 下次执行时间 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-说明：
+字段：
 
 ```text
-任务调度参数、启停、Cron、超时、重试、参数 Schema 等统一保存到 config_json；
-展示标签、分类、排序等进入 ext_json；
-最近错误信息通过 job_run_log 查询；
-job_name 必须全局唯一。
+id, job_name, module_name, display_name, description, config_json, ext_json, last_run_at, last_status, next_run_at, created_at, updated_at
 ```
-
 
 #### `job_run_request`：任务手动触发请求表，记录控制台触发的待执行任务
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| job_name | 任务名 |
-| params_json | 执行参数 |
-| status | pending/running/success/failed/canceled |
-| requested_by | 触发用户 |
-| requested_at | 请求时间 |
-| started_at | 开始时间 |
-| finished_at | 结束时间 |
-| error_message | 错误信息 |
+字段：
+
+```text
+id, job_name, params_json, status, requested_by, requested_at, started_at, finished_at, error_message
+```
 
 #### `job_run_log`：任务执行日志表，记录每次任务运行结果和统计信息
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| job_name | 任务名 |
-| module_name | 所属模块 |
-| trigger_type | schedule/manual |
-| status | success/failed |
-| params_json | 参数 |
-| result_json | 结果 |
-| started_at | 开始时间 |
-| finished_at | 结束时间 |
-| duration_ms | 耗时 |
-| fetched_count | 拉取数量 |
-| processed_count | 处理数量 |
-| inserted_count | 新增数量 |
-| updated_count | 更新数量 |
-| error_message | 错误信息 |
+字段：
+
+```text
+id, job_name, module_name, trigger_type, status, params_json, result_json, started_at, finished_at, duration_ms, fetched_count, processed_count, inserted_count, updated_count, error_message
+```
 
 ---
 
@@ -4616,22 +4697,11 @@ job_name 必须全局唯一。
 
 #### `report`：报告索引表，保存报告元数据和文件路径
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| title | 报告标题 |
-| report_type | daily/weekly/track/stock/portfolio/alert/knowledge |
-| source_module | 来源模块 |
-| target_type | market/track/stock/portfolio/alert |
-| target_id | 目标对象 ID |
-| summary | 摘要 |
-| file_format | md/html/pdf |
-| file_path | 报告文件路径 |
-| generated_by | ai/system/manual |
-| status | 状态 |
-| publish_time | 发布时间 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, title, report_type, source_module, target_type, target_id, summary, file_format, file_path, generated_by, status, publish_time, created_at, updated_at
+```
 
 ---
 
@@ -4639,22 +4709,11 @@ job_name 必须全局唯一。
 
 #### `company_disclosure`：公告财报索引表，保存公告/财报元数据、文件路径和解析状态
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| source | cninfo/exchange/tushare |
-| disclosure_type | announcement/annual_report/quarterly_report/interim_report |
-| title | 公告标题 |
-| publish_time | 发布时间 |
-| report_period | 报告期 |
-| source_url | 来源 URL |
-| file_path | 原始文件路径 |
-| parsed_text_path | 解析文本路径 |
-| parsed_markdown_path | 解析 Markdown 路径 |
-| parse_status | 解析状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, stock_id, source, disclosure_type, title, publish_time, report_period, source_url, file_path, parsed_text_path, parsed_markdown_path, parse_status, created_at, updated_at
+```
 
 ---
 
@@ -4662,372 +4721,231 @@ job_name 必须全局唯一。
 
 #### `tag`：标签词表，保存可被信息流识别的语言词项
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| name | 标签词 |
-| type | stock/track/hotword/general，可选 |
-| status | active/archived/rejected |
-| source | ai/rule/manual/system，可选 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-说明：
+字段：
 
 ```text
-tag 是语言入口，不是业务主体；
-stock / track / hotword 才是业务实体。
+id, name, type, source, status, created_at, updated_at
 ```
 
 #### `hotword`：市场热词实体表
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| name | 市场热词名称 |
-| description | 描述 |
-| status | active/archived |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, name, description, status, created_at, updated_at
+```
 
 #### `stock_tag_relation`：标的-标签绑定表
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| tag_id | 关联 tag |
-| source | manual/ai/system，可选 |
-| status | active/inactive |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, stock_id, tag_id, source, status, created_at, updated_at
+```
 
 #### `track_tag_relation`：赛道-标签绑定表
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| track_id | 关联 track |
-| tag_id | 关联 tag |
-| source | manual/ai/system，可选 |
-| status | active/inactive |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, track_id, tag_id, source, status, created_at, updated_at
+```
 
 #### `hotword_tag_relation`：市场热词-标签绑定表
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| hotword_id | 关联 hotword |
-| tag_id | 关联 tag |
-| source | manual/ai/system，可选 |
-| status | active/inactive |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, hotword_id, tag_id, source, status, created_at, updated_at
+```
 
 #### `ai_tag_suggestion`：AI 推荐词表，保存 AI 从信息流中推荐、等待人工审核的词
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| suggested_text | AI 原始推荐词 |
-| final_tag_name | 人工修正后的正式标签名，可空 |
-| score | AI 推荐强度 |
-| reason | AI 推荐理由 |
-| status | pending/approved/rejected |
-| final_tag_id | 最终创建或绑定的 tag_id，可空 |
-| ext_json | 扩展信息，可选 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-说明：
+字段：
 
 ```text
-ai_tag_suggestion 替代旧 tag_candidate；
-AI 只推荐词，不判断 stock / track / hotword；
-业务归属由人工审核后通过 relation 表表达。
+id, suggested_text, final_tag_name, score, reason, status, rejected_count, final_tag_id, ext_json, created_at, updated_at
 ```
 
 #### `source_item`：信息流条目表，保存新闻、公告摘要、政策、舆情、研报摘要等市场雷达输入
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| source_type | news/announcement/policy/sentiment/research |
-| source_name | 来源名称 |
-| title | 标题 |
-| content | 正文/摘要/AI摘要/关键段落 |
-| source_url | 来源 URL |
-| publish_time | 发布时间 |
-| related_type | 可选：company_disclosure/report/manual |
-| related_id | 可选：关联业务表 ID |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, source_type, source_name, title, content, source_url, publish_time, related_type, related_id, created_at
+```
 
 #### `source_tag`：信息-标签触发表，记录每条信息命中的标签词
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| source_item_id | 信息源 ID |
-| tag_id | 标签词 ID |
-| trigger_text | 触发文本 |
-| confidence | 置信度 |
-| extractor | rule/ai/manual |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, source_item_id, tag_id, trigger_text, confidence, extractor, created_at
+```
 
 #### `tag_heat_snapshot`：标签词热度快照表，按时间窗口保存标签词热度
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| tag_id | 标签词 ID |
-| window_type | 24h/7d/30d |
-| stat_time | 统计时间 |
-| trigger_count | 标签命中次数 |
-| source_count | 去重信息流数量，内部诊断字段 |
-| heat_score | 热度分，等于 trigger_count |
-| avg_count | 平均次数 |
-| rank_no | 排名 |
-| created_at | 创建时间 |
-
-说明：
+字段：
 
 ```text
-tag_heat_snapshot 是标签词热度；
-stock / track / hotword 的实体热度需要通过绑定关系聚合。
-热度变化使用同 window_type 的参照快照排名变化，不保存百分比变化率。
-24h 对比 1 小时前，7d 对比 24 小时前，30d 对比 7 天前；默认排名变化取 7d 变化值。
+id, tag_id, window_type, stat_time, trigger_count, source_count, heat_score, avg_count, rank_no, created_at
 ```
 
 #### `tag_edge_snapshot`：标签关系快照表，保存标签词之间的信息流共现关系
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_tag_id | 标的标签词 ID |
-| related_tag_id | 关联标签词 ID |
-| related_tag_type | track/hotword |
-| window_type | 24h/7d/30d |
-| stat_time | 统计时间 |
-| cooccur_count | 共现次数 |
-| source_count | 信息源数量 |
-| weight | 关系权重 |
-| latest_source_item_id | 最近触发信息源 |
-| created_at | 创建时间 |
-
-说明：
+字段：
 
 ```text
-tag_edge_snapshot 是信息流自动关联，不是业务绑定；
-stock_track_relation 才是标的-赛道的研究确认关系。
+id, stock_tag_id, related_tag_id, related_tag_type, window_type, stat_time, cooccur_count, source_count, weight, latest_source_item_id, created_at
 ```
 
 ---
-
 
 ### 34.9 track_discovery
 
 #### `track`：赛道主表，保存赛道业务实体和当前判断
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| name | 赛道正式名称 |
-| description | 简要说明 |
-| status | candidate/active/paused/archived |
-| track_score | 赛道评分，0-100，第一版人工维护 |
-| current_view | 当前核心判断 |
-| stage | concept/validate/growth/overheat/decline |
-| confidence_level | low/medium/high |
-| archive_reason | 归档原因 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, name, description, status, track_score, current_view, stage, confidence_level, created_at, updated_at
+```
 
 #### `track_material`：赛道材料表，保存赛道引用材料和赛道视角判断
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| track_id | 关联 track |
-| material_type | source_item/knowledge_note |
-| material_id | 关联 source_item.id 或 knowledge_note.id |
-| direction | support/weaken/neutral/noise |
-| importance_level | high/medium/low |
-| status | pending/confirmed/ignored |
-| note | 赛道视角一句话判断 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-约束：
+字段：
 
 ```text
-UNIQUE(track_id, material_type, material_id)
+id, track_id, material_type, material_id, direction, importance_level, status, note, created_at, updated_at
 ```
 
 #### `track_analysis_snapshot`：赛道分析快照表，保存 AI / 人工阶段性分析
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| track_id | 关联 track |
-| analysis_date | 分析日期 |
-| market_space | 未来市场空间 |
-| market_size | 当前市场规模 |
-| growth_rate | 当前增长速度 |
-| heat_summary | 当前热度解释 |
-| ai_summary | AI 分析摘要 |
-| opportunity_points | 机会点 |
-| risk_points | 风险点 |
-| watch_signals | 观察信号 |
-| score | AI/系统评分，可选 |
-| confidence_level | 置信度 |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, track_id, analysis_date, market_space, market_size, growth_rate, heat_summary, ai_summary, opportunity_points, risk_points, watch_signals, score, confidence_level, created_at
+```
 
 #### `track_status_history`：赛道状态历史表，记录赛道状态和阶段变化
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| track_id | 关联 track |
-| old_status | 原状态 |
-| new_status | 新状态 |
-| old_stage | 原阶段 |
-| new_stage | 新阶段 |
-| reason | 变化原因 |
-| changed_by | manual/system/ai |
-| changed_at | 变化时间 |
-
-不再使用：
+字段：
 
 ```text
-track_related_stock
-track_thesis
-track_validation_indicator
-track_evidence
-track_heat_snapshot
+id, track_id, old_status, new_status, old_stage, new_stage, reason, changed_by, changed_at
 ```
+
+---
 
 ### 34.10 stock_analysis
 
+#### `stock_pool`：标的研究池，保存候选、观察、重点跟踪等研究状态
+
+字段：
+
+```text
+id, stock_id, status, source, reason, created_at, updated_at
+```
+
 #### `stock_research_note`：标的研究笔记表，保存围绕具体公司的研究记录
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| title | 笔记标题 |
-| content | 笔记内容 |
-| note_type | thesis/review/risk/valuation 等 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, stock_id, note_type, title, content, related_track_id, created_at, updated_at
+```
 
 #### `stock_material`：标的材料表，保存标的引用材料和标的视角判断
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| material_type | source_item/knowledge_note |
-| material_id | 关联 source_item.id 或 knowledge_note.id |
-| impact_direction | positive/negative/neutral/noise |
-| importance_level | high/medium/low |
-| status | pending/confirmed/ignored |
-| note | 标的视角一句话判断 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
-
-约束：
+字段：
 
 ```text
-UNIQUE(stock_id, material_type, material_id)
+id, stock_id, material_type, material_id, impact_direction, importance_level, status, note, created_at, updated_at
 ```
 
 #### `stock_score_snapshot`：标的评分快照表，保存某时点的公司多维评分
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| score | 综合评分 |
-| snapshot_time | 快照时间 |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, stock_id, score_date, track_id, growth_score, valuation_score, moat_score, risk_score, total_score, created_at
+```
+
+#### `stock_daily_bar`：标的日线行情表，保存 K 线和均线指标
+
+字段：
+
+```text
+id, stock_id, ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount, ma5, ma20, ma60, ma250, source, adj, created_at, updated_at
+```
 
 #### `stock_compare_group`：标的对比组表，用于同赛道公司横向 PK
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| name | 对比组名称 |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, name, track_id, stock_ids, description, created_at, updated_at
+```
 
 #### `stock_thesis`：标的假设表，保存公司投资逻辑、验证指标和证伪条件
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| thesis | 投资逻辑 |
-| status | active/archived |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
 
-#### `stock_pool`：标的研究池，保存候选、观察、重点跟踪等研究状态
-
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| status | candidate/watching/focused/archived |
-| source | manual/ai/market_radar/track_discovery |
-| reason | 加入原因 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+```text
+id, stock_id, thesis_text, key_logic, validation_indicators, falsification_conditions, status, created_at, updated_at
+```
 
 #### `stock_track_relation`：标的-赛道绑定表，保存研究确认后的标的所属赛道关系
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| stock_id | 关联 stock |
-| track_id | 关联 track |
-| relation_type | core/related/watch |
-| source | manual/ai/market_radar |
-| confidence | 置信度 |
-| note | 备注 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
 
+```text
+id, stock_id, track_id, relation_type, conviction, reason, status, created_at, updated_at
+```
+
+#### `stock_valuation_snapshot`：标的估值快照表，保存财务表现、估值模型和预期差
+
+字段：
+
+```text
+id, stock_id, company, company_code, report_period, report_release_date, current_market_value, financial_performance_json, trend_reference_json, guidance_check_json, quarter_performance, quarter_main_reason, profit_model_json, fcf_model_json, revenue_model_json, primary_model, expected_market_value_3y, expectation_gap_rate, analysis_date, researcher, created_at
+```
+
+#### `market_index_realtime_quote`：市场指数实时行情缓存表，保存主要指数最新报价
+
+字段：
+
+```text
+id, code, name, price, change, pct_chg, quote_time, source, status, error_message, created_at, updated_at
+```
+
+#### `market_index_daily_bar`：市场指数日线行情表，保存主要指数历史 K 线
+
+字段：
+
+```text
+id, code, name, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount, source, created_at, updated_at
+```
+
+---
 
 ### 34.11 alert_center
 
-#### `alert_rule`：预警规则表，保存价格、热度、公告、组合等触发条件
+#### `alert_rule`：预警规则表，保存价格、热度、公告、组合和任务失败等触发条件
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| user_id | 用户 ID |
-| rule_type | 规则类型 |
-| target_type | 目标类型 |
-| target_id | 目标 ID |
-| condition_json | 触发条件 |
-| enabled | 是否启用 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, user_id, name, rule_type, target_type, target_id, condition_json, enabled, status, created_at, updated_at
+```
 
 #### `alert_event`：预警事件表，保存规则触发后的具体提醒记录
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| rule_id | 规则 ID |
-| event_time | 事件时间 |
-| event_level | 级别 |
-| title | 标题 |
-| message | 消息 |
-| status | 状态 |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, rule_id, event_time, event_level, title, message, status, created_at
+```
 
 ---
 
@@ -5035,114 +4953,129 @@ UNIQUE(stock_id, material_type, material_id)
 
 #### `portfolio`：投资组合表，保存实盘组合名称、基准货币等组合元信息
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| user_id | 用户 ID |
-| name | 组合名称 |
-| base_currency | 基准货币 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
 
-#### `portfolio_group`：实盘组合分组表，区分核心仓、卫星仓、防守仓、现金仓等实盘仓位角色
+```text
+id, user_id, name, base_currency, created_at, updated_at
+```
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| portfolio_id | 组合 ID |
-| name | 分组名称 |
-| group_type | core/satellite/defensive/cash/custom |
-| target_weight | 目标权重，可选 |
-| max_stock_count | 个股数量配置项，可选 |
-| sort_order | 排序 |
-| note | 备注 |
-| status | active/inactive |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+#### `portfolio_group`：实盘组合分组表，区分核心仓、卫星仓、防守仓、现金仓等角色
 
-#### `portfolio_position`：实盘持仓表，保存组合内真实持仓数量和成本
+字段：
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| portfolio_id | 组合 ID |
-| group_id | 实盘分组 ID |
-| stock_id | 股票 ID |
-| quantity | 实盘持仓数量 |
-| cost_price | 成本价 |
-| current_price | 当前价，可选 |
-| market_value | 市值，可计算 |
-| target_weight | 个股目标权重，可选 |
-| note | 备注 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+```text
+id, portfolio_id, name, group_type, target_weight, max_stock_count, sort_order, note, status, created_at, updated_at
+```
+
+#### `portfolio_position`：实盘持仓表，保存组合内真实持仓数量、成本和行情缓存
+
+字段：
+
+```text
+id, portfolio_id, group_id, stock_id, quantity, cost_price, current_price, previous_close, market_value, quote_time, price_source, target_weight, note, status, created_at, updated_at
+```
+
+#### `portfolio_cash_balance`：组合现金余额表，保存独立现金余额
+
+字段：
+
+```text
+id, portfolio_id, amount, currency, note, created_at, updated_at
+```
+
+#### `portfolio_cash_flow`：组合现金流水表，保存入金、出金、分红等现金变动
+
+字段：
+
+```text
+id, portfolio_id, flow_type, amount, currency, flow_date, note, created_at
+```
+
+#### `portfolio_value_snapshot`：组合市值快照表，保存每日组合总市值、仓位市值和现金
+
+字段：
+
+```text
+id, portfolio_id, snapshot_date, total_value, position_market_value, cash_amount, day_pnl, day_pct, position_count, source, created_at, updated_at
+```
+
+#### `portfolio_review`：组合复盘表，保存组合阶段性复盘和风险摘要
+
+字段：
+
+```text
+id, portfolio_id, title, content, risk_summary, created_at
+```
 
 ---
 
 ### 34.13 knowledge_base
 
+#### `knowledge_note_group`：知识笔记分组表，保存知识库目录分组
+
+字段：
+
+```text
+id, name, sort_order, status, created_at, updated_at
+```
+
 #### `knowledge_note`：知识笔记表，保存心得、复盘、原则、错误案例等认知材料
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| title | 标题 |
-| content | 内容 |
-| note_type | thesis/stock/portfolio/alert/market/mistake/principle |
-| related_module | 关联模块 |
-| related_id | 关联对象 |
-| tags | 标签 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, title, content, note_type, group_id, related_module, related_id, tags, status, created_at, updated_at
+```
+
+#### `knowledge_note_tag_relation`：知识笔记-标签关系表，保存笔记与正式 tag 的绑定
+
+字段：
+
+```text
+id, note_id, tag_id, created_at
+```
 
 #### `knowledge_skill`：知识 Skill 表，将经验提炼为可复用分析准则
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| title | Skill 标题 |
-| skill_type | Skill 类型 |
-| principle | 分析准则 |
-| description | 描述 |
-| input_schema | 输入结构 |
-| output_schema | 输出结构 |
-| prompt_template | Prompt 模板 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, title, skill_type, principle, description, input_schema, output_schema, prompt_template, status, created_at, updated_at
+```
 
 #### `knowledge_agent`：知识 Agent 表，将多个 Skills 编排为可执行分析流程
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| name | Agent 名称 |
-| target_module | 目标模块 |
-| description | 描述 |
-| skills_json | 编排的 Skills |
-| workflow_json | 工作流 |
-| status | 状态 |
-| created_at | 创建时间 |
-| updated_at | 更新时间 |
+字段：
+
+```text
+id, name, target_module, description, skills_json, workflow_json, status, created_at, updated_at
+```
+
+#### `knowledge_prompt`：知识 Prompt 表，保存模块 AI 任务的系统提示词和用户提示词
+
+字段：
+
+```text
+id, prompt_key, title, target_task, provider, model, system_prompt, user_prompt, response_format, status, created_at, updated_at
+```
 
 #### `knowledge_feedback_log`：业务反哺日志表，记录 Agent/Skill 对业务模块的反哺结果
 
-| 字段 | 说明 |
-|---|---|
-| id | 主键 |
-| agent_id | Agent ID |
-| target_module | 目标模块 |
-| target_id | 目标对象 |
-| feedback_type | 反馈类型 |
-| result_summary | 结果摘要 |
-| effectiveness | 有效性 |
-| created_at | 创建时间 |
+字段：
+
+```text
+id, agent_id, target_module, target_id, feedback_type, result_summary, effectiveness, created_at
+```
 
 ---
 
----
+说明：
+
+```text
+当前不再维护独立数据库表说明书；
+本节是表结构的唯一长期文档入口；
+不得恢复 track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot 等 v25 已明确不建设的旧赛道表。
+```
 
 ## AI Agent 轻量编排与工具注册表
 
@@ -5242,7 +5175,7 @@ modules/knowledge_base/agents/*.yaml
 ```text
 modules/knowledge_base/agents/
 ├── market_summary_agent.yaml
-├── track_evidence_agent.yaml
+├── track_material_review_agent.yaml
 ├── stock_research_agent.yaml
 ├── disclosure_summary_agent.yaml
 ├── alert_explain_agent.yaml
@@ -5299,7 +5232,7 @@ tools:
   - stock_analysis.get_stock_profile
   - disclosure_library.search_disclosures
   - market_radar.get_stock_tag_edges
-  - track_discovery.get_related_thesis
+  - track_discovery.get_track_detail
   - knowledge_base.search_notes
 
 workflow:
@@ -5385,7 +5318,7 @@ market_radar.get_tag_heat
 market_radar.search_source_items
 market_radar.get_stock_tag_edges
 disclosure_library.search_disclosures
-track_discovery.get_thesis
+track_discovery.get_track_detail
 stock_analysis.get_stock_profile
 stock_analysis.get_stock_report
 portfolio.get_position_summary
@@ -5501,7 +5434,7 @@ tools:
   - stock_analysis.get_stock_profile
   - disclosure_library.search_disclosures
   - market_radar.get_stock_tag_edges
-  - track_discovery.get_related_thesis
+  - track_discovery.get_track_detail
   - knowledge_base.search_notes
 ```
 
@@ -5559,9 +5492,9 @@ tools:
 不同 Agent 的工具白名单不同。
 ```
 
-### 第一版只支持 Python 函数工具
+### 内部 Agent 第一版只支持 Python 函数工具
 
-第一版 `tool_registry.py` 只注册系统内部 Python 函数。
+第一版 `knowledge_base/tool_registry.py` 只注册系统内部 Python 函数。
 
 ```text
 tool_type = python
@@ -5573,7 +5506,7 @@ tool_type = python
 任意 HTTP Tool
 任意本地系统命令
 Shell / subprocess
-MCP
+MCP Client / MCP Server
 远程插件市场
 外部工具市场
 ```
@@ -5586,6 +5519,14 @@ MCP
 3. 避免 Agent 拿到本地系统权限；
 4. 工具调用链更容易审计；
 5. 更符合业务模块内聚优先原则。
+```
+
+说明：
+
+```text
+这里限制的是 liuli 内部 Agent 调工具的方向；
+不等于 liuli 不能对外提供 MCP；
+对外 MCP 归 basic/mcp，供 Codex 等外部 Client 连接。
 ```
 
 ### 工具调用链路
@@ -5745,6 +5686,292 @@ Agent 状态持久化
 
 ```text
 先自己写轻量 Agent 编排，保持业务可控；等复杂度真实出现，再把 LangGraph 接到底层。
+```
+
+## 对外 MCP 服务设计
+
+### 定位
+
+对外 MCP 是 liuli 把受控业务能力暴露给 Codex 的协议层。
+
+```text
+Codex / MCP Client
+  ↓ Streamable HTTP + Bearer Token
+basic/mcp
+  ↓ tool wrapper
+各业务模块 service
+  ↓
+数据库 / var 文件 / 外部 client
+```
+
+它和内部 Agent 工具注册表是两个方向：
+
+| 能力 | 归属 | 方向 | 第一版形态 |
+|---|---|---|---|
+| 内部 Agent 工具 | `modules/knowledge_base/tool_registry.py` | liuli Agent 调 liuli 业务能力 | Python 函数工具 |
+| 对外 MCP 服务 | `modules/basic/mcp` | Codex 等外部 MCP Client 调 liuli 业务能力 | Streamable HTTP MCP |
+
+### 为什么放 basic/mcp
+
+```text
+MCP 不是市场雷达、赛道发现、标的分析、组合管理任一业务模块；
+MCP 也不是 Console 页面能力；
+MCP 是对外协议适配和权限边界，属于基础支撑模块；
+services 只放外部接口 client，不放系统对外暴露能力的协议层。
+```
+
+因此目录归属为：
+
+```text
+invest_assistant/modules/basic/mcp/
+```
+
+不要放：
+
+```text
+invest_assistant/mcp/
+invest_assistant/modules/console/
+invest_assistant/services/
+invest_assistant/modules/knowledge_base/
+```
+
+### 目录结构
+
+```text
+modules/basic/mcp/
+├── __init__.py
+├── server.py              # 创建 MCP server，设置 instructions，注册 tools
+├── auth.py                # MCP Bearer Token 校验
+├── registry.py            # MCP 工具清单、风险等级、只读标记、allowlist
+├── debug_logger.py        # MCP 开发期详细调试日志，写入 var/logs/mcp_debug.log
+├── service.py             # DB session 包装、工具调用分发、统一异常边界
+├── schemas.py             # MCP tool 入参/出参 Pydantic 类型
+└── tools/
+    ├── market_radar.py
+    ├── track_discovery.py
+    ├── stock_analysis.py
+    ├── report_library.py
+    └── portfolio.py
+```
+
+第一版不新增 MCP 专用表。MCP 的外部 client/token 配置复用现有 `system_config`：
+
+```text
+config_key = mcp.clients
+config_type = json
+module_name = mcp
+enabled = true
+```
+
+`config_value` 推荐保存 client map，便于个人系统在“系统配置”页面直接维护 Codex、opencode 等调用方：
+
+```json
+{
+  "codex": {
+    "enabled": true,
+    "token": "long-random-token",
+    "allowed_tools": [
+      "market_radar.search_source_items",
+      "track_discovery.get_track_detail",
+      "stock_analysis.get_stock_profile",
+      "report_library.read_report_content",
+      "portfolio.get_overview"
+    ],
+    "max_result_limit": 50,
+    "local_only": true,
+    "note": "Codex local access"
+  },
+  "opencode": {
+    "enabled": true,
+    "token": "another-long-random-token",
+    "allowed_tools": [
+      "market_radar.search_source_items",
+      "stock_analysis.get_stock_profile"
+    ],
+    "max_result_limit": 50,
+    "local_only": true
+  }
+}
+```
+
+`basic/mcp/auth.py` 只读取 `system_config.mcp.clients` 并解析启用的 client；Bearer Token 命中某个启用 client 后，再按该 client 的 `allowed_tools` 和全局工具 registry 做交集校验。个人单用户系统第一版允许 token 明文保存在 `system_config`，后续如需要过期时间、撤销历史、hash 存储或细粒度审计，再新增 MCP 专用表。
+
+后续只有出现以下需求时，才考虑增加 MCP 表：
+
+```text
+动态启停 MCP 工具
+token 过期、撤销历史或 hash 存储
+记录 MCP 调用审计
+统计 Codex 使用频率
+```
+
+### 传输与鉴权
+
+第一版使用 Streamable HTTP：
+
+```text
+/mcp
+```
+
+规则：
+
+```text
+MCP 入口不挂在 /api 下；
+MCP 使用独立 Bearer Token；
+不复用 Web 登录态和浏览器 Cookie；
+liuli 服务端从系统配置 `mcp.clients` 读取可接受 token；
+Codex、opencode 等客户端可继续用本机环境变量保存自己的 bearer token；
+默认只监听本机或受控网络入口。
+```
+
+Codex 配置示例：
+
+```toml
+[mcp_servers.liuli]
+url = "http://127.0.0.1:8000/mcp"
+bearer_token_env_var = "LIULI_MCP_TOKEN"
+tool_timeout_sec = 60
+default_tools_approval_mode = "prompt"
+```
+
+### 第一版工具范围
+
+第一版只暴露只读工具：
+
+```text
+market_radar.search_source_items
+market_radar.get_hotwords
+market_radar.get_tag_trend
+track_discovery.list_tracks
+track_discovery.get_track_detail
+stock_analysis.get_stock_profile
+stock_analysis.get_daily_bars
+report_library.list_reports
+report_library.read_report_content
+portfolio.get_overview
+```
+
+不暴露：
+
+```text
+删除数据
+清空数据
+直接 SQL
+任意文件读取
+Shell / subprocess
+任务中心任意 job 触发
+修改组合、预警、标签、赛道、标的
+```
+
+### 工具实现规则
+
+```text
+MCP tool wrapper 只做协议层工作；
+入参校验用 schemas.py；
+业务查询调用对应模块 service；
+返回结果必须裁剪字段和数量；
+错误统一映射成 MCP tool error；
+每次调用必须写入 mcp_debug.log，便于开发期排查 client、tool、入参、耗时、异常；
+文件读取必须走 report_library / disclosure_library 等受控 service；
+任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level。
+```
+
+正确依赖：
+
+```text
+basic/mcp/tools/market_radar.py
+    ↓
+modules/market_radar/service.py
+```
+
+错误依赖：
+
+```text
+market_radar 依赖 basic/mcp
+basic/mcp 直接访问表模型并拼业务查询
+basic/mcp 直接读取 var 下任意文件
+```
+
+### Server Instructions
+
+MCP server 初始化时必须提供 server-wide instructions，前 512 字符要自包含。
+
+第一版 instructions 应包含：
+
+```text
+本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
+```
+
+### 开发期调试日志
+
+MCP 第一版必须提供独立开发期调试日志，不复用 `api.log`、`worker.log`、`job_run_log` 或 AI 审计日志。
+
+```text
+log_path = var/logs/mcp_debug.log
+max_bytes = 10 * 1024 * 1024
+backup_count = 5
+rotation_names = mcp_debug.log.1 ... mcp_debug.log.5
+```
+
+滚动规则：
+
+```text
+当前文件达到 10MB 后滚动；
+mcp_debug.log.1 保存最近一次滚出的文件；
+mcp_debug.log.5 为最旧归档；
+超过 5 个归档时覆盖最旧文件；
+命名必须保持 mcp_debug.log.1 这种格式。
+```
+
+记录内容：
+
+```text
+request_id / created_at；
+client_name，不记录 bearer token 明文；
+remote_addr / user_agent / protocol；
+tool_name / read_only / risk_level；
+sanitized_arguments；
+allowed_tools 命中结果；
+调用的业务 service 名称；
+duration_ms / status；
+result_count / result_size / truncated；
+error_type / error_message / stack_trace。
+```
+
+配置：
+
+```text
+config_key = mcp.debug_log.enabled
+config_type = boolean
+module_name = mcp
+开发期默认 true，稳定后可在系统配置中关闭。
+```
+
+该日志定位为本机开发排障材料，不是长期审计数据。第一版不做 Console 页面展示；后续如果需要查询、统计、留存策略或多用户审计，再新增 MCP 调用审计表。
+
+### 安全与审计
+
+第一版要求：
+
+```text
+默认只读；
+Bearer Token 必填；
+开发期写入独立 mcp_debug.log，10MB 单文件、5 个归档滚动；
+工具 allowlist 代码注册；
+单次返回数量有上限；
+文件内容读取限制在业务 service 允许的目录；
+系统配置列表展示 mcp.clients 时应遮罩 token 值，编辑弹窗可维护完整 JSON；
+不把数据库连接、API Key、Token、原始敏感配置暴露给 Codex。
+```
+
+后续增强：
+
+```text
+MCP 调用审计表
+按工具统计使用次数
+按工具配置风险等级
+Console 仅展示 MCP 状态和调用审计，不承载 MCP 业务实现
+高风险写入工具执行前增加人工确认
 ```
 
 ## 35. 一句话总结
