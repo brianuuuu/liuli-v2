@@ -2,6 +2,7 @@ import json
 from collections.abc import Callable
 from datetime import date
 from time import perf_counter
+from urllib.parse import urlparse
 
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
@@ -10,6 +11,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from invest_assistant.bootstrap.database import SessionLocal
+from invest_assistant.bootstrap.config import get_settings
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig, authenticate_token, get_client_config
 from invest_assistant.modules.basic.mcp.debug_logger import stack_trace_from_exception, write_mcp_call_log
 from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
@@ -36,21 +38,22 @@ class SystemConfigTokenVerifier:
 
 
 def create_liuli_mcp_server() -> FastMCP:
+    public_base_url = _normalized_public_base_url()
     server = FastMCP(
         name="liuli",
         instructions=MCP_INSTRUCTIONS,
         token_verifier=SystemConfigTokenVerifier(),
         auth=AuthSettings(
-            issuer_url="http://127.0.0.1:8000",
-            resource_server_url="http://127.0.0.1:8000/mcp",
+            issuer_url=public_base_url,
+            resource_server_url=f"{public_base_url}/mcp",
             required_scopes=[MCP_SCOPE],
         ),
         streamable_http_path="/",
         stateless_http=False,
         json_response=True,
         transport_security=TransportSecuritySettings(
-            allowed_hosts=["127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "testserver"],
-            allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://testserver"],
+            allowed_hosts=_allowed_hosts_for_public_base_url(public_base_url),
+            allowed_origins=_allowed_origins_for_public_base_url(public_base_url),
         ),
     )
     _register_tools(server)
@@ -59,6 +62,30 @@ def create_liuli_mcp_server() -> FastMCP:
 
 def create_mcp_asgi_app():
     return create_liuli_mcp_server().streamable_http_app()
+
+
+def _normalized_public_base_url() -> str:
+    return get_settings().mcp_public_base_url.rstrip("/")
+
+
+def _allowed_hosts_for_public_base_url(public_base_url: str) -> list[str]:
+    parsed = urlparse(public_base_url)
+    hosts = ["127.0.0.1", "127.0.0.1:*", "localhost", "localhost:*", "testserver"]
+    if parsed.hostname:
+        hosts.extend([parsed.hostname, f"{parsed.hostname}:*"])
+    if parsed.netloc:
+        hosts.append(parsed.netloc)
+    return list(dict.fromkeys(hosts))
+
+
+def _allowed_origins_for_public_base_url(public_base_url: str) -> list[str]:
+    parsed = urlparse(public_base_url)
+    origins = ["http://127.0.0.1:*", "http://localhost:*", "http://testserver"]
+    if parsed.scheme and parsed.hostname:
+        origins.append(f"{parsed.scheme}://{parsed.hostname}:*")
+    if parsed.scheme and parsed.netloc:
+        origins.append(f"{parsed.scheme}://{parsed.netloc}")
+    return list(dict.fromkeys(origins))
 
 
 def _register_tools(server: FastMCP) -> None:
