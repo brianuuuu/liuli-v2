@@ -262,3 +262,29 @@ def test_mcp_server_uses_bearer_token_client_id_instead_of_meta_client_id(monkey
     monkeypatch.setattr(server, "get_access_token", lambda: SimpleNamespace(client_id="codex"))
 
     assert server._client_name_from_auth_context(SimpleNamespace(client_id="meta-client")) == "codex"
+
+
+def test_console_mcp_status_counts_enabled_clients_and_tools():
+    from invest_assistant.modules.console.router import mcp_status
+
+    SessionLocal = make_session()
+    db = SessionLocal()
+    add_config(
+        db,
+        "mcp.clients",
+        json.dumps(
+            {
+                "codex": {"enabled": True, "token": "secret-token", "allowed_tools": ["portfolio.get_overview"]},
+                "opencode": {"enabled": False, "token": "disabled-token", "allowed_tools": ["portfolio.get_overview"]},
+            }
+        ),
+    )
+    add_config(db, "mcp.debug_log.enabled", "false", config_type="boolean")
+
+    status = mcp_status(db)
+
+    assert status["status"] == "ok"
+    assert status["clients"] == 2
+    assert status["enabled_clients"] == 1
+    assert status["tools"] >= 1
+    assert status["debug_log"] == "disabled"
