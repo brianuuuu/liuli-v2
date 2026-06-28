@@ -254,6 +254,17 @@ def test_mount_mcp_app_uses_top_level_mcp_path():
     assert any(getattr(route, "path", None) == "/mcp" for route in app.routes)
 
 
+def test_mcp_transport_security_allows_public_base_url_host():
+    from invest_assistant.modules.basic.mcp.server import _allowed_hosts_for_public_base_url
+
+    hosts = _allowed_hosts_for_public_base_url("http://115.29.176.240:8000")
+
+    assert "115.29.176.240" in hosts
+    assert "115.29.176.240:*" in hosts
+    assert "115.29.176.240:8000" in hosts
+    assert "127.0.0.1" in hosts
+
+
 def test_mcp_server_uses_bearer_token_client_id_instead_of_meta_client_id(monkeypatch):
     from types import SimpleNamespace
 

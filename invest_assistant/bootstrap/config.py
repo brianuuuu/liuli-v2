@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     qwen_api_key: str = ""
     deepseek_api_key: str = ""
     log_level: str = "INFO"
+    mcp_public_base_url: str = "http://127.0.0.1:8000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
