@@ -1,0 +1,2 @@
+"""External MCP integration module."""
+

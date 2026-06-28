@@ -1493,6 +1493,31 @@ def list_stock_daily_bars(
     return list(db.scalars(stmt.order_by(StockDailyBar.trade_date.asc(), StockDailyBar.id.asc())))
 
 
+def list_cached_stock_daily_bars(
+    db: Session,
+    stock_id: int,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    limit: int | None = 50,
+    adj: str = "qfq",
+) -> list[StockDailyBar] | None:
+    if db.get(Stock, stock_id) is None:
+        return None
+    safe_limit = normalize_limit(limit)
+    stmt = select(StockDailyBar).where(
+        StockDailyBar.stock_id == stock_id,
+        StockDailyBar.adj == adj,
+        StockDailyBar.source == "tushare",
+    )
+    if start_date is not None:
+        stmt = stmt.where(StockDailyBar.trade_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(StockDailyBar.trade_date <= end_date)
+    rows = list(db.scalars(stmt.order_by(StockDailyBar.trade_date.desc(), StockDailyBar.id.desc()).limit(safe_limit)))
+    return list(reversed(rows))
+
+
 def refresh_stock_daily_bars(
     db: Session,
     stock: Stock,

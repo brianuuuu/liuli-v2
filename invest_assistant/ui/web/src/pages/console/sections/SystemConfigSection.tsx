@@ -17,6 +17,7 @@ type ConfigFormValues = {
 };
 
 const compactConfigMetaStyle = { marginBottom: 10 };
+const sensitiveConfigKeyPattern = /(token|secret|password|api[_-]?key|authorization)/i;
 
 function configValueForEditor(record: SystemConfig): boolean | number | string {
   if (record.config_type === "boolean") {
@@ -25,6 +26,13 @@ function configValueForEditor(record: SystemConfig): boolean | number | string {
   if (record.config_type === "number") {
     const parsed = Number(record.config_value);
     return Number.isNaN(parsed) ? record.config_value : parsed;
+  }
+  return record.config_value;
+}
+
+function displayConfigValue(record: SystemConfig): string {
+  if (record.config_key === "mcp.clients" || sensitiveConfigKeyPattern.test(record.config_key)) {
+    return "***";
   }
   return record.config_value;
 }
@@ -129,7 +137,7 @@ export function SystemConfigSection() {
     { title: "Key", dataIndex: "config_key" },
     { title: "模块", dataIndex: "module_name", width: 140, render: (value) => value || "-" },
     { title: "类型", dataIndex: "config_type", width: 100 },
-    { title: "值", dataIndex: "config_value", ellipsis: true },
+    { title: "值", dataIndex: "config_value", ellipsis: true, render: (_, record) => displayConfigValue(record) },
     { title: "启用", dataIndex: "enabled", width: 80, render: (value) => <Tag color={value ? "green" : "default"}>{value ? "启用" : "停用"}</Tag> },
     { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
     {
