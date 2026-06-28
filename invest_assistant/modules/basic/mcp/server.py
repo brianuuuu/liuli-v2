@@ -22,7 +22,50 @@ MCP_INSTRUCTIONS = (
     "本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、"
     "禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、"
     "stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。"
+    "返回内容以中文为主，客户端应按 UTF-8 解码；如终端显示乱码，优先检查客户端或终端编码。"
 )
+MCP_TOOL_DESCRIPTIONS = {
+    "market_radar.search_source_items": (
+        "搜索 liuli 已入库的信息流条目，适合查询新闻、公告、快讯、研报摘要等市场信息。"
+        "支持关键词 q、来源 source_name、类型 source_type、重要标记 important_only、tag_id、limit、offset 过滤。"
+    ),
+    "market_radar.get_hotwords": (
+        "查询市场雷达热词列表，适合按状态或关键词了解当前已沉淀的热点词。"
+        "支持 status、q、limit、offset 过滤。"
+    ),
+    "market_radar.get_tag_trend": (
+        "按已知 tag_id 查询标签热度趋势，用于观察某个标签在信息流中的热度变化。"
+        "不要猜测 tag_id；缺少 ID 时先通过信息流或热词查询确认。"
+    ),
+    "track_discovery.list_tracks": (
+        "查询赛道列表，适合按状态或关键词查找赛道候选项，并获取后续 get_track_detail 所需的 track_id。"
+        "支持 status、q、limit 过滤。"
+    ),
+    "track_discovery.get_track_detail": (
+        "按已知 track_id 获取赛道详情，包括赛道基础信息、研究材料、相关标的和验证信息。"
+        "仅在已知 track_id 时调用，不要猜测 ID。"
+    ),
+    "stock_analysis.get_stock_profile": (
+        "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"
+        "不要把股票代码或证券代码直接当 stock_id。"
+    ),
+    "stock_analysis.get_daily_bars": (
+        "按已知 stock_id 查询本地缓存的股票日 K 数据，可指定 start_date、end_date 和 limit。"
+        "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id。"
+    ),
+    "report_library.list_reports": (
+        "查询报告库列表，适合查找 report_library.read_report_content 所需的 report_id。"
+        "支持 limit、offset 分页。"
+    ),
+    "report_library.read_report_content": (
+        "按已知 report_id 读取报告正文内容。仅在已知 report_id 时调用，不要猜测 ID；"
+        "缺少 ID 时先使用 report_library.list_reports 查询。"
+    ),
+    "portfolio.get_overview": (
+        "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持仓市值、总资产、当日盈亏和持仓分布。"
+        "portfolio_id 为空时返回全组合汇总。"
+    ),
+}
 
 
 class SystemConfigTokenVerifier:
@@ -89,7 +132,7 @@ def _allowed_origins_for_public_base_url(public_base_url: str) -> list[str]:
 
 
 def _register_tools(server: FastMCP) -> None:
-    @server.tool(name="market_radar.search_source_items")
+    @server.tool(name="market_radar.search_source_items", description=MCP_TOOL_DESCRIPTIONS["market_radar.search_source_items"])
     def mcp_market_radar_search_source_items(
         ctx: Context,
         q: str | None = None,
@@ -107,7 +150,7 @@ def _register_tools(server: FastMCP) -> None:
             market_radar.search_source_items,
         )
 
-    @server.tool(name="market_radar.get_hotwords")
+    @server.tool(name="market_radar.get_hotwords", description=MCP_TOOL_DESCRIPTIONS["market_radar.get_hotwords"])
     def mcp_market_radar_get_hotwords(
         ctx: Context,
         status: str | None = None,
@@ -122,11 +165,11 @@ def _register_tools(server: FastMCP) -> None:
             market_radar.get_hotwords,
         )
 
-    @server.tool(name="market_radar.get_tag_trend")
+    @server.tool(name="market_radar.get_tag_trend", description=MCP_TOOL_DESCRIPTIONS["market_radar.get_tag_trend"])
     def mcp_market_radar_get_tag_trend(ctx: Context, tag_id: int, limit: int = 50) -> dict:
         return _run_tool(ctx, "market_radar.get_tag_trend", {"tag_id": tag_id, "limit": limit}, market_radar.get_tag_trend)
 
-    @server.tool(name="track_discovery.list_tracks")
+    @server.tool(name="track_discovery.list_tracks", description=MCP_TOOL_DESCRIPTIONS["track_discovery.list_tracks"])
     def mcp_track_discovery_list_tracks(
         ctx: Context,
         status: str | None = None,
@@ -140,7 +183,7 @@ def _register_tools(server: FastMCP) -> None:
             track_discovery.list_tracks,
         )
 
-    @server.tool(name="track_discovery.get_track_detail")
+    @server.tool(name="track_discovery.get_track_detail", description=MCP_TOOL_DESCRIPTIONS["track_discovery.get_track_detail"])
     def mcp_track_discovery_get_track_detail(ctx: Context, track_id: int) -> dict:
         return _run_tool(
             ctx,
@@ -149,7 +192,7 @@ def _register_tools(server: FastMCP) -> None:
             track_discovery.get_track_detail,
         )
 
-    @server.tool(name="stock_analysis.get_stock_profile")
+    @server.tool(name="stock_analysis.get_stock_profile", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.get_stock_profile"])
     def mcp_stock_analysis_get_stock_profile(ctx: Context, stock_id: int) -> dict:
         return _run_tool(
             ctx,
@@ -158,7 +201,7 @@ def _register_tools(server: FastMCP) -> None:
             stock_analysis.get_stock_profile,
         )
 
-    @server.tool(name="stock_analysis.get_daily_bars")
+    @server.tool(name="stock_analysis.get_daily_bars", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.get_daily_bars"])
     def mcp_stock_analysis_get_daily_bars(
         ctx: Context,
         stock_id: int,
@@ -173,7 +216,7 @@ def _register_tools(server: FastMCP) -> None:
             stock_analysis.get_daily_bars,
         )
 
-    @server.tool(name="report_library.list_reports")
+    @server.tool(name="report_library.list_reports", description=MCP_TOOL_DESCRIPTIONS["report_library.list_reports"])
     def mcp_report_library_list_reports(ctx: Context, limit: int = 50, offset: int = 0) -> dict:
         return _run_tool(
             ctx,
@@ -182,7 +225,7 @@ def _register_tools(server: FastMCP) -> None:
             report_library.list_reports,
         )
 
-    @server.tool(name="report_library.read_report_content")
+    @server.tool(name="report_library.read_report_content", description=MCP_TOOL_DESCRIPTIONS["report_library.read_report_content"])
     def mcp_report_library_read_report_content(ctx: Context, report_id: int) -> dict:
         return _run_tool(
             ctx,
@@ -191,7 +234,7 @@ def _register_tools(server: FastMCP) -> None:
             report_library.read_report_content,
         )
 
-    @server.tool(name="portfolio.get_overview")
+    @server.tool(name="portfolio.get_overview", description=MCP_TOOL_DESCRIPTIONS["portfolio.get_overview"])
     def mcp_portfolio_get_overview(ctx: Context, portfolio_id: int | None = None) -> dict:
         return _run_tool(
             ctx,

@@ -237,6 +237,60 @@ def test_mcp_asgi_app_accepts_valid_system_config_token(monkeypatch):
     assert response.json()["result"]["serverInfo"]["name"] == "liuli"
 
 
+def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from invest_assistant.modules.basic.mcp import server
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    db = SessionLocal()
+    add_config(
+        db,
+        "mcp.clients",
+        json.dumps({"codex": {"enabled": True, "token": "secret-token", "allowed_tools": ["portfolio.get_overview"]}}),
+    )
+    db.close()
+    monkeypatch.setattr(server, "SessionLocal", SessionLocal)
+
+    init_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"},
+        },
+    }
+    with TestClient(server.create_mcp_asgi_app()) as client:
+        init_response = client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream"},
+            json=init_payload,
+        )
+        session_id = init_response.headers["mcp-session-id"]
+        client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream", "mcp-session-id": session_id},
+            json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+        )
+        tools_response = client.post(
+            "/",
+            headers={"Authorization": "Bearer secret-token", "Accept": "application/json, text/event-stream", "mcp-session-id": session_id},
+            json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        )
+
+    assert "UTF-8" in init_response.json()["result"]["instructions"]
+    tools = {item["name"]: item["description"] for item in tools_response.json()["result"]["tools"]}
+    assert "信息流" in tools["market_radar.search_source_items"]
+    assert "track_id" in tools["track_discovery.get_track_detail"]
+    assert "股票代码" in tools["stock_analysis.get_stock_profile"]
+    assert "report_id" in tools["report_library.read_report_content"]
+    assert "组合总览" in tools["portfolio.get_overview"]
+
+
 def test_mount_mcp_app_uses_top_level_mcp_path():
     from fastapi import FastAPI
     from starlette.responses import PlainTextResponse
