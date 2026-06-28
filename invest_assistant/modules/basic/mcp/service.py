@@ -46,6 +46,28 @@ def execute_read_tool(
     return _shape_result(result, limit=limit, requested_limit=requested_limit, duration_ms=duration_ms)
 
 
+def execute_write_tool(
+    *,
+    db: Session,
+    client: McpClientConfig,
+    tool_name: str,
+    arguments: dict,
+    handler: Callable,
+) -> dict:
+    metadata = get_tool_metadata(tool_name)
+    if metadata is None:
+        raise PermissionError(f"MCP tool not registered: {tool_name}")
+    if metadata.get("read_only") is not False:
+        raise PermissionError(f"MCP tool is not a write tool: {tool_name}")
+    if not is_tool_allowed(client, tool_name):
+        raise PermissionError(f"MCP tool not allowed for client {client.name}: {tool_name}")
+
+    started_at = perf_counter()
+    result = handler(db, **arguments)
+    duration_ms = int((perf_counter() - started_at) * 1000)
+    return {"data": serialize_for_mcp(result), "duration_ms": duration_ms, "truncated": False}
+
+
 def _shape_result(result, *, limit: int, requested_limit: int | None, duration_ms: int) -> dict:
     serialized = serialize_for_mcp(result)
     limit_truncated = requested_limit is not None and int(requested_limit) > limit

@@ -61,6 +61,10 @@ MCP_TOOL_DESCRIPTIONS = {
         "按已知 report_id 读取报告正文内容。仅在已知 report_id 时调用，不要猜测 ID；"
         "缺少 ID 时先使用 report_library.list_reports 查询。"
     ),
+    "report_library.upload_markdown_report": (
+        "上传 Markdown 报告并写入报告库索引。参数为 title、source_module、markdown；"
+        "保存到 var/reports/{source_module}/YYYY-MM/，仅用于显式 allowlist 放开的受控报告入库。"
+    ),
     "portfolio.get_overview": (
         "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持仓市值、总资产、当日盈亏和持仓分布。"
         "portfolio_id 为空时返回全组合汇总。"
@@ -234,6 +238,15 @@ def _register_tools(server: FastMCP) -> None:
             report_library.read_report_content,
         )
 
+    @server.tool(name="report_library.upload_markdown_report", description=MCP_TOOL_DESCRIPTIONS["report_library.upload_markdown_report"])
+    def mcp_report_library_upload_markdown_report(ctx: Context, title: str, source_module: str, markdown: str) -> dict:
+        return _run_tool(
+            ctx,
+            "report_library.upload_markdown_report",
+            {"title": title, "source_module": source_module, "markdown": markdown},
+            report_library.upload_markdown_report,
+        )
+
     @server.tool(name="portfolio.get_overview", description=MCP_TOOL_DESCRIPTIONS["portfolio.get_overview"])
     def mcp_portfolio_get_overview(ctx: Context, portfolio_id: int | None = None) -> dict:
         return _run_tool(
@@ -261,7 +274,7 @@ def _run_tool(ctx: Context, tool_name: str, arguments: dict, handler: Callable) 
                 "tool_name": tool_name,
                 "read_only": bool((get_tool_metadata(tool_name) or {}).get("read_only")),
                 "risk_level": (get_tool_metadata(tool_name) or {}).get("risk_level"),
-                "sanitized_arguments": arguments,
+                "sanitized_arguments": _sanitize_arguments_for_log(arguments),
                 "allowed_tools": client.allowed_tools,
                 "service_name": (get_tool_metadata(tool_name) or {}).get("service_name"),
                 "duration_ms": int((perf_counter() - started_at) * 1000),
@@ -278,7 +291,7 @@ def _run_tool(ctx: Context, tool_name: str, arguments: dict, handler: Callable) 
             {
                 "client_name": client.name if client else client_name,
                 "tool_name": tool_name,
-                "sanitized_arguments": arguments,
+                "sanitized_arguments": _sanitize_arguments_for_log(arguments),
                 "duration_ms": int((perf_counter() - started_at) * 1000),
                 "status": "failed",
                 "error_type": type(exc).__name__,
@@ -295,6 +308,16 @@ def _parse_optional_date(value: str | None) -> date | None:
     if value is None or value == "":
         return None
     return date.fromisoformat(value)
+
+
+def _sanitize_arguments_for_log(arguments: dict) -> dict:
+    sanitized = {}
+    for key, value in arguments.items():
+        if key in {"markdown", "content"} and isinstance(value, str):
+            sanitized[key] = {"content_length": len(value), "content_bytes": len(value.encode("utf-8"))}
+            continue
+        sanitized[key] = value
+    return sanitized
 
 
 def _client_name_from_auth_context(ctx: Context) -> str | None:

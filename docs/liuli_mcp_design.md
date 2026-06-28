@@ -88,7 +88,8 @@ enabled = true
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
       "report_library.read_report_content",
-      "portfolio.get_overview"
+      "portfolio.get_overview",
+      "report_library.upload_markdown_report"
     ],
     "max_result_limit": 50,
     "local_only": true,
@@ -149,7 +150,7 @@ default_tools_approval_mode = "prompt"
 
 ## 第一版工具范围
 
-第一版只暴露只读工具：
+第一版默认暴露只读查询工具：
 
 ```text
 market_radar.search_source_items
@@ -164,6 +165,14 @@ report_library.read_report_content
 portfolio.get_overview
 ```
 
+受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
+
+```text
+report_library.upload_markdown_report
+```
+
+`report_library.upload_markdown_report` 只接收 Markdown 文本、报告标题和 `source_module`，固定写入 `var/reports/{source_module}/YYYY-MM/`，同时创建 `report` 索引；不允许客户端指定任意路径或文件名。
+
 不暴露：
 
 ```text
@@ -174,6 +183,7 @@ portfolio.get_overview
 Shell / subprocess
 任务中心任意 job 触发
 修改组合、预警、标签、赛道、标的
+任意文件上传
 ```
 
 ## 工具实现规则
@@ -186,7 +196,7 @@ MCP tool wrapper 只做协议层工作；
 错误统一映射成 MCP tool error；
 每次调用必须写入 mcp_debug.log，便于开发期排查 client、tool、入参、耗时、异常；
 文件读取必须走 report_library / disclosure_library 等受控 service；
-任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level。
+任何写入类工具必须单独设计、显式标注 read_only=False 和 risk_level，并由 client allowed_tools 单独放开。
 ```
 
 正确依赖：
