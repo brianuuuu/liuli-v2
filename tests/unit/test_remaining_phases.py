@@ -293,19 +293,57 @@ def test_knowledge_base_flow_and_placeholder_jobs_removed():
     )
     assert note.status_code == 200
     skill = client.post(
-        "/api/knowledge/skills",
-        json={"title": "证据检查", "skill_type": "analysis", "principle": "先看证据", "description": "检查证据链", "input_schema": "{}", "output_schema": "{}", "prompt_template": "检查 {target}", "status": "active"},
+        "/api/knowledge/external-skills",
+        json={
+            "name": "证据检查",
+            "version": "v1",
+            "content": "# 证据检查\n\n触发条件：外部研究需要检查证据链\n操作顺序：先看证据，再给结论\nMCP 调用流程：读取材料 -> 生成报告\n报告回流规则：报告完成后回流研究结论\n\n检查 {target}",
+        },
         headers=headers,
     )
     assert skill.status_code == 200
+    exported = client.get(f"/api/knowledge/external-skills/{skill.json()['id']}/export", headers=headers)
+    assert exported.status_code == 200
+    soul = client.post(
+        "/api/knowledge/researcher-souls",
+        json={"name": "证据优先", "version": "v1", "content": "世界观：证据优先"},
+        headers=headers,
+    )
+    assert soul.status_code == 200
+    method = client.post(
+        "/api/knowledge/researcher-methods",
+        json={"name": "赛道复盘", "version": "v1", "content": "方法论：复盘赛道"},
+        headers=headers,
+    )
+    assert method.status_code == 200
     agent = client.post(
-        "/api/knowledge/agents",
-        json={"name": "赛道复盘Agent", "target_module": "track_discovery", "description": "复盘赛道", "skills_json": "[]", "workflow_json": "[]", "status": "active"},
+        "/api/knowledge/researchers",
+        json={
+            "name": "赛道复盘研究员",
+            "soul_id": soul.json()["id"],
+            "method_id": method.json()["id"],
+            "status": "active",
+        },
         headers=headers,
     )
     assert agent.status_code == 200
-    run = client.post(f"/api/knowledge/agents/{agent.json()['id']}/run", headers=headers)
-    assert run.status_code == 200
+    feedback = client.post(
+        "/api/knowledge/research-feedback",
+        json={
+            "title": "赛道复盘报告",
+            "report_content": "报告正文",
+            "structured_conclusion": "证据链完整",
+            "valuation_assumption": "估值假设",
+            "risk_points": "数据延迟",
+            "observation_signals": "成交放量",
+            "data_sources_json": "[\"mcp\"]",
+            "external_skill_id": skill.json()["id"],
+            "researcher_id": agent.json()["id"],
+            "verification_result": "待验证",
+        },
+        headers=headers,
+    )
+    assert feedback.status_code == 200
     removed_jobs = {
         "knowledge_base.extract_skills",
         "knowledge_base.compile_agents",

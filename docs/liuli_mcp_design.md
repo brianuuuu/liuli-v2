@@ -17,11 +17,11 @@ basic/mcp
 数据库 / var 文件 / 外部 client
 ```
 
-它和内部 Agent 工具注册表是两个方向：
+它和知识库对外研究资产是配合关系：
 
 | 能力 | 归属 | 方向 | 第一版形态 |
 |---|---|---|---|
-| 内部 Agent 工具 | `modules/knowledge_base/tool_registry.py` | liuli Agent 调 liuli 业务能力 | Python 函数工具 |
+| 对外研究资产 | `modules/knowledge_base` | 外部 AI 执行器读取 Skill、研究员文件并回流报告 | 文件 + 数据库索引 |
 | 对外 MCP 服务 | `modules/basic/mcp` | Codex 等外部 MCP Client 调 liuli 业务能力 | Streamable HTTP MCP |
 
 ## 为什么放 basic/mcp

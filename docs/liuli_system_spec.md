@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀 soul/method 组合，研究回流承接 MCP 返回的研究报告。
 - v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
 - v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
 - v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表；按当前代码补齐 API、Job 和表结构，并将本文件作为唯一长期规格源。
@@ -23,9 +24,6 @@
 - v14：明确标的、标的标签、赛道标签之间的关系；`tag(type=stock)` 由 `stock` 自动派生并随标的生命周期同步；标的可绑定多个赛道标签，绑定关系保存到 `stock_track_relation`，主操作入口为 `/stock-analysis/[stock_id]`，辅入口为 `/track-discovery/[id]`。
 - v13：将文档顶部的“本版重点更新”改为“历史版本更新点”，方便 AI 理解文档演进脉络。
 - v12：最小化修正 `tag_candidate` 设计；候补标签不再设计分类字段，只保留 `suggested_type = stock / track / hotword`，新增 `trigger_text` 与可选 `target_tag_id`。
-- v11：明确 Agent 工具第一版只支持系统内部 Python 函数；`tool_registry.py` 使用 `ToolDefinition` 保存工具名、描述、入参 schema、出参 schema、handler、风险等级和只读属性；Agent YAML 只声明工具白名单。
-- v10：明确多个业务 Agent 的描述文件统一放在 `modules/knowledge_base/agents/*.yaml`；`AgentRunner` 统一执行，业务模块只提供工具能力，不分散管理 Agent。
-- v9：明确 AI Agent 第一版采用 `knowledge_base` 内部轻量编排；工具注册表放 `modules/knowledge_base/tool_registry.py`；不引入重型 Agent 框架，后续复杂状态机再考虑 LangGraph。
 - v8：新增 `basic/ai_audit` AI 请求审计模块；增加 `ai_request_log` 表，用于统计 AI 调用次数、服务商、模型、Token、上下文用量、耗时、失败率和成本。
 - v7：补充并明确技术栈选型；Web 前端采用 React + Vite + Ant Design + ECharts + lightweight-charts；后端采用 FastAPI + SQLAlchemy + APScheduler + Pydantic + SQLite。
 
@@ -60,11 +58,11 @@
   ↓
 知识库沉淀
   ↓
-Skills 提炼
+对外 Skills / 研究员体系
   ↓
-Agent 编排
+外部 AI 研究协作
   ↓
-业务反哺
+研究回流
 ```
 
 ### 3.1 模块定位
@@ -76,7 +74,7 @@ Agent 编排
 | 标的分析 `stock_analysis` | 研究层 | 找出能承接赛道的公司 |
 | 预警中心 `alert_center` | 时机层 | 跟踪价格、估值、事件、热度异动 |
 | 组合管理 `portfolio` | 行动层 | 管理实盘持仓、调仓记录、组合复盘 |
-| 知识库 `knowledge_base` | 认知沉淀层 | 沉淀经验，提炼 Skills，编排 Agent |
+| 知识库 `knowledge_base` | 认知沉淀层 | 沉淀笔记、内部 Prompt、外部 Skill、研究员体系和研究回流 |
 | 控制台 `console` | 后台管理层 | 管理数据源、任务、标签、配置、系统状态 |
 
 ---
@@ -297,7 +295,7 @@ Worker 进程负责：
 解析 PDF
 生成报告
 执行预警规则
-知识沉淀 → Skills 提炼 → Agent 编排
+知识沉淀 → 对外 Skills / 研究员体系 → 外部 AI 研究协作 → 研究回流
 ```
 
 启动示例：
@@ -804,7 +802,7 @@ modules/basic/mcp/
 basic/mcp 是对外协议层，不是 Console 页面能力；
 Console 不新增 MCP 子模块，第一版通过“系统配置”维护 mcp.clients；
 Console 后续最多展示 MCP 状态和审计，不承载 MCP 业务实现；
-knowledge_base/tool_registry.py 仍只服务系统内部 Agent Python 函数工具；
+knowledge_base 管理对外 Skills、研究员和研究回流；
 MCP tool wrapper 必须调用各模块 service，不直接写 SQL。
 ```
 
@@ -835,7 +833,7 @@ market_radar      标签抽取、新闻摘要
 track_discovery   赛道动态分析
 stock_analysis    财报分析、标的研报
 alert_center      预警解释
-knowledge_base    Skills 提炼、Agent 编排
+knowledge_base    对内 Prompt、对外 Skills、研究回流
 ```
 
 一句话：
@@ -2764,22 +2762,27 @@ portfolio_position 只记录真实持仓；
 
 ### 22.1 定位
 
-知识库不是普通笔记库，而是把个人经验转化为 AI 分析能力的认知加工厂。
+知识库不是普通笔记库，而是把个人经验、研究方法和关键素材沉淀为可复用研究资产的认知层。
 
 核心链路：
 
 ```text
-知识沉淀 → Skills 提炼 → Agent 编排 → 业务反哺
+琉璃提供世界观、方法论和关键研究素材
+  ↓
+外部 AI 执行器负责复杂研究
+  ↓
+研究结果回流琉璃沉淀
 ```
 
-### 22.2 内部阶段
+### 22.2 子模块
 
-| 阶段 | 性质 | 说明 |
+| 子模块 | 性质 | 说明 |
 |---|---|---|
-| 知识沉淀 | 记录 | 个人心得、复盘、研究经验 |
-| Skills 提炼 | 规则化 | 把经验提炼成分析准则、判断模板、证伪条件 |
-| Agent 编排 | 能力化 | 把多个 Skills 组合成可执行分析流程 |
-| 业务反哺 | 应用 | Agent 被市场雷达、赛道发现、标的分析、预警中心、组合管理调用 |
+| 知识笔记 | 记录 | 个人笔记、心得、复盘、错误案例、阶段判断和投资原则 |
+| 对内 Prompt | 内部提示词 | 保存琉璃内部 AI 任务使用的提示词，如市场日报、材料审核、摘要生成、标签整理 |
+| 对外 Skills | 外部技能文件 | 管理给 Codex、OpenClaw 等外部 AI 执行器使用的 Skill 文件 |
+| 研究员 | 研究人格与体系 | 通过 soul 和 method 组合形成研究员，具体约束写入 Soul / Method 文件和对外 Skill 正文 |
+| 研究回流 | 结果沉淀 | 记录外部 AI 执行研究后的报告、结论、假设、风险、信号、数据源和验证结果 |
 
 ### 22.3 目录
 
@@ -2789,30 +2792,12 @@ knowledge_base/
 ├── schemas.py
 ├── service.py
 ├── router.py
-├── note_service.py
-├── skill_service.py
-├── agent_service.py
-├── agent_runner.py
-├── tool_registry.py
-├── feedback_service.py
-├── ai.py
-├── agents/                # 多个业务 Agent 的 YAML 描述文件
-│   ├── market_summary_agent.yaml
-│   ├── track_material_review_agent.yaml
-│   ├── stock_research_agent.yaml
-│   ├── disclosure_summary_agent.yaml
-│   ├── alert_explain_agent.yaml
-│   ├── portfolio_review_agent.yaml
-│   ├── knowledge_reflection_agent.yaml
-│   └── skill_extraction_agent.yaml
-└── tools/                 # 工具超过 10 个后再拆，可选
-    ├── market_radar_tools.py
-    ├── track_discovery_tools.py
-    ├── stock_analysis_tools.py
-    ├── disclosure_tools.py
-    ├── alert_tools.py
-    ├── portfolio_tools.py
-    └── knowledge_tools.py
+├── jobs.py
+├── prompts/               # 对内 Prompt 文件
+└── external/              # 对外 Skill、研究员 soul/method 文件
+    ├── skills/
+    ├── souls/
+    └── methods/
 ```
 
 ### 22.4 核心表
@@ -2832,43 +2817,83 @@ knowledge_note
 ```
 
 ```sql
-knowledge_skill
+knowledge_prompt
 - id
+- prompt_key
 - title
-- skill_type
-- principle
-- description
-- input_schema
-- output_schema
-- prompt_template
+- target_task
+- provider
+- model
+- system_prompt
+- user_prompt
+- response_format
 - status
 - created_at
 - updated_at
 ```
 
 ```sql
-knowledge_agent
+knowledge_external_skill
 - id
 - name
-- target_module
-- description
-- skills_json
-- workflow_json
+- file_path
+- version
+- file_hash
+- created_at
+- updated_at
+```
+
+```sql
+knowledge_researcher_soul
+- id
+- name
+- file_path
+- version
+- file_hash
+- created_at
+- updated_at
+```
+
+```sql
+knowledge_researcher_method
+- id
+- name
+- file_path
+- version
+- file_hash
+- created_at
+- updated_at
+```
+
+```sql
+knowledge_researcher
+- id
+- name
+- soul_id
+- method_id
 - status
 - created_at
 - updated_at
 ```
 
 ```sql
-knowledge_feedback_log
+knowledge_research_feedback
 - id
-- agent_id
-- target_module
-- target_id
-- feedback_type
-- result_summary
-- effectiveness
+- title
+- report_content
+- report_path
+- structured_conclusion
+- valuation_assumption
+- risk_points
+- observation_signals
+- data_sources_json
+- external_skill_id
+- researcher_id
+- verification_result
+- research_time
+- returned_at
 - created_at
+- updated_at
 ```
 
 ### 22.5 页面
@@ -2876,9 +2901,10 @@ knowledge_feedback_log
 ```text
 /knowledge
 /knowledge/notes
-/knowledge/skills
-/knowledge/agents
-/knowledge/reviews
+/knowledge/internal-prompts
+/knowledge/external-skills
+/knowledge/researchers
+/knowledge/research-feedback
 ```
 
 ---
@@ -3119,11 +3145,10 @@ Android：保留报告入口
 
 知识库
 ├── 知识笔记
-├── 复盘沉淀
-├── 分析准则
-├── Skills
-├── Agents
-└── 反哺记录
+├── 对内 Prompt
+├── 对外 Skills
+├── 研究员
+└── 研究回流
 
 控制台
 ├── 系统状态
@@ -4180,9 +4205,9 @@ alert_center.jobs 注册
 
 ```text
 知识沉淀
-Skills 提炼
-Agent 编排
-业务反哺
+对外 Skills
+研究员体系
+研究回流
 knowledge_base.jobs 注册
 ```
 
@@ -4577,18 +4602,27 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/knowledge/note-groups` | 新增知识笔记分组 |
 | PUT | `/api/knowledge/note-groups/{id}` | 编辑知识笔记分组 |
 | POST | `/api/knowledge/note-groups/{id}/archive` | 归档知识笔记分组 |
-| GET | `/api/knowledge/skills` | Skills 列表 |
-| POST | `/api/knowledge/skills` | 新增 Skill |
-| PUT | `/api/knowledge/skills/{id}` | 编辑 Skill |
-| GET | `/api/knowledge/agents` | Agent 列表 |
-| POST | `/api/knowledge/agents` | 新增 Agent 编排 |
-| PUT | `/api/knowledge/agents/{id}` | 编辑 Agent |
-| POST | `/api/knowledge/agents/{id}/run` | 运行 Agent，反哺业务模块 |
 | GET | `/api/knowledge/prompts` | Prompt 列表 |
 | POST | `/api/knowledge/prompts` | 新增 Prompt |
 | PUT | `/api/knowledge/prompts/{id}` | 编辑 Prompt |
 | DELETE | `/api/knowledge/prompts/{id}` | 删除/归档 Prompt |
-| GET | `/api/knowledge/feedback-logs` | 业务反哺记录 |
+| GET | `/api/knowledge/external-skills` | 对外 Skill 列表 |
+| POST | `/api/knowledge/external-skills` | 新增对外 Skill 并写入服务器文件 |
+| PUT | `/api/knowledge/external-skills/{id}` | 编辑对外 Skill 并更新服务器文件 |
+| GET | `/api/knowledge/external-skills/{id}/export` | 导出对外 Skill 文件 |
+| GET | `/api/knowledge/researcher-souls` | 研究员 Soul 列表 |
+| POST | `/api/knowledge/researcher-souls` | 新增研究员 Soul 文件记录 |
+| PUT | `/api/knowledge/researcher-souls/{id}` | 编辑研究员 Soul 文件记录 |
+| GET | `/api/knowledge/researcher-methods` | 研究员 Method 列表 |
+| POST | `/api/knowledge/researcher-methods` | 新增研究员 Method 文件记录 |
+| PUT | `/api/knowledge/researcher-methods/{id}` | 编辑研究员 Method 文件记录 |
+| GET | `/api/knowledge/researchers` | 研究员组合列表 |
+| POST | `/api/knowledge/researchers` | 新增研究员组合 |
+| PUT | `/api/knowledge/researchers/{id}` | 编辑研究员组合 |
+| DELETE | `/api/knowledge/researchers/{id}` | 删除研究员组合 |
+| GET | `/api/knowledge/research-feedback` | 研究回流报告列表 |
+| POST | `/api/knowledge/research-feedback` | MCP 写入研究回流报告 |
+| PUT | `/api/knowledge/research-feedback/{id}` | 更新研究回流验证结果 |
 
 ### 33.15 对外 MCP 入口
 
@@ -5036,23 +5070,7 @@ id, title, content, note_type, group_id, related_module, related_id, tags, statu
 id, note_id, tag_id, created_at
 ```
 
-#### `knowledge_skill`：知识 Skill 表，将经验提炼为可复用分析准则
-
-字段：
-
-```text
-id, title, skill_type, principle, description, input_schema, output_schema, prompt_template, status, created_at, updated_at
-```
-
-#### `knowledge_agent`：知识 Agent 表，将多个 Skills 编排为可执行分析流程
-
-字段：
-
-```text
-id, name, target_module, description, skills_json, workflow_json, status, created_at, updated_at
-```
-
-#### `knowledge_prompt`：知识 Prompt 表，保存模块 AI 任务的系统提示词和用户提示词
+#### `knowledge_prompt`：对内 Prompt 表，保存琉璃内部 AI 任务的系统提示词和用户提示词
 
 字段：
 
@@ -5060,12 +5078,44 @@ id, name, target_module, description, skills_json, workflow_json, status, create
 id, prompt_key, title, target_task, provider, model, system_prompt, user_prompt, response_format, status, created_at, updated_at
 ```
 
-#### `knowledge_feedback_log`：业务反哺日志表，记录 Agent/Skill 对业务模块的反哺结果
+#### `knowledge_external_skill`：对外 Skill 表，索引外部 AI 执行器使用的 Skill 文件
 
 字段：
 
 ```text
-id, agent_id, target_module, target_id, feedback_type, result_summary, effectiveness, created_at
+id, name, file_path, version, file_hash, created_at, updated_at
+```
+
+#### `knowledge_researcher_soul`：研究员 Soul 文件索引
+
+字段：
+
+```text
+id, name, file_path, version, file_hash, created_at, updated_at
+```
+
+#### `knowledge_researcher_method`：研究员 Method 文件索引
+
+字段：
+
+```text
+id, name, file_path, version, file_hash, created_at, updated_at
+```
+
+#### `knowledge_researcher`：研究员组合表
+
+字段：
+
+```text
+id, name, soul_id, method_id, status, created_at, updated_at
+```
+
+#### `knowledge_research_feedback`：研究回流表，记录外部 AI 执行研究后的结果回流
+
+字段：
+
+```text
+id, title, report_content, report_path, structured_conclusion, valuation_assumption, risk_points, observation_signals, data_sources_json, external_skill_id, researcher_id, verification_result, research_time, returned_at, created_at, updated_at
 ```
 
 ---
@@ -5078,615 +5128,98 @@ id, agent_id, target_module, target_id, feedback_type, result_summary, effective
 不得恢复 track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot 等 v25 已明确不建设的旧赛道表。
 ```
 
-## AI Agent 轻量编排与工具注册表
+## 知识库与外部 AI 执行器协作
 
 ### 定位
 
-第一版不引入重型开源 Agent 框架。Agent 能力由 `knowledge_base` 内部实现轻量编排。
-
-核心链路：
+知识库不承担琉璃内部执行编排。它提供三类外部研究资产：
 
 ```text
-知识沉淀
+对外 Skills：外部 AI 执行器使用的 Skill 文件
+研究员：由 soul 和 method 组合形成的研究人格与研究体系
+研究回流：外部 AI 执行研究后的报告和结构化结果
+```
+
+核心关系：
+
+```text
+knowledge_base 保存素材、路径、版本和 hash
   ↓
-Skills 提炼
+Codex / OpenClaw / 其他外部 AI 执行器读取 Skill 与研究员文件
   ↓
-Agent 编排
+外部执行器完成复杂研究
   ↓
-工具调用
+MCP 将研究报告和结构化结论回写到 knowledge_research_feedback
+```
+
+### 对外 Skills
+
+对外 Skills 是通用 Skill 文件，不按执行器拆字段。Web 页面负责：
+
+```text
+新增 Skill
+编辑 Skill 文件
+导出 Skill 文件
+刷新文件 hash 和最后更新时间
+```
+
+数据库只保存索引和文件元数据：
+
+```text
+name
+file_path
+version
+file_hash
+created_at / updated_at
+```
+
+触发条件、操作顺序、MCP 调用流程和报告回流规则属于 Skill 文件正文内容，不在数据库中拆成独立字段。
+
+Skill 文件正文保存在：
+
+```text
+invest_assistant/modules/knowledge_base/external/skills/
+```
+
+### 研究员
+
+研究员不是执行器，而是研究人格与研究体系。
+
+```text
+soul = 世界观、研究人格、长期偏好、禁区
+method = 方法论、分析框架、评分习惯、估值习惯
+researcher = soul + method + status
+```
+
+界面层级：
+
+```text
+研究员组合列表
   ↓
-AI 请求审计
-  ↓
-业务反哺
+Soul 素材库
+Method 素材库
 ```
 
-核心对象：
+`soul` 和 `method` 正文使用 Git 文件维护，数据库只保存路径、版本、hash 和时间字段。
+
+### 研究回流
+
+研究回流记录 MCP 返回的外部研究结果。第一版是报告收件箱，后续再扩展沉淀动作。
+
+记录内容：
 
 ```text
-SkillDefinition
-AgentDefinition
-ToolRegistry
-AgentRunner
-knowledge_feedback_log
-ai_request_log
-```
-
-### 为什么第一版自己写
-
-`liuli` 的 Agent 任务大多是垂直、可控、可审计的业务分析流程：
-
-```text
-赛道动态分析 Agent
-标的研报生成 Agent
-财报摘要 Agent
-预警解释 Agent
-知识复盘 Agent
-Skills 提炼 Agent
-```
-
-这些任务更像：
-
-```text
-业务工作流 + Skills + 工具调用 + AI 请求审计
-```
-
-而不是：
-
-```text
-通用多智能体协作系统
-```
-
-所以第一版不要引入 CrewAI、AutoGen、LangGraph 等重型框架，避免目录分散、调试复杂、审计链路不清。
-
-### Agent 目录归属
-
-Agent 编排属于 `knowledge_base`，不是全局底座。
-
-```text
-modules/knowledge_base/
-├── skill_service.py
-├── agent_service.py
-├── agent_runner.py
-├── tool_registry.py
-├── feedback_service.py
-├── ai.py
-├── agents/
-└── tools/
-```
-
-### 多个业务 Agent 描述文件
-
-系统不是只有一个 Agent，而是：
-
-```text
-一个 AgentRunner
-多个 AgentDefinition
-多个 Skill
-多个 Tool
-```
-
-多个业务 Agent 的描述文件统一放在：
-
-```text
-modules/knowledge_base/agents/*.yaml
-```
-
-示例：
-
-```text
-modules/knowledge_base/agents/
-├── market_summary_agent.yaml
-├── track_material_review_agent.yaml
-├── stock_research_agent.yaml
-├── disclosure_summary_agent.yaml
-├── alert_explain_agent.yaml
-├── portfolio_review_agent.yaml
-├── knowledge_reflection_agent.yaml
-└── skill_extraction_agent.yaml
-```
-
-不建议分散放到各业务模块：
-
-```text
-market_radar/agents/
-stock_analysis/agents/
-track_discovery/agents/
-```
-
-原因：
-
-```text
-Agent 是 knowledge_base 的编排能力；
-业务模块只提供 service 能力和工具函数；
-AgentRunner 统一执行；
-tool_registry 统一暴露工具；
-ai_audit 统一审计 AI 请求。
-```
-
-正确关系：
-
-```text
-knowledge_base/agents/*.yaml
-    ↓
-agent_runner
-    ↓
-tool_registry
-    ↓
-调用 market_radar / stock_analysis / track_discovery 等模块能力
-```
-
-### Agent 描述文件示例
-
-```yaml
-name: stock_research_agent
-display_name: 标的研究 Agent
-target_module: stock_analysis
-description: 根据赛道、公告、财报、市场热度和知识库规则生成标的研究分析。
-
-skills:
-  - stock_quality_analysis
-  - valuation_safety_check
-  - track_relevance_check
-  - risk_identification
-
-tools:
-  - stock_analysis.get_stock_profile
-  - disclosure_library.search_disclosures
-  - market_radar.get_stock_tag_edges
-  - track_discovery.get_track_detail
-  - knowledge_base.search_notes
-
-workflow:
-  - step: collect_stock_info
-  - step: collect_disclosures
-  - step: collect_market_heat
-  - step: apply_skills
-  - step: generate_structured_analysis
-
-output_schema:
-  type: object
-  fields:
-    summary: string
-    key_logic: string
-    risks: array
-    follow_up_indicators: array
-```
-
-### Agent YAML 与数据库的关系
-
-```text
-YAML 文件 = 内置 Agent 默认定义
-knowledge_agent 表 = 运行时 Agent 配置
-```
-
-启动或手动同步时：
-
-```text
-modules/knowledge_base/agents/*.yaml
-    ↓
-sync_agent_definitions
-    ↓
-knowledge_agent
-```
-
-原则类似 job_center：
-
-```text
-代码/文件里的定义是默认源头；
-数据库里的 knowledge_agent 是运行时状态。
-```
-
-后续可在 `/knowledge/agents` 增加同步按钮，但第一版不需要复杂控制台编辑。
-
-
-
-### 工具注册表位置
-
-工具注册表放在：
-
-```text
-modules/knowledge_base/tool_registry.py
-```
-
-不要放：
-
-```text
-shared/
-services/
-console/
-```
-
-原因：
-
-```text
-shared 放无业务工具；
-services 放外部接口适配；
-tool_registry 是 Agent 调用内部业务能力的注册入口，归 knowledge_base。
-```
-
-### 工具命名规范
-
-统一采用：
-
-```text
-模块名.动作名
-```
-
-示例：
-
-```text
-market_radar.get_tag_heat
-market_radar.search_source_items
-market_radar.get_stock_tag_edges
-disclosure_library.search_disclosures
-track_discovery.get_track_detail
-stock_analysis.get_stock_profile
-stock_analysis.get_stock_report
-portfolio.get_position_summary
-alert_center.create_alert
-knowledge_base.create_note
-```
-
-### 工具注册表不是简单函数字典
-
-`tool_registry.py` 里不应该只是：
-
-```python
-TOOL_REGISTRY = {
-    "market_radar.get_tag_heat": get_tag_heat,
-}
-```
-
-而应该是：
-
-```text
-工具名 → ToolDefinition
-```
-
-`ToolDefinition` 至少包含：
-
-```text
-工具名
-工具描述
-入参 schema
-出参 schema
-handler
-所属模块
-工具类型
-是否只读
-风险等级
-超时时间
-```
-
-### ToolDefinition 结构
-
-第一版建议：
-
-```python
-from dataclasses import dataclass
-from typing import Callable, Any
-
-@dataclass
-class ToolDefinition:
-    name: str
-    description: str
-    handler: Callable[..., Any]
-
-    input_schema: dict
-    output_schema: dict | None = None
-
-    tool_type: str = "python"   # 第一版只支持 python
-    module_name: str = ""
-    read_only: bool = True
-    risk_level: str = "low"     # low / medium / high
-    timeout_seconds: int = 30
-```
-
-### 工具注册表示例
-
-```python
-TOOL_REGISTRY = {
-    "market_radar.get_tag_heat": ToolDefinition(
-        name="market_radar.get_tag_heat",
-        module_name="market_radar",
-        description="查询某个标签在指定时间窗口内的热度趋势",
-        handler=get_tag_heat_tool,
-        tool_type="python",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "tag_id": {
-                    "type": "integer",
-                    "description": "标签 ID"
-                },
-                "window": {
-                    "type": "string",
-                    "enum": ["24h", "7d", "30d"],
-                    "description": "统计窗口"
-                }
-            },
-            "required": ["tag_id", "window"]
-        },
-        output_schema={
-            "type": "object",
-            "properties": {
-                "tag_id": {"type": "integer"},
-                "points": {"type": "array"}
-            }
-        },
-        read_only=True,
-        risk_level="low",
-        timeout_seconds=30,
-    )
-}
-```
-
-### Agent YAML 只声明工具白名单
-
-Agent 描述文件中只声明当前 Agent 允许使用哪些工具，不重复写参数 schema。
-
-例如：
-
-```yaml
-name: stock_research_agent
-target_module: stock_analysis
-
-tools:
-  - stock_analysis.get_stock_profile
-  - disclosure_library.search_disclosures
-  - market_radar.get_stock_tag_edges
-  - track_discovery.get_track_detail
-  - knowledge_base.search_notes
-```
-
-执行时：
-
-```text
-agent_runner 读取 Agent YAML
-  ↓
-获取 tools 白名单
-  ↓
-从 TOOL_REGISTRY 读取 ToolDefinition
-  ↓
-拿到 handler、input_schema、output_schema、read_only、risk_level
-  ↓
-执行工具调用
-```
-
-### 不同 Agent 的工具集合不同
-
-系统只有一个全局工具池：
-
-```text
-TOOL_REGISTRY = 系统全部可用工具池
-```
-
-但每个 Agent 在自己的 YAML 中声明不同的工具白名单：
-
-```text
-Agent YAML tools = 当前 Agent 允许调用的工具子集
-```
-
-例如：
-
-```yaml
-# market_summary_agent.yaml
-tools:
-  - market_radar.get_tag_heat
-  - market_radar.search_source_items
-  - market_radar.get_hot_tracks
-```
-
-```yaml
-# alert_explain_agent.yaml
-tools:
-  - alert_center.get_alert_event
-  - market_radar.get_tag_heat
-  - market_radar.search_source_items
-  - stock_analysis.get_stock_profile
-```
-
-原则：
-
-```text
-工具注册表全局唯一；
-不同 Agent 的工具白名单不同。
-```
-
-### 内部 Agent 第一版只支持 Python 函数工具
-
-第一版 `knowledge_base/tool_registry.py` 只注册系统内部 Python 函数。
-
-```text
-tool_type = python
-```
-
-不支持：
-
-```text
-任意 HTTP Tool
-任意本地系统命令
-Shell / subprocess
-MCP Client / MCP Server
-远程插件市场
-外部工具市场
-```
-
-原因：
-
-```text
-1. 系统内部模块都在同一个后端内，直接调 Python 函数更简单；
-2. 避免 HTTP 鉴权、序列化、错误处理复杂化；
-3. 避免 Agent 拿到本地系统权限；
-4. 工具调用链更容易审计；
-5. 更符合业务模块内聚优先原则。
-```
-
-说明：
-
-```text
-这里限制的是 liuli 内部 Agent 调工具的方向；
-不等于 liuli 不能对外提供 MCP；
-对外 MCP 归 basic/mcp，供 Codex 等外部 Client 连接。
-```
-
-### 工具调用链路
-
-```text
-AgentRunner
-  ↓
-ToolRegistry
-  ↓
-Tool wrapper function
-  ↓
-业务模块 service
-  ↓
-数据库 / 文件 / 外部 client
-```
-
-例如巨潮公告财报：
-
-```text
-Agent
-  ↓
-disclosure_library.search_disclosures 工具
-  ↓
-disclosure_library/service.py
-  ↓
-disclosure_library/cninfo_client.py
-```
-
-例如行情数据：
-
-```text
-Agent
-  ↓
-stock_analysis.get_price_history 工具
-  ↓
-stock_analysis/service.py
-  ↓
-services/akshare/client.py 或 market_data service
-```
-
-Agent 不直接知道巨潮 HTTP 接口，也不直接访问 AkShare/Tushare。
-
-### 本地文件读取规则
-
-Agent 不直接读写任意文件系统。
-
-如需读取文件，必须包装成受控 Python 工具函数，例如：
-
-```text
-report_library.read_report_content
-disclosure_library.read_parsed_markdown
-knowledge_base.search_notes
-```
-
-允许读取范围应限制在：
-
-```text
-var/reports
-var/processed/disclosures
-data/seed
-```
-
-并由业务模块 service 负责路径校验。
-
-### 工具安全原则
-
-```text
-Agent 只拿业务工具，不拿系统权限。
-```
-
-第一版默认工具应尽量只读：
-
-```text
-read_only = True
-risk_level = low
-```
-
-如果后续出现写入类工具，如创建预警、写入知识笔记、生成报告索引，需要显式标注：
-
-```text
-read_only = False
-risk_level = medium / high
-```
-
-并在 `agent_runner` 中加入权限校验和执行日志。
-
-### 工具依赖方向
-
-正确依赖：
-
-```text
-knowledge_base.tool_registry
-    ↓
-调用其他模块 service
-```
-
-错误依赖：
-
-```text
-market_radar 依赖 knowledge_base.tool_registry
-stock_analysis 依赖 knowledge_base.tool_registry
-```
-
-规则：
-
-```text
-业务模块提供能力；
-knowledge_base 包装能力并注册为 Agent 工具；
-业务模块不反向依赖 knowledge_base。
-```
-
-### 是否需要工具表
-
-第一版不需要工具表，采用代码注册：
-
-```text
-tool_registry.py
-```
-
-后续如果需要在控制台动态启停工具，再考虑增加：
-
-```sql
-agent_tool
-- id
-- tool_name
-- module_name
-- description
-- input_schema
-- output_schema
-- enabled
-- created_at
-- updated_at
-```
-
-### 后续开源框架接入原则
-
-保留统一接口：
-
-```python
-class AgentRunner:
-    def run(self, agent_name: str, input_data: dict) -> dict:
-        ...
-```
-
-如果后续出现以下需求，再考虑将 `agent_runner.py` 底层替换为 LangGraph：
-
-```text
-多步骤状态机
-长任务可恢复
-人工确认节点
-复杂工具调用循环
-Agent 状态持久化
-执行过程可中断/恢复
-```
-
-一句话：
-
-```text
-先自己写轻量 Agent 编排，保持业务可控；等复杂度真实出现，再把 LangGraph 接到底层。
+研究报告
+结构化结论
+估值假设
+风险点
+观察信号
+使用的数据源
+使用的 Skill
+使用的研究员
+研究时间
+回流时间
+后续验证结果
 ```
 
 ## 对外 MCP 服务设计
@@ -5705,11 +5238,11 @@ basic/mcp
 数据库 / var 文件 / 外部 client
 ```
 
-它和内部 Agent 工具注册表是两个方向：
+它和知识库对外研究资产是配合关系：
 
 | 能力 | 归属 | 方向 | 第一版形态 |
 |---|---|---|---|
-| 内部 Agent 工具 | `modules/knowledge_base/tool_registry.py` | liuli Agent 调 liuli 业务能力 | Python 函数工具 |
+| 对外研究资产 | `modules/knowledge_base` | 外部 AI 执行器读取 Skill、研究员文件并回流报告 | 文件 + 数据库索引 |
 | 对外 MCP 服务 | `modules/basic/mcp` | Codex 等外部 MCP Client 调 liuli 业务能力 | Streamable HTTP MCP |
 
 ### 为什么放 basic/mcp
@@ -5996,6 +5529,6 @@ Console 仅展示 MCP 状态和调用审计，不承载 MCP 业务实现
 用预警中心等待时机，
 用组合管理调整结构，
 用知识库沉淀认知，
-再通过 Skills 和 Agent 反哺业务分析，
+再通过对外 Skills、研究员体系和研究回流沉淀外部研究结果，
 最终形成个人投资认知与行动闭环。
 ```

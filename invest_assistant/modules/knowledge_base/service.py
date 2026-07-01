@@ -1,3 +1,4 @@
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,17 +8,20 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.knowledge_base.models import (
-    KnowledgeAgent,
-    KnowledgeFeedbackLog,
+    KnowledgeExternalSkill,
     KnowledgeNote,
     KnowledgeNoteGroup,
     KnowledgeNoteTagRelation,
     KnowledgePrompt,
-    KnowledgeSkill,
+    KnowledgeResearchFeedback,
+    KnowledgeResearcher,
+    KnowledgeResearcherMethod,
+    KnowledgeResearcherSoul,
     ensure_knowledge_base_schema,
 )
 from invest_assistant.modules.knowledge_base.schemas import (
-    KnowledgeAgentCreate,
+    KnowledgeExternalSkillCreate,
+    KnowledgeExternalSkillRead,
     KnowledgeNoteCreate,
     KnowledgeNoteGroupCreate,
     KnowledgeNoteGroupRead,
@@ -26,7 +30,12 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeNoteTagRead,
     KnowledgePromptCreate,
     KnowledgePromptRead,
-    KnowledgeSkillCreate,
+    KnowledgeResearchFeedbackCreate,
+    KnowledgeResearchFeedbackRead,
+    KnowledgeResearcherCreate,
+    KnowledgeResearcherFileCreate,
+    KnowledgeResearcherFileRead,
+    KnowledgeResearcherRead,
 )
 from invest_assistant.modules.market_radar.models import Tag
 
@@ -38,6 +47,10 @@ RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PROMPT_ROOT = Path(__file__).resolve().with_name("prompts")
+EXTERNAL_ROOT = Path(__file__).resolve().with_name("external")
+EXTERNAL_SKILL_ROOT = EXTERNAL_ROOT / "skills"
+RESEARCHER_SOUL_ROOT = EXTERNAL_ROOT / "souls"
+RESEARCHER_METHOD_ROOT = EXTERNAL_ROOT / "methods"
 PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 
 
@@ -161,6 +174,90 @@ def _prompt_paths_for_payload(item: KnowledgePrompt | None, payload: KnowledgePr
         except ValueError:
             pass
     return _prompt_file_pair(payload.prompt_key)
+
+
+def _safe_file_stem(value: str) -> str:
+    stem = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff_-]+", "_", str(value or "").strip()).strip("_")
+    return stem or "knowledge_asset"
+
+
+def _default_external_path(root: Path, name: str) -> str:
+    return (root / f"{_safe_file_stem(name)}.md").relative_to(PROJECT_ROOT).as_posix()
+
+
+def _resolve_external_path(stored_path: str, root: Path) -> Path:
+    root = root.resolve()
+    path = Path(str(stored_path or "").strip())
+    if path.is_absolute():
+        resolved = path.resolve()
+    else:
+        project_relative = (PROJECT_ROOT / path).resolve()
+        resolved = project_relative if project_relative.is_relative_to(root) else (root / path).resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"knowledge file path must be under {root}: {stored_path}")
+    return resolved
+
+
+def _external_path_for_payload(root: Path, name: str, file_path: str | None, current_path: str | None = None) -> str:
+    if file_path:
+        path = _resolve_external_path(file_path, root)
+        return path.relative_to(PROJECT_ROOT).as_posix()
+    if current_path:
+        _resolve_external_path(current_path, root)
+        return current_path
+    return _default_external_path(root, name)
+
+
+def _write_external_file(stored_path: str, root: Path, content: str) -> str:
+    path = _resolve_external_path(stored_path, root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _read_external_file(stored_path: str, root: Path) -> str:
+    path = _resolve_external_path(stored_path, root)
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _ensure_unique_file_path(db: Session, model: type, file_path: str, current_id: int | None = None) -> None:
+    stmt = select(model.id).where(model.file_path == file_path)
+    if current_id is not None:
+        stmt = stmt.where(model.id != current_id)
+    if db.scalar(stmt.limit(1)):
+        raise ValueError("knowledge file path already exists")
+
+
+def _external_skill_read(item: KnowledgeExternalSkill) -> KnowledgeExternalSkillRead:
+    return KnowledgeExternalSkillRead.model_validate(
+        {
+            "id": item.id,
+            "name": item.name,
+            "file_path": item.file_path,
+            "version": item.version,
+            "file_hash": item.file_hash,
+            "content": _read_external_file(item.file_path, EXTERNAL_SKILL_ROOT),
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
+        }
+    )
+
+
+def _researcher_file_read(item: KnowledgeResearcherSoul | KnowledgeResearcherMethod, root: Path) -> KnowledgeResearcherFileRead:
+    return KnowledgeResearcherFileRead.model_validate(
+        {
+            "id": item.id,
+            "name": item.name,
+            "file_path": item.file_path,
+            "version": item.version,
+            "file_hash": item.file_hash,
+            "content": _read_external_file(item.file_path, root),
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
+        }
+    )
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -334,32 +431,181 @@ def restore_note(db: Session, item: KnowledgeNote) -> KnowledgeNote:
     return item
 
 
-def create_skill(db: Session, payload: KnowledgeSkillCreate) -> KnowledgeSkill:
-    item = KnowledgeSkill(**payload.model_dump())
+def create_external_skill(db: Session, payload: KnowledgeExternalSkillCreate) -> KnowledgeExternalSkillRead:
+    file_path = _external_path_for_payload(EXTERNAL_SKILL_ROOT, payload.name, None)
+    _ensure_unique_file_path(db, KnowledgeExternalSkill, file_path)
+    file_hash = _write_external_file(file_path, EXTERNAL_SKILL_ROOT, payload.content)
+    data = payload.model_dump(exclude={"content"})
+    data["file_path"] = file_path
+    data["file_hash"] = file_hash
+    item = KnowledgeExternalSkill(**data)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _external_skill_read(item)
+
+
+def list_external_skills(db: Session) -> list[KnowledgeExternalSkillRead]:
+    rows = db.scalars(select(KnowledgeExternalSkill).order_by(KnowledgeExternalSkill.updated_at.desc(), KnowledgeExternalSkill.id.desc()))
+    return [_external_skill_read(item) for item in rows]
+
+
+def get_external_skill(db: Session, skill_id: int) -> KnowledgeExternalSkill | None:
+    return db.get(KnowledgeExternalSkill, skill_id)
+
+
+def update_external_skill(db: Session, item: KnowledgeExternalSkill, payload: KnowledgeExternalSkillCreate) -> KnowledgeExternalSkillRead:
+    file_path = _external_path_for_payload(EXTERNAL_SKILL_ROOT, payload.name, None, item.file_path)
+    _ensure_unique_file_path(db, KnowledgeExternalSkill, file_path, item.id)
+    file_hash = _write_external_file(file_path, EXTERNAL_SKILL_ROOT, payload.content)
+    data = payload.model_dump(exclude={"content"})
+    data["file_path"] = file_path
+    data["file_hash"] = file_hash
+    for key, value in data.items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return _external_skill_read(item)
+
+
+def delete_external_skill(db: Session, item: KnowledgeExternalSkill) -> KnowledgeExternalSkillRead:
+    if db.scalar(select(KnowledgeResearchFeedback.id).where(KnowledgeResearchFeedback.external_skill_id == item.id).limit(1)):
+        raise ValueError("external skill has research feedback")
+    result = _external_skill_read(item)
+    db.delete(item)
+    db.commit()
+    return result
+
+
+def external_skill_export_path(item: KnowledgeExternalSkill) -> Path:
+    return _resolve_external_path(item.file_path, EXTERNAL_SKILL_ROOT)
+
+
+def create_researcher_soul(db: Session, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
+    file_path = _external_path_for_payload(RESEARCHER_SOUL_ROOT, payload.name, None)
+    _ensure_unique_file_path(db, KnowledgeResearcherSoul, file_path)
+    file_hash = _write_external_file(file_path, RESEARCHER_SOUL_ROOT, payload.content)
+    item = KnowledgeResearcherSoul(name=payload.name, file_path=file_path, version=payload.version, file_hash=file_hash)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
+
+
+def list_researcher_souls(db: Session) -> list[KnowledgeResearcherFileRead]:
+    rows = db.scalars(select(KnowledgeResearcherSoul).order_by(KnowledgeResearcherSoul.updated_at.desc(), KnowledgeResearcherSoul.id.desc()))
+    return [_researcher_file_read(item, RESEARCHER_SOUL_ROOT) for item in rows]
+
+
+def get_researcher_soul(db: Session, soul_id: int) -> KnowledgeResearcherSoul | None:
+    return db.get(KnowledgeResearcherSoul, soul_id)
+
+
+def update_researcher_soul(db: Session, item: KnowledgeResearcherSoul, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
+    file_path = _external_path_for_payload(RESEARCHER_SOUL_ROOT, payload.name, None, item.file_path)
+    _ensure_unique_file_path(db, KnowledgeResearcherSoul, file_path, item.id)
+    item.name = payload.name
+    item.version = payload.version
+    item.file_path = file_path
+    item.file_hash = _write_external_file(file_path, RESEARCHER_SOUL_ROOT, payload.content)
+    db.commit()
+    db.refresh(item)
+    return _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
+
+
+def delete_researcher_soul(db: Session, item: KnowledgeResearcherSoul) -> KnowledgeResearcherFileRead:
+    if db.scalar(select(KnowledgeResearcher.id).where(KnowledgeResearcher.soul_id == item.id).limit(1)):
+        raise ValueError("researcher soul is in use")
+    result = _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
+    db.delete(item)
+    db.commit()
+    return result
+
+
+def create_researcher_method(db: Session, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
+    file_path = _external_path_for_payload(RESEARCHER_METHOD_ROOT, payload.name, None)
+    _ensure_unique_file_path(db, KnowledgeResearcherMethod, file_path)
+    file_hash = _write_external_file(file_path, RESEARCHER_METHOD_ROOT, payload.content)
+    item = KnowledgeResearcherMethod(name=payload.name, file_path=file_path, version=payload.version, file_hash=file_hash)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
+
+
+def list_researcher_methods(db: Session) -> list[KnowledgeResearcherFileRead]:
+    rows = db.scalars(select(KnowledgeResearcherMethod).order_by(KnowledgeResearcherMethod.updated_at.desc(), KnowledgeResearcherMethod.id.desc()))
+    return [_researcher_file_read(item, RESEARCHER_METHOD_ROOT) for item in rows]
+
+
+def get_researcher_method(db: Session, method_id: int) -> KnowledgeResearcherMethod | None:
+    return db.get(KnowledgeResearcherMethod, method_id)
+
+
+def update_researcher_method(
+    db: Session,
+    item: KnowledgeResearcherMethod,
+    payload: KnowledgeResearcherFileCreate,
+) -> KnowledgeResearcherFileRead:
+    file_path = _external_path_for_payload(RESEARCHER_METHOD_ROOT, payload.name, None, item.file_path)
+    _ensure_unique_file_path(db, KnowledgeResearcherMethod, file_path, item.id)
+    item.name = payload.name
+    item.version = payload.version
+    item.file_path = file_path
+    item.file_hash = _write_external_file(file_path, RESEARCHER_METHOD_ROOT, payload.content)
+    db.commit()
+    db.refresh(item)
+    return _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
+
+
+def delete_researcher_method(db: Session, item: KnowledgeResearcherMethod) -> KnowledgeResearcherFileRead:
+    if db.scalar(select(KnowledgeResearcher.id).where(KnowledgeResearcher.method_id == item.id).limit(1)):
+        raise ValueError("researcher method is in use")
+    result = _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
+    db.delete(item)
+    db.commit()
+    return result
+
+
+def _ensure_researcher_refs(db: Session, payload: KnowledgeResearcherCreate) -> None:
+    if db.get(KnowledgeResearcherSoul, payload.soul_id) is None:
+        raise ValueError("researcher soul not found")
+    if db.get(KnowledgeResearcherMethod, payload.method_id) is None:
+        raise ValueError("researcher method not found")
+
+
+def create_researcher(db: Session, payload: KnowledgeResearcherCreate) -> KnowledgeResearcher:
+    _ensure_researcher_refs(db, payload)
+    item = KnowledgeResearcher(**payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_skills(db: Session) -> list[KnowledgeSkill]:
-    return list(db.scalars(select(KnowledgeSkill).order_by(KnowledgeSkill.id.desc())))
+def list_researchers(db: Session) -> list[KnowledgeResearcher]:
+    return list(db.scalars(select(KnowledgeResearcher).order_by(KnowledgeResearcher.updated_at.desc(), KnowledgeResearcher.id.desc())))
 
 
-def create_agent(db: Session, payload: KnowledgeAgentCreate) -> KnowledgeAgent:
-    item = KnowledgeAgent(**payload.model_dump())
-    db.add(item)
+def get_researcher(db: Session, researcher_id: int) -> KnowledgeResearcher | None:
+    return db.get(KnowledgeResearcher, researcher_id)
+
+
+def update_researcher(db: Session, item: KnowledgeResearcher, payload: KnowledgeResearcherCreate) -> KnowledgeResearcher:
+    _ensure_researcher_refs(db, payload)
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_agents(db: Session) -> list[KnowledgeAgent]:
-    return list(db.scalars(select(KnowledgeAgent).order_by(KnowledgeAgent.id.desc())))
-
-
-def get_agent(db: Session, agent_id: int) -> KnowledgeAgent | None:
-    return db.get(KnowledgeAgent, agent_id)
+def delete_researcher(db: Session, item: KnowledgeResearcher) -> KnowledgeResearcher:
+    if db.scalar(select(KnowledgeResearchFeedback.id).where(KnowledgeResearchFeedback.researcher_id == item.id).limit(1)):
+        raise ValueError("researcher has research feedback")
+    db.delete(item)
+    db.commit()
+    return item
 
 
 def create_prompt(db: Session, payload: KnowledgePromptCreate) -> KnowledgePromptRead:
@@ -460,23 +706,49 @@ def delete_prompt(db: Session, item: KnowledgePrompt) -> KnowledgePromptRead:
     return _prompt_read(item)
 
 
-def run_agent(db: Session, agent: KnowledgeAgent) -> KnowledgeFeedbackLog:
-    log = KnowledgeFeedbackLog(
-        agent_id=agent.id,
-        target_module=agent.target_module,
-        target_id=None,
-        feedback_type="agent_run",
-        result_summary=f"agent {agent.name} queued feedback for {agent.target_module}",
-        effectiveness=None,
-    )
-    db.add(log)
+def _ensure_research_feedback_refs(db: Session, payload: KnowledgeResearchFeedbackCreate) -> None:
+    if payload.external_skill_id is not None and db.get(KnowledgeExternalSkill, payload.external_skill_id) is None:
+        raise ValueError("external skill not found")
+    if payload.researcher_id is not None and db.get(KnowledgeResearcher, payload.researcher_id) is None:
+        raise ValueError("researcher not found")
+
+
+def create_research_feedback(db: Session, payload: KnowledgeResearchFeedbackCreate) -> KnowledgeResearchFeedback:
+    _ensure_research_feedback_refs(db, payload)
+    data = payload.model_dump()
+    if data.get("returned_at") is None:
+        data.pop("returned_at", None)
+    item = KnowledgeResearchFeedback(**data)
+    db.add(item)
     db.commit()
-    db.refresh(log)
-    return log
+    db.refresh(item)
+    return item
 
 
-def list_feedback_logs(db: Session) -> list[KnowledgeFeedbackLog]:
-    return list(db.scalars(select(KnowledgeFeedbackLog).order_by(KnowledgeFeedbackLog.id.desc())))
+def list_research_feedback(db: Session) -> list[KnowledgeResearchFeedback]:
+    return list(
+        db.scalars(select(KnowledgeResearchFeedback).order_by(KnowledgeResearchFeedback.returned_at.desc(), KnowledgeResearchFeedback.id.desc()))
+    )
+
+
+def get_research_feedback(db: Session, feedback_id: int) -> KnowledgeResearchFeedback | None:
+    return db.get(KnowledgeResearchFeedback, feedback_id)
+
+
+def update_research_feedback(
+    db: Session,
+    item: KnowledgeResearchFeedback,
+    payload: KnowledgeResearchFeedbackCreate,
+) -> KnowledgeResearchFeedback:
+    _ensure_research_feedback_refs(db, payload)
+    data = payload.model_dump()
+    if data.get("returned_at") is None:
+        data.pop("returned_at", None)
+    for key, value in data.items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 def _note_payload_data(payload: KnowledgeNoteCreate, tags_by_id: dict[int, Tag]) -> dict:

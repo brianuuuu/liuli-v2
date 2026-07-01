@@ -115,24 +115,30 @@ def test_knowledge_menu_replaces_review_and_principles_with_prompt():
 
     assert "复盘沉淀" not in navigation
     assert "分析准则" not in navigation
-    assert '{ key: "prompts", label: "Prompt" }' in navigation
+    for label in ["知识笔记", "对内 Prompt", "对外 Skills", "研究员", "研究回流"]:
+        assert label in navigation
     assert "listKnowledgePrompts" in page
     assert "System Prompt" in page
     assert "User Prompt" in page
     assert "createKnowledgePrompt" in page
     assert "deleteKnowledgePrompt" in page
+    assert "listKnowledgeExternalSkills" in page
+    assert "listKnowledgeResearcherSouls" in page
+    assert "listKnowledgeResearcherMethods" in page
+    assert "listKnowledgeResearchFeedback" in page
     assert "export async function listKnowledgePrompts" in api
+    assert "export async function listKnowledgeExternalSkills" in api
 
 
 def test_prompt_editor_is_compact_and_modern():
     source = Path("invest_assistant/ui/web/src/pages/knowledge/KnowledgePage.tsx").read_text(encoding="utf-8")
 
     assert "Space.Compact" not in source
-    assert "width={620}" in source
+    assert "width={980}" in source
     assert "compactPromptFormStyle" in source
     assert source.count("Row gutter={12}") >= 3
-    assert "rows={2}" in source
-    assert "rows={3}" in source
+    assert "rows={6}" in source
+    assert "rows={12}" in source
 
 
 def test_ai_suggestion_ui_supports_manual_approval_target():

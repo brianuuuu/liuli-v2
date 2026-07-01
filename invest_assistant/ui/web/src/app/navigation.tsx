@@ -67,10 +67,10 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   ],
   knowledge: [
     { key: "notes", label: "知识笔记" },
-    { key: "prompts", label: "Prompt" },
-    { key: "skills", label: "Skills" },
-    { key: "agents", label: "Agents" },
-    { key: "feedback", label: "反哺记录" }
+    { key: "prompts", label: "对内 Prompt" },
+    { key: "external-skills", label: "对外 Skills" },
+    { key: "researchers", label: "研究员" },
+    { key: "research-feedback", label: "研究回流" }
   ],
   console: [
     { key: "status", label: "系统状态" },
