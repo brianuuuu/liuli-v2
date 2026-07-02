@@ -6,28 +6,55 @@ import { moduleTabs } from "../../app/navigation";
 import {
   archiveKnowledgeNote,
   archiveKnowledgeNoteGroup,
+  createKnowledgeExternalSkill,
   createKnowledgeNote,
   createKnowledgeNoteGroup,
   createKnowledgePrompt,
+  createKnowledgeResearcher,
+  createKnowledgeResearcherMethod,
+  createKnowledgeResearcherSoul,
+  deleteKnowledgeExternalSkill,
   deleteKnowledgeNote,
   deleteKnowledgePrompt,
-  listKnowledgeAgents,
-  listKnowledgeFeedbackLogs,
+  deleteKnowledgeResearcher,
+  deleteKnowledgeResearcherMethod,
+  deleteKnowledgeResearcherSoul,
+  exportKnowledgeExternalSkill,
+  listKnowledgeExternalSkills,
   listKnowledgeNoteGroups,
   listKnowledgeNotes,
   listKnowledgePrompts,
-  listKnowledgeSkills,
+  listKnowledgeResearchers,
+  listKnowledgeResearcherMethods,
+  listKnowledgeResearcherSouls,
+  listKnowledgeResearchFeedback,
   restoreKnowledgeNote,
+  updateKnowledgeExternalSkill,
   updateKnowledgeNote,
   updateKnowledgeNoteGroup,
-  updateKnowledgePrompt
+  updateKnowledgePrompt,
+  updateKnowledgeResearcher,
+  updateKnowledgeResearcherMethod,
+  updateKnowledgeResearcherSoul
 } from "../../api/knowledge";
-import type { KnowledgeNote, KnowledgeNoteGroup, KnowledgeNotePayload, KnowledgePrompt, KnowledgePromptPayload } from "../../api/knowledge";
+import type {
+  KnowledgeExternalSkill,
+  KnowledgeExternalSkillPayload,
+  KnowledgeNote,
+  KnowledgeNoteGroup,
+  KnowledgeNotePayload,
+  KnowledgePrompt,
+  KnowledgePromptPayload,
+  KnowledgeResearchFeedback,
+  KnowledgeResearcher,
+  KnowledgeResearcherFile,
+  KnowledgeResearcherFilePayload,
+  KnowledgeResearcherPayload
+} from "../../api/knowledge";
 import { listMarketTags } from "../../api/marketRadar";
 import { DataPanel } from "../../components/common/DataPanel";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { PageHeader } from "../../components/common/PageHeader";
-import { RecordTable } from "../../components/common/RecordTable";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { MarketTag } from "../../types/api";
@@ -38,13 +65,6 @@ import {
   refreshKnowledgeNoteQuery,
   shouldLoadNextKnowledgeNotePage
 } from "./knowledgeNotesTimeline";
-
-const columns = [
-  { title: "标题", dataIndex: "title" },
-  { title: "名称", dataIndex: "name" },
-  { title: "类型", dataIndex: "note_type" },
-  { title: "状态", dataIndex: "status" }
-];
 
 const noteTypeOptions = [
   { value: "review", label: "复盘" },
@@ -80,6 +100,28 @@ const noteDefaults: KnowledgeNotePayload = {
   status: "active"
 };
 
+type ExternalSkillFormValues = Pick<KnowledgeExternalSkillPayload, "name" | "version" | "content">;
+type ResearcherFileFormValues = Pick<KnowledgeResearcherFilePayload, "name" | "version" | "content">;
+
+const externalSkillDefaults: ExternalSkillFormValues = {
+  name: "",
+  version: "",
+  content: ""
+};
+
+const researcherFileDefaults: ResearcherFileFormValues = {
+  name: "",
+  version: "",
+  content: ""
+};
+
+const researcherDefaults: KnowledgeResearcherPayload = {
+  name: "",
+  soul_id: null,
+  method_id: null,
+  status: "active"
+};
+
 const compactPromptFormStyle = { marginBottom: 10 };
 
 function formatDate(value?: string | null) {
@@ -88,6 +130,11 @@ function formatDate(value?: string | null) {
 
 function formatTime(value?: string | null) {
   return value ? value.slice(11, 16) : "--:--";
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(0, 16);
 }
 
 function noteTypeLabel(value: string) {
@@ -677,23 +724,365 @@ function PromptSection() {
   );
 }
 
+function ExternalSkillsSection() {
+  const skills = useAsyncData(useCallback(listKnowledgeExternalSkills, []), [] as KnowledgeExternalSkill[]);
+  const [editing, setEditing] = useState<KnowledgeExternalSkill | null>(null);
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm<ExternalSkillFormValues>();
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldsValue(
+      editing
+        ? { name: editing.name, version: editing.version || "", content: editing.content || "" }
+        : externalSkillDefaults
+    );
+  }, [editing, form, open]);
+
+  async function submit() {
+    const values = await form.validateFields();
+    const payload: KnowledgeExternalSkillPayload = { ...values };
+    if (editing) {
+      await updateKnowledgeExternalSkill(editing.id, payload);
+      message.success("Skill 已更新");
+    } else {
+      await createKnowledgeExternalSkill(payload);
+      message.success("Skill 已新增");
+    }
+    setOpen(false);
+    await skills.refresh();
+  }
+
+  async function remove(record: KnowledgeExternalSkill) {
+    await deleteKnowledgeExternalSkill(record.id);
+    message.success("Skill 已删除");
+    await skills.refresh();
+  }
+
+  async function download(record: KnowledgeExternalSkill) {
+    const blob = await exportKnowledgeExternalSkill(record.id);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = record.file_path.split("/").pop() || `${record.name}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const skillColumns: ColumnsType<KnowledgeExternalSkill> = [
+    { title: "名称", dataIndex: "name", width: 180 },
+    { title: "文件路径", dataIndex: "file_path", ellipsis: true },
+    { title: "版本", dataIndex: "version", width: 100, render: (value) => value || "-" },
+    { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
+    {
+      title: "操作",
+      width: 180,
+      render: (_, record) => (
+        <Space size={6}>
+          <Button size="small" onClick={() => { setEditing(record); setOpen(true); }}>编辑</Button>
+          <Button size="small" onClick={() => download(record)}>导出</Button>
+          <Popconfirm title="删除这个 Skill？" description={record.name} okText="删除" cancelText="取消" onConfirm={() => remove(record)}>
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      )
+    }
+  ];
+
+  return (
+    <>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => skills.refresh()}>刷新文件状态</Button>
+            <Button size="small" type="primary" onClick={() => { setEditing(null); setOpen(true); }}>新增 Skill</Button>
+          </>
+        }
+      >
+        <Table rowKey="id" size="small" loading={skills.loading} dataSource={skills.data} columns={skillColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
+      </DataPanel>
+      <Modal title={editing ? "编辑对外 Skill" : "新增对外 Skill"} width={920} style={{ top: 32 }} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
+        <Form form={form} layout="vertical">
+          <Row gutter={12}>
+            <Col span={18}>
+              <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="version" label="版本">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="content" label="Skill 文件正文" rules={[{ required: true, message: "请输入 Skill 文件正文" }]}>
+            <Input.TextArea rows={18} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+}
+
+function ResearcherSection() {
+  const souls = useAsyncData(useCallback(listKnowledgeResearcherSouls, []), [] as KnowledgeResearcherFile[]);
+  const methods = useAsyncData(useCallback(listKnowledgeResearcherMethods, []), [] as KnowledgeResearcherFile[]);
+  const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
+  const [fileKind, setFileKind] = useState<"soul" | "method">("soul");
+  const [editingFile, setEditingFile] = useState<KnowledgeResearcherFile | null>(null);
+  const [fileOpen, setFileOpen] = useState(false);
+  const [editingResearcher, setEditingResearcher] = useState<KnowledgeResearcher | null>(null);
+  const [researcherOpen, setResearcherOpen] = useState(false);
+  const [fileForm] = Form.useForm<ResearcherFileFormValues>();
+  const [researcherForm] = Form.useForm<KnowledgeResearcherPayload>();
+
+  const soulOptions = souls.data.map((item) => ({ value: item.id, label: item.name }));
+  const methodOptions = methods.data.map((item) => ({ value: item.id, label: item.name }));
+  const soulById = useMemo(() => new Map(souls.data.map((item) => [item.id, item.name])), [souls.data]);
+  const methodById = useMemo(() => new Map(methods.data.map((item) => [item.id, item.name])), [methods.data]);
+
+  useEffect(() => {
+    if (!fileOpen) return;
+    fileForm.setFieldsValue(
+      editingFile
+        ? { name: editingFile.name, version: editingFile.version || "", content: editingFile.content || "" }
+        : researcherFileDefaults
+    );
+  }, [editingFile, fileForm, fileOpen]);
+
+  useEffect(() => {
+    if (!researcherOpen) return;
+    researcherForm.setFieldsValue(
+      editingResearcher
+        ? {
+            name: editingResearcher.name,
+            soul_id: editingResearcher.soul_id,
+            method_id: editingResearcher.method_id,
+            status: editingResearcher.status
+          }
+        : researcherDefaults
+    );
+  }, [editingResearcher, researcherForm, researcherOpen]);
+
+  async function refreshAll() {
+    await Promise.all([souls.refresh(), methods.refresh(), researchers.refresh()]);
+  }
+
+  async function submitFile() {
+    const values = await fileForm.validateFields();
+    const payload: KnowledgeResearcherFilePayload = { ...values };
+    if (fileKind === "soul") {
+      if (editingFile) await updateKnowledgeResearcherSoul(editingFile.id, payload);
+      else await createKnowledgeResearcherSoul(payload);
+      message.success("Soul 已保存");
+    } else {
+      if (editingFile) await updateKnowledgeResearcherMethod(editingFile.id, payload);
+      else await createKnowledgeResearcherMethod(payload);
+      message.success("Method 已保存");
+    }
+    setFileOpen(false);
+    await refreshAll();
+  }
+
+  async function removeFile(kind: "soul" | "method", record: KnowledgeResearcherFile) {
+    if (kind === "soul") await deleteKnowledgeResearcherSoul(record.id);
+    else await deleteKnowledgeResearcherMethod(record.id);
+    message.success(kind === "soul" ? "Soul 已删除" : "Method 已删除");
+    await refreshAll();
+  }
+
+  async function submitResearcher() {
+    const values = await researcherForm.validateFields();
+    if (!values.soul_id || !values.method_id) {
+      message.warning("请选择 Soul 和 Method");
+      return;
+    }
+    if (editingResearcher) {
+      await updateKnowledgeResearcher(editingResearcher.id, values);
+      message.success("研究员已更新");
+    } else {
+      await createKnowledgeResearcher(values);
+      message.success("研究员已新增");
+    }
+    setResearcherOpen(false);
+    await researchers.refresh();
+  }
+
+  async function removeResearcher(record: KnowledgeResearcher) {
+    await deleteKnowledgeResearcher(record.id);
+    message.success("研究员已删除");
+    await researchers.refresh();
+  }
+
+  const researcherColumns: ColumnsType<KnowledgeResearcher> = [
+    { title: "研究员", dataIndex: "name", width: 180 },
+    { title: "Soul", dataIndex: "soul_id", width: 180, render: (value) => soulById.get(Number(value)) || "-" },
+    { title: "Method", dataIndex: "method_id", width: 180, render: (value) => methodById.get(Number(value)) || "-" },
+    { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={value === "active" ? "green" : "default"}>{String(value)}</Tag> },
+    { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
+    {
+      title: "操作",
+      width: 130,
+      render: (_, record) => (
+        <Space size={6}>
+          <Button size="small" onClick={() => { setEditingResearcher(record); setResearcherOpen(true); }}>编辑</Button>
+          <Popconfirm title="删除这个研究员？" description={record.name} okText="删除" cancelText="取消" onConfirm={() => removeResearcher(record)}>
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      )
+    }
+  ];
+
+  function fileColumns(kind: "soul" | "method"): ColumnsType<KnowledgeResearcherFile> {
+    return [
+      { title: "名称", dataIndex: "name", width: 160 },
+      { title: "文件路径", dataIndex: "file_path", ellipsis: true },
+      { title: "版本", dataIndex: "version", width: 100, render: (value) => value || "-" },
+      { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
+      {
+        title: "操作",
+        width: 130,
+        render: (_, record) => (
+          <Space size={6}>
+            <Button size="small" onClick={() => { setFileKind(kind); setEditingFile(record); setFileOpen(true); }}>编辑</Button>
+            <Popconfirm title={`删除这个 ${kind === "soul" ? "Soul" : "Method"}？`} description={record.name} okText="删除" cancelText="取消" onConfirm={() => removeFile(kind, record)}>
+              <Button size="small" danger>删除</Button>
+            </Popconfirm>
+          </Space>
+        )
+      }
+    ];
+  }
+
+  return (
+    <>
+      <DataPanel
+        toolbar={
+          <>
+            <Typography.Text strong>研究员组合</Typography.Text>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" icon={<ReloadOutlined />} onClick={refreshAll}>刷新</Button>
+            <Button size="small" type="primary" onClick={() => { setEditingResearcher(null); setResearcherOpen(true); }}>新增研究员</Button>
+          </>
+        }
+      >
+        <Table rowKey="id" size="small" loading={researchers.loading} dataSource={researchers.data} columns={researcherColumns} pagination={{ defaultPageSize: 8 }} />
+      </DataPanel>
+      <Row gutter={12} style={{ marginTop: 12 }}>
+        <Col span={12}>
+          <DataPanel toolbar={<><Typography.Text strong>Soul 世界观库</Typography.Text><div className="data-panel-toolbar-spacer" /><Button size="small" onClick={() => { setFileKind("soul"); setEditingFile(null); setFileOpen(true); }}>新增 Soul</Button></>}>
+            <Table rowKey="id" size="small" loading={souls.loading} dataSource={souls.data} columns={fileColumns("soul")} pagination={{ defaultPageSize: 5 }} />
+          </DataPanel>
+        </Col>
+        <Col span={12}>
+          <DataPanel toolbar={<><Typography.Text strong>Method 方法论库</Typography.Text><div className="data-panel-toolbar-spacer" /><Button size="small" onClick={() => { setFileKind("method"); setEditingFile(null); setFileOpen(true); }}>新增 Method</Button></>}>
+            <Table rowKey="id" size="small" loading={methods.loading} dataSource={methods.data} columns={fileColumns("method")} pagination={{ defaultPageSize: 5 }} />
+          </DataPanel>
+        </Col>
+      </Row>
+      <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={520} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
+        <Form form={researcherForm} layout="vertical">
+          <Form.Item name="name" label="研究员名称" rules={[{ required: true, message: "请输入研究员名称" }]}>
+            <Input placeholder="例如：成长股研究员" />
+          </Form.Item>
+          <Form.Item name="status" label="状态">
+            <Select options={[{ value: "active", label: "启用" }, { value: "disabled", label: "停用" }]} />
+          </Form.Item>
+          <Form.Item name="soul_id" label="Soul" rules={[{ required: true, message: "请选择 Soul" }]}>
+            <Select showSearch optionFilterProp="label" placeholder="选择世界观 / 研究人格" options={soulOptions} />
+          </Form.Item>
+          <Form.Item name="method_id" label="Method" rules={[{ required: true, message: "请选择 Method" }]}>
+            <Select showSearch optionFilterProp="label" placeholder="选择方法论 / 分析框架" options={methodOptions} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal title={editingFile ? `编辑 ${fileKind === "soul" ? "Soul" : "Method"}` : `新增 ${fileKind === "soul" ? "Soul" : "Method"}`} width={820} style={{ top: 36 }} open={fileOpen} onCancel={() => setFileOpen(false)} onOk={submitFile} destroyOnHidden>
+        <Form form={fileForm} layout="vertical">
+          <Row gutter={12}>
+            <Col span={18}>
+              <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}><Input /></Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="version" label="版本"><Input /></Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="content" label="文件正文" rules={[{ required: true, message: "请输入文件正文" }]}>
+            <Input.TextArea rows={14} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+}
+
+function ResearchFeedbackSection() {
+  const feedback = useAsyncData(useCallback(listKnowledgeResearchFeedback, []), [] as KnowledgeResearchFeedback[]);
+  const skills = useAsyncData(useCallback(listKnowledgeExternalSkills, []), [] as KnowledgeExternalSkill[]);
+  const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
+  const [viewing, setViewing] = useState<KnowledgeResearchFeedback | null>(null);
+  const skillById = useMemo(() => new Map(skills.data.map((item) => [item.id, item.name])), [skills.data]);
+  const researcherById = useMemo(() => new Map(researchers.data.map((item) => [item.id, item.name])), [researchers.data]);
+
+  const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
+    { title: "报告", dataIndex: "title", ellipsis: true },
+    { title: "研究时间", dataIndex: "research_time", width: 150, render: formatDateTime },
+    { title: "回流时间", dataIndex: "returned_at", width: 150, render: formatDateTime },
+    { title: "使用 Skill", dataIndex: "external_skill_id", width: 150, render: (value) => value ? skillById.get(Number(value)) || "-" : "-" },
+    { title: "研究员", dataIndex: "researcher_id", width: 140, render: (value) => value ? researcherById.get(Number(value)) || "-" : "-" },
+    { title: "验证结果", dataIndex: "verification_result", width: 140, render: (value) => value || "待验证" },
+    { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime },
+    { title: "操作", width: 80, render: (_, record) => <Button size="small" onClick={() => setViewing(record)}>查看</Button> }
+  ];
+
+  return (
+    <>
+      <DataPanel
+        toolbar={
+          <>
+            <div className="data-panel-toolbar-spacer" />
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => feedback.refresh()}>刷新 MCP 回流</Button>
+          </>
+        }
+      >
+        <Table rowKey="id" size="small" loading={feedback.loading} dataSource={feedback.data} columns={feedbackColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
+      </DataPanel>
+      <Modal title={viewing?.title || "研究回流详情"} width={980} style={{ top: 24 }} open={!!viewing} onCancel={() => setViewing(null)} footer={null} destroyOnHidden>
+        {viewing ? (
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Typography.Text type="secondary">研究时间：{formatDateTime(viewing.research_time)}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}</Typography.Text>
+            <Typography.Title level={5}>结构化结论</Typography.Title>
+            <Input.TextArea readOnly rows={4} value={viewing.structured_conclusion || ""} />
+            <Typography.Title level={5}>估值假设</Typography.Title>
+            <Input.TextArea readOnly rows={3} value={viewing.valuation_assumption || ""} />
+            <Typography.Title level={5}>风险点 / 观察信号</Typography.Title>
+            <Input.TextArea readOnly rows={4} value={[viewing.risk_points, viewing.observation_signals].filter(Boolean).join("\n\n")} />
+            <Typography.Title level={5}>研究报告</Typography.Title>
+            <Input.TextArea readOnly rows={10} value={viewing.report_content || viewing.report_path || ""} />
+          </Space>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
 export function KnowledgePage() {
   const [activeTab, setActiveTab] = useState("notes");
-  const skills = useAsyncData(useCallback(listKnowledgeSkills, []), []);
-  const agents = useAsyncData(useCallback(listKnowledgeAgents, []), []);
-  const feedback = useAsyncData(useCallback(listKnowledgeFeedbackLogs, []), []);
 
   function content() {
     if (activeTab === "prompts") return <PromptSection />;
-    if (activeTab === "skills") return <RecordTable loading={skills.loading} data={skills.data} columns={columns} emptyText="暂无 Skills" drawerTitle="Skill 详情" />;
-    if (activeTab === "agents") return <RecordTable loading={agents.loading} data={agents.data} columns={columns} emptyText="暂无 Agents" drawerTitle="Agent 详情" />;
-    if (activeTab === "feedback") return <RecordTable loading={feedback.loading} data={feedback.data} columns={columns} emptyText="暂无反馈日志" drawerTitle="反馈详情" />;
+    if (activeTab === "external-skills") return <ExternalSkillsSection />;
+    if (activeTab === "researchers") return <ResearcherSection />;
+    if (activeTab === "research-feedback") return <ResearchFeedbackSection />;
     return <NotesSection />;
   }
 
   return (
     <>
-      <PageHeader title="知识库" description="笔记 / Skills / Agents" />
+      <PageHeader title="知识库" description="笔记 · Prompt · Skills · 回流" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.knowledge} onChange={setActiveTab} />
       {content()}
     </>

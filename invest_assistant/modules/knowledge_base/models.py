@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,31 +45,49 @@ class KnowledgeNoteTagRelation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class KnowledgeSkill(Base):
-    __tablename__ = "knowledge_skill"
+class KnowledgeExternalSkill(Base):
+    __tablename__ = "knowledge_external_skill"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    skill_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    principle: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    input_schema: Mapped[str | None] = mapped_column(Text, nullable=True)
-    output_schema: Mapped[str | None] = mapped_column(Text, nullable=True)
-    prompt_template: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class KnowledgeAgent(Base):
-    __tablename__ = "knowledge_agent"
+class KnowledgeResearcherSoul(Base):
+    __tablename__ = "knowledge_researcher_soul"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    target_module: Mapped[str] = mapped_column(String(64), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    skills_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    workflow_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class KnowledgeResearcherMethod(Base):
+    __tablename__ = "knowledge_researcher_method"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class KnowledgeResearcher(Base):
+    __tablename__ = "knowledge_researcher"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    soul_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_soul.id"), nullable=False, index=True)
+    method_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_method.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -92,22 +110,35 @@ class KnowledgePrompt(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class KnowledgeFeedbackLog(Base):
-    __tablename__ = "knowledge_feedback_log"
+class KnowledgeResearchFeedback(Base):
+    __tablename__ = "knowledge_research_feedback"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    agent_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_agent.id"), nullable=True, index=True)
-    target_module: Mapped[str] = mapped_column(String(64), nullable=False)
-    target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    feedback_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    effectiveness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    report_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    structured_conclusion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    valuation_assumption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risk_points: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observation_signals: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_sources_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_skill_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_external_skill.id"), nullable=True, index=True)
+    researcher_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_researcher.id"), nullable=True, index=True)
+    verification_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    research_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 def ensure_knowledge_base_schema(engine: Engine) -> None:
     KnowledgeNoteGroup.__table__.create(bind=engine, checkfirst=True)
     KnowledgeNoteTagRelation.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeExternalSkill.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeResearcherSoul.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeResearcherMethod.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeResearcher.__table__.create(bind=engine, checkfirst=True)
+    KnowledgeResearchFeedback.__table__.create(bind=engine, checkfirst=True)
     if engine.dialect.name != "sqlite":
         return
     with engine.begin() as conn:

@@ -79,6 +79,68 @@ export type KnowledgePrompt = {
 
 export type KnowledgePromptPayload = Omit<KnowledgePrompt, "id" | "created_at" | "updated_at">;
 
+export type KnowledgeExternalSkill = {
+  id: number;
+  name: string;
+  file_path: string;
+  version?: string | null;
+  file_hash?: string | null;
+  content: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeExternalSkillPayload = Omit<KnowledgeExternalSkill, "id" | "file_path" | "file_hash" | "created_at" | "updated_at">;
+
+export type KnowledgeResearcherFile = {
+  id: number;
+  name: string;
+  file_path: string;
+  version?: string | null;
+  file_hash?: string | null;
+  content: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeResearcherFilePayload = Omit<KnowledgeResearcherFile, "id" | "file_path" | "file_hash" | "created_at" | "updated_at">;
+
+export type KnowledgeResearcher = {
+  id: number;
+  name: string;
+  soul_id: number;
+  method_id: number;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeResearcherPayload = Omit<KnowledgeResearcher, "id" | "created_at" | "updated_at" | "soul_id" | "method_id"> & {
+  soul_id?: number | null;
+  method_id?: number | null;
+};
+
+export type KnowledgeResearchFeedback = {
+  id: number;
+  title: string;
+  report_content?: string | null;
+  report_path?: string | null;
+  structured_conclusion?: string | null;
+  valuation_assumption?: string | null;
+  risk_points?: string | null;
+  observation_signals?: string | null;
+  data_sources_json?: string | null;
+  external_skill_id?: number | null;
+  researcher_id?: number | null;
+  verification_result?: string | null;
+  research_time?: string | null;
+  returned_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeResearchFeedbackPayload = Omit<KnowledgeResearchFeedback, "id" | "created_at" | "updated_at">;
+
 export async function listKnowledgeNotes(params: KnowledgeNoteQuery = {}): Promise<KnowledgeNotePage> {
   const response = await apiClient.get<unknown>("/api/knowledge/notes", { params });
   return normalizeKnowledgeNotePage(response.data, params);
@@ -129,18 +191,103 @@ export async function archiveKnowledgeNoteGroup(id: number): Promise<KnowledgeNo
   return response.data;
 }
 
-export async function listKnowledgeSkills(): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>("/api/knowledge/skills");
+export async function listKnowledgeExternalSkills(): Promise<KnowledgeExternalSkill[]> {
+  const response = await apiClient.get<KnowledgeExternalSkill[]>("/api/knowledge/external-skills");
   return response.data;
 }
 
-export async function listKnowledgeAgents(): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>("/api/knowledge/agents");
+export async function createKnowledgeExternalSkill(payload: KnowledgeExternalSkillPayload): Promise<KnowledgeExternalSkill> {
+  const response = await apiClient.post<KnowledgeExternalSkill>("/api/knowledge/external-skills", payload);
   return response.data;
 }
 
-export async function listKnowledgeFeedbackLogs(): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>("/api/knowledge/feedback-logs");
+export async function updateKnowledgeExternalSkill(id: number, payload: KnowledgeExternalSkillPayload): Promise<KnowledgeExternalSkill> {
+  const response = await apiClient.put<KnowledgeExternalSkill>(`/api/knowledge/external-skills/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteKnowledgeExternalSkill(id: number): Promise<KnowledgeExternalSkill> {
+  const response = await apiClient.delete<KnowledgeExternalSkill>(`/api/knowledge/external-skills/${id}`);
+  return response.data;
+}
+
+export async function exportKnowledgeExternalSkill(id: number): Promise<Blob> {
+  const response = await apiClient.get<Blob>(`/api/knowledge/external-skills/${id}/export`, { responseType: "blob" });
+  return response.data;
+}
+
+export async function listKnowledgeResearcherSouls(): Promise<KnowledgeResearcherFile[]> {
+  const response = await apiClient.get<KnowledgeResearcherFile[]>("/api/knowledge/researcher-souls");
+  return response.data;
+}
+
+export async function createKnowledgeResearcherSoul(payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.post<KnowledgeResearcherFile>("/api/knowledge/researcher-souls", payload);
+  return response.data;
+}
+
+export async function updateKnowledgeResearcherSoul(id: number, payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.put<KnowledgeResearcherFile>(`/api/knowledge/researcher-souls/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteKnowledgeResearcherSoul(id: number): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.delete<KnowledgeResearcherFile>(`/api/knowledge/researcher-souls/${id}`);
+  return response.data;
+}
+
+export async function listKnowledgeResearcherMethods(): Promise<KnowledgeResearcherFile[]> {
+  const response = await apiClient.get<KnowledgeResearcherFile[]>("/api/knowledge/researcher-methods");
+  return response.data;
+}
+
+export async function createKnowledgeResearcherMethod(payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.post<KnowledgeResearcherFile>("/api/knowledge/researcher-methods", payload);
+  return response.data;
+}
+
+export async function updateKnowledgeResearcherMethod(id: number, payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.put<KnowledgeResearcherFile>(`/api/knowledge/researcher-methods/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteKnowledgeResearcherMethod(id: number): Promise<KnowledgeResearcherFile> {
+  const response = await apiClient.delete<KnowledgeResearcherFile>(`/api/knowledge/researcher-methods/${id}`);
+  return response.data;
+}
+
+export async function listKnowledgeResearchers(): Promise<KnowledgeResearcher[]> {
+  const response = await apiClient.get<KnowledgeResearcher[]>("/api/knowledge/researchers");
+  return response.data;
+}
+
+export async function createKnowledgeResearcher(payload: KnowledgeResearcherPayload): Promise<KnowledgeResearcher> {
+  const response = await apiClient.post<KnowledgeResearcher>("/api/knowledge/researchers", payload);
+  return response.data;
+}
+
+export async function updateKnowledgeResearcher(id: number, payload: KnowledgeResearcherPayload): Promise<KnowledgeResearcher> {
+  const response = await apiClient.put<KnowledgeResearcher>(`/api/knowledge/researchers/${id}`, payload);
+  return response.data;
+}
+
+export async function deleteKnowledgeResearcher(id: number): Promise<KnowledgeResearcher> {
+  const response = await apiClient.delete<KnowledgeResearcher>(`/api/knowledge/researchers/${id}`);
+  return response.data;
+}
+
+export async function listKnowledgeResearchFeedback(): Promise<KnowledgeResearchFeedback[]> {
+  const response = await apiClient.get<KnowledgeResearchFeedback[]>("/api/knowledge/research-feedback");
+  return response.data;
+}
+
+export async function createKnowledgeResearchFeedback(payload: KnowledgeResearchFeedbackPayload): Promise<KnowledgeResearchFeedback> {
+  const response = await apiClient.post<KnowledgeResearchFeedback>("/api/knowledge/research-feedback", payload);
+  return response.data;
+}
+
+export async function updateKnowledgeResearchFeedback(id: number, payload: KnowledgeResearchFeedbackPayload): Promise<KnowledgeResearchFeedback> {
+  const response = await apiClient.put<KnowledgeResearchFeedback>(`/api/knowledge/research-feedback/${id}`, payload);
   return response.data;
 }
 

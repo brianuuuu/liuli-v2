@@ -62,7 +62,7 @@ npm.cmd run dev -- --host 127.0.0.1 --port 5173
   - Worker 轮询执行 `job_run_request`
 - **数据层**：SQLAlchemy + 默认 SQLite `var/db/liuli.sqlite3`。
 - **文件层**：`var/raw`、`var/processed`、`var/reports`、`var/exports` 等目录承载原始/处理后资产。
-- **AI 相关模块**：知识库包含 `skills/agents/feedback` 数据结构；配置层预留 `openai_api_key`、`qwen_api_key`，当前主要是模块结构与任务入口，深度 AI 链路为后续演进项。
+- **AI 相关模块**：知识库包含知识笔记、对内 Prompt、对外 Skills、研究员和研究回流；配置层预留 `openai_api_key`、`qwen_api_key`，复杂研究由外部 AI 执行器完成并通过 MCP 回流。
 - **外部数据源**：已见到巨潮资讯（公告财报）与财联社新闻抓取任务。
 
 ### 架构图（Mermaid）
@@ -173,7 +173,7 @@ flowchart LR
 | Stock Analysis | `/api/stock-analysis` | `GET/POST/PUT /pool`, `GET /candidates`, `GET /stocks/{id}`, `GET/POST /stocks/{id}/notes`, `GET/POST /stocks/{id}/scores`, `GET/POST /compare-groups`, `GET /reports` |
 | Alert Center | `/api/alerts` | `GET/POST/PUT/DELETE /rules`, `GET/POST /events`, `POST /events/{id}/read`, `POST /events/{id}/handle` |
 | Portfolio | `/api/portfolios` | `GET/POST /`, `GET/PUT /{id}`, `GET/POST /{id}/groups`, `GET/POST/PUT/DELETE /{id}/positions`, `GET/POST /{id}/review` |
-| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT /skills`, `GET/POST/PUT /agents`, `POST /agents/{id}/run`, `GET /feedback-logs` |
+| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT/DELETE /prompts`, `GET/POST/PUT /external-skills`, `GET /external-skills/{id}/export`, `GET/POST/PUT /researchers`, `GET/POST/PUT /research-feedback` |
 | Console | `/api/console` | `GET /dashboard`, `GET /system-status`, `GET /data-sources`, `GET /ai-logs` |
 
 ---
@@ -266,7 +266,7 @@ sequenceDiagram
 | `stock_pool` / `stock_research_note` / `stock_score_snapshot` / `stock_track_relation` | 标的研究数据 | `symbol`, `score_total`, `track_id` | 标的研究主链路 |
 | `alert_rule` / `alert_event` | 预警规则与事件 | `rule_type`, `triggered_at`, `status` | 规则执行产物 |
 | `portfolio` / `portfolio_position` / `portfolio_review` | 组合、持仓、复盘 | `name`, `symbol`, `review_date` | 投资执行与复盘 |
-| `knowledge_note` / `knowledge_skill` / `knowledge_agent` / `knowledge_feedback_log` | 知识沉淀 | `topic`, `skill_name`, `agent_name` | AI/策略沉淀基础 |
+| `knowledge_note` / `knowledge_prompt` / `knowledge_external_skill` / `knowledge_researcher*` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `file_path`, `researcher_id` | 笔记、内部 Prompt、外部 Skill、研究员体系和研究回流 |
 
 ---
 

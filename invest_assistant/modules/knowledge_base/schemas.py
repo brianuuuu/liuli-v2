@@ -64,34 +64,44 @@ class KnowledgeNotePage(BaseModel):
     has_more: bool
 
 
-class KnowledgeSkillCreate(BaseModel):
-    title: str
-    skill_type: str
-    principle: str
-    description: str | None = None
-    input_schema: str | None = None
-    output_schema: str | None = None
-    prompt_template: str | None = None
-    status: str = "active"
+class KnowledgeExternalSkillCreate(BaseModel):
+    name: str
+    version: str | None = None
+    content: str = ""
 
 
-class KnowledgeSkillRead(KnowledgeSkillCreate):
+class KnowledgeExternalSkillRead(KnowledgeExternalSkillCreate):
     id: int
+    file_path: str
+    file_hash: str | None = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
-class KnowledgeAgentCreate(BaseModel):
+class KnowledgeResearcherFileCreate(BaseModel):
     name: str
-    target_module: str
-    description: str | None = None
-    skills_json: str = "[]"
-    workflow_json: str = "[]"
+    version: str | None = None
+    content: str = ""
+
+
+class KnowledgeResearcherFileRead(KnowledgeResearcherFileCreate):
+    id: int
+    file_path: str
+    file_hash: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KnowledgeResearcherCreate(BaseModel):
+    name: str
+    soul_id: int
+    method_id: int
     status: str = "active"
 
 
-class KnowledgeAgentRead(KnowledgeAgentCreate):
+class KnowledgeResearcherRead(KnowledgeResearcherCreate):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -117,13 +127,24 @@ class KnowledgePromptRead(KnowledgePromptCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class KnowledgeFeedbackLogRead(BaseModel):
+class KnowledgeResearchFeedbackCreate(BaseModel):
+    title: str
+    report_content: str | None = None
+    report_path: str | None = None
+    structured_conclusion: str | None = None
+    valuation_assumption: str | None = None
+    risk_points: str | None = None
+    observation_signals: str | None = None
+    data_sources_json: str | None = None
+    external_skill_id: int | None = None
+    researcher_id: int | None = None
+    verification_result: str | None = None
+    research_time: datetime | None = None
+    returned_at: datetime | None = None
+
+
+class KnowledgeResearchFeedbackRead(KnowledgeResearchFeedbackCreate):
     id: int
-    agent_id: int | None = None
-    target_module: str
-    target_id: int | None = None
-    feedback_type: str
-    result_summary: str | None = None
-    effectiveness: float | None = None
     created_at: datetime
+    updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
