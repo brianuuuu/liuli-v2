@@ -512,7 +512,7 @@ function OperationsPanelSection() {
   return (
     <div className="workbench-dashboard">
       <div className="workbench-action-grid">
-        <WorkbenchCard title="待办入口">
+        <WorkbenchCard title="待办入口" className="workbench-action-card workbench-todo-card">
           <div className="workbench-entry-column">
             {todoEntries.map((item) => (
               <button className="workbench-entry-card-premium" key={item.key} type="button" onClick={() => navigate(item.path)}>
@@ -530,8 +530,14 @@ function OperationsPanelSection() {
           </div>
         </WorkbenchCard>
 
-        <WorkbenchCard title="AI 控制面板">
-          <div className="workbench-control-grid">
+        <WorkbenchCard title="AI 控制面板" className="workbench-action-card workbench-ai-card">
+          <div className="workbench-control-grid workbench-control-table">
+            <div className="workbench-control-table-head" aria-hidden="true">
+              <span>任务</span>
+              <span>待处理</span>
+              <span>最近运行</span>
+              <span>操作</span>
+            </div>
             {operations.map((item) => {
               const jobExists = item.jobName
                 ? jobByName.get(item.jobName)?.exists
@@ -540,26 +546,24 @@ function OperationsPanelSection() {
               const hasPending = item.pending > 0;
               return (
                 <div className="workbench-control-card-premium" key={item.key}>
-                  <div className="workbench-control-header">
-                    <div className="workbench-control-title-premium">
-                      <span style={{ color: item.color }}>{item.icon}</span>
-                      <span>{item.name}</span>
-                    </div>
-                    <div className={`workbench-control-status-badge ${hasPending ? 'pending' : 'clean'}`}>
-                      {hasPending ? `待处理 ${item.pending}` : '已清空'}
-                    </div>
+                  <div className="workbench-control-title-premium">
+                    <span style={{ color: item.color }}>{item.icon}</span>
+                    <span>{item.name}</span>
+                  </div>
+                  <div className={`workbench-control-status-badge ${hasPending ? 'pending' : 'clean'}`}>
+                    {hasPending ? item.pending : "清空"}
+                  </div>
+                  <div className="workbench-control-metadata-premium">
+                    <span>{formatTime(item.lastRunAt)}</span>
                   </div>
                   <div className="workbench-control-footer-premium">
-                    <div className="workbench-control-metadata-premium">
-                      <div className="meta-item">
-                        最近运行: <span>{formatTime(item.lastRunAt)}</span>
-                      </div>
-                    </div>
                     <Button
                       size="small"
+                      type={hasPending ? "primary" : "default"}
                       icon={<PlayCircleOutlined />}
                       loading={runningKey === item.key}
                       disabled={disabled}
+                      className="workbench-control-action"
                       onClick={() => runOperation(item)}
                     >
                       {!item.jobName ? "待实现" : jobExists ? "执行" : "未接入"}

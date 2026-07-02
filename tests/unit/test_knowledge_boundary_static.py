@@ -80,7 +80,7 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
     for expected in [
         "width={920}",
         "width={820}",
-        "width={640}",
+        "width={520}",
         "研究员组合",
         "Soul 世界观库",
         "Method 方法论库",

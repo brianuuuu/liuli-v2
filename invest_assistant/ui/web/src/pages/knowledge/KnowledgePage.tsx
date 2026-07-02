@@ -984,32 +984,20 @@ function ResearcherSection() {
           </DataPanel>
         </Col>
       </Row>
-      <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={640} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
+      <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={520} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
         <Form form={researcherForm} layout="vertical">
-          <Row gutter={12}>
-            <Col span={16}>
-              <Form.Item name="name" label="研究员名称" rules={[{ required: true, message: "请输入研究员名称" }]}>
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="status" label="状态">
-                <Select options={[{ value: "active", label: "启用" }, { value: "disabled", label: "停用" }]} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="soul_id" label="Soul" rules={[{ required: true, message: "请选择 Soul" }]}>
-                <Select options={soulOptions} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="method_id" label="Method" rules={[{ required: true, message: "请选择 Method" }]}>
-                <Select options={methodOptions} />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item name="name" label="研究员名称" rules={[{ required: true, message: "请输入研究员名称" }]}>
+            <Input placeholder="例如：成长股研究员" />
+          </Form.Item>
+          <Form.Item name="status" label="状态">
+            <Select options={[{ value: "active", label: "启用" }, { value: "disabled", label: "停用" }]} />
+          </Form.Item>
+          <Form.Item name="soul_id" label="Soul" rules={[{ required: true, message: "请选择 Soul" }]}>
+            <Select showSearch optionFilterProp="label" placeholder="选择世界观 / 研究人格" options={soulOptions} />
+          </Form.Item>
+          <Form.Item name="method_id" label="Method" rules={[{ required: true, message: "请选择 Method" }]}>
+            <Select showSearch optionFilterProp="label" placeholder="选择方法论 / 分析框架" options={methodOptions} />
+          </Form.Item>
         </Form>
       </Modal>
       <Modal title={editingFile ? `编辑 ${fileKind === "soul" ? "Soul" : "Method"}` : `新增 ${fileKind === "soul" ? "Soul" : "Method"}`} width={820} style={{ top: 36 }} open={fileOpen} onCancel={() => setFileOpen(false)} onOk={submitFile} destroyOnHidden>
@@ -1094,7 +1082,7 @@ export function KnowledgePage() {
 
   return (
     <>
-      <PageHeader title="知识库" description="笔记 · Prompt · 对外Skills · 研究回流" />
+      <PageHeader title="知识库" description="笔记 · Prompt · Skills · 回流" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.knowledge} onChange={setActiveTab} />
       {content()}
     </>
