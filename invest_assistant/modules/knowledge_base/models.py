@@ -85,7 +85,9 @@ class KnowledgeResearcher(Base):
     __tablename__ = "knowledge_researcher"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     soul_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_soul.id"), nullable=False, index=True)
     method_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_method.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
@@ -157,4 +159,12 @@ def ensure_knowledge_base_schema(engine: Engine) -> None:
         }
         for column_name, statement in note_column_migrations.items():
             if column_name not in note_columns:
+                conn.execute(text(statement))
+        researcher_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_researcher)")).all()}
+        researcher_column_migrations = {
+            "code": "ALTER TABLE knowledge_researcher ADD COLUMN code VARCHAR(64)",
+            "description": "ALTER TABLE knowledge_researcher ADD COLUMN description TEXT",
+        }
+        for column_name, statement in researcher_column_migrations.items():
+            if column_name not in researcher_columns:
                 conn.execute(text(statement))

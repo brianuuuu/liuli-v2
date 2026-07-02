@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`、`knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method`，供 Codex 先读取研究员简介，再读取 Soul 和 Method 组合成外部评级上下文；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
 - v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀 soul/method 组合，研究回流承接 MCP 返回的研究报告。
 - v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
 - v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
@@ -2868,7 +2869,9 @@ knowledge_researcher_method
 ```sql
 knowledge_researcher
 - id
+- code
 - name
+- description
 - soul_id
 - method_id
 - status
@@ -5107,7 +5110,7 @@ id, name, file_path, version, file_hash, created_at, updated_at
 字段：
 
 ```text
-id, name, soul_id, method_id, status, created_at, updated_at
+id, code, name, description, soul_id, method_id, status, created_at, updated_at
 ```
 
 #### `knowledge_research_feedback`：研究回流表，记录外部 AI 执行研究后的结果回流
@@ -5188,7 +5191,7 @@ invest_assistant/modules/knowledge_base/external/skills/
 ```text
 soul = 世界观、研究人格、长期偏好、禁区
 method = 方法论、分析框架、评分习惯、估值习惯
-researcher = soul + method + status
+researcher = code + name + description + soul + method + status
 ```
 
 界面层级：
@@ -5201,6 +5204,8 @@ Method 素材库
 ```
 
 `soul` 和 `method` 正文使用 Git 文件维护，数据库只保存路径、版本、hash 和时间字段。
+
+对外 MCP 读取研究员时固定顺序为：先调用 `knowledge_base.get_researcher_profile` 获取研究员简介、状态、`soul_id` 和 `method_id`，再用返回 ID 调用 `knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method` 读取正文。MCP wrapper 必须走 `knowledge_base.service`，文件访问限制在研究员素材目录内。
 
 ### 研究回流
 
@@ -5308,6 +5313,9 @@ enabled = true
       "market_radar.search_source_items",
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
+      "knowledge_base.get_researcher_profile",
+      "knowledge_base.get_researcher_soul",
+      "knowledge_base.get_researcher_method",
       "report_library.read_report_content",
       "portfolio.get_overview",
       "report_library.upload_markdown_report"
@@ -5381,10 +5389,15 @@ track_discovery.list_tracks
 track_discovery.get_track_detail
 stock_analysis.get_stock_profile
 stock_analysis.get_daily_bars
+knowledge_base.get_researcher_profile
+knowledge_base.get_researcher_soul
+knowledge_base.get_researcher_method
 report_library.list_reports
 report_library.read_report_content
 portfolio.get_overview
 ```
+
+`knowledge_base.get_researcher_profile` 用于按研究员名称、编号或 ID 读取研究员简介、状态、Soul/Method ID 和素材版本；`knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method` 必须使用 profile 返回的 ID 读取正文，文件访问限制在知识库研究员素材目录内。
 
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
@@ -5443,7 +5456,7 @@ MCP server 初始化时必须提供 server-wide instructions，前 512 字符要
 第一版 instructions 应包含：
 
 ```text
-本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
+本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、knowledge_base、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
 ```
 
 ### 开发期调试日志
