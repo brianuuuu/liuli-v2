@@ -258,6 +258,71 @@ def _researcher_file_read(item: KnowledgeResearcherSoul | KnowledgeResearcherMet
             "updated_at": item.updated_at,
         }
     )
+
+
+def get_researcher_profile_bundle(db: Session, researcher: str) -> dict:
+    value = str(researcher or "").strip()
+    if not value:
+        raise ValueError("researcher is required")
+    item = db.scalar(
+        select(KnowledgeResearcher).where(
+            or_(
+                KnowledgeResearcher.name == value,
+                KnowledgeResearcher.code == value,
+            )
+        )
+    )
+    if item is None and value.isdigit():
+        item = db.get(KnowledgeResearcher, int(value))
+    if item is None:
+        raise FileNotFoundError("researcher not found")
+    soul = db.get(KnowledgeResearcherSoul, item.soul_id)
+    method = db.get(KnowledgeResearcherMethod, item.method_id)
+    if soul is None:
+        raise FileNotFoundError("researcher soul not found")
+    if method is None:
+        raise FileNotFoundError("researcher method not found")
+    return {
+        "id": item.id,
+        "code": item.code,
+        "name": item.name,
+        "description": item.description,
+        "status": item.status,
+        "soul_id": item.soul_id,
+        "method_id": item.method_id,
+        "soul": {
+            "id": soul.id,
+            "name": soul.name,
+            "version": soul.version,
+            "file_path": soul.file_path,
+        },
+        "method": {
+            "id": method.id,
+            "name": method.name,
+            "version": method.version,
+            "file_path": method.file_path,
+        },
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def read_researcher_soul_bundle(db: Session, soul_id: int) -> dict:
+    item = get_researcher_soul(db, soul_id)
+    if item is None:
+        raise FileNotFoundError("researcher soul not found")
+    data = _researcher_file_read(item, RESEARCHER_SOUL_ROOT).model_dump(mode="json")
+    data["kind"] = "soul"
+    return data
+
+
+def read_researcher_method_bundle(db: Session, method_id: int) -> dict:
+    item = get_researcher_method(db, method_id)
+    if item is None:
+        raise FileNotFoundError("researcher method not found")
+    data = _researcher_file_read(item, RESEARCHER_METHOD_ROOT).model_dump(mode="json")
+    data["kind"] = "method"
+    return data
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -514,9 +579,18 @@ def update_researcher_soul(db: Session, item: KnowledgeResearcherSoul, payload: 
 
 
 def delete_researcher_soul(db: Session, item: KnowledgeResearcherSoul) -> KnowledgeResearcherFileRead:
-    if db.scalar(select(KnowledgeResearcher.id).where(KnowledgeResearcher.soul_id == item.id).limit(1)):
-        raise ValueError("researcher soul is in use")
+    researchers = list(db.scalars(select(KnowledgeResearcher).where(KnowledgeResearcher.soul_id == item.id)))
+    researcher_ids = [researcher.id for researcher in researchers]
+    has_feedback = researcher_ids and db.scalar(
+        select(KnowledgeResearchFeedback.id)
+        .where(KnowledgeResearchFeedback.researcher_id.in_(researcher_ids))
+        .limit(1)
+    )
+    if has_feedback:
+        raise ValueError("已有研究回流引用关联研究员，不能删除该 Soul")
     result = _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
+    for researcher in researchers:
+        db.delete(researcher)
     db.delete(item)
     db.commit()
     return result
@@ -559,9 +633,18 @@ def update_researcher_method(
 
 
 def delete_researcher_method(db: Session, item: KnowledgeResearcherMethod) -> KnowledgeResearcherFileRead:
-    if db.scalar(select(KnowledgeResearcher.id).where(KnowledgeResearcher.method_id == item.id).limit(1)):
-        raise ValueError("researcher method is in use")
+    researchers = list(db.scalars(select(KnowledgeResearcher).where(KnowledgeResearcher.method_id == item.id)))
+    researcher_ids = [researcher.id for researcher in researchers]
+    has_feedback = researcher_ids and db.scalar(
+        select(KnowledgeResearchFeedback.id)
+        .where(KnowledgeResearchFeedback.researcher_id.in_(researcher_ids))
+        .limit(1)
+    )
+    if has_feedback:
+        raise ValueError("已有研究回流引用关联研究员，不能删除该 Method")
     result = _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
+    for researcher in researchers:
+        db.delete(researcher)
     db.delete(item)
     db.commit()
     return result

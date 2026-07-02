@@ -287,6 +287,140 @@ def test_mcp_stock_daily_bars_wrapper_never_refreshes(monkeypatch):
     assert result["items"] == [{"trade_date": "2026-06-26", "close": 10.0}]
 
 
+def test_mcp_researcher_tools_return_profile_and_files(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import (
+        get_researcher_method,
+        get_researcher_profile,
+        get_researcher_soul,
+    )
+    from invest_assistant.modules.knowledge_base import service as knowledge_service
+    from invest_assistant.modules.knowledge_base.models import (
+        KnowledgeResearcher,
+        KnowledgeResearcherMethod,
+        KnowledgeResearcherSoul,
+    )
+    from invest_assistant.shared.time_utils import utc_now
+
+    external_root = tmp_path / "invest_assistant" / "modules" / "knowledge_base" / "external"
+    soul_root = external_root / "souls"
+    method_root = external_root / "methods"
+    soul_root.mkdir(parents=True)
+    method_root.mkdir(parents=True)
+    soul_file = soul_root / "rating-soul.md"
+    method_file = method_root / "rating-method.md"
+    soul_file.write_text("# Soul\n\n数据优先。", encoding="utf-8")
+    method_file.write_text("# Method\n\n按六维评分。", encoding="utf-8")
+    monkeypatch.setattr(knowledge_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(knowledge_service, "EXTERNAL_ROOT", external_root)
+    monkeypatch.setattr(knowledge_service, "RESEARCHER_SOUL_ROOT", soul_root)
+    monkeypatch.setattr(knowledge_service, "RESEARCHER_METHOD_ROOT", method_root)
+
+    SessionLocal = make_session()
+    db = SessionLocal()
+    now = utc_now()
+    soul = KnowledgeResearcherSoul(
+        id=2,
+        name="评级师的价值观",
+        file_path="invest_assistant/modules/knowledge_base/external/souls/rating-soul.md",
+        version="1.0",
+        created_at=now,
+        updated_at=now,
+    )
+    method = KnowledgeResearcherMethod(
+        id=3,
+        name="标的评级分析方法",
+        file_path="invest_assistant/modules/knowledge_base/external/methods/rating-method.md",
+        version="1.0",
+        created_at=now,
+        updated_at=now,
+    )
+    researcher = KnowledgeResearcher(
+        id=1,
+        code="analyst_001",
+        name="标的评级师",
+        description="资深金融分析师。",
+        soul_id=soul.id,
+        method_id=method.id,
+        status="active",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add_all([soul, method, researcher])
+    db.commit()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=[
+            "knowledge_base.get_researcher_profile",
+            "knowledge_base.get_researcher_soul",
+            "knowledge_base.get_researcher_method",
+        ],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    profile = get_researcher_profile(db=db, client=client, researcher="标的评级师")
+    soul_result = get_researcher_soul(db=db, client=client, soul_id=soul.id)
+    method_result = get_researcher_method(db=db, client=client, method_id=method.id)
+
+    assert profile["data"]["code"] == "analyst_001"
+    assert profile["data"]["name"] == "标的评级师"
+    assert profile["data"]["description"] == "资深金融分析师。"
+    assert profile["data"]["soul"]["id"] == soul.id
+    assert profile["data"]["method"]["id"] == method.id
+    assert soul_result["data"]["content"] == "# Soul\n\n数据优先。"
+    assert method_result["data"]["content"] == "# Method\n\n按六维评分。"
+
+
+def test_mcp_researcher_tools_require_allowlist_and_raise_for_missing_records():
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import (
+        get_researcher_profile,
+        get_researcher_soul,
+    )
+
+    db = make_session()()
+    disallowed = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=[],
+        max_result_limit=50,
+        local_only=True,
+    )
+    allowed = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["knowledge_base.get_researcher_profile", "knowledge_base.get_researcher_soul"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    try:
+        get_researcher_profile(db=db, client=disallowed, researcher="标的评级师")
+    except PermissionError as exc:
+        assert "not allowed" in str(exc)
+    else:
+        raise AssertionError("expected PermissionError")
+
+    try:
+        get_researcher_profile(db=db, client=allowed, researcher="不存在")
+    except FileNotFoundError as exc:
+        assert "researcher not found" in str(exc)
+    else:
+        raise AssertionError("expected FileNotFoundError")
+
+    try:
+        get_researcher_soul(db=db, client=allowed, soul_id=999)
+    except FileNotFoundError as exc:
+        assert "researcher soul not found" in str(exc)
+    else:
+        raise AssertionError("expected FileNotFoundError")
+
+
 def test_mcp_asgi_app_rejects_missing_bearer_token():
     from fastapi.testclient import TestClient
 
@@ -387,6 +521,9 @@ def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(mo
     assert "信息流" in tools["market_radar.search_source_items"]
     assert "track_id" in tools["track_discovery.get_track_detail"]
     assert "股票代码" in tools["stock_analysis.get_stock_profile"]
+    assert "研究员" in tools["knowledge_base.get_researcher_profile"]
+    assert "Soul" in tools["knowledge_base.get_researcher_soul"]
+    assert "Method" in tools["knowledge_base.get_researcher_method"]
     assert "report_id" in tools["report_library.read_report_content"]
     assert "Markdown" in tools["report_library.upload_markdown_report"]
     assert "组合总览" in tools["portfolio.get_overview"]

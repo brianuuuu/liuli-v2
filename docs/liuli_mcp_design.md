@@ -87,6 +87,9 @@ enabled = true
       "market_radar.search_source_items",
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
+      "knowledge_base.get_researcher_profile",
+      "knowledge_base.get_researcher_soul",
+      "knowledge_base.get_researcher_method",
       "report_library.read_report_content",
       "portfolio.get_overview",
       "report_library.upload_markdown_report"
@@ -160,10 +163,15 @@ track_discovery.list_tracks
 track_discovery.get_track_detail
 stock_analysis.get_stock_profile
 stock_analysis.get_daily_bars
+knowledge_base.get_researcher_profile
+knowledge_base.get_researcher_soul
+knowledge_base.get_researcher_method
 report_library.list_reports
 report_library.read_report_content
 portfolio.get_overview
 ```
+
+`knowledge_base.get_researcher_profile` 用于按研究员名称、编号或 ID 读取研究员简介、状态、Soul/Method ID 和素材版本；`knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method` 必须使用 profile 返回的 ID 读取正文，文件访问限制在知识库研究员素材目录内。
 
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
@@ -222,7 +230,7 @@ MCP server 初始化时必须提供 server-wide instructions，前 512 字符要
 第一版 instructions 应包含：
 
 ```text
-本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
+本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、stock_analysis、knowledge_base、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。
 ```
 
 ## 开发期调试日志

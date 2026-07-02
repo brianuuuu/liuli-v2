@@ -107,7 +107,9 @@ export type KnowledgeResearcherFilePayload = Omit<KnowledgeResearcherFile, "id" 
 
 export type KnowledgeResearcher = {
   id: number;
+  code?: string | null;
   name: string;
+  description?: string | null;
   soul_id: number;
   method_id: number;
   status: string;

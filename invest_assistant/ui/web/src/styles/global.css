@@ -1370,6 +1370,49 @@ body {
   font-family: inherit !important;
 }
 
+.data-panel-toolbar .ant-segmented {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.data-panel-toolbar .ant-segmented .ant-segmented-item {
+  min-height: 28px;
+  border-radius: 5px;
+  color: var(--ll-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-panel-toolbar .ant-segmented .ant-segmented-item-label {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+}
+
+.data-panel-toolbar .ant-segmented .ant-segmented-item:hover,
+.data-panel-toolbar .ant-segmented .ant-segmented-item:focus-visible {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-text);
+}
+
+.data-panel-toolbar .ant-segmented .ant-segmented-item-selected {
+  background: var(--ll-accent-soft);
+  color: var(--ll-accent);
+}
+
+.data-panel-toolbar .ant-segmented .ant-segmented-thumb {
+  background: var(--ll-accent-soft);
+  box-shadow: none;
+}
+
 .data-panel-toolbar .ant-select .ant-select-selector {
   border: 0 !important;
   background: transparent !important;

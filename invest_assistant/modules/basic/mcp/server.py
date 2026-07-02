@@ -15,7 +15,7 @@ from invest_assistant.bootstrap.config import get_settings
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig, authenticate_token, get_client_config
 from invest_assistant.modules.basic.mcp.debug_logger import stack_trace_from_exception, write_mcp_call_log
 from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
-from invest_assistant.modules.basic.mcp.tools import market_radar, portfolio, report_library, stock_analysis, track_discovery
+from invest_assistant.modules.basic.mcp.tools import knowledge_base, market_radar, portfolio, report_library, stock_analysis, track_discovery
 
 MCP_SCOPE = "mcp"
 MCP_INSTRUCTIONS = (
@@ -52,6 +52,16 @@ MCP_TOOL_DESCRIPTIONS = {
     "stock_analysis.get_daily_bars": (
         "按已知 stock_id 查询本地缓存的股票日 K 数据，可指定 start_date、end_date 和 limit。"
         "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id。"
+    ),
+    "knowledge_base.get_researcher_profile": (
+        "查询研究员组合元信息，适合先获取标的评级师简介和后续读取 Soul/Method 所需 ID。"
+        "支持 researcher 按名称、编号或 ID 精确匹配。"
+    ),
+    "knowledge_base.get_researcher_soul": (
+        "按 soul_id 读取研究员 Soul 文件内容。仅在已通过 profile 获取 soul_id 后调用，不要猜测 ID。"
+    ),
+    "knowledge_base.get_researcher_method": (
+        "按 method_id 读取研究员 Method 文件内容。仅在已通过 profile 获取 method_id 后调用，不要猜测 ID。"
     ),
     "report_library.list_reports": (
         "查询报告库列表，适合查找 report_library.read_report_content 所需的 report_id。"
@@ -218,6 +228,33 @@ def _register_tools(server: FastMCP) -> None:
             "stock_analysis.get_daily_bars",
             {"stock_id": stock_id, "start_date": _parse_optional_date(start_date), "end_date": _parse_optional_date(end_date), "limit": limit},
             stock_analysis.get_daily_bars,
+        )
+
+    @server.tool(name="knowledge_base.get_researcher_profile", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_profile"])
+    def mcp_knowledge_base_get_researcher_profile(ctx: Context, researcher: str = "标的评级师") -> dict:
+        return _run_tool(
+            ctx,
+            "knowledge_base.get_researcher_profile",
+            {"researcher": researcher},
+            knowledge_base.get_researcher_profile,
+        )
+
+    @server.tool(name="knowledge_base.get_researcher_soul", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_soul"])
+    def mcp_knowledge_base_get_researcher_soul(ctx: Context, soul_id: int) -> dict:
+        return _run_tool(
+            ctx,
+            "knowledge_base.get_researcher_soul",
+            {"soul_id": soul_id},
+            knowledge_base.get_researcher_soul,
+        )
+
+    @server.tool(name="knowledge_base.get_researcher_method", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_method"])
+    def mcp_knowledge_base_get_researcher_method(ctx: Context, method_id: int) -> dict:
+        return _run_tool(
+            ctx,
+            "knowledge_base.get_researcher_method",
+            {"method_id": method_id},
+            knowledge_base.get_researcher_method,
         )
 
     @server.tool(name="report_library.list_reports", description=MCP_TOOL_DESCRIPTIONS["report_library.list_reports"])

@@ -95,7 +95,9 @@ class KnowledgeResearcherFileRead(KnowledgeResearcherFileCreate):
 
 
 class KnowledgeResearcherCreate(BaseModel):
+    code: str | None = None
     name: str
+    description: str | None = None
     soul_id: int
     method_id: int
     status: str = "active"
