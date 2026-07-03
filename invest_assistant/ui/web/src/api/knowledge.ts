@@ -92,35 +92,21 @@ export type KnowledgeExternalSkill = {
 
 export type KnowledgeExternalSkillPayload = Omit<KnowledgeExternalSkill, "id" | "file_path" | "file_hash" | "created_at" | "updated_at">;
 
-export type KnowledgeResearcherFile = {
-  id: number;
-  name: string;
-  file_path: string;
-  version?: string | null;
-  file_hash?: string | null;
-  content: string;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type KnowledgeResearcherFilePayload = Omit<KnowledgeResearcherFile, "id" | "file_path" | "file_hash" | "created_at" | "updated_at">;
-
 export type KnowledgeResearcher = {
   id: number;
-  code?: string | null;
-  name: string;
-  description?: string | null;
-  soul_id: number;
-  method_id: number;
+  researcher_code: string;
+  display_name: string;
+  profile_path: string;
+  profile_hash?: string | null;
   status: string;
+  intro: string;
+  soul: string;
+  method: string;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-export type KnowledgeResearcherPayload = Omit<KnowledgeResearcher, "id" | "created_at" | "updated_at" | "soul_id" | "method_id"> & {
-  soul_id?: number | null;
-  method_id?: number | null;
-};
+export type KnowledgeResearcherPayload = Omit<KnowledgeResearcher, "id" | "profile_path" | "profile_hash" | "created_at" | "updated_at">;
 
 export type KnowledgeResearchFeedback = {
   id: number;
@@ -215,46 +201,6 @@ export async function deleteKnowledgeExternalSkill(id: number): Promise<Knowledg
 
 export async function exportKnowledgeExternalSkill(id: number): Promise<Blob> {
   const response = await apiClient.get<Blob>(`/api/knowledge/external-skills/${id}/export`, { responseType: "blob" });
-  return response.data;
-}
-
-export async function listKnowledgeResearcherSouls(): Promise<KnowledgeResearcherFile[]> {
-  const response = await apiClient.get<KnowledgeResearcherFile[]>("/api/knowledge/researcher-souls");
-  return response.data;
-}
-
-export async function createKnowledgeResearcherSoul(payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.post<KnowledgeResearcherFile>("/api/knowledge/researcher-souls", payload);
-  return response.data;
-}
-
-export async function updateKnowledgeResearcherSoul(id: number, payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.put<KnowledgeResearcherFile>(`/api/knowledge/researcher-souls/${id}`, payload);
-  return response.data;
-}
-
-export async function deleteKnowledgeResearcherSoul(id: number): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.delete<KnowledgeResearcherFile>(`/api/knowledge/researcher-souls/${id}`);
-  return response.data;
-}
-
-export async function listKnowledgeResearcherMethods(): Promise<KnowledgeResearcherFile[]> {
-  const response = await apiClient.get<KnowledgeResearcherFile[]>("/api/knowledge/researcher-methods");
-  return response.data;
-}
-
-export async function createKnowledgeResearcherMethod(payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.post<KnowledgeResearcherFile>("/api/knowledge/researcher-methods", payload);
-  return response.data;
-}
-
-export async function updateKnowledgeResearcherMethod(id: number, payload: KnowledgeResearcherFilePayload): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.put<KnowledgeResearcherFile>(`/api/knowledge/researcher-methods/${id}`, payload);
-  return response.data;
-}
-
-export async function deleteKnowledgeResearcherMethod(id: number): Promise<KnowledgeResearcherFile> {
-  const response = await apiClient.delete<KnowledgeResearcherFile>(`/api/knowledge/researcher-methods/${id}`);
   return response.data;
 }
 

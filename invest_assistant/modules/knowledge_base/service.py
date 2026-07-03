@@ -15,8 +15,6 @@ from invest_assistant.modules.knowledge_base.models import (
     KnowledgePrompt,
     KnowledgeResearchFeedback,
     KnowledgeResearcher,
-    KnowledgeResearcherMethod,
-    KnowledgeResearcherSoul,
     ensure_knowledge_base_schema,
 )
 from invest_assistant.modules.knowledge_base.schemas import (
@@ -33,8 +31,6 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeResearchFeedbackCreate,
     KnowledgeResearchFeedbackRead,
     KnowledgeResearcherCreate,
-    KnowledgeResearcherFileCreate,
-    KnowledgeResearcherFileRead,
     KnowledgeResearcherRead,
 )
 from invest_assistant.modules.market_radar.models import Tag
@@ -46,12 +42,22 @@ DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_de
 RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+KNOWLEDGE_BASE_ROOT = Path(__file__).resolve().parent
 PROMPT_ROOT = Path(__file__).resolve().with_name("prompts")
 EXTERNAL_ROOT = Path(__file__).resolve().with_name("external")
 EXTERNAL_SKILL_ROOT = EXTERNAL_ROOT / "skills"
-RESEARCHER_SOUL_ROOT = EXTERNAL_ROOT / "souls"
-RESEARCHER_METHOD_ROOT = EXTERNAL_ROOT / "methods"
+RESEARCHER_PROFILE_ROOT = EXTERNAL_ROOT / "researchers"
 PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
+RESEARCHER_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+RESEARCHER_PROFILE_SECTIONS = {
+    "简介 intro": "intro",
+    "价值观 soul": "soul",
+    "方法论 method": "method",
+}
+RESEARCHER_PROFILE_SECTION_PATTERN = re.compile(
+    r"^##\s*(简介\s+intro|价值观\s+soul|方法论\s+method)\s*$",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
@@ -245,15 +251,91 @@ def _external_skill_read(item: KnowledgeExternalSkill) -> KnowledgeExternalSkill
     )
 
 
-def _researcher_file_read(item: KnowledgeResearcherSoul | KnowledgeResearcherMethod, root: Path) -> KnowledgeResearcherFileRead:
-    return KnowledgeResearcherFileRead.model_validate(
+def _normalize_researcher_code(value: str) -> str:
+    code = str(value or "").strip()
+    if not code:
+        raise ValueError("researcher_code is required")
+    if not RESEARCHER_CODE_PATTERN.fullmatch(code):
+        raise ValueError("researcher_code may only contain letters, numbers, underscore, and hyphen")
+    return code
+
+
+def _normalize_researcher_status(value: str) -> str:
+    status = str(value or "active").strip()
+    if status not in {"active", "archived"}:
+        raise ValueError("researcher status must be active or archived")
+    return status
+
+
+def _researcher_profile_path_for_code(researcher_code: str) -> str:
+    code = _normalize_researcher_code(researcher_code)
+    return f"external/researchers/{code}/profile.md"
+
+
+def _resolve_researcher_profile_path(stored_path: str) -> Path:
+    path = Path(str(stored_path or "").strip())
+    if path.is_absolute():
+        resolved = path.resolve()
+    else:
+        resolved = (KNOWLEDGE_BASE_ROOT / path).resolve()
+    if not resolved.is_relative_to(RESEARCHER_PROFILE_ROOT.resolve()):
+        raise ValueError(f"researcher profile path must be under {RESEARCHER_PROFILE_ROOT}: {stored_path}")
+    return resolved
+
+
+def format_researcher_profile_markdown(intro: str = "", soul: str = "", method: str = "") -> str:
+    return (
+        "## 简介 intro\n\n"
+        f"{str(intro or '').strip()}\n\n"
+        "## 价值观 soul\n\n"
+        f"{str(soul or '').strip()}\n\n"
+        "## 方法论 method\n\n"
+        f"{str(method or '').strip()}\n"
+    )
+
+
+def parse_researcher_profile_markdown(content: str) -> dict[str, str]:
+    result = {"intro": "", "soul": "", "method": ""}
+    matches = list(RESEARCHER_PROFILE_SECTION_PATTERN.finditer(content or ""))
+    for index, match in enumerate(matches):
+        raw_label = re.sub(r"\s+", " ", match.group(1).strip())
+        key = RESEARCHER_PROFILE_SECTIONS.get(raw_label)
+        if key is None:
+            continue
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content or "")
+        result[key] = (content or "")[start:end].strip()
+    return result
+
+
+def _write_researcher_profile(stored_path: str, intro: str, soul: str, method: str) -> str:
+    content = format_researcher_profile_markdown(intro=intro, soul=soul, method=method)
+    path = _resolve_researcher_profile_path(stored_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _read_researcher_profile(stored_path: str) -> str:
+    path = _resolve_researcher_profile_path(stored_path)
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _researcher_read(item: KnowledgeResearcher) -> KnowledgeResearcherRead:
+    sections = parse_researcher_profile_markdown(_read_researcher_profile(item.profile_path))
+    return KnowledgeResearcherRead.model_validate(
         {
             "id": item.id,
-            "name": item.name,
-            "file_path": item.file_path,
-            "version": item.version,
-            "file_hash": item.file_hash,
-            "content": _read_external_file(item.file_path, root),
+            "researcher_code": item.researcher_code,
+            "display_name": item.display_name,
+            "profile_path": item.profile_path,
+            "profile_hash": item.profile_hash,
+            "status": item.status,
+            "intro": sections["intro"],
+            "soul": sections["soul"],
+            "method": sections["method"],
             "created_at": item.created_at,
             "updated_at": item.updated_at,
         }
@@ -267,8 +349,8 @@ def get_researcher_profile_bundle(db: Session, researcher: str) -> dict:
     item = db.scalar(
         select(KnowledgeResearcher).where(
             or_(
-                KnowledgeResearcher.name == value,
-                KnowledgeResearcher.code == value,
+                KnowledgeResearcher.display_name == value,
+                KnowledgeResearcher.researcher_code == value,
             )
         )
     )
@@ -276,53 +358,7 @@ def get_researcher_profile_bundle(db: Session, researcher: str) -> dict:
         item = db.get(KnowledgeResearcher, int(value))
     if item is None:
         raise FileNotFoundError("researcher not found")
-    soul = db.get(KnowledgeResearcherSoul, item.soul_id)
-    method = db.get(KnowledgeResearcherMethod, item.method_id)
-    if soul is None:
-        raise FileNotFoundError("researcher soul not found")
-    if method is None:
-        raise FileNotFoundError("researcher method not found")
-    return {
-        "id": item.id,
-        "code": item.code,
-        "name": item.name,
-        "description": item.description,
-        "status": item.status,
-        "soul_id": item.soul_id,
-        "method_id": item.method_id,
-        "soul": {
-            "id": soul.id,
-            "name": soul.name,
-            "version": soul.version,
-            "file_path": soul.file_path,
-        },
-        "method": {
-            "id": method.id,
-            "name": method.name,
-            "version": method.version,
-            "file_path": method.file_path,
-        },
-        "created_at": item.created_at,
-        "updated_at": item.updated_at,
-    }
-
-
-def read_researcher_soul_bundle(db: Session, soul_id: int) -> dict:
-    item = get_researcher_soul(db, soul_id)
-    if item is None:
-        raise FileNotFoundError("researcher soul not found")
-    data = _researcher_file_read(item, RESEARCHER_SOUL_ROOT).model_dump(mode="json")
-    data["kind"] = "soul"
-    return data
-
-
-def read_researcher_method_bundle(db: Session, method_id: int) -> dict:
-    item = get_researcher_method(db, method_id)
-    if item is None:
-        raise FileNotFoundError("researcher method not found")
-    data = _researcher_file_read(item, RESEARCHER_METHOD_ROOT).model_dump(mode="json")
-    data["kind"] = "method"
-    return data
+    return _researcher_read(item).model_dump(mode="json")
 DEFAULT_KNOWLEDGE_PROMPTS = [
     KnowledgePromptCreate(
         prompt_key=DEEPSEEK_HOTWORD_PROMPT_KEY,
@@ -546,149 +582,68 @@ def external_skill_export_path(item: KnowledgeExternalSkill) -> Path:
     return _resolve_external_path(item.file_path, EXTERNAL_SKILL_ROOT)
 
 
-def create_researcher_soul(db: Session, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
-    file_path = _external_path_for_payload(RESEARCHER_SOUL_ROOT, payload.name, None)
-    _ensure_unique_file_path(db, KnowledgeResearcherSoul, file_path)
-    file_hash = _write_external_file(file_path, RESEARCHER_SOUL_ROOT, payload.content)
-    item = KnowledgeResearcherSoul(name=payload.name, file_path=file_path, version=payload.version, file_hash=file_hash)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
+def _ensure_unique_researcher_code(db: Session, researcher_code: str, current_id: int | None = None) -> None:
+    stmt = select(KnowledgeResearcher.id).where(KnowledgeResearcher.researcher_code == researcher_code)
+    if current_id is not None:
+        stmt = stmt.where(KnowledgeResearcher.id != current_id)
+    if db.scalar(stmt.limit(1)):
+        raise ValueError("researcher_code already exists")
 
 
-def list_researcher_souls(db: Session) -> list[KnowledgeResearcherFileRead]:
-    rows = db.scalars(select(KnowledgeResearcherSoul).order_by(KnowledgeResearcherSoul.updated_at.desc(), KnowledgeResearcherSoul.id.desc()))
-    return [_researcher_file_read(item, RESEARCHER_SOUL_ROOT) for item in rows]
-
-
-def get_researcher_soul(db: Session, soul_id: int) -> KnowledgeResearcherSoul | None:
-    return db.get(KnowledgeResearcherSoul, soul_id)
-
-
-def update_researcher_soul(db: Session, item: KnowledgeResearcherSoul, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
-    file_path = _external_path_for_payload(RESEARCHER_SOUL_ROOT, payload.name, None, item.file_path)
-    _ensure_unique_file_path(db, KnowledgeResearcherSoul, file_path, item.id)
-    item.name = payload.name
-    item.version = payload.version
-    item.file_path = file_path
-    item.file_hash = _write_external_file(file_path, RESEARCHER_SOUL_ROOT, payload.content)
-    db.commit()
-    db.refresh(item)
-    return _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
-
-
-def delete_researcher_soul(db: Session, item: KnowledgeResearcherSoul) -> KnowledgeResearcherFileRead:
-    researchers = list(db.scalars(select(KnowledgeResearcher).where(KnowledgeResearcher.soul_id == item.id)))
-    researcher_ids = [researcher.id for researcher in researchers]
-    has_feedback = researcher_ids and db.scalar(
-        select(KnowledgeResearchFeedback.id)
-        .where(KnowledgeResearchFeedback.researcher_id.in_(researcher_ids))
-        .limit(1)
+def create_researcher(db: Session, payload: KnowledgeResearcherCreate) -> KnowledgeResearcherRead:
+    researcher_code = _normalize_researcher_code(payload.researcher_code)
+    _ensure_unique_researcher_code(db, researcher_code)
+    status = _normalize_researcher_status(payload.status)
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise ValueError("display_name is required")
+    profile_path = _researcher_profile_path_for_code(researcher_code)
+    profile_hash = _write_researcher_profile(profile_path, payload.intro, payload.soul, payload.method)
+    item = KnowledgeResearcher(
+        researcher_code=researcher_code,
+        display_name=display_name,
+        profile_path=profile_path,
+        profile_hash=profile_hash,
+        status=status,
     )
-    if has_feedback:
-        raise ValueError("已有研究回流引用关联研究员，不能删除该 Soul")
-    result = _researcher_file_read(item, RESEARCHER_SOUL_ROOT)
-    for researcher in researchers:
-        db.delete(researcher)
-    db.delete(item)
-    db.commit()
-    return result
-
-
-def create_researcher_method(db: Session, payload: KnowledgeResearcherFileCreate) -> KnowledgeResearcherFileRead:
-    file_path = _external_path_for_payload(RESEARCHER_METHOD_ROOT, payload.name, None)
-    _ensure_unique_file_path(db, KnowledgeResearcherMethod, file_path)
-    file_hash = _write_external_file(file_path, RESEARCHER_METHOD_ROOT, payload.content)
-    item = KnowledgeResearcherMethod(name=payload.name, file_path=file_path, version=payload.version, file_hash=file_hash)
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
+    return _researcher_read(item)
 
 
-def list_researcher_methods(db: Session) -> list[KnowledgeResearcherFileRead]:
-    rows = db.scalars(select(KnowledgeResearcherMethod).order_by(KnowledgeResearcherMethod.updated_at.desc(), KnowledgeResearcherMethod.id.desc()))
-    return [_researcher_file_read(item, RESEARCHER_METHOD_ROOT) for item in rows]
-
-
-def get_researcher_method(db: Session, method_id: int) -> KnowledgeResearcherMethod | None:
-    return db.get(KnowledgeResearcherMethod, method_id)
-
-
-def update_researcher_method(
-    db: Session,
-    item: KnowledgeResearcherMethod,
-    payload: KnowledgeResearcherFileCreate,
-) -> KnowledgeResearcherFileRead:
-    file_path = _external_path_for_payload(RESEARCHER_METHOD_ROOT, payload.name, None, item.file_path)
-    _ensure_unique_file_path(db, KnowledgeResearcherMethod, file_path, item.id)
-    item.name = payload.name
-    item.version = payload.version
-    item.file_path = file_path
-    item.file_hash = _write_external_file(file_path, RESEARCHER_METHOD_ROOT, payload.content)
-    db.commit()
-    db.refresh(item)
-    return _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
-
-
-def delete_researcher_method(db: Session, item: KnowledgeResearcherMethod) -> KnowledgeResearcherFileRead:
-    researchers = list(db.scalars(select(KnowledgeResearcher).where(KnowledgeResearcher.method_id == item.id)))
-    researcher_ids = [researcher.id for researcher in researchers]
-    has_feedback = researcher_ids and db.scalar(
-        select(KnowledgeResearchFeedback.id)
-        .where(KnowledgeResearchFeedback.researcher_id.in_(researcher_ids))
-        .limit(1)
-    )
-    if has_feedback:
-        raise ValueError("已有研究回流引用关联研究员，不能删除该 Method")
-    result = _researcher_file_read(item, RESEARCHER_METHOD_ROOT)
-    for researcher in researchers:
-        db.delete(researcher)
-    db.delete(item)
-    db.commit()
-    return result
-
-
-def _ensure_researcher_refs(db: Session, payload: KnowledgeResearcherCreate) -> None:
-    if db.get(KnowledgeResearcherSoul, payload.soul_id) is None:
-        raise ValueError("researcher soul not found")
-    if db.get(KnowledgeResearcherMethod, payload.method_id) is None:
-        raise ValueError("researcher method not found")
-
-
-def create_researcher(db: Session, payload: KnowledgeResearcherCreate) -> KnowledgeResearcher:
-    _ensure_researcher_refs(db, payload)
-    item = KnowledgeResearcher(**payload.model_dump())
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def list_researchers(db: Session) -> list[KnowledgeResearcher]:
-    return list(db.scalars(select(KnowledgeResearcher).order_by(KnowledgeResearcher.updated_at.desc(), KnowledgeResearcher.id.desc())))
+def list_researchers(db: Session) -> list[KnowledgeResearcherRead]:
+    rows = db.scalars(select(KnowledgeResearcher).order_by(KnowledgeResearcher.updated_at.desc(), KnowledgeResearcher.id.desc()))
+    return [_researcher_read(item) for item in rows]
 
 
 def get_researcher(db: Session, researcher_id: int) -> KnowledgeResearcher | None:
     return db.get(KnowledgeResearcher, researcher_id)
 
 
-def update_researcher(db: Session, item: KnowledgeResearcher, payload: KnowledgeResearcherCreate) -> KnowledgeResearcher:
-    _ensure_researcher_refs(db, payload)
-    for key, value in payload.model_dump().items():
-        setattr(item, key, value)
+def update_researcher(db: Session, item: KnowledgeResearcher, payload: KnowledgeResearcherCreate) -> KnowledgeResearcherRead:
+    researcher_code = _normalize_researcher_code(payload.researcher_code)
+    if researcher_code != item.researcher_code:
+        raise ValueError("researcher_code cannot be changed")
+    _ensure_unique_researcher_code(db, researcher_code, item.id)
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise ValueError("display_name is required")
+    item.display_name = display_name
+    item.status = _normalize_researcher_status(payload.status)
+    item.profile_hash = _write_researcher_profile(item.profile_path, payload.intro, payload.soul, payload.method)
     db.commit()
     db.refresh(item)
-    return item
+    return _researcher_read(item)
 
 
-def delete_researcher(db: Session, item: KnowledgeResearcher) -> KnowledgeResearcher:
+def delete_researcher(db: Session, item: KnowledgeResearcher) -> KnowledgeResearcherRead:
     if db.scalar(select(KnowledgeResearchFeedback.id).where(KnowledgeResearchFeedback.researcher_id == item.id).limit(1)):
         raise ValueError("researcher has research feedback")
+    result = _researcher_read(item)
     db.delete(item)
     db.commit()
-    return item
+    return result
 
 
 def create_prompt(db: Session, payload: KnowledgePromptCreate) -> KnowledgePromptRead:

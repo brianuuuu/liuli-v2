@@ -7,8 +7,9 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
-- v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`、`knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method`，供 Codex 先读取研究员简介，再读取 Soul 和 Method 组合成外部评级上下文；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
-- v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀 soul/method 组合，研究回流承接 MCP 返回的研究报告。
+- v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，并由 `knowledge_base.get_researcher_profile` 一次性返回简介、价值观和方法论。
+- v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`，供 Codex 读取完整研究员 profile；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
+- v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀研究人格与方法论 profile，研究回流承接 MCP 返回的研究报告。
 - v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
 - v26：规格文档去版本化，文件名统一为 `liuli_system_spec.md`；补充对外 MCP 服务设计，明确 `modules/basic/mcp` 是供 Codex 等外部 MCP Client 使用的基础集成模块，采用 Streamable HTTP `/mcp`、Bearer Token、默认只读工具、wrapper 调各模块 `service.py`，不直接 SQL、不直接读写任意文件；MCP 不做 Console 子模块，外部 client/token 第一版复用系统配置 `mcp.clients` JSON map 维护；开发期单独写 `var/logs/mcp_debug.log`，10MB 单文件、5 个归档滚动；不新增 MCP 专用表直到需要 token 生命周期、审计或动态启停。
 - v25：统一各模块首页命名为“看板”（今日看板、市场看板、赛道看板、标的看板、组合看板）；赛道发现最小重构：删除历史遗留 `track_related_stock`，统一使用 `stock_track_relation`；不建设 `track_thesis / track_validation_indicator / track_evidence / track_heat_snapshot`；新增 `track_material`、`track_analysis_snapshot`；标的分析新增 `stock_material`，用于承接标的事件；赛道热度从 `track_tag_relation + tag_heat_snapshot` 聚合，不单独落表；按当前代码补齐 API、Job 和表结构，并将本文件作为唯一长期规格源。
@@ -2845,35 +2846,12 @@ knowledge_external_skill
 ```
 
 ```sql
-knowledge_researcher_soul
-- id
-- name
-- file_path
-- version
-- file_hash
-- created_at
-- updated_at
-```
-
-```sql
-knowledge_researcher_method
-- id
-- name
-- file_path
-- version
-- file_hash
-- created_at
-- updated_at
-```
-
-```sql
 knowledge_researcher
 - id
-- code
-- name
-- description
-- soul_id
-- method_id
+- researcher_code
+- display_name
+- profile_path
+- profile_hash
 - status
 - created_at
 - updated_at
@@ -4613,16 +4591,10 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/knowledge/external-skills` | 新增对外 Skill 并写入服务器文件 |
 | PUT | `/api/knowledge/external-skills/{id}` | 编辑对外 Skill 并更新服务器文件 |
 | GET | `/api/knowledge/external-skills/{id}/export` | 导出对外 Skill 文件 |
-| GET | `/api/knowledge/researcher-souls` | 研究员 Soul 列表 |
-| POST | `/api/knowledge/researcher-souls` | 新增研究员 Soul 文件记录 |
-| PUT | `/api/knowledge/researcher-souls/{id}` | 编辑研究员 Soul 文件记录 |
-| GET | `/api/knowledge/researcher-methods` | 研究员 Method 列表 |
-| POST | `/api/knowledge/researcher-methods` | 新增研究员 Method 文件记录 |
-| PUT | `/api/knowledge/researcher-methods/{id}` | 编辑研究员 Method 文件记录 |
-| GET | `/api/knowledge/researchers` | 研究员组合列表 |
-| POST | `/api/knowledge/researchers` | 新增研究员组合 |
-| PUT | `/api/knowledge/researchers/{id}` | 编辑研究员组合 |
-| DELETE | `/api/knowledge/researchers/{id}` | 删除研究员组合 |
+| GET | `/api/knowledge/researchers` | 研究员列表 |
+| POST | `/api/knowledge/researchers` | 新增研究员并写入 profile 文件 |
+| PUT | `/api/knowledge/researchers/{id}` | 编辑研究员并更新 profile 文件 |
+| DELETE | `/api/knowledge/researchers/{id}` | 删除研究员 |
 | GET | `/api/knowledge/research-feedback` | 研究回流报告列表 |
 | POST | `/api/knowledge/research-feedback` | MCP 写入研究回流报告 |
 | PUT | `/api/knowledge/research-feedback/{id}` | 更新研究回流验证结果 |
@@ -5089,28 +5061,12 @@ id, prompt_key, title, target_task, provider, model, system_prompt, user_prompt,
 id, name, file_path, version, file_hash, created_at, updated_at
 ```
 
-#### `knowledge_researcher_soul`：研究员 Soul 文件索引
+#### `knowledge_researcher`：研究员 profile 索引表
 
 字段：
 
 ```text
-id, name, file_path, version, file_hash, created_at, updated_at
-```
-
-#### `knowledge_researcher_method`：研究员 Method 文件索引
-
-字段：
-
-```text
-id, name, file_path, version, file_hash, created_at, updated_at
-```
-
-#### `knowledge_researcher`：研究员组合表
-
-字段：
-
-```text
-id, code, name, description, soul_id, method_id, status, created_at, updated_at
+id, researcher_code, display_name, profile_path, profile_hash, status, created_at, updated_at
 ```
 
 #### `knowledge_research_feedback`：研究回流表，记录外部 AI 执行研究后的结果回流
@@ -5139,7 +5095,7 @@ id, title, report_content, report_path, structured_conclusion, valuation_assumpt
 
 ```text
 对外 Skills：外部 AI 执行器使用的 Skill 文件
-研究员：由 soul 和 method 组合形成的研究人格与研究体系
+研究员：用一个 profile 文件沉淀研究人格、价值观与方法论
 研究回流：外部 AI 执行研究后的报告和结构化结果
 ```
 
@@ -5189,23 +5145,43 @@ invest_assistant/modules/knowledge_base/external/skills/
 研究员不是执行器，而是研究人格与研究体系。
 
 ```text
-soul = 世界观、研究人格、长期偏好、禁区
-method = 方法论、分析框架、评分习惯、估值习惯
-researcher = code + name + description + soul + method + status
+researcher = researcher_code + display_name + profile_path + profile_hash + status
+profile.md = 简介 intro + 价值观 soul + 方法论 method
 ```
 
 界面层级：
 
 ```text
-研究员组合列表
+研究员列表
   ↓
-Soul 素材库
-Method 素材库
+新增 / 编辑研究员
+  ↓
+简介 / 价值观 / 方法论 三段正文
 ```
 
-`soul` 和 `method` 正文使用 Git 文件维护，数据库只保存路径、版本、hash 和时间字段。
+研究员正文使用 Git 文件维护，数据库只保存路径、hash、状态和时间字段。文件固定保存在：
 
-对外 MCP 读取研究员时固定顺序为：先调用 `knowledge_base.get_researcher_profile` 获取研究员简介、状态、`soul_id` 和 `method_id`，再用返回 ID 调用 `knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method` 读取正文。MCP wrapper 必须走 `knowledge_base.service`，文件访问限制在研究员素材目录内。
+```text
+external/researchers/{researcher_code}/profile.md
+```
+
+文件格式固定为：
+
+```markdown
+## 简介 intro
+
+...
+
+## 价值观 soul
+
+...
+
+## 方法论 method
+
+...
+```
+
+对外 MCP 读取研究员时调用 `knowledge_base.get_researcher_profile`，按研究员展示名称、`researcher_code` 或 ID 精确匹配，并一次性返回简介、价值观和方法论三段正文。MCP wrapper 必须走 `knowledge_base.service`，文件访问限制在研究员 profile 目录内。
 
 ### 研究回流
 
@@ -5314,8 +5290,6 @@ enabled = true
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
       "knowledge_base.get_researcher_profile",
-      "knowledge_base.get_researcher_soul",
-      "knowledge_base.get_researcher_method",
       "report_library.read_report_content",
       "portfolio.get_overview",
       "report_library.upload_markdown_report"
@@ -5390,14 +5364,12 @@ track_discovery.get_track_detail
 stock_analysis.get_stock_profile
 stock_analysis.get_daily_bars
 knowledge_base.get_researcher_profile
-knowledge_base.get_researcher_soul
-knowledge_base.get_researcher_method
 report_library.list_reports
 report_library.read_report_content
 portfolio.get_overview
 ```
 
-`knowledge_base.get_researcher_profile` 用于按研究员名称、编号或 ID 读取研究员简介、状态、Soul/Method ID 和素材版本；`knowledge_base.get_researcher_soul`、`knowledge_base.get_researcher_method` 必须使用 profile 返回的 ID 读取正文，文件访问限制在知识库研究员素材目录内。
+`knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
 
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 

@@ -123,8 +123,11 @@ def test_knowledge_menu_replaces_review_and_principles_with_prompt():
     assert "createKnowledgePrompt" in page
     assert "deleteKnowledgePrompt" in page
     assert "listKnowledgeExternalSkills" in page
-    assert "listKnowledgeResearcherSouls" in page
-    assert "listKnowledgeResearcherMethods" in page
+    assert "listKnowledgeResearchers" in page
+    assert "researcher_code" in page
+    assert "display_name" in page
+    assert "listKnowledgeResearcherSouls" not in page + api
+    assert "listKnowledgeResearcherMethods" not in page + api
     assert "listKnowledgeResearchFeedback" in page
     assert "export async function listKnowledgePrompts" in api
     assert "export async function listKnowledgeExternalSkills" in api

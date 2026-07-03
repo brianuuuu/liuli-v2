@@ -266,7 +266,7 @@ sequenceDiagram
 | `stock_pool` / `stock_research_note` / `stock_score_snapshot` / `stock_track_relation` | 标的研究数据 | `symbol`, `score_total`, `track_id` | 标的研究主链路 |
 | `alert_rule` / `alert_event` | 预警规则与事件 | `rule_type`, `triggered_at`, `status` | 规则执行产物 |
 | `portfolio` / `portfolio_position` / `portfolio_review` | 组合、持仓、复盘 | `name`, `symbol`, `review_date` | 投资执行与复盘 |
-| `knowledge_note` / `knowledge_prompt` / `knowledge_external_skill` / `knowledge_researcher*` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `file_path`, `researcher_id` | 笔记、内部 Prompt、外部 Skill、研究员体系和研究回流 |
+| `knowledge_note` / `knowledge_prompt` / `knowledge_external_skill` / `knowledge_researcher` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `profile_path`, `researcher_id` | 笔记、内部 Prompt、外部 Skill、研究员体系和研究回流 |
 
 ---
 

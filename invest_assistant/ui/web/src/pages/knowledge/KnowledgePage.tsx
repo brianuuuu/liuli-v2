@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutlined, DownOutlined, UpOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Segmented, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { moduleTabs } from "../../app/navigation";
@@ -11,31 +11,23 @@ import {
   createKnowledgeNoteGroup,
   createKnowledgePrompt,
   createKnowledgeResearcher,
-  createKnowledgeResearcherMethod,
-  createKnowledgeResearcherSoul,
   deleteKnowledgeExternalSkill,
   deleteKnowledgeNote,
   deleteKnowledgePrompt,
   deleteKnowledgeResearcher,
-  deleteKnowledgeResearcherMethod,
-  deleteKnowledgeResearcherSoul,
   exportKnowledgeExternalSkill,
   listKnowledgeExternalSkills,
   listKnowledgeNoteGroups,
   listKnowledgeNotes,
   listKnowledgePrompts,
   listKnowledgeResearchers,
-  listKnowledgeResearcherMethods,
-  listKnowledgeResearcherSouls,
   listKnowledgeResearchFeedback,
   restoreKnowledgeNote,
   updateKnowledgeExternalSkill,
   updateKnowledgeNote,
   updateKnowledgeNoteGroup,
   updateKnowledgePrompt,
-  updateKnowledgeResearcher,
-  updateKnowledgeResearcherMethod,
-  updateKnowledgeResearcherSoul
+  updateKnowledgeResearcher
 } from "../../api/knowledge";
 import type {
   KnowledgeExternalSkill,
@@ -47,8 +39,6 @@ import type {
   KnowledgePromptPayload,
   KnowledgeResearchFeedback,
   KnowledgeResearcher,
-  KnowledgeResearcherFile,
-  KnowledgeResearcherFilePayload,
   KnowledgeResearcherPayload
 } from "../../api/knowledge";
 import { listMarketTags } from "../../api/marketRadar";
@@ -101,7 +91,6 @@ const noteDefaults: KnowledgeNotePayload = {
 };
 
 type ExternalSkillFormValues = Pick<KnowledgeExternalSkillPayload, "name" | "version" | "content">;
-type ResearcherFileFormValues = Pick<KnowledgeResearcherFilePayload, "name" | "version" | "content">;
 
 const externalSkillDefaults: ExternalSkillFormValues = {
   name: "",
@@ -109,19 +98,13 @@ const externalSkillDefaults: ExternalSkillFormValues = {
   content: ""
 };
 
-const researcherFileDefaults: ResearcherFileFormValues = {
-  name: "",
-  version: "",
-  content: ""
-};
-
 const researcherDefaults: KnowledgeResearcherPayload = {
-  code: "",
-  name: "",
-  description: "",
-  soul_id: null,
-  method_id: null,
-  status: "active"
+  researcher_code: "",
+  display_name: "",
+  status: "active",
+  intro: "",
+  soul: "",
+  method: ""
 };
 
 const compactPromptFormStyle = { marginBottom: 10 };
@@ -835,85 +818,29 @@ function ExternalSkillsSection() {
 }
 
 function ResearcherSection() {
-  const souls = useAsyncData(useCallback(listKnowledgeResearcherSouls, []), [] as KnowledgeResearcherFile[]);
-  const methods = useAsyncData(useCallback(listKnowledgeResearcherMethods, []), [] as KnowledgeResearcherFile[]);
   const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
-  const [researcherView, setResearcherView] = useState<"researcher" | "soul" | "method">("researcher");
-  const [fileKind, setFileKind] = useState<"soul" | "method">("soul");
-  const [editingFile, setEditingFile] = useState<KnowledgeResearcherFile | null>(null);
-  const [fileOpen, setFileOpen] = useState(false);
   const [editingResearcher, setEditingResearcher] = useState<KnowledgeResearcher | null>(null);
   const [researcherOpen, setResearcherOpen] = useState(false);
-  const [fileForm] = Form.useForm<ResearcherFileFormValues>();
   const [researcherForm] = Form.useForm<KnowledgeResearcherPayload>();
-
-  const soulOptions = souls.data.map((item) => ({ value: item.id, label: item.name }));
-  const methodOptions = methods.data.map((item) => ({ value: item.id, label: item.name }));
-  const soulById = useMemo(() => new Map(souls.data.map((item) => [item.id, item.name])), [souls.data]);
-  const methodById = useMemo(() => new Map(methods.data.map((item) => [item.id, item.name])), [methods.data]);
-
-  useEffect(() => {
-    if (!fileOpen) return;
-    fileForm.setFieldsValue(
-      editingFile
-        ? { name: editingFile.name, version: editingFile.version || "", content: editingFile.content || "" }
-        : researcherFileDefaults
-    );
-  }, [editingFile, fileForm, fileOpen]);
 
   useEffect(() => {
     if (!researcherOpen) return;
     researcherForm.setFieldsValue(
       editingResearcher
         ? {
-            code: editingResearcher.code || "",
-            name: editingResearcher.name,
-            description: editingResearcher.description || "",
-            soul_id: editingResearcher.soul_id,
-            method_id: editingResearcher.method_id,
-            status: editingResearcher.status
+            researcher_code: editingResearcher.researcher_code,
+            display_name: editingResearcher.display_name,
+            status: editingResearcher.status,
+            intro: editingResearcher.intro || "",
+            soul: editingResearcher.soul || "",
+            method: editingResearcher.method || ""
           }
         : researcherDefaults
     );
   }, [editingResearcher, researcherForm, researcherOpen]);
 
-  async function refreshAll() {
-    await Promise.all([souls.refresh(), methods.refresh(), researchers.refresh()]);
-  }
-
-  async function submitFile() {
-    const values = await fileForm.validateFields();
-    const payload: KnowledgeResearcherFilePayload = { ...values };
-    if (fileKind === "soul") {
-      if (editingFile) await updateKnowledgeResearcherSoul(editingFile.id, payload);
-      else await createKnowledgeResearcherSoul(payload);
-      message.success("Soul 已保存");
-    } else {
-      if (editingFile) await updateKnowledgeResearcherMethod(editingFile.id, payload);
-      else await createKnowledgeResearcherMethod(payload);
-      message.success("Method 已保存");
-    }
-    setFileOpen(false);
-    await refreshAll();
-  }
-
-  async function removeFile(kind: "soul" | "method", record: KnowledgeResearcherFile) {
-    try {
-      if (kind === "soul") await deleteKnowledgeResearcherSoul(record.id);
-      else await deleteKnowledgeResearcherMethod(record.id);
-      message.success(kind === "soul" ? "Soul 已删除" : "Method 已删除");
-      await refreshAll();
-    } catch (error) {
-      message.error(getApiErrorDetail(error, kind === "soul" ? "Soul 删除失败" : "Method 删除失败"));
-    }
-  }
-
   async function submitResearcher() {
     const values = await researcherForm.validateFields();
-    if (!values.soul_id || !values.method_id) {
-      message.warning("请选择 Soul 和 Method");
-      return;
-    }
     if (editingResearcher) {
       await updateKnowledgeResearcher(editingResearcher.id, values);
       message.success("研究员已更新");
@@ -935,18 +862,11 @@ function ResearcherSection() {
     }
   }
 
-  function openNewResearcherFile(kind: "soul" | "method") {
-    setFileKind(kind);
-    setEditingFile(null);
-    setFileOpen(true);
-  }
-
   const researcherColumns: ColumnsType<KnowledgeResearcher> = [
-    { title: "编号", dataIndex: "code", width: 100, render: (value) => value || "-" },
-    { title: "研究员", dataIndex: "name", width: 160 },
-    { title: "简介", dataIndex: "description", width: 220, ellipsis: true, render: (value) => value || "-" },
-    { title: "Soul", dataIndex: "soul_id", width: 160, render: (value) => soulById.get(Number(value)) || "-" },
-    { title: "Method", dataIndex: "method_id", width: 160, render: (value) => methodById.get(Number(value)) || "-" },
+    { title: "编号", dataIndex: "researcher_code", width: 130 },
+    { title: "展示名称", dataIndex: "display_name", width: 180 },
+    { title: "简介", dataIndex: "intro", width: 260, ellipsis: true, render: (value) => value || "-" },
+    { title: "Profile 文件", dataIndex: "profile_path", ellipsis: true },
     { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={value === "active" ? "green" : "default"}>{String(value)}</Tag> },
     { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
     {
@@ -955,7 +875,7 @@ function ResearcherSection() {
       render: (_, record) => (
         <Space size={6}>
           <Button size="small" onClick={() => { setEditingResearcher(record); setResearcherOpen(true); }}>编辑</Button>
-          <Popconfirm title="删除这个研究员？" description={record.name} okText="删除" cancelText="取消" onConfirm={() => removeResearcher(record)}>
+          <Popconfirm title="删除这个研究员？" description={record.display_name} okText="删除" cancelText="取消" onConfirm={() => removeResearcher(record)}>
             <Button size="small" danger>删除</Button>
           </Popconfirm>
         </Space>
@@ -963,103 +883,69 @@ function ResearcherSection() {
     }
   ];
 
-  function fileColumns(kind: "soul" | "method"): ColumnsType<KnowledgeResearcherFile> {
-    return [
-      { title: "名称", dataIndex: "name", width: 160 },
-      { title: "文件路径", dataIndex: "file_path", ellipsis: true },
-      { title: "版本", dataIndex: "version", width: 100, render: (value) => value || "-" },
-      { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
-      {
-        title: "操作",
-        width: 130,
-        render: (_, record) => (
-          <Space size={6}>
-            <Button size="small" onClick={() => { setFileKind(kind); setEditingFile(record); setFileOpen(true); }}>编辑</Button>
-            <Popconfirm title={`删除这个 ${kind === "soul" ? "Soul" : "Method"}？`} description={record.name} okText="删除" cancelText="取消" onConfirm={() => removeFile(kind, record)}>
-              <Button size="small" danger>删除</Button>
-            </Popconfirm>
-          </Space>
-        )
-      }
-    ];
-  }
-
   return (
     <>
       <DataPanel
         toolbar={
           <>
-            <Segmented
-              size="small"
-              value={researcherView}
-              onChange={(value) => setResearcherView(value as "researcher" | "soul" | "method")}
-              options={[
-                { label: "研究员", value: "researcher" },
-                { label: "Soul", value: "soul" },
-                { label: "Method", value: "method" }
-              ]}
-            />
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" icon={<ReloadOutlined />} onClick={refreshAll}>刷新</Button>
-            {researcherView === "researcher" ? (
-              <Button size="small" type="primary" onClick={() => { setEditingResearcher(null); setResearcherOpen(true); }}>新增研究员</Button>
-            ) : researcherView === "soul" ? (
-              <Button size="small" type="primary" onClick={() => openNewResearcherFile("soul")}>新增 Soul</Button>
-            ) : (
-              <Button size="small" type="primary" onClick={() => openNewResearcherFile("method")}>新增 Method</Button>
-            )}
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => researchers.refresh()}>刷新</Button>
+            <Button size="small" type="primary" onClick={() => { setEditingResearcher(null); setResearcherOpen(true); }}>新增研究员</Button>
           </>
         }
       >
-        {researcherView === "researcher" ? (
-          <Table rowKey="id" size="small" loading={researchers.loading} dataSource={researchers.data} columns={researcherColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1180 }} />
-        ) : researcherView === "soul" ? (
-          <Table rowKey="id" size="small" loading={souls.loading} dataSource={souls.data} columns={fileColumns("soul")} pagination={{ defaultPageSize: 5 }} />
-        ) : (
-          <Table rowKey="id" size="small" loading={methods.loading} dataSource={methods.data} columns={fileColumns("method")} pagination={{ defaultPageSize: 5 }} />
-        )}
+        <Table rowKey="id" size="small" loading={researchers.loading} dataSource={researchers.data} columns={researcherColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1080 }} />
       </DataPanel>
-      <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={520} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
+      <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={860} style={{ top: 36 }} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
         <Form form={researcherForm} layout="vertical">
           <Row gutter={12}>
-            <Col span={15}>
-              <Form.Item name="name" label="研究员名称" rules={[{ required: true, message: "请输入研究员名称" }]}>
-                <Input placeholder="例如：成长股研究员" />
+            <Col span={8}>
+              <Form.Item name="researcher_code" label="编号" rules={[{ required: true, message: "请输入编号" }]}>
+                <Input disabled={!!editingResearcher} placeholder="analyst_001" />
               </Form.Item>
             </Col>
-            <Col span={9}>
-              <Form.Item name="code" label="编号">
-                <Input placeholder="例如：R001" />
+            <Col span={10}>
+              <Form.Item name="display_name" label="展示名称" rules={[{ required: true, message: "请输入展示名称" }]}>
+                <Input placeholder="A股标的研究员" />
               </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="description" label="简介">
-            <Input.TextArea rows={3} maxLength={500} showCount placeholder="简要说明研究员定位与使用边界" />
-          </Form.Item>
-          <Form.Item name="status" label="状态">
-            <Select options={[{ value: "active", label: "启用" }, { value: "disabled", label: "停用" }]} />
-          </Form.Item>
-          <Form.Item name="soul_id" label="Soul" rules={[{ required: true, message: "请选择 Soul" }]}>
-            <Select showSearch optionFilterProp="label" placeholder="选择世界观 / 研究人格" options={soulOptions} />
-          </Form.Item>
-          <Form.Item name="method_id" label="Method" rules={[{ required: true, message: "请选择 Method" }]}>
-            <Select showSearch optionFilterProp="label" placeholder="选择方法论 / 分析框架" options={methodOptions} />
-          </Form.Item>
-        </Form>
-      </Modal>
-      <Modal title={editingFile ? `编辑 ${fileKind === "soul" ? "Soul" : "Method"}` : `新增 ${fileKind === "soul" ? "Soul" : "Method"}`} width={820} style={{ top: 36 }} open={fileOpen} onCancel={() => setFileOpen(false)} onOk={submitFile} destroyOnHidden>
-        <Form form={fileForm} layout="vertical">
-          <Row gutter={12}>
-            <Col span={18}>
-              <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}><Input /></Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="version" label="版本"><Input /></Form.Item>
+              <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+                <Select options={[{ value: "active", label: "启用" }, { value: "archived", label: "归档" }]} />
+              </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="content" label="文件正文" rules={[{ required: true, message: "请输入文件正文" }]}>
-            <Input.TextArea rows={14} />
-          </Form.Item>
+          <Tabs
+            items={[
+              {
+                key: "intro",
+                label: "简介",
+                children: (
+                  <Form.Item name="intro" label="简介">
+                    <Input.TextArea rows={12} placeholder="研究员定位、适用边界和使用说明" />
+                  </Form.Item>
+                )
+              },
+              {
+                key: "soul",
+                label: "价值观",
+                children: (
+                  <Form.Item name="soul" label="价值观">
+                    <Input.TextArea rows={12} placeholder="世界观、长期偏好、禁区和研究人格" />
+                  </Form.Item>
+                )
+              },
+              {
+                key: "method",
+                label: "方法论",
+                children: (
+                  <Form.Item name="method" label="方法论">
+                    <Input.TextArea rows={12} placeholder="分析框架、评分习惯、估值习惯和输出要求" />
+                  </Form.Item>
+                )
+              }
+            ]}
+          />
         </Form>
       </Modal>
     </>
@@ -1072,7 +958,7 @@ function ResearchFeedbackSection() {
   const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
   const [viewing, setViewing] = useState<KnowledgeResearchFeedback | null>(null);
   const skillById = useMemo(() => new Map(skills.data.map((item) => [item.id, item.name])), [skills.data]);
-  const researcherById = useMemo(() => new Map(researchers.data.map((item) => [item.id, item.name])), [researchers.data]);
+  const researcherById = useMemo(() => new Map(researchers.data.map((item) => [item.id, item.display_name])), [researchers.data]);
 
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
     { title: "报告", dataIndex: "title", ellipsis: true },

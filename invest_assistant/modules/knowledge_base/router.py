@@ -18,8 +18,6 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeResearchFeedbackCreate,
     KnowledgeResearchFeedbackRead,
     KnowledgeResearcherCreate,
-    KnowledgeResearcherFileCreate,
-    KnowledgeResearcherFileRead,
     KnowledgeResearcherRead,
 )
 
@@ -160,76 +158,6 @@ def export_external_skill(skill_id: int, db: Session = Depends(get_db)):
     if not path.exists():
         raise HTTPException(status_code=404, detail="external skill file not found")
     return FileResponse(path, media_type="text/markdown", filename=path.name)
-
-
-@router.get("/researcher-souls", response_model=list[KnowledgeResearcherFileRead])
-def list_researcher_souls(db: Session = Depends(get_db)) -> list:
-    return service.list_researcher_souls(db)
-
-
-@router.post("/researcher-souls", response_model=KnowledgeResearcherFileRead)
-def create_researcher_soul(payload: KnowledgeResearcherFileCreate, db: Session = Depends(get_db)):
-    try:
-        return service.create_researcher_soul(db, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.put("/researcher-souls/{soul_id}", response_model=KnowledgeResearcherFileRead)
-def update_researcher_soul(soul_id: int, payload: KnowledgeResearcherFileCreate, db: Session = Depends(get_db)):
-    item = service.get_researcher_soul(db, soul_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="researcher soul not found")
-    try:
-        return service.update_researcher_soul(db, item, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.delete("/researcher-souls/{soul_id}", response_model=KnowledgeResearcherFileRead)
-def delete_researcher_soul(soul_id: int, db: Session = Depends(get_db)):
-    item = service.get_researcher_soul(db, soul_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="researcher soul not found")
-    try:
-        return service.delete_researcher_soul(db, item)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/researcher-methods", response_model=list[KnowledgeResearcherFileRead])
-def list_researcher_methods(db: Session = Depends(get_db)) -> list:
-    return service.list_researcher_methods(db)
-
-
-@router.post("/researcher-methods", response_model=KnowledgeResearcherFileRead)
-def create_researcher_method(payload: KnowledgeResearcherFileCreate, db: Session = Depends(get_db)):
-    try:
-        return service.create_researcher_method(db, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.put("/researcher-methods/{method_id}", response_model=KnowledgeResearcherFileRead)
-def update_researcher_method(method_id: int, payload: KnowledgeResearcherFileCreate, db: Session = Depends(get_db)):
-    item = service.get_researcher_method(db, method_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="researcher method not found")
-    try:
-        return service.update_researcher_method(db, item, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.delete("/researcher-methods/{method_id}", response_model=KnowledgeResearcherFileRead)
-def delete_researcher_method(method_id: int, db: Session = Depends(get_db)):
-    item = service.get_researcher_method(db, method_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="researcher method not found")
-    try:
-        return service.delete_researcher_method(db, item)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/researchers", response_model=list[KnowledgeResearcherRead])

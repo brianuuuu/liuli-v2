@@ -79,32 +79,19 @@ class KnowledgeExternalSkillRead(KnowledgeExternalSkillCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class KnowledgeResearcherFileCreate(BaseModel):
-    name: str
-    version: str | None = None
-    content: str = ""
-
-
-class KnowledgeResearcherFileRead(KnowledgeResearcherFileCreate):
-    id: int
-    file_path: str
-    file_hash: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-
 class KnowledgeResearcherCreate(BaseModel):
-    code: str | None = None
-    name: str
-    description: str | None = None
-    soul_id: int
-    method_id: int
+    researcher_code: str
+    display_name: str
     status: str = "active"
+    intro: str = ""
+    soul: str = ""
+    method: str = ""
 
 
 class KnowledgeResearcherRead(KnowledgeResearcherCreate):
     id: int
+    profile_path: str
+    profile_hash: str | None = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
