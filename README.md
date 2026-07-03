@@ -145,8 +145,18 @@ flowchart LR
 
 ### 6) Knowledge Base（知识库）
 - **解决问题**：把研究经验沉淀成可复用的策略资产。
-- **主要能力**：知识笔记、skills、agents、反馈日志；提炼与编排任务入口。
-- **数据流向**：研究笔记/复盘输入 → 知识结构化 → 后续 AI/策略复用。
+- **主要能力**：知识笔记、对内 Prompt、对外 Skills、研究员 profile、研究回流。
+- **数据流向**：研究笔记/复盘输入 → 对外 Skill 与研究员 profile → 外部 AI 研究协作 → MCP 回流。
+- **研究员文件**：`external/researchers/{researcher_code}/profile.md` 使用 frontmatter 记录编号和展示名，再保存“简介 / 价值观 / 方法论”三段正文。
+
+```markdown
+---
+researcher_code: analyst_001
+display_name: A股标的研究员
+---
+
+## 简介 intro
+```
 
 ### 7) Console（控制台）
 - **定位**：运维与配置面板，不承载业务能力归属。

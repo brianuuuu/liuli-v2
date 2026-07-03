@@ -167,7 +167,18 @@ report_library.read_report_content
 portfolio.get_overview
 ```
 
-`knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
+`knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回 `profile_content`、简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
+
+研究员 profile 文件保存为带 frontmatter 的 Markdown：
+
+```markdown
+---
+researcher_code: analyst_001
+display_name: A股标的研究员
+---
+
+## 简介 intro
+```
 
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 

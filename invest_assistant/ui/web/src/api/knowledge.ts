@@ -98,6 +98,7 @@ export type KnowledgeResearcher = {
   display_name: string;
   profile_path: string;
   profile_hash?: string | null;
+  profile_content: string;
   status: string;
   intro: string;
   soul: string;
@@ -106,7 +107,14 @@ export type KnowledgeResearcher = {
   updated_at?: string | null;
 };
 
-export type KnowledgeResearcherPayload = Omit<KnowledgeResearcher, "id" | "profile_path" | "profile_hash" | "created_at" | "updated_at">;
+export type KnowledgeResearcherPayload = {
+  researcher_code: string;
+  display_name: string;
+  status: string;
+  intro: string;
+  soul: string;
+  method: string;
+};
 
 export type KnowledgeResearchFeedback = {
   id: number;

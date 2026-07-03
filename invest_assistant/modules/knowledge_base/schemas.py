@@ -92,6 +92,7 @@ class KnowledgeResearcherRead(KnowledgeResearcherCreate):
     id: int
     profile_path: str
     profile_hash: str | None = None
+    profile_content: str = ""
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

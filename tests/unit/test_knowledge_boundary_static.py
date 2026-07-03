@@ -31,6 +31,7 @@ def test_knowledge_backend_uses_new_boundary_names():
         "profile_hash: Mapped[str | None]",
         "researcher_code: str",
         "display_name: str",
+        "profile_content: str = \"\"",
         "intro: str = \"\"",
         "soul: str = \"\"",
         "method: str = \"\"",
@@ -99,6 +100,10 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "width={860}",
         "Tabs",
         "新增研究员",
+        "MarkdownViewer",
+        "createPortal",
+        "full-screen-reader-overlay",
+        "查看",
         "getApiErrorDetail",
         "研究时间",
         "回流时间",
@@ -111,6 +116,7 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "display_name: string",
         "profile_path: string",
         "profile_hash?: string | null",
+        "profile_content: string",
         "intro: string",
         "soul: string",
         "method: string",
@@ -126,6 +132,11 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         'label="方法论"',
     ]:
         assert expected in page + api
+
+    payload_start = api.index("export type KnowledgeResearcherPayload = {")
+    payload_end = api.index("};", payload_start)
+    payload_block = api[payload_start:payload_end]
+    assert "profile_content" not in payload_block
 
     for expected in [
         ".data-panel-toolbar .ant-segmented",
@@ -192,6 +203,8 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "knowledge_research_feedback",
         "researcher_code, display_name, profile_path, profile_hash, status",
         "external/researchers/{researcher_code}/profile.md",
+        "researcher_code: analyst_001",
+        "display_name: A股标的研究员",
         "## 简介 intro",
         "## 价值观 soul",
         "## 方法论 method",

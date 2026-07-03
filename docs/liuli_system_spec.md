@@ -7,7 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
-- v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，并由 `knowledge_base.get_researcher_profile` 一次性返回简介、价值观和方法论。
+- v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，文件带 `researcher_code/display_name` frontmatter，并由 `knowledge_base.get_researcher_profile` 一次性返回完整 profile 原文、简介、价值观和方法论。
 - v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`，供 Codex 读取完整研究员 profile；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
 - v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀研究人格与方法论 profile，研究回流承接 MCP 返回的研究报告。
 - v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
@@ -2783,7 +2783,7 @@ portfolio_position 只记录真实持仓；
 | 知识笔记 | 记录 | 个人笔记、心得、复盘、错误案例、阶段判断和投资原则 |
 | 对内 Prompt | 内部提示词 | 保存琉璃内部 AI 任务使用的提示词，如市场日报、材料审核、摘要生成、标签整理 |
 | 对外 Skills | 外部技能文件 | 管理给 Codex、OpenClaw 等外部 AI 执行器使用的 Skill 文件 |
-| 研究员 | 研究人格与体系 | 通过 soul 和 method 组合形成研究员，具体约束写入 Soul / Method 文件和对外 Skill 正文 |
+| 研究员 | 研究人格与体系 | 单个 profile 文件沉淀研究员简介、价值观和方法论 |
 | 研究回流 | 结果沉淀 | 记录外部 AI 执行研究后的报告、结论、假设、风险、信号、数据源和验证结果 |
 
 ### 22.3 目录
@@ -2796,10 +2796,9 @@ knowledge_base/
 ├── router.py
 ├── jobs.py
 ├── prompts/               # 对内 Prompt 文件
-└── external/              # 对外 Skill、研究员 soul/method 文件
+└── external/              # 对外 Skill、研究员 profile 文件
     ├── skills/
-    ├── souls/
-    └── methods/
+    └── researchers/
 ```
 
 ### 22.4 核心表
@@ -5146,7 +5145,7 @@ invest_assistant/modules/knowledge_base/external/skills/
 
 ```text
 researcher = researcher_code + display_name + profile_path + profile_hash + status
-profile.md = 简介 intro + 价值观 soul + 方法论 method
+profile.md = frontmatter + 简介 intro + 价值观 soul + 方法论 method
 ```
 
 界面层级：
@@ -5168,6 +5167,11 @@ external/researchers/{researcher_code}/profile.md
 文件格式固定为：
 
 ```markdown
+---
+researcher_code: analyst_001
+display_name: A股标的研究员
+---
+
 ## 简介 intro
 
 ...
@@ -5181,7 +5185,7 @@ external/researchers/{researcher_code}/profile.md
 ...
 ```
 
-对外 MCP 读取研究员时调用 `knowledge_base.get_researcher_profile`，按研究员展示名称、`researcher_code` 或 ID 精确匹配，并一次性返回简介、价值观和方法论三段正文。MCP wrapper 必须走 `knowledge_base.service`，文件访问限制在研究员 profile 目录内。
+对外 MCP 读取研究员时调用 `knowledge_base.get_researcher_profile`，按研究员展示名称、`researcher_code` 或 ID 精确匹配，并一次性返回完整 `profile_content`、简介、价值观和方法论三段正文。MCP wrapper 必须走 `knowledge_base.service`，文件访问限制在研究员 profile 目录内。
 
 ### 研究回流
 
@@ -5369,7 +5373,7 @@ report_library.read_report_content
 portfolio.get_overview
 ```
 
-`knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
+`knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回 `profile_content`、简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
 
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 

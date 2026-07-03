@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import sqlite3
 
 from sqlalchemy import create_engine, text
@@ -55,7 +56,11 @@ def test_researcher_profile_create_update_and_read_round_trip(tmp_path, monkeypa
     assert created.intro == "专注 A 股标的评级。"
     assert created.soul == "证据优先，拒绝叙事漂移。"
     assert created.method == "先看赛道，再看财务兑现。"
-    assert (knowledge_root / created.profile_path).read_text(encoding="utf-8") == (
+    expected_created_profile = (
+        "---\n"
+        "researcher_code: analyst_001\n"
+        "display_name: A股标的研究员\n"
+        "---\n\n"
         "## 简介 intro\n\n"
         "专注 A 股标的评级。\n\n"
         "## 价值观 soul\n\n"
@@ -63,6 +68,8 @@ def test_researcher_profile_create_update_and_read_round_trip(tmp_path, monkeypa
         "## 方法论 method\n\n"
         "先看赛道，再看财务兑现。\n"
     )
+    assert created.profile_content == expected_created_profile
+    assert (knowledge_root / created.profile_path).read_text(encoding="utf-8") == expected_created_profile
 
     updated = service.update_researcher(
         db,
@@ -83,6 +90,18 @@ def test_researcher_profile_create_update_and_read_round_trip(tmp_path, monkeypa
     assert updated.soul == "更新价值观"
     assert updated.method == "更新方法论"
     assert updated.profile_hash != created.profile_hash
+    assert updated.profile_content == (
+        "---\n"
+        "researcher_code: analyst_001\n"
+        "display_name: A股公司质量研究员\n"
+        "---\n\n"
+        "## 简介 intro\n\n"
+        "更新简介\n\n"
+        "## 价值观 soul\n\n"
+        "更新价值观\n\n"
+        "## 方法论 method\n\n"
+        "更新方法论\n"
+    )
 
 
 def test_researcher_profile_parser_returns_empty_missing_sections(tmp_path, monkeypatch):
@@ -107,6 +126,39 @@ def test_researcher_profile_parser_returns_empty_missing_sections(tmp_path, monk
     assert read.intro == "只有简介。"
     assert read.soul == ""
     assert read.method == ""
+    assert read.profile_content == "## 简介 intro\n\n只有简介。"
+
+
+def test_researcher_profile_parser_ignores_frontmatter():
+    parsed = service.parse_researcher_profile_markdown(
+        "---\n"
+        "researcher_code: analyst_002\n"
+        "display_name: 缺段落研究员\n"
+        "---\n\n"
+        "## 简介 intro\n\n只有简介。"
+    )
+
+    assert parsed == {"intro": "只有简介。", "soul": "", "method": ""}
+
+
+def test_researcher_profile_parser_supports_legacy_export_headings():
+    parsed = service.parse_researcher_profile_markdown(
+        "# 标的评级师\n\n"
+        "## 简介\n\n"
+        "旧简介。\n\n"
+        "## Soul：评级师的价值观\n\n"
+        "### 你的价值观\n\n"
+        "#### 研究人格\n\n"
+        "- 数据优先。\n\n"
+        "## Method：标的评级分析方法\n\n"
+        "### 标的评级分析方法\n\n"
+        "#### 分析目标\n\n"
+        "按六维评分。\n"
+    )
+
+    assert parsed["intro"] == "旧简介。"
+    assert "数据优先" in parsed["soul"]
+    assert "按六维评分" in parsed["method"]
 
 
 def test_researcher_code_is_unique(tmp_path, monkeypatch):
@@ -187,6 +239,10 @@ def test_migration_merges_legacy_researcher_tables_into_profile_files(tmp_path):
     assert row == (1, "analyst_001", "标的评级师", "external/researchers/analyst_001/profile.md", "archived")
     assert feedback_researcher_id == 1
     assert (knowledge_root / "external" / "researchers" / "analyst_001" / "profile.md").read_text(encoding="utf-8") == (
+        "---\n"
+        "researcher_code: analyst_001\n"
+        "display_name: 标的评级师\n"
+        "---\n\n"
         "## 简介 intro\n\n"
         "旧简介\n\n"
         "## 价值观 soul\n\n"
@@ -194,3 +250,93 @@ def test_migration_merges_legacy_researcher_tables_into_profile_files(tmp_path):
         "## 方法论 method\n\n"
         "旧方法论正文\n"
     )
+
+
+def test_normalize_researcher_profiles_adds_frontmatter_and_updates_hash(tmp_path):
+    from tools.dev.normalize_knowledge_researcher_profiles import normalize_researcher_profiles
+
+    db_path = tmp_path / "liuli.sqlite3"
+    knowledge_root = tmp_path / "invest_assistant" / "modules" / "knowledge_base"
+    profile_file = knowledge_root / "external" / "researchers" / "analyst_001" / "profile.md"
+    profile_file.parent.mkdir(parents=True)
+    profile_file.write_text(
+        "## 简介 intro\n\n旧简介\n\n## 价值观 soul\n\n旧价值观\n\n## 方法论 method\n\n旧方法论\n",
+        encoding="utf-8",
+    )
+    con = sqlite3.connect(db_path)
+    con.executescript(
+        """
+        CREATE TABLE knowledge_researcher (
+          id INTEGER PRIMARY KEY,
+          researcher_code TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          profile_path TEXT NOT NULL,
+          profile_hash TEXT,
+          status TEXT NOT NULL,
+          created_at TEXT,
+          updated_at TEXT
+        );
+        INSERT INTO knowledge_researcher VALUES
+          (1, 'analyst_001', '标的评级师', 'external/researchers/analyst_001/profile.md', 'old-hash', 'active', '2026-01-01', '2026-01-02');
+        """
+    )
+    con.commit()
+    con.close()
+
+    result = normalize_researcher_profiles(db_path, project_root=tmp_path, backup_dir=tmp_path / "recovery")
+
+    expected_profile = (
+        "---\n"
+        "researcher_code: analyst_001\n"
+        "display_name: 标的评级师\n"
+        "---\n\n"
+        "## 简介 intro\n\n"
+        "旧简介\n\n"
+        "## 价值观 soul\n\n"
+        "旧价值观\n\n"
+        "## 方法论 method\n\n"
+        "旧方法论\n"
+    )
+    assert result.backup_path is not None
+    assert result.backup_path.exists()
+    assert result.normalized_count == 1
+    assert profile_file.read_text(encoding="utf-8") == expected_profile
+    con = sqlite3.connect(db_path)
+    profile_hash = con.execute("SELECT profile_hash FROM knowledge_researcher WHERE id = 1").fetchone()[0]
+    con.close()
+    assert profile_hash == hashlib.sha256(expected_profile.encode("utf-8")).hexdigest()
+
+
+def test_normalize_researcher_profiles_does_not_blank_unknown_nonempty_profile(tmp_path):
+    from tools.dev.normalize_knowledge_researcher_profiles import normalize_researcher_profiles
+
+    db_path = tmp_path / "liuli.sqlite3"
+    knowledge_root = tmp_path / "invest_assistant" / "modules" / "knowledge_base"
+    profile_file = knowledge_root / "external" / "researchers" / "analyst_001" / "profile.md"
+    profile_file.parent.mkdir(parents=True)
+    original = "# 研究员\n\n这是暂不符合规范但不能被写空的内容。"
+    profile_file.write_text(original, encoding="utf-8")
+    con = sqlite3.connect(db_path)
+    con.executescript(
+        """
+        CREATE TABLE knowledge_researcher (
+          id INTEGER PRIMARY KEY,
+          researcher_code TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          profile_path TEXT NOT NULL,
+          profile_hash TEXT,
+          status TEXT NOT NULL,
+          created_at TEXT,
+          updated_at TEXT
+        );
+        INSERT INTO knowledge_researcher VALUES
+          (1, 'analyst_001', '标的评级师', 'external/researchers/analyst_001/profile.md', 'old-hash', 'active', '2026-01-01', '2026-01-02');
+        """
+    )
+    con.commit()
+    con.close()
+
+    result = normalize_researcher_profiles(db_path, project_root=tmp_path, backup_dir=tmp_path / "recovery")
+
+    assert result.normalized_count == 0
+    assert profile_file.read_text(encoding="utf-8") == original

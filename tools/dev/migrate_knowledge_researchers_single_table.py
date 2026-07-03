@@ -82,10 +82,16 @@ def _profile_path_for_code(researcher_code: str) -> str:
     return f"external/researchers/{researcher_code}/profile.md"
 
 
-def _write_profile(project_root: Path, researcher_code: str, intro: str, soul: str, method: str) -> tuple[str, str]:
+def _write_profile(project_root: Path, researcher_code: str, display_name: str, intro: str, soul: str, method: str) -> tuple[str, str]:
     profile_path = _profile_path_for_code(researcher_code)
     absolute_path = project_root / KNOWLEDGE_BASE_RELATIVE_ROOT / profile_path
-    content = format_researcher_profile_markdown(intro=intro, soul=soul, method=method)
+    content = format_researcher_profile_markdown(
+        researcher_code=researcher_code,
+        display_name=display_name,
+        intro=intro,
+        soul=soul,
+        method=method,
+    )
     absolute_path.parent.mkdir(parents=True, exist_ok=True)
     absolute_path.write_text(content, encoding="utf-8")
     return profile_path, hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -148,12 +154,13 @@ def migrate_knowledge_researchers(
             intro = row["description"] if "description" in row.keys() and row["description"] else ""
             soul = _read_legacy_file(project_root, soul_row["file_path"] if soul_row else None)
             method = _read_legacy_file(project_root, method_row["file_path"] if method_row else None)
-            profile_path, profile_hash = _write_profile(project_root, researcher_code, intro, soul, method)
+            display_name = row["name"]
+            profile_path, profile_hash = _write_profile(project_root, researcher_code, display_name, intro, soul, method)
             migrated_rows.append(
                 (
                     researcher_id,
                     researcher_code,
-                    row["name"],
+                    display_name,
                     profile_path,
                     profile_hash,
                     "active" if row["status"] == "active" else "archived",

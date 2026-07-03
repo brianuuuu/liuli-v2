@@ -302,10 +302,19 @@ def test_mcp_researcher_tool_returns_single_profile_file(tmp_path, monkeypatch):
     researcher_root = external_root / "researchers"
     profile_file = researcher_root / "analyst_001" / "profile.md"
     profile_file.parent.mkdir(parents=True)
-    profile_file.write_text(
-        "## 简介 intro\n\n资深金融分析师。\n\n## 价值观 soul\n\n数据优先。\n\n## 方法论 method\n\n按六维评分。\n",
-        encoding="utf-8",
+    profile_content = (
+        "---\n"
+        "researcher_code: analyst_001\n"
+        "display_name: 标的评级师\n"
+        "---\n\n"
+        "## 简介 intro\n\n"
+        "资深金融分析师。\n\n"
+        "## 价值观 soul\n\n"
+        "数据优先。\n\n"
+        "## 方法论 method\n\n"
+        "按六维评分。\n"
     )
+    profile_file.write_text(profile_content, encoding="utf-8")
     monkeypatch.setattr(knowledge_service, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(knowledge_service, "KNOWLEDGE_BASE_ROOT", knowledge_root)
     monkeypatch.setattr(knowledge_service, "EXTERNAL_ROOT", external_root)
@@ -340,6 +349,7 @@ def test_mcp_researcher_tool_returns_single_profile_file(tmp_path, monkeypatch):
     assert profile["data"]["researcher_code"] == "analyst_001"
     assert profile["data"]["display_name"] == "标的评级师"
     assert profile["data"]["profile_path"] == "external/researchers/analyst_001/profile.md"
+    assert profile["data"]["profile_content"] == profile_content
     assert profile["data"]["intro"] == "资深金融分析师。"
     assert profile["data"]["soul"] == "数据优先。"
     assert profile["data"]["method"] == "按六维评分。"

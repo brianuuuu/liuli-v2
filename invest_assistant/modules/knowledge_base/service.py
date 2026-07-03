@@ -51,11 +51,12 @@ PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 RESEARCHER_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 RESEARCHER_PROFILE_SECTIONS = {
     "简介 intro": "intro",
+    "简介": "intro",
     "价值观 soul": "soul",
     "方法论 method": "method",
 }
 RESEARCHER_PROFILE_SECTION_PATTERN = re.compile(
-    r"^##\s*(简介\s+intro|价值观\s+soul|方法论\s+method)\s*$",
+    r"^##(?!#)\s*(.+?)\s*$",
     re.MULTILINE,
 )
 
@@ -283,8 +284,19 @@ def _resolve_researcher_profile_path(stored_path: str) -> Path:
     return resolved
 
 
-def format_researcher_profile_markdown(intro: str = "", soul: str = "", method: str = "") -> str:
+def format_researcher_profile_markdown(
+    *,
+    researcher_code: str = "",
+    display_name: str = "",
+    intro: str = "",
+    soul: str = "",
+    method: str = "",
+) -> str:
     return (
+        "---\n"
+        f"researcher_code: {str(researcher_code or '').strip()}\n"
+        f"display_name: {str(display_name or '').strip()}\n"
+        "---\n\n"
         "## 简介 intro\n\n"
         f"{str(intro or '').strip()}\n\n"
         "## 价值观 soul\n\n"
@@ -300,6 +312,11 @@ def parse_researcher_profile_markdown(content: str) -> dict[str, str]:
     for index, match in enumerate(matches):
         raw_label = re.sub(r"\s+", " ", match.group(1).strip())
         key = RESEARCHER_PROFILE_SECTIONS.get(raw_label)
+        lowered_label = raw_label.lower()
+        if key is None and lowered_label.startswith("soul"):
+            key = "soul"
+        if key is None and lowered_label.startswith("method"):
+            key = "method"
         if key is None:
             continue
         start = match.end()
@@ -308,8 +325,14 @@ def parse_researcher_profile_markdown(content: str) -> dict[str, str]:
     return result
 
 
-def _write_researcher_profile(stored_path: str, intro: str, soul: str, method: str) -> str:
-    content = format_researcher_profile_markdown(intro=intro, soul=soul, method=method)
+def _write_researcher_profile(stored_path: str, researcher_code: str, display_name: str, intro: str, soul: str, method: str) -> str:
+    content = format_researcher_profile_markdown(
+        researcher_code=researcher_code,
+        display_name=display_name,
+        intro=intro,
+        soul=soul,
+        method=method,
+    )
     path = _resolve_researcher_profile_path(stored_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -324,7 +347,8 @@ def _read_researcher_profile(stored_path: str) -> str:
 
 
 def _researcher_read(item: KnowledgeResearcher) -> KnowledgeResearcherRead:
-    sections = parse_researcher_profile_markdown(_read_researcher_profile(item.profile_path))
+    profile_content = _read_researcher_profile(item.profile_path)
+    sections = parse_researcher_profile_markdown(profile_content)
     return KnowledgeResearcherRead.model_validate(
         {
             "id": item.id,
@@ -332,6 +356,7 @@ def _researcher_read(item: KnowledgeResearcher) -> KnowledgeResearcherRead:
             "display_name": item.display_name,
             "profile_path": item.profile_path,
             "profile_hash": item.profile_hash,
+            "profile_content": profile_content,
             "status": item.status,
             "intro": sections["intro"],
             "soul": sections["soul"],
@@ -598,7 +623,7 @@ def create_researcher(db: Session, payload: KnowledgeResearcherCreate) -> Knowle
     if not display_name:
         raise ValueError("display_name is required")
     profile_path = _researcher_profile_path_for_code(researcher_code)
-    profile_hash = _write_researcher_profile(profile_path, payload.intro, payload.soul, payload.method)
+    profile_hash = _write_researcher_profile(profile_path, researcher_code, display_name, payload.intro, payload.soul, payload.method)
     item = KnowledgeResearcher(
         researcher_code=researcher_code,
         display_name=display_name,
@@ -631,7 +656,7 @@ def update_researcher(db: Session, item: KnowledgeResearcher, payload: Knowledge
         raise ValueError("display_name is required")
     item.display_name = display_name
     item.status = _normalize_researcher_status(payload.status)
-    item.profile_hash = _write_researcher_profile(item.profile_path, payload.intro, payload.soul, payload.method)
+    item.profile_hash = _write_researcher_profile(item.profile_path, item.researcher_code, display_name, payload.intro, payload.soul, payload.method)
     db.commit()
     db.refresh(item)
     return _researcher_read(item)

@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutli
 import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import {
   archiveKnowledgeNote,
@@ -44,6 +45,7 @@ import type {
 import { listMarketTags } from "../../api/marketRadar";
 import { DataPanel } from "../../components/common/DataPanel";
 import { EmptyAction } from "../../components/common/EmptyAction";
+import { MarkdownViewer } from "../../components/common/MarkdownViewer";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -820,6 +822,7 @@ function ExternalSkillsSection() {
 function ResearcherSection() {
   const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
   const [editingResearcher, setEditingResearcher] = useState<KnowledgeResearcher | null>(null);
+  const [viewingResearcher, setViewingResearcher] = useState<KnowledgeResearcher | null>(null);
   const [researcherOpen, setResearcherOpen] = useState(false);
   const [researcherForm] = Form.useForm<KnowledgeResearcherPayload>();
 
@@ -871,9 +874,10 @@ function ResearcherSection() {
     { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
     {
       title: "操作",
-      width: 130,
+      width: 180,
       render: (_, record) => (
         <Space size={6}>
+          <Button size="small" onClick={() => setViewingResearcher(record)}>查看</Button>
           <Button size="small" onClick={() => { setEditingResearcher(record); setResearcherOpen(true); }}>编辑</Button>
           <Popconfirm title="删除这个研究员？" description={record.display_name} okText="删除" cancelText="取消" onConfirm={() => removeResearcher(record)}>
             <Button size="small" danger>删除</Button>
@@ -894,8 +898,26 @@ function ResearcherSection() {
           </>
         }
       >
-        <Table rowKey="id" size="small" loading={researchers.loading} dataSource={researchers.data} columns={researcherColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1080 }} />
+        <Table rowKey="id" size="small" loading={researchers.loading} dataSource={researchers.data} columns={researcherColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1130 }} />
       </DataPanel>
+      {viewingResearcher && createPortal(
+        <div className="full-screen-reader-overlay">
+          <div className="full-screen-reader-close" onClick={() => setViewingResearcher(null)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+          <div className="full-screen-reader-content">
+            {viewingResearcher.profile_content ? (
+              <MarkdownViewer content={viewingResearcher.profile_content} />
+            ) : (
+              <Typography.Text type="secondary">暂无内容</Typography.Text>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
       <Modal title={editingResearcher ? "编辑研究员" : "新增研究员"} width={860} style={{ top: 36 }} open={researcherOpen} onCancel={() => setResearcherOpen(false)} onOk={submitResearcher} destroyOnHidden>
         <Form form={researcherForm} layout="vertical">
           <Row gutter={12}>
