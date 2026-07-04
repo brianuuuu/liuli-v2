@@ -260,6 +260,113 @@ def test_mcp_upload_markdown_report_rejects_invalid_payloads(tmp_path, monkeypat
         raise AssertionError(f"expected ValueError for {payload}")
 
 
+def test_mcp_upload_research_feedback_writes_report_and_feedback(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import upload_research_feedback
+    from invest_assistant.modules.basic.report_library.models import Report
+    from invest_assistant.modules.knowledge_base.models import KnowledgeResearchFeedback
+
+    monkeypatch.chdir(tmp_path)
+    SessionLocal = make_session()
+    db = SessionLocal()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["knowledge_base.upload_research_feedback"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    result = upload_research_feedback(
+        db=db,
+        client=client,
+        title="标的评级回流",
+        markdown="# 标的评级回流\n\n正文第一段。",
+        researcher_code="analyst_001",
+        skill_name="liuli-stock-rater",
+        business_module="stock_analysis",
+        source="mcp",
+        status="received",
+    )
+
+    data = result["data"]
+    assert data["title"] == "标的评级回流"
+    assert data["report_id"] > 0
+    assert data["report_path"].startswith("reports/stock_analysis/")
+    assert data["researcher_code"] == "analyst_001"
+    assert data["skill_name"] == "liuli-stock-rater"
+    assert data["business_module"] == "stock_analysis"
+    assert data["source"] == "mcp"
+    assert data["status"] == "received"
+
+    report = db.get(Report, data["report_id"])
+    assert report is not None
+    assert report.source_module == "stock_analysis"
+    assert report.file_path == data["report_path"]
+    assert (tmp_path / "var" / data["report_path"]).read_text(encoding="utf-8").startswith("# 标的评级回流")
+
+    feedback = db.get(KnowledgeResearchFeedback, data["feedback_id"])
+    assert feedback is not None
+    assert feedback.report_id == report.id
+    assert feedback.report_path == report.file_path
+    assert feedback.researcher_code == "analyst_001"
+    assert feedback.skill_name == "liuli-stock-rater"
+    assert feedback.business_module == "stock_analysis"
+
+
+def test_mcp_upload_research_feedback_requires_allowlist(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import upload_research_feedback
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["knowledge_base.get_researcher_profile"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    try:
+        upload_research_feedback(db=db, client=client, title="报告", markdown="# 报告")
+    except PermissionError as exc:
+        assert "not allowed" in str(exc)
+    else:
+        raise AssertionError("expected PermissionError")
+
+
+def test_mcp_upload_research_feedback_rejects_invalid_payloads(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import upload_research_feedback
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=["knowledge_base.upload_research_feedback"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+    cases = [
+        {"title": "", "markdown": "# 报告"},
+        {"title": "报告", "markdown": ""},
+        {"title": "报告", "markdown": "# 报告", "business_module": "unknown"},
+        {"title": "报告", "markdown": "x" * (1024 * 1024 + 1)},
+    ]
+    for payload in cases:
+        try:
+            upload_research_feedback(db=db, client=client, **payload)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected ValueError for {payload}")
+
+
 def test_mcp_stock_daily_bars_wrapper_never_refreshes(monkeypatch):
     from invest_assistant.modules.basic.mcp.auth import McpClientConfig
     from invest_assistant.modules.basic.mcp.tools.stock_analysis import get_daily_bars
@@ -498,6 +605,8 @@ def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(mo
     assert "完整研究员 profile" in tools["knowledge_base.get_researcher_profile"]
     assert "knowledge_base.get_researcher_soul" not in tools
     assert "knowledge_base.get_researcher_method" not in tools
+    assert "研究回流" in tools["knowledge_base.upload_research_feedback"]
+    assert "Markdown" in tools["knowledge_base.upload_research_feedback"]
     assert "report_id" in tools["report_library.read_report_content"]
     assert "Markdown" in tools["report_library.upload_markdown_report"]
     assert "组合总览" in tools["portfolio.get_overview"]
@@ -571,6 +680,16 @@ def test_mcp_registry_marks_upload_report_as_controlled_write_tool():
     from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
 
     metadata = get_tool_metadata("report_library.upload_markdown_report")
+
+    assert metadata is not None
+    assert metadata["read_only"] is False
+    assert metadata["risk_level"] == "medium"
+
+
+def test_mcp_registry_marks_upload_research_feedback_as_controlled_write_tool():
+    from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
+
+    metadata = get_tool_metadata("knowledge_base.upload_research_feedback")
 
     assert metadata is not None
     assert metadata["read_only"] is False

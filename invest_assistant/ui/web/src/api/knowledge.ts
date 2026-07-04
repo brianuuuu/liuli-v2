@@ -80,17 +80,31 @@ export type KnowledgePrompt = {
 export type KnowledgePromptPayload = Omit<KnowledgePrompt, "id" | "created_at" | "updated_at">;
 
 export type KnowledgeExternalSkill = {
-  id: number;
+  slug: string;
   name: string;
-  file_path: string;
+  description: string;
+  status: string;
   version?: string | null;
-  file_hash?: string | null;
-  content: string;
-  created_at?: string | null;
   updated_at?: string | null;
+  skill_path: string;
 };
 
-export type KnowledgeExternalSkillPayload = Omit<KnowledgeExternalSkill, "id" | "file_path" | "file_hash" | "created_at" | "updated_at">;
+export type KnowledgeExternalSkillFileNode = {
+  name: string;
+  path: string;
+  type: "directory" | "file";
+  size?: number | null;
+  updated_at?: string | null;
+  children: KnowledgeExternalSkillFileNode[];
+};
+
+export type KnowledgeExternalSkillFileContent = {
+  name: string;
+  path: string;
+  content: string;
+  size: number;
+  updated_at?: string | null;
+};
 
 export type KnowledgeResearcher = {
   id: number;
@@ -119,17 +133,13 @@ export type KnowledgeResearcherPayload = {
 export type KnowledgeResearchFeedback = {
   id: number;
   title: string;
-  report_content?: string | null;
+  report_id?: number | null;
   report_path?: string | null;
-  structured_conclusion?: string | null;
-  valuation_assumption?: string | null;
-  risk_points?: string | null;
-  observation_signals?: string | null;
-  data_sources_json?: string | null;
-  external_skill_id?: number | null;
-  researcher_id?: number | null;
-  verification_result?: string | null;
-  research_time?: string | null;
+  researcher_code?: string | null;
+  skill_name?: string | null;
+  business_module?: string | null;
+  source: string;
+  status: string;
   returned_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -192,23 +202,15 @@ export async function listKnowledgeExternalSkills(): Promise<KnowledgeExternalSk
   return response.data;
 }
 
-export async function createKnowledgeExternalSkill(payload: KnowledgeExternalSkillPayload): Promise<KnowledgeExternalSkill> {
-  const response = await apiClient.post<KnowledgeExternalSkill>("/api/knowledge/external-skills", payload);
+export async function listKnowledgeExternalSkillFiles(skillSlug?: string): Promise<KnowledgeExternalSkillFileNode> {
+  const response = await apiClient.get<KnowledgeExternalSkillFileNode>("/api/knowledge/external-skills/files", {
+    params: skillSlug ? { skill_slug: skillSlug } : undefined
+  });
   return response.data;
 }
 
-export async function updateKnowledgeExternalSkill(id: number, payload: KnowledgeExternalSkillPayload): Promise<KnowledgeExternalSkill> {
-  const response = await apiClient.put<KnowledgeExternalSkill>(`/api/knowledge/external-skills/${id}`, payload);
-  return response.data;
-}
-
-export async function deleteKnowledgeExternalSkill(id: number): Promise<KnowledgeExternalSkill> {
-  const response = await apiClient.delete<KnowledgeExternalSkill>(`/api/knowledge/external-skills/${id}`);
-  return response.data;
-}
-
-export async function exportKnowledgeExternalSkill(id: number): Promise<Blob> {
-  const response = await apiClient.get<Blob>(`/api/knowledge/external-skills/${id}/export`, { responseType: "blob" });
+export async function readKnowledgeExternalSkillFile(path: string): Promise<KnowledgeExternalSkillFileContent> {
+  const response = await apiClient.get<KnowledgeExternalSkillFileContent>("/api/knowledge/external-skills/files/content", { params: { path } });
   return response.data;
 }
 

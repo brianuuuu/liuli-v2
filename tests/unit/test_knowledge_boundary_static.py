@@ -15,14 +15,43 @@ def test_knowledge_backend_uses_new_boundary_names():
     router = read("invest_assistant/modules/knowledge_base/router.py")
 
     for expected in [
-        "knowledge_external_skill",
         "knowledge_researcher",
         "knowledge_research_feedback",
-        "KnowledgeExternalSkill",
+        "KnowledgeExternalSkillRead",
+        "KnowledgeExternalSkillFileNode",
+        "KnowledgeExternalSkillFileContent",
         "KnowledgeResearcher",
         "KnowledgeResearchFeedback",
     ]:
         assert expected in models + schemas + service + router
+
+    for expected in [
+        "scan_external_skills",
+        "list_external_skill_files",
+        "read_external_skill_file",
+        "upload_research_feedback",
+        "_parse_skill_frontmatter",
+        "EXTERNAL_SKILL_ROOT",
+    ]:
+        assert expected in service
+
+    for expected in [
+        "report_id: Mapped[int | None]",
+        "report_path: Mapped[str | None]",
+        "researcher_code: Mapped[str | None]",
+        "skill_name: Mapped[str | None]",
+        "business_module: Mapped[str | None]",
+        "source: Mapped[str]",
+        "status: Mapped[str]",
+        "report_id: int | None = None",
+        "report_path: str | None = None",
+        "researcher_code: str | None = None",
+        "skill_name: str | None = None",
+        "business_module: str | None = None",
+        'source: str = "mcp"',
+        'status: str = "received"',
+    ]:
+        assert expected in models + schemas
 
     for expected in [
         "researcher_code: Mapped[str]",
@@ -43,15 +72,31 @@ def test_knowledge_backend_uses_new_boundary_names():
 
     for route in [
         '"/external-skills"',
-        '"/external-skills/{skill_id}/export"',
+        '"/external-skills/files"',
+        '"/external-skills/files/content"',
         '"/researchers"',
         '"/research-feedback"',
     ]:
         assert route in router
 
     for legacy in [
+        "knowledge_external_skill",
         "knowledge_researcher_soul",
         "knowledge_researcher_method",
+        "class KnowledgeExternalSkill(Base)",
+        "KnowledgeExternalSkillCreate",
+        "external_skill_id",
+        "title, report_content, report_path",
+        "structured_conclusion, valuation_assumption",
+        "risk_points, observation_signals",
+        "data_sources_json, researcher_id",
+        "verification_result, research_time",
+        "researcher_id: Mapped[int | None]",
+        '"/external-skills/{skill_id}',
+        "create_external_skill",
+        "update_external_skill",
+        "delete_external_skill",
+        "external_skill_export_path",
         "KnowledgeResearcherSoul",
         "KnowledgeResearcherMethod",
         '"/researcher-souls"',
@@ -86,17 +131,19 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
 
     for expected in [
         "listKnowledgeExternalSkills",
-        "exportKnowledgeExternalSkill",
+        "listKnowledgeExternalSkillFiles",
+        "readKnowledgeExternalSkillFile",
         "listKnowledgeResearchers",
         "listKnowledgeResearchFeedback",
         "/api/knowledge/external-skills",
+        "/api/knowledge/external-skills/files",
+        "/api/knowledge/external-skills/files/content",
         "/api/knowledge/researchers",
         "/api/knowledge/research-feedback",
     ]:
         assert expected in page + api
 
     for expected in [
-        "width={920}",
         "width={860}",
         "Tabs",
         "新增研究员",
@@ -105,11 +152,45 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "full-screen-reader-overlay",
         "查看",
         "getApiErrorDetail",
-        "研究时间",
+        "报告库 ID",
+        "报告路径",
+        "Skill 名称",
+        "业务模块",
+        "来源",
+        "状态",
         "回流时间",
         "更新时间",
+        "只读文件",
+        "目录树",
+        "expandedSkillSlug",
+        "expandedRowRender",
+        "knowledge-skill-expand-btn",
+        "previewingSkillFile",
+        "只读文件预览",
     ]:
         assert expected in page
+
+    for legacy in [
+        "createKnowledgeExternalSkill",
+        "updateKnowledgeExternalSkill",
+        "deleteKnowledgeExternalSkill",
+        "exportKnowledgeExternalSkill",
+        "KnowledgeExternalSkillPayload",
+        "externalSkillDefaults",
+        "新增 Skill",
+        "编辑对外 Skill",
+        "Skill 已删除",
+        "使用 Skill",
+        "external_skill_id",
+        "title, report_content, report_path",
+        "structured_conclusion, valuation_assumption",
+        "risk_points, observation_signals",
+        "data_sources_json, researcher_id",
+        "verification_result, research_time",
+        "knowledge-skill-file-panel",
+        "knowledge-selected-row",
+    ]:
+        assert legacy not in page + api
 
     for expected in [
         "researcher_code: string",
@@ -198,11 +279,15 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "对外 Skills",
         "研究员",
         "研究回流",
-        "knowledge_external_skill",
         "knowledge_researcher",
         "knowledge_research_feedback",
+        "knowledge_base.upload_research_feedback",
+        "report_id, report_path, researcher_code, skill_name, business_module, source, status",
         "researcher_code, display_name, profile_path, profile_hash, status",
         "external/researchers/{researcher_code}/profile.md",
+        "external/skills/{skill_slug}/SKILL.md",
+        "frontmatter",
+        "只读文件浏览",
         "researcher_code: analyst_001",
         "display_name: A股标的研究员",
         "## 简介 intro",
@@ -212,6 +297,14 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         assert expected in docs
 
     for legacy in [
+        "knowledge_external_skill",
+        "external_skill_id",
+        "title, report_content, report_path",
+        "structured_conclusion, valuation_assumption",
+        "risk_points, observation_signals",
+        "data_sources_json, researcher_id",
+        "verification_result, research_time",
+        "researcher_id, verification_result",
         "knowledge_researcher_soul",
         "knowledge_researcher_method",
         "get_researcher_soul",

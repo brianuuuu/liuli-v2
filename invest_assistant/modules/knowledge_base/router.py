@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.knowledge_base import service
 from invest_assistant.modules.knowledge_base.schemas import (
-    KnowledgeExternalSkillCreate,
+    KnowledgeExternalSkillFileContent,
+    KnowledgeExternalSkillFileNode,
     KnowledgeExternalSkillRead,
     KnowledgeNoteCreate,
     KnowledgeNoteGroupCreate,
@@ -115,49 +115,24 @@ def archive_note_group(group_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/external-skills", response_model=list[KnowledgeExternalSkillRead])
-def list_external_skills(db: Session = Depends(get_db)) -> list:
-    return service.list_external_skills(db)
+def list_external_skills() -> list:
+    return service.scan_external_skills()
 
 
-@router.post("/external-skills", response_model=KnowledgeExternalSkillRead)
-def create_external_skill(payload: KnowledgeExternalSkillCreate, db: Session = Depends(get_db)):
+@router.get("/external-skills/files", response_model=KnowledgeExternalSkillFileNode)
+def list_external_skill_files(skill_slug: str | None = None):
     try:
-        return service.create_external_skill(db, payload)
+        return service.list_external_skill_files(skill_slug)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.put("/external-skills/{skill_id}", response_model=KnowledgeExternalSkillRead)
-def update_external_skill(skill_id: int, payload: KnowledgeExternalSkillCreate, db: Session = Depends(get_db)):
-    item = service.get_external_skill(db, skill_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="external skill not found")
+@router.get("/external-skills/files/content", response_model=KnowledgeExternalSkillFileContent)
+def read_external_skill_file(path: str):
     try:
-        return service.update_external_skill(db, item, payload)
+        return service.read_external_skill_file(path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.delete("/external-skills/{skill_id}", response_model=KnowledgeExternalSkillRead)
-def delete_external_skill(skill_id: int, db: Session = Depends(get_db)):
-    item = service.get_external_skill(db, skill_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="external skill not found")
-    try:
-        return service.delete_external_skill(db, item)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/external-skills/{skill_id}/export")
-def export_external_skill(skill_id: int, db: Session = Depends(get_db)):
-    item = service.get_external_skill(db, skill_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="external skill not found")
-    path = service.external_skill_export_path(item)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="external skill file not found")
-    return FileResponse(path, media_type="text/markdown", filename=path.name)
 
 
 @router.get("/researchers", response_model=list[KnowledgeResearcherRead])

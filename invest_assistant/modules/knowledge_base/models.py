@@ -45,18 +45,6 @@ class KnowledgeNoteTagRelation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
-class KnowledgeExternalSkill(Base):
-    __tablename__ = "knowledge_external_skill"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
-    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-
-
 class KnowledgeResearcher(Base):
     __tablename__ = "knowledge_researcher"
     __table_args__ = (UniqueConstraint("researcher_code", name="uq_knowledge_researcher_code"),)
@@ -93,17 +81,13 @@ class KnowledgeResearchFeedback(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    report_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_id: Mapped[int | None] = mapped_column(ForeignKey("report.id"), nullable=True, index=True)
     report_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    structured_conclusion: Mapped[str | None] = mapped_column(Text, nullable=True)
-    valuation_assumption: Mapped[str | None] = mapped_column(Text, nullable=True)
-    risk_points: Mapped[str | None] = mapped_column(Text, nullable=True)
-    observation_signals: Mapped[str | None] = mapped_column(Text, nullable=True)
-    data_sources_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    external_skill_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_external_skill.id"), nullable=True, index=True)
-    researcher_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_researcher.id"), nullable=True, index=True)
-    verification_result: Mapped[str | None] = mapped_column(Text, nullable=True)
-    research_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    researcher_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    skill_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    business_module: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="mcp", index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="received", index=True)
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -112,7 +96,6 @@ class KnowledgeResearchFeedback(Base):
 def ensure_knowledge_base_schema(engine: Engine) -> None:
     KnowledgeNoteGroup.__table__.create(bind=engine, checkfirst=True)
     KnowledgeNoteTagRelation.__table__.create(bind=engine, checkfirst=True)
-    KnowledgeExternalSkill.__table__.create(bind=engine, checkfirst=True)
     KnowledgeResearcher.__table__.create(bind=engine, checkfirst=True)
     KnowledgeResearchFeedback.__table__.create(bind=engine, checkfirst=True)
     if engine.dialect.name != "sqlite":
@@ -143,4 +126,20 @@ def ensure_knowledge_base_schema(engine: Engine) -> None:
         }
         for column_name, statement in researcher_column_migrations.items():
             if column_name not in researcher_columns:
+                conn.execute(text(statement))
+        feedback_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_research_feedback)")).all()}
+        feedback_column_migrations = {
+            "report_id": "ALTER TABLE knowledge_research_feedback ADD COLUMN report_id INTEGER",
+            "report_path": "ALTER TABLE knowledge_research_feedback ADD COLUMN report_path VARCHAR(512)",
+            "researcher_code": "ALTER TABLE knowledge_research_feedback ADD COLUMN researcher_code VARCHAR(64)",
+            "skill_name": "ALTER TABLE knowledge_research_feedback ADD COLUMN skill_name VARCHAR(128)",
+            "business_module": "ALTER TABLE knowledge_research_feedback ADD COLUMN business_module VARCHAR(64)",
+            "source": "ALTER TABLE knowledge_research_feedback ADD COLUMN source VARCHAR(64) NOT NULL DEFAULT 'mcp'",
+            "status": "ALTER TABLE knowledge_research_feedback ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'received'",
+            "returned_at": "ALTER TABLE knowledge_research_feedback ADD COLUMN returned_at DATETIME",
+            "created_at": "ALTER TABLE knowledge_research_feedback ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE knowledge_research_feedback ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in feedback_column_migrations.items():
+            if column_name not in feedback_columns:
                 conn.execute(text(statement))
