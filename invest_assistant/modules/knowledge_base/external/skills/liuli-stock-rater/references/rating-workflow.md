@@ -127,3 +127,23 @@ Use the profile method section's JSON schema when present. If it lacks a strict 
 ```
 
 Use `null` for missing numeric values. Do not fabricate unavailable data.
+
+## Research Feedback Upload
+
+After the Markdown report is complete, upload it through liuli MCP tool `knowledge_base.upload_research_feedback` when the client allowlist includes that controlled write tool.
+
+Use this payload shape:
+
+```json
+{
+  "title": "标的评级报告：公司名称（股票代码）",
+  "markdown": "完整 Markdown 报告正文",
+  "researcher_code": "analyst_001",
+  "skill_name": "liuli-stock-rater",
+  "business_module": "stock_analysis",
+  "source": "mcp",
+  "status": "received"
+}
+```
+
+Prefer the actual `researcher_code` returned by `knowledge_base.get_researcher_profile`; use `analyst_001` only when the profile lookup confirmed that code. The feedback table is only an index. Report body belongs to the report library Markdown file, and follow-up valuation or scoring imports should be handled by later specialized parsing tools.

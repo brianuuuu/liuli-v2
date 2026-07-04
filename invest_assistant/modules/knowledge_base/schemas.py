@@ -64,19 +64,31 @@ class KnowledgeNotePage(BaseModel):
     has_more: bool
 
 
-class KnowledgeExternalSkillCreate(BaseModel):
+class KnowledgeExternalSkillRead(BaseModel):
+    slug: str
     name: str
+    description: str = ""
+    status: str = "active"
     version: str | None = None
-    content: str = ""
+    skill_path: str
+    updated_at: datetime | None = None
 
 
-class KnowledgeExternalSkillRead(KnowledgeExternalSkillCreate):
-    id: int
-    file_path: str
-    file_hash: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    model_config = ConfigDict(from_attributes=True)
+class KnowledgeExternalSkillFileNode(BaseModel):
+    name: str
+    path: str
+    type: str
+    size: int | None = None
+    updated_at: datetime | None = None
+    children: list["KnowledgeExternalSkillFileNode"] = Field(default_factory=list)
+
+
+class KnowledgeExternalSkillFileContent(BaseModel):
+    name: str
+    path: str
+    content: str
+    size: int
+    updated_at: datetime | None = None
 
 
 class KnowledgeResearcherCreate(BaseModel):
@@ -119,17 +131,13 @@ class KnowledgePromptRead(KnowledgePromptCreate):
 
 class KnowledgeResearchFeedbackCreate(BaseModel):
     title: str
-    report_content: str | None = None
+    report_id: int | None = None
     report_path: str | None = None
-    structured_conclusion: str | None = None
-    valuation_assumption: str | None = None
-    risk_points: str | None = None
-    observation_signals: str | None = None
-    data_sources_json: str | None = None
-    external_skill_id: int | None = None
-    researcher_id: int | None = None
-    verification_result: str | None = None
-    research_time: datetime | None = None
+    researcher_code: str | None = None
+    skill_name: str | None = None
+    business_module: str | None = None
+    source: str = "mcp"
+    status: str = "received"
     returned_at: datetime | None = None
 
 

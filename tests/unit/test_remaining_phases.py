@@ -292,18 +292,9 @@ def test_knowledge_base_flow_and_placeholder_jobs_removed():
         headers=headers,
     )
     assert note.status_code == 200
-    skill = client.post(
-        "/api/knowledge/external-skills",
-        json={
-            "name": "证据检查",
-            "version": "v1",
-            "content": "# 证据检查\n\n触发条件：外部研究需要检查证据链\n操作顺序：先看证据，再给结论\nMCP 调用流程：读取材料 -> 生成报告\n报告回流规则：报告完成后回流研究结论\n\n检查 {target}",
-        },
-        headers=headers,
-    )
-    assert skill.status_code == 200
-    exported = client.get(f"/api/knowledge/external-skills/{skill.json()['id']}/export", headers=headers)
-    assert exported.status_code == 200
+    skills = client.get("/api/knowledge/external-skills", headers=headers)
+    assert skills.status_code == 200
+    assert isinstance(skills.json(), list)
     agent = client.post(
         "/api/knowledge/researchers",
         json={
@@ -321,15 +312,11 @@ def test_knowledge_base_flow_and_placeholder_jobs_removed():
         "/api/knowledge/research-feedback",
         json={
             "title": "赛道复盘报告",
-            "report_content": "报告正文",
-            "structured_conclusion": "证据链完整",
-            "valuation_assumption": "估值假设",
-            "risk_points": "数据延迟",
-            "observation_signals": "成交放量",
-            "data_sources_json": "[\"mcp\"]",
-            "external_skill_id": skill.json()["id"],
-            "researcher_id": agent.json()["id"],
-            "verification_result": "待验证",
+            "researcher_code": agent.json()["researcher_code"],
+            "skill_name": "liuli-track-review",
+            "business_module": "track_discovery",
+            "source": "mcp",
+            "status": "received",
         },
         headers=headers,
     )

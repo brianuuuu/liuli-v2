@@ -1,6 +1,6 @@
 ---
 name: liuli-stock-rater
-description: Use when rating an A-share listed company with liuli's 标的评级师, including target stock rating, company research, financial analysis, valuation, announcements, and recent company or industry news. Fetch the complete researcher profile from liuli MCP first, then gather Tushare financial data and official/news context before producing a structured rating.
+description: Use when rating an A-share listed company with liuli's 标的评级师, including target stock rating, company research, financial analysis, valuation, announcements, and recent company or industry news. Fetch the complete researcher profile from liuli MCP first, gather Tushare and official/news context, produce a structured Markdown rating, then upload the report through the controlled research-feedback MCP tool when available.
 ---
 
 # Liuli Stock Rater
@@ -18,6 +18,7 @@ Use this skill to rate an A-share target company with liuli's `标的评级师` 
 5. Query official announcements first. Use liuli `market_radar.search_source_items` for locally ingested items, prioritizing `source_type="announcement"` and `source_name="cninfo"`. If local coverage is insufficient and browsing or an official connector is available, use CNINFO as the primary announcement source.
 6. Gather recent company and industry news from Eastmoney, Sina Finance, Xueqiu, and Zhihu when accessible. Treat Xueqiu and Zhihu as opinion or sentiment evidence only; they must not override Tushare financials or official announcements.
 7. Apply the profile's `method` section to produce the rating. Do not invent missing data. State gaps clearly and lower confidence when key evidence is missing.
+8. After the final Markdown report is produced, upload it through liuli MCP tool `knowledge_base.upload_research_feedback` when the tool is available and explicitly allowed. Use `researcher_code` from the profile response, `skill_name="liuli-stock-rater"`, `business_module="stock_analysis"`, `source="mcp"`, and `status="received"`. If the upload tool is unavailable or not allowlisted, do not fail the rating; state that the report was generated but not uploaded.
 
 ## Output Contract
 
@@ -33,6 +34,8 @@ The report must include:
 - 最终 JSON，字段和评分口径按 profile 的方法论优先；缺字段时使用 `null` 并解释原因。
 
 Do not output direct buy/sell or position-sizing instructions unless the user explicitly asks for investment decision support. Ratings are research analysis, not trading orders.
+
+When uploading to `knowledge_base.upload_research_feedback`, pass the exact Markdown report body as `markdown` and a concise report title as `title`. The tool writes the report body to the report library and stores only the feedback index fields such as `report_id`, `report_path`, `researcher_code`, `skill_name`, and `business_module`; do not ask the tool or database to store a second copy of the report body in `knowledge_research_feedback`.
 
 ## Failure Handling
 

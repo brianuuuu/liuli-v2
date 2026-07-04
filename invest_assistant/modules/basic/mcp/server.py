@@ -57,6 +57,11 @@ MCP_TOOL_DESCRIPTIONS = {
         "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
         "支持 researcher 按展示名称、researcher_code 或 ID 精确匹配。"
     ),
+    "knowledge_base.upload_research_feedback": (
+        "上传外部研究回流和 Markdown 报告。参数为 title、markdown、researcher_code、skill_name、"
+        "business_module、source、status；工具会先写入报告库，再创建 knowledge_research_feedback 索引记录。"
+        "该工具是受控写入工具，必须显式加入 MCP client allowed_tools。"
+    ),
     "report_library.list_reports": (
         "查询报告库列表，适合查找 report_library.read_report_content 所需的 report_id。"
         "支持 limit、offset 分页。"
@@ -231,6 +236,32 @@ def _register_tools(server: FastMCP) -> None:
             "knowledge_base.get_researcher_profile",
             {"researcher": researcher},
             knowledge_base.get_researcher_profile,
+        )
+
+    @server.tool(name="knowledge_base.upload_research_feedback", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.upload_research_feedback"])
+    def mcp_knowledge_base_upload_research_feedback(
+        ctx: Context,
+        title: str,
+        markdown: str,
+        researcher_code: str | None = None,
+        skill_name: str | None = None,
+        business_module: str | None = None,
+        source: str = "mcp",
+        status: str = "received",
+    ) -> dict:
+        return _run_tool(
+            ctx,
+            "knowledge_base.upload_research_feedback",
+            {
+                "title": title,
+                "markdown": markdown,
+                "researcher_code": researcher_code,
+                "skill_name": skill_name,
+                "business_module": business_module,
+                "source": source,
+                "status": status,
+            },
+            knowledge_base.upload_research_feedback,
         )
 
     @server.tool(name="report_library.list_reports", description=MCP_TOOL_DESCRIPTIONS["report_library.list_reports"])

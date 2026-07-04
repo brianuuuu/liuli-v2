@@ -1,14 +1,15 @@
 import hashlib
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
+from invest_assistant.modules.basic.report_library import service as report_service
 from invest_assistant.modules.knowledge_base.models import (
-    KnowledgeExternalSkill,
     KnowledgeNote,
     KnowledgeNoteGroup,
     KnowledgeNoteTagRelation,
@@ -18,7 +19,8 @@ from invest_assistant.modules.knowledge_base.models import (
     ensure_knowledge_base_schema,
 )
 from invest_assistant.modules.knowledge_base.schemas import (
-    KnowledgeExternalSkillCreate,
+    KnowledgeExternalSkillFileContent,
+    KnowledgeExternalSkillFileNode,
     KnowledgeExternalSkillRead,
     KnowledgeNoteCreate,
     KnowledgeNoteGroupCreate,
@@ -183,72 +185,62 @@ def _prompt_paths_for_payload(item: KnowledgePrompt | None, payload: KnowledgePr
     return _prompt_file_pair(payload.prompt_key)
 
 
-def _safe_file_stem(value: str) -> str:
-    stem = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff_-]+", "_", str(value or "").strip()).strip("_")
-    return stem or "knowledge_asset"
-
-
-def _default_external_path(root: Path, name: str) -> str:
-    return (root / f"{_safe_file_stem(name)}.md").relative_to(PROJECT_ROOT).as_posix()
-
-
-def _resolve_external_path(stored_path: str, root: Path) -> Path:
-    root = root.resolve()
-    path = Path(str(stored_path or "").strip())
-    if path.is_absolute():
-        resolved = path.resolve()
+def _resolve_external_skill_path(path: str) -> Path:
+    root = EXTERNAL_SKILL_ROOT.resolve()
+    raw_path = Path(str(path or "").strip())
+    if raw_path.is_absolute():
+        resolved = raw_path.resolve()
     else:
-        project_relative = (PROJECT_ROOT / path).resolve()
-        resolved = project_relative if project_relative.is_relative_to(root) else (root / path).resolve()
+        resolved = (root / raw_path).resolve()
     if not resolved.is_relative_to(root):
-        raise ValueError(f"knowledge file path must be under {root}: {stored_path}")
+        raise ValueError("external skill file path is outside root")
     return resolved
 
 
-def _external_path_for_payload(root: Path, name: str, file_path: str | None, current_path: str | None = None) -> str:
-    if file_path:
-        path = _resolve_external_path(file_path, root)
-        return path.relative_to(PROJECT_ROOT).as_posix()
-    if current_path:
-        _resolve_external_path(current_path, root)
-        return current_path
-    return _default_external_path(root, name)
+def _external_skill_relative_path(path: Path) -> str:
+    return path.resolve().relative_to(EXTERNAL_SKILL_ROOT.resolve()).as_posix()
 
 
-def _write_external_file(stored_path: str, root: Path, content: str) -> str:
-    path = _resolve_external_path(stored_path, root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-
-def _read_external_file(stored_path: str, root: Path) -> str:
-    path = _resolve_external_path(stored_path, root)
+def _file_updated_at(path: Path) -> datetime | None:
     if not path.exists():
-        return ""
-    return path.read_text(encoding="utf-8")
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime)
 
 
-def _ensure_unique_file_path(db: Session, model: type, file_path: str, current_id: int | None = None) -> None:
-    stmt = select(model.id).where(model.file_path == file_path)
-    if current_id is not None:
-        stmt = stmt.where(model.id != current_id)
-    if db.scalar(stmt.limit(1)):
-        raise ValueError("knowledge file path already exists")
+def _parse_skill_frontmatter(content: str) -> dict[str, str]:
+    if not content.startswith("---"):
+        return {}
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    metadata: dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return metadata
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        clean_key = key.strip()
+        clean_value = value.strip().strip("\"'")
+        if clean_key:
+            metadata[clean_key] = clean_value
+    return {}
 
 
-def _external_skill_read(item: KnowledgeExternalSkill) -> KnowledgeExternalSkillRead:
-    return KnowledgeExternalSkillRead.model_validate(
-        {
-            "id": item.id,
-            "name": item.name,
-            "file_path": item.file_path,
-            "version": item.version,
-            "file_hash": item.file_hash,
-            "content": _read_external_file(item.file_path, EXTERNAL_SKILL_ROOT),
-            "created_at": item.created_at,
-            "updated_at": item.updated_at,
-        }
+def _external_skill_node(path: Path) -> KnowledgeExternalSkillFileNode:
+    stat = path.stat()
+    node_type = "directory" if path.is_dir() else "file"
+    children: list[KnowledgeExternalSkillFileNode] = []
+    if path.is_dir():
+        entries = sorted(path.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))
+        children = [_external_skill_node(child) for child in entries]
+    return KnowledgeExternalSkillFileNode(
+        name=path.name,
+        path=_external_skill_relative_path(path),
+        type=node_type,
+        size=None if path.is_dir() else stat.st_size,
+        updated_at=datetime.fromtimestamp(stat.st_mtime),
+        children=children,
     )
 
 
@@ -557,54 +549,57 @@ def restore_note(db: Session, item: KnowledgeNote) -> KnowledgeNote:
     return item
 
 
-def create_external_skill(db: Session, payload: KnowledgeExternalSkillCreate) -> KnowledgeExternalSkillRead:
-    file_path = _external_path_for_payload(EXTERNAL_SKILL_ROOT, payload.name, None)
-    _ensure_unique_file_path(db, KnowledgeExternalSkill, file_path)
-    file_hash = _write_external_file(file_path, EXTERNAL_SKILL_ROOT, payload.content)
-    data = payload.model_dump(exclude={"content"})
-    data["file_path"] = file_path
-    data["file_hash"] = file_hash
-    item = KnowledgeExternalSkill(**data)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return _external_skill_read(item)
+def scan_external_skills() -> list[KnowledgeExternalSkillRead]:
+    if not EXTERNAL_SKILL_ROOT.exists():
+        return []
+    skills: list[KnowledgeExternalSkillRead] = []
+    for skill_dir in sorted((item for item in EXTERNAL_SKILL_ROOT.iterdir() if item.is_dir()), key=lambda item: item.name.lower()):
+        skill_file = skill_dir / "SKILL.md"
+        if not skill_file.is_file():
+            continue
+        content = skill_file.read_text(encoding="utf-8")
+        frontmatter = _parse_skill_frontmatter(content)
+        skills.append(
+            KnowledgeExternalSkillRead(
+                slug=skill_dir.name,
+                name=frontmatter.get("name") or skill_dir.name,
+                description=frontmatter.get("description") or "",
+                status=frontmatter.get("status") or "active",
+                version=frontmatter.get("version") or None,
+                skill_path=_external_skill_relative_path(skill_file),
+                updated_at=_file_updated_at(skill_file),
+            )
+        )
+    return skills
 
 
-def list_external_skills(db: Session) -> list[KnowledgeExternalSkillRead]:
-    rows = db.scalars(select(KnowledgeExternalSkill).order_by(KnowledgeExternalSkill.updated_at.desc(), KnowledgeExternalSkill.id.desc()))
-    return [_external_skill_read(item) for item in rows]
+def list_external_skill_files(skill_slug: str | None = None) -> KnowledgeExternalSkillFileNode:
+    path = _resolve_external_skill_path(skill_slug or "")
+    if not path.exists():
+        raise ValueError("external skill path not found")
+    if not path.is_dir():
+        raise ValueError("external skill path is not a directory")
+    return _external_skill_node(path)
 
 
-def get_external_skill(db: Session, skill_id: int) -> KnowledgeExternalSkill | None:
-    return db.get(KnowledgeExternalSkill, skill_id)
-
-
-def update_external_skill(db: Session, item: KnowledgeExternalSkill, payload: KnowledgeExternalSkillCreate) -> KnowledgeExternalSkillRead:
-    file_path = _external_path_for_payload(EXTERNAL_SKILL_ROOT, payload.name, None, item.file_path)
-    _ensure_unique_file_path(db, KnowledgeExternalSkill, file_path, item.id)
-    file_hash = _write_external_file(file_path, EXTERNAL_SKILL_ROOT, payload.content)
-    data = payload.model_dump(exclude={"content"})
-    data["file_path"] = file_path
-    data["file_hash"] = file_hash
-    for key, value in data.items():
-        setattr(item, key, value)
-    db.commit()
-    db.refresh(item)
-    return _external_skill_read(item)
-
-
-def delete_external_skill(db: Session, item: KnowledgeExternalSkill) -> KnowledgeExternalSkillRead:
-    if db.scalar(select(KnowledgeResearchFeedback.id).where(KnowledgeResearchFeedback.external_skill_id == item.id).limit(1)):
-        raise ValueError("external skill has research feedback")
-    result = _external_skill_read(item)
-    db.delete(item)
-    db.commit()
-    return result
-
-
-def external_skill_export_path(item: KnowledgeExternalSkill) -> Path:
-    return _resolve_external_path(item.file_path, EXTERNAL_SKILL_ROOT)
+def read_external_skill_file(path: str) -> KnowledgeExternalSkillFileContent:
+    resolved = _resolve_external_skill_path(path)
+    if not resolved.exists():
+        raise ValueError("external skill file not found")
+    if not resolved.is_file():
+        raise ValueError("external skill path is not a file")
+    try:
+        content = resolved.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("external skill file is not text") from exc
+    stat = resolved.stat()
+    return KnowledgeExternalSkillFileContent(
+        name=resolved.name,
+        path=_external_skill_relative_path(resolved),
+        content=content,
+        size=stat.st_size,
+        updated_at=datetime.fromtimestamp(stat.st_mtime),
+    )
 
 
 def _ensure_unique_researcher_code(db: Session, researcher_code: str, current_id: int | None = None) -> None:
@@ -663,8 +658,6 @@ def update_researcher(db: Session, item: KnowledgeResearcher, payload: Knowledge
 
 
 def delete_researcher(db: Session, item: KnowledgeResearcher) -> KnowledgeResearcherRead:
-    if db.scalar(select(KnowledgeResearchFeedback.id).where(KnowledgeResearchFeedback.researcher_id == item.id).limit(1)):
-        raise ValueError("researcher has research feedback")
     result = _researcher_read(item)
     db.delete(item)
     db.commit()
@@ -769,23 +762,70 @@ def delete_prompt(db: Session, item: KnowledgePrompt) -> KnowledgePromptRead:
     return _prompt_read(item)
 
 
-def _ensure_research_feedback_refs(db: Session, payload: KnowledgeResearchFeedbackCreate) -> None:
-    if payload.external_skill_id is not None and db.get(KnowledgeExternalSkill, payload.external_skill_id) is None:
-        raise ValueError("external skill not found")
-    if payload.researcher_id is not None and db.get(KnowledgeResearcher, payload.researcher_id) is None:
-        raise ValueError("researcher not found")
+def _normalize_optional_text(value: str | None) -> str | None:
+    cleaned = str(value or "").strip()
+    return cleaned or None
+
+
+def _research_feedback_payload_data(payload: KnowledgeResearchFeedbackCreate) -> dict:
+    data = payload.model_dump()
+    data["title"] = str(data.get("title") or "").strip()
+    if not data["title"]:
+        raise ValueError("research feedback title is required")
+    data["researcher_code"] = _normalize_optional_text(payload.researcher_code)
+    data["skill_name"] = _normalize_optional_text(payload.skill_name)
+    data["business_module"] = _normalize_optional_text(payload.business_module)
+    data["report_path"] = _normalize_optional_text(payload.report_path)
+    data["source"] = str(payload.source or "mcp").strip() or "mcp"
+    data["status"] = str(payload.status or "received").strip() or "received"
+    if data.get("returned_at") is None:
+        data.pop("returned_at", None)
+    return data
 
 
 def create_research_feedback(db: Session, payload: KnowledgeResearchFeedbackCreate) -> KnowledgeResearchFeedback:
-    _ensure_research_feedback_refs(db, payload)
-    data = payload.model_dump()
-    if data.get("returned_at") is None:
-        data.pop("returned_at", None)
+    data = _research_feedback_payload_data(payload)
     item = KnowledgeResearchFeedback(**data)
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
+
+
+def upload_research_feedback(
+    db: Session,
+    *,
+    title: str,
+    markdown: str,
+    researcher_code: str | None = None,
+    skill_name: str | None = None,
+    business_module: str | None = None,
+    source: str = "mcp",
+    status: str = "received",
+    now: datetime | None = None,
+) -> tuple[KnowledgeResearchFeedback, int, int]:
+    module_name = _normalize_optional_text(business_module) or "knowledge_base"
+    report, content_size = report_service.create_markdown_report_file_and_index(
+        db,
+        title=title,
+        source_module=module_name,
+        markdown=markdown,
+        now=now,
+    )
+    feedback = create_research_feedback(
+        db,
+        KnowledgeResearchFeedbackCreate(
+            title=title,
+            report_id=report.id,
+            report_path=report.file_path,
+            researcher_code=researcher_code,
+            skill_name=skill_name,
+            business_module=business_module,
+            source=source,
+            status=status,
+        ),
+    )
+    return feedback, report.id, content_size
 
 
 def list_research_feedback(db: Session) -> list[KnowledgeResearchFeedback]:
@@ -803,10 +843,7 @@ def update_research_feedback(
     item: KnowledgeResearchFeedback,
     payload: KnowledgeResearchFeedbackCreate,
 ) -> KnowledgeResearchFeedback:
-    _ensure_research_feedback_refs(db, payload)
-    data = payload.model_dump()
-    if data.get("returned_at") is None:
-        data.pop("returned_at", None)
+    data = _research_feedback_payload_data(payload)
     for key, value in data.items():
         setattr(item, key, value)
     db.commit()

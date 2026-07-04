@@ -39,6 +39,11 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "low",
         "service_name": "knowledge_base.service.get_researcher_profile_bundle",
     },
+    "knowledge_base.upload_research_feedback": {
+        "read_only": False,
+        "risk_level": "medium",
+        "service_name": "knowledge_base.service.upload_research_feedback",
+    },
     "report_library.list_reports": {
         "read_only": True,
         "risk_level": "low",

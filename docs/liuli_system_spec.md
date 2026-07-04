@@ -2833,16 +2833,10 @@ knowledge_prompt
 - updated_at
 ```
 
-```sql
-knowledge_external_skill
-- id
-- name
-- file_path
-- version
-- file_hash
-- created_at
-- updated_at
-```
+对外 Skills 不单独建业务表。系统以 Git 文件目录作为唯一资产源，扫描
+`invest_assistant/modules/knowledge_base/external/skills/{skill_slug}/SKILL.md`
+生成 Skill 列表。`SKILL.md` frontmatter 提供展示用 `name`、`description`、`status`、`version`。
+页面只提供只读文件浏览，不从 Web 写入、创建、删除或重命名 Git 文件。
 
 ```sql
 knowledge_researcher
@@ -2860,17 +2854,13 @@ knowledge_researcher
 knowledge_research_feedback
 - id
 - title
-- report_content
+- report_id
 - report_path
-- structured_conclusion
-- valuation_assumption
-- risk_points
-- observation_signals
-- data_sources_json
-- external_skill_id
-- researcher_id
-- verification_result
-- research_time
+- researcher_code
+- skill_name
+- business_module
+- source
+- status
 - returned_at
 - created_at
 - updated_at
@@ -4586,10 +4576,9 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/knowledge/prompts` | 新增 Prompt |
 | PUT | `/api/knowledge/prompts/{id}` | 编辑 Prompt |
 | DELETE | `/api/knowledge/prompts/{id}` | 删除/归档 Prompt |
-| GET | `/api/knowledge/external-skills` | 对外 Skill 列表 |
-| POST | `/api/knowledge/external-skills` | 新增对外 Skill 并写入服务器文件 |
-| PUT | `/api/knowledge/external-skills/{id}` | 编辑对外 Skill 并更新服务器文件 |
-| GET | `/api/knowledge/external-skills/{id}/export` | 导出对外 Skill 文件 |
+| GET | `/api/knowledge/external-skills` | 扫描 `external/skills` 生成对外 Skill 列表 |
+| GET | `/api/knowledge/external-skills/files` | 只读列出对外 Skill 文件夹树 |
+| GET | `/api/knowledge/external-skills/files/content` | 只读读取对外 Skill 文件内容 |
 | GET | `/api/knowledge/researchers` | 研究员列表 |
 | POST | `/api/knowledge/researchers` | 新增研究员并写入 profile 文件 |
 | PUT | `/api/knowledge/researchers/{id}` | 编辑研究员并更新 profile 文件 |
@@ -5052,13 +5041,21 @@ id, note_id, tag_id, created_at
 id, prompt_key, title, target_task, provider, model, system_prompt, user_prompt, response_format, status, created_at, updated_at
 ```
 
-#### `knowledge_external_skill`：对外 Skill 表，索引外部 AI 执行器使用的 Skill 文件
+#### 对外 Skills：文件目录资产，不建业务表
 
-字段：
+路径：
 
 ```text
-id, name, file_path, version, file_hash, created_at, updated_at
+invest_assistant/modules/knowledge_base/external/skills/{skill_slug}/SKILL.md
 ```
+
+展示字段来自 `SKILL.md` frontmatter：
+
+```text
+name, description, status, version
+```
+
+正文、引用资料、脚本和模板均作为 Git 文件管理；Web 只提供只读文件浏览。
 
 #### `knowledge_researcher`：研究员 profile 索引表
 
@@ -5073,7 +5070,7 @@ id, researcher_code, display_name, profile_path, profile_hash, status, created_a
 字段：
 
 ```text
-id, title, report_content, report_path, structured_conclusion, valuation_assumption, risk_points, observation_signals, data_sources_json, external_skill_id, researcher_id, verification_result, research_time, returned_at, created_at, updated_at
+id, title, report_id, report_path, researcher_code, skill_name, business_module, source, status, returned_at, created_at, updated_at
 ```
 
 ---
@@ -5115,23 +5112,18 @@ MCP 将研究报告和结构化结论回写到 knowledge_research_feedback
 对外 Skills 是通用 Skill 文件，不按执行器拆字段。Web 页面负责：
 
 ```text
-新增 Skill
-编辑 Skill 文件
-导出 Skill 文件
-刷新文件 hash 和最后更新时间
+扫描 Skill 文件目录
+只读浏览文件夹树
+只读读取文件内容
 ```
 
-数据库只保存索引和文件元数据：
+数据库不保存 Skill 索引、正文、hash 或更新时间。Skill 列表完全由目录扫描生成：
 
 ```text
-name
-file_path
-version
-file_hash
-created_at / updated_at
+external/skills/{skill_slug}/SKILL.md
 ```
 
-触发条件、操作顺序、MCP 调用流程和报告回流规则属于 Skill 文件正文内容，不在数据库中拆成独立字段。
+`SKILL.md` frontmatter 提供 `name`、`description`、`status`、`version`。Skill 正文、引用资料、脚本和模板属于 Git 文件资产，Web 只读文件浏览，不提供写入入口。
 
 Skill 文件正文保存在：
 
@@ -5189,22 +5181,20 @@ display_name: A股标的研究员
 
 ### 研究回流
 
-研究回流记录 MCP 返回的外部研究结果。第一版是报告收件箱，后续再扩展沉淀动作。
+研究回流记录 MCP 返回的外部研究结果。第一版是通用报告收件箱和报告库索引，后续通过页面解析按钮再沉淀到估值、评分等业务细分表。
 
 记录内容：
 
 ```text
-研究报告
-结构化结论
-估值假设
-风险点
-观察信号
-使用的数据源
-使用的 Skill
-使用的研究员
-研究时间
+报告标题
+报告库 ID
+报告路径
+研究员编号
+Skill 名称
+业务模块
+来源
+处理状态
 回流时间
-后续验证结果
 ```
 
 ## 对外 MCP 服务设计
@@ -5294,6 +5284,7 @@ enabled = true
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
       "knowledge_base.get_researcher_profile",
+      "knowledge_base.upload_research_feedback",
       "report_library.read_report_content",
       "portfolio.get_overview",
       "report_library.upload_markdown_report"
@@ -5378,8 +5369,11 @@ portfolio.get_overview
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
 ```text
+knowledge_base.upload_research_feedback
 report_library.upload_markdown_report
 ```
+
+`knowledge_base.upload_research_feedback` 只接收 Markdown 报告、标题和通用回流元数据，先写入报告库文件和 `report` 索引，再创建 `knowledge_research_feedback` 记录。feedback 只保存 `report_id, report_path, researcher_code, skill_name, business_module, source, status` 等通用字段，不保存报告正文或估值、评分、风险等领域解析字段。
 
 `report_library.upload_markdown_report` 只接收 Markdown 文本、报告标题和 `source_module`，固定写入 `var/reports/{source_module}/YYYY-MM/`，同时创建 `report` 索引；不允许客户端指定任意路径或文件名。
 

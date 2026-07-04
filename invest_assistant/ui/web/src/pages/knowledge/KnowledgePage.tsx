@@ -1,30 +1,29 @@
 import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutlined, DownOutlined, UpOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import {
   archiveKnowledgeNote,
   archiveKnowledgeNoteGroup,
-  createKnowledgeExternalSkill,
   createKnowledgeNote,
   createKnowledgeNoteGroup,
   createKnowledgePrompt,
   createKnowledgeResearcher,
-  deleteKnowledgeExternalSkill,
   deleteKnowledgeNote,
   deleteKnowledgePrompt,
   deleteKnowledgeResearcher,
-  exportKnowledgeExternalSkill,
+  listKnowledgeExternalSkillFiles,
   listKnowledgeExternalSkills,
   listKnowledgeNoteGroups,
   listKnowledgeNotes,
   listKnowledgePrompts,
   listKnowledgeResearchers,
   listKnowledgeResearchFeedback,
+  readKnowledgeExternalSkillFile,
   restoreKnowledgeNote,
-  updateKnowledgeExternalSkill,
   updateKnowledgeNote,
   updateKnowledgeNoteGroup,
   updateKnowledgePrompt,
@@ -32,7 +31,8 @@ import {
 } from "../../api/knowledge";
 import type {
   KnowledgeExternalSkill,
-  KnowledgeExternalSkillPayload,
+  KnowledgeExternalSkillFileContent,
+  KnowledgeExternalSkillFileNode,
   KnowledgeNote,
   KnowledgeNoteGroup,
   KnowledgeNotePayload,
@@ -57,6 +57,7 @@ import {
   refreshKnowledgeNoteQuery,
   shouldLoadNextKnowledgeNotePage
 } from "./knowledgeNotesTimeline";
+import { getReportContent } from "../../api/reports";
 
 const noteTypeOptions = [
   { value: "review", label: "复盘" },
@@ -90,14 +91,6 @@ const noteDefaults: KnowledgeNotePayload = {
   tags: null,
   tag_ids: [],
   status: "active"
-};
-
-type ExternalSkillFormValues = Pick<KnowledgeExternalSkillPayload, "name" | "version" | "content">;
-
-const externalSkillDefaults: ExternalSkillFormValues = {
-  name: "",
-  version: "",
-  content: ""
 };
 
 const researcherDefaults: KnowledgeResearcherPayload = {
@@ -718,104 +711,153 @@ function PromptSection() {
 
 function ExternalSkillsSection() {
   const skills = useAsyncData(useCallback(listKnowledgeExternalSkills, []), [] as KnowledgeExternalSkill[]);
-  const [editing, setEditing] = useState<KnowledgeExternalSkill | null>(null);
-  const [open, setOpen] = useState(false);
-  const [form] = Form.useForm<ExternalSkillFormValues>();
+  const [expandedSkillSlug, setExpandedSkillSlug] = useState<string | null>(null);
+  const [fileTreeBySlug, setFileTreeBySlug] = useState<Record<string, KnowledgeExternalSkillFileNode>>({});
+  const [loadingSkillSlug, setLoadingSkillSlug] = useState<string | null>(null);
+  const [previewingSkillFile, setPreviewingSkillFile] = useState<KnowledgeExternalSkillFileContent | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    form.setFieldsValue(
-      editing
-        ? { name: editing.name, version: editing.version || "", content: editing.content || "" }
-        : externalSkillDefaults
-    );
-  }, [editing, form, open]);
-
-  async function submit() {
-    const values = await form.validateFields();
-    const payload: KnowledgeExternalSkillPayload = { ...values };
-    if (editing) {
-      await updateKnowledgeExternalSkill(editing.id, payload);
-      message.success("Skill 已更新");
-    } else {
-      await createKnowledgeExternalSkill(payload);
-      message.success("Skill 已新增");
+  async function loadSkillTree(slug: string) {
+    if (fileTreeBySlug[slug]) return;
+    setLoadingSkillSlug(slug);
+    try {
+      const nextTree = await listKnowledgeExternalSkillFiles(slug);
+      setFileTreeBySlug((current) => ({ ...current, [slug]: nextTree }));
+    } catch (error) {
+      message.error(`目录树加载失败：${getApiErrorDetail(error)}`);
+    } finally {
+      setLoadingSkillSlug(null);
     }
-    setOpen(false);
-    await skills.refresh();
   }
 
-  async function remove(record: KnowledgeExternalSkill) {
-    await deleteKnowledgeExternalSkill(record.id);
-    message.success("Skill 已删除");
-    await skills.refresh();
+  async function toggleSkillDirectory(record: KnowledgeExternalSkill, event: MouseEvent<HTMLElement>) {
+    event.stopPropagation();
+    const nextSlug = expandedSkillSlug === record.slug ? null : record.slug;
+    setExpandedSkillSlug(nextSlug);
+    if (nextSlug) await loadSkillTree(nextSlug);
   }
 
-  async function download(record: KnowledgeExternalSkill) {
-    const blob = await exportKnowledgeExternalSkill(record.id);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = record.file_path.split("/").pop() || `${record.name}.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+  async function openFile(path: string) {
+    setFileLoading(true);
+    try {
+      setPreviewingSkillFile(await readKnowledgeExternalSkillFile(path));
+    } catch (error) {
+      message.error(`只读文件加载失败：${getApiErrorDetail(error)}`);
+    } finally {
+      setFileLoading(false);
+    }
+  }
+
+  function toTreeData(node: KnowledgeExternalSkillFileNode): any {
+    return {
+      title: node.name,
+      key: node.path,
+      isLeaf: node.type === "file",
+      nodeType: node.type,
+      children: node.children.map(toTreeData)
+    };
+  }
+
+  function renderSkillDirectory(record: KnowledgeExternalSkill) {
+    const tree = fileTreeBySlug[record.slug];
+    if (!tree || loadingSkillSlug === record.slug) {
+      return <Typography.Text type="secondary">目录树加载中</Typography.Text>;
+    }
+    return (
+      <div className="knowledge-skill-expanded-tree">
+        <Tree
+          blockNode
+          showLine
+          treeData={[toTreeData(tree)]}
+          defaultExpandAll
+          onSelect={(_, info) => {
+            const node = info.node as any;
+            if (node.nodeType === "file") void openFile(String(node.key));
+          }}
+        />
+      </div>
+    );
+  }
+
+  async function refreshSkills() {
+    setExpandedSkillSlug(null);
+    setFileTreeBySlug({});
+    setPreviewingSkillFile(null);
+    await skills.refresh();
   }
 
   const skillColumns: ColumnsType<KnowledgeExternalSkill> = [
-    { title: "名称", dataIndex: "name", width: 180 },
-    { title: "文件路径", dataIndex: "file_path", ellipsis: true },
-    { title: "版本", dataIndex: "version", width: 100, render: (value) => value || "-" },
-    { title: "最后更新时间", dataIndex: "updated_at", width: 160, render: formatDateTime },
     {
-      title: "操作",
-      width: 180,
-      render: (_, record) => (
-        <Space size={6}>
-          <Button size="small" onClick={() => { setEditing(record); setOpen(true); }}>编辑</Button>
-          <Button size="small" onClick={() => download(record)}>导出</Button>
-          <Popconfirm title="删除这个 Skill？" description={record.name} okText="删除" cancelText="取消" onConfirm={() => remove(record)}>
-            <Button size="small" danger>删除</Button>
-          </Popconfirm>
-        </Space>
-      )
-    }
+      title: "目录",
+      dataIndex: "slug",
+      width: 190,
+      render: (_, record) => {
+        const expanded = expandedSkillSlug === record.slug;
+        return (
+          <Space size={8}>
+            <Button
+              size="small"
+              type="text"
+              className="knowledge-skill-expand-btn"
+              aria-label={expanded ? "收起目录树" : "展开目录树"}
+              onClick={(event) => void toggleSkillDirectory(record, event)}
+            >
+              {expanded ? "-" : "+"}
+            </Button>
+            <Typography.Text>{record.slug}</Typography.Text>
+          </Space>
+        );
+      }
+    },
+    { title: "名称", dataIndex: "name", width: 180 },
+    { title: "描述", dataIndex: "description", ellipsis: true, render: (value) => value || "-" },
+    { title: "状态", dataIndex: "status", width: 90, render: (value) => <Tag color={value === "active" ? "green" : "default"}>{value || "active"}</Tag> },
+    { title: "版本", dataIndex: "version", width: 100, render: (value) => value || "-" },
+    { title: "SKILL.md", dataIndex: "skill_path", width: 220, ellipsis: true },
+    { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime }
   ];
 
   return (
-    <>
-      <DataPanel
-        toolbar={
-          <>
-            <div className="data-panel-toolbar-spacer" />
-            <Button size="small" icon={<ReloadOutlined />} onClick={() => skills.refresh()}>刷新文件状态</Button>
-            <Button size="small" type="primary" onClick={() => { setEditing(null); setOpen(true); }}>新增 Skill</Button>
-          </>
-        }
+    <DataPanel
+      toolbar={
+        <>
+          <Typography.Text type="secondary">只读文件 · 目录树</Typography.Text>
+          <div className="data-panel-toolbar-spacer" />
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshSkills()}>刷新文件状态</Button>
+        </>
+      }
+    >
+      <Table
+        rowKey="slug"
+        size="small"
+        loading={skills.loading}
+        dataSource={skills.data}
+        columns={skillColumns}
+        pagination={{ defaultPageSize: 8, showSizeChanger: true }}
+        expandable={{
+          expandedRowKeys: expandedSkillSlug ? [expandedSkillSlug] : [],
+          expandedRowRender: renderSkillDirectory,
+          expandIcon: () => null,
+          showExpandColumn: false
+        }}
+      />
+      <Modal
+        title={previewingSkillFile?.path || "只读文件预览"}
+        width={920}
+        style={{ top: 32 }}
+        open={!!previewingSkillFile || fileLoading}
+        onCancel={() => setPreviewingSkillFile(null)}
+        footer={null}
+        destroyOnHidden
       >
-        <Table rowKey="id" size="small" loading={skills.loading} dataSource={skills.data} columns={skillColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
-      </DataPanel>
-      <Modal title={editing ? "编辑对外 Skill" : "新增对外 Skill"} width={920} style={{ top: 32 }} open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden>
-        <Form form={form} layout="vertical">
-          <Row gutter={12}>
-            <Col span={18}>
-              <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="version" label="版本">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="content" label="Skill 文件正文" rules={[{ required: true, message: "请输入 Skill 文件正文" }]}>
-            <Input.TextArea rows={18} />
-          </Form.Item>
-        </Form>
+        <Input.TextArea
+          readOnly
+          rows={20}
+          value={fileLoading ? "文件加载中..." : previewingSkillFile?.content || ""}
+          placeholder="点击目录树中的文件查看内容"
+        />
       </Modal>
-    </>
+    </DataPanel>
   );
 }
 
@@ -976,21 +1018,36 @@ function ResearcherSection() {
 
 function ResearchFeedbackSection() {
   const feedback = useAsyncData(useCallback(listKnowledgeResearchFeedback, []), [] as KnowledgeResearchFeedback[]);
-  const skills = useAsyncData(useCallback(listKnowledgeExternalSkills, []), [] as KnowledgeExternalSkill[]);
-  const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), [] as KnowledgeResearcher[]);
   const [viewing, setViewing] = useState<KnowledgeResearchFeedback | null>(null);
-  const skillById = useMemo(() => new Map(skills.data.map((item) => [item.id, item.name])), [skills.data]);
-  const researcherById = useMemo(() => new Map(researchers.data.map((item) => [item.id, item.display_name])), [researchers.data]);
+  const [reportContent, setReportContent] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+
+  async function viewFeedback(record: KnowledgeResearchFeedback) {
+    setViewing(record);
+    setReportContent("");
+    if (!record.report_id) return;
+    setReportLoading(true);
+    try {
+      setReportContent(await getReportContent(record.report_id));
+    } catch (error) {
+      message.error(`报告读取失败：${getApiErrorDetail(error)}`);
+    } finally {
+      setReportLoading(false);
+    }
+  }
 
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
     { title: "报告", dataIndex: "title", ellipsis: true },
-    { title: "研究时间", dataIndex: "research_time", width: 150, render: formatDateTime },
+    { title: "报告库 ID", dataIndex: "report_id", width: 100, render: (value) => value || "-" },
+    { title: "报告路径", dataIndex: "report_path", width: 210, ellipsis: true, render: (value) => value || "-" },
+    { title: "研究员编号", dataIndex: "researcher_code", width: 130, render: (value) => value || "-" },
+    { title: "Skill 名称", dataIndex: "skill_name", width: 150, render: (value) => value || "-" },
+    { title: "业务模块", dataIndex: "business_module", width: 120, render: (value) => value || "-" },
+    { title: "来源", dataIndex: "source", width: 90, render: (value) => value || "-" },
+    { title: "状态", dataIndex: "status", width: 100, render: (value) => value || "-" },
     { title: "回流时间", dataIndex: "returned_at", width: 150, render: formatDateTime },
-    { title: "使用 Skill", dataIndex: "external_skill_id", width: 150, render: (value) => value ? skillById.get(Number(value)) || "-" : "-" },
-    { title: "研究员", dataIndex: "researcher_id", width: 140, render: (value) => value ? researcherById.get(Number(value)) || "-" : "-" },
-    { title: "验证结果", dataIndex: "verification_result", width: 140, render: (value) => value || "待验证" },
     { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime },
-    { title: "操作", width: 80, render: (_, record) => <Button size="small" onClick={() => setViewing(record)}>查看</Button> }
+    { title: "操作", width: 80, render: (_, record) => <Button size="small" onClick={() => void viewFeedback(record)}>查看</Button> }
   ];
 
   return (
@@ -1008,15 +1065,15 @@ function ResearchFeedbackSection() {
       <Modal title={viewing?.title || "研究回流详情"} width={980} style={{ top: 24 }} open={!!viewing} onCancel={() => setViewing(null)} footer={null} destroyOnHidden>
         {viewing ? (
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Typography.Text type="secondary">研究时间：{formatDateTime(viewing.research_time)}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}</Typography.Text>
-            <Typography.Title level={5}>结构化结论</Typography.Title>
-            <Input.TextArea readOnly rows={4} value={viewing.structured_conclusion || ""} />
-            <Typography.Title level={5}>估值假设</Typography.Title>
-            <Input.TextArea readOnly rows={3} value={viewing.valuation_assumption || ""} />
-            <Typography.Title level={5}>风险点 / 观察信号</Typography.Title>
-            <Input.TextArea readOnly rows={4} value={[viewing.risk_points, viewing.observation_signals].filter(Boolean).join("\n\n")} />
+            <Typography.Text type="secondary">
+              报告库 ID：{viewing.report_id || "-"}　来源：{viewing.source || "-"}　状态：{viewing.status || "-"}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              研究员编号：{viewing.researcher_code || "-"}　Skill 名称：{viewing.skill_name || "-"}　业务模块：{viewing.business_module || "-"}
+            </Typography.Text>
+            <Typography.Text type="secondary">报告路径：{viewing.report_path || "-"}</Typography.Text>
             <Typography.Title level={5}>研究报告</Typography.Title>
-            <Input.TextArea readOnly rows={10} value={viewing.report_content || viewing.report_path || ""} />
+            <Input.TextArea readOnly rows={14} value={reportLoading ? "读取中..." : reportContent || "暂无报告内容"} />
           </Space>
         ) : null}
       </Modal>

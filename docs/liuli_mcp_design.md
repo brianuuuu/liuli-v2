@@ -88,6 +88,7 @@ enabled = true
       "track_discovery.get_track_detail",
       "stock_analysis.get_stock_profile",
       "knowledge_base.get_researcher_profile",
+      "knowledge_base.upload_research_feedback",
       "report_library.read_report_content",
       "portfolio.get_overview",
       "report_library.upload_markdown_report"
@@ -183,8 +184,11 @@ display_name: A股标的研究员
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
 ```text
+knowledge_base.upload_research_feedback
 report_library.upload_markdown_report
 ```
+
+`knowledge_base.upload_research_feedback` 只接收 Markdown 报告、标题和通用回流元数据，先写入报告库文件和 `report` 索引，再创建 `knowledge_research_feedback` 记录。feedback 只保存 `report_id, report_path, researcher_code, skill_name, business_module, source, status` 等通用字段，不保存报告正文或估值、评分、风险等领域解析字段。
 
 `report_library.upload_markdown_report` 只接收 Markdown 文本、报告标题和 `source_module`，固定写入 `var/reports/{source_module}/YYYY-MM/`，同时创建 `report` 索引；不允许客户端指定任意路径或文件名。
 

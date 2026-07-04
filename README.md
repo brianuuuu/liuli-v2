@@ -183,7 +183,7 @@ display_name: A股标的研究员
 | Stock Analysis | `/api/stock-analysis` | `GET/POST/PUT /pool`, `GET /candidates`, `GET /stocks/{id}`, `GET/POST /stocks/{id}/notes`, `GET/POST /stocks/{id}/scores`, `GET/POST /compare-groups`, `GET /reports` |
 | Alert Center | `/api/alerts` | `GET/POST/PUT/DELETE /rules`, `GET/POST /events`, `POST /events/{id}/read`, `POST /events/{id}/handle` |
 | Portfolio | `/api/portfolios` | `GET/POST /`, `GET/PUT /{id}`, `GET/POST /{id}/groups`, `GET/POST/PUT/DELETE /{id}/positions`, `GET/POST /{id}/review` |
-| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT/DELETE /prompts`, `GET/POST/PUT /external-skills`, `GET /external-skills/{id}/export`, `GET/POST/PUT /researchers`, `GET/POST/PUT /research-feedback` |
+| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT/DELETE /prompts`, `GET /external-skills`, `GET /external-skills/files`, `GET /external-skills/files/content`, `GET/POST/PUT /researchers`, `GET/POST/PUT /research-feedback`, MCP `knowledge_base.upload_research_feedback` |
 | Console | `/api/console` | `GET /dashboard`, `GET /system-status`, `GET /data-sources`, `GET /ai-logs` |
 
 ---
@@ -276,7 +276,7 @@ sequenceDiagram
 | `stock_pool` / `stock_research_note` / `stock_score_snapshot` / `stock_track_relation` | 标的研究数据 | `symbol`, `score_total`, `track_id` | 标的研究主链路 |
 | `alert_rule` / `alert_event` | 预警规则与事件 | `rule_type`, `triggered_at`, `status` | 规则执行产物 |
 | `portfolio` / `portfolio_position` / `portfolio_review` | 组合、持仓、复盘 | `name`, `symbol`, `review_date` | 投资执行与复盘 |
-| `knowledge_note` / `knowledge_prompt` / `knowledge_external_skill` / `knowledge_researcher` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `profile_path`, `researcher_id` | 笔记、内部 Prompt、外部 Skill、研究员体系和研究回流 |
+| `knowledge_note` / `knowledge_prompt` / `knowledge_researcher` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `profile_path`, `report_id, report_path, researcher_code, skill_name, business_module, source, status` | 笔记、内部 Prompt、文件目录型外部 Skill、研究员体系和研究回流 |
 
 ---
 
