@@ -1,0 +1,16 @@
+interface:
+  display_name: "琉璃标的评级师"
+  short_description: "用琉璃标的评级师为A股公司生成研究评级"
+  default_prompt: "Use $liuli-stock-rater to rate 600519.SH with the 标的评级师 workflow."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "liuli"
+      description: "Fetch liuli researcher profile, local announcements/news, and optional report uploads."
+    - type: "mcp"
+      value: "tushareMcp"
+      description: "Fetch A-share structured financial, valuation, and market data."
+
+policy:
+  allow_implicit_invocation: true

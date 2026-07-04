@@ -304,25 +304,15 @@ def test_knowledge_base_flow_and_placeholder_jobs_removed():
     assert skill.status_code == 200
     exported = client.get(f"/api/knowledge/external-skills/{skill.json()['id']}/export", headers=headers)
     assert exported.status_code == 200
-    soul = client.post(
-        "/api/knowledge/researcher-souls",
-        json={"name": "证据优先", "version": "v1", "content": "世界观：证据优先"},
-        headers=headers,
-    )
-    assert soul.status_code == 200
-    method = client.post(
-        "/api/knowledge/researcher-methods",
-        json={"name": "赛道复盘", "version": "v1", "content": "方法论：复盘赛道"},
-        headers=headers,
-    )
-    assert method.status_code == 200
     agent = client.post(
         "/api/knowledge/researchers",
         json={
-            "name": "赛道复盘研究员",
-            "soul_id": soul.json()["id"],
-            "method_id": method.json()["id"],
+            "researcher_code": "track_review_001",
+            "display_name": "赛道复盘研究员",
             "status": "active",
+            "intro": "用于赛道复盘。",
+            "soul": "证据优先",
+            "method": "复盘赛道",
         },
         headers=headers,
     )

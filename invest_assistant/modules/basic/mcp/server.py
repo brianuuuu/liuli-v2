@@ -21,7 +21,7 @@ MCP_SCOPE = "mcp"
 MCP_INSTRUCTIONS = (
     "本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、"
     "禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、"
-    "stock_analysis、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。"
+    "stock_analysis、knowledge_base、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。"
     "返回内容以中文为主，客户端应按 UTF-8 解码；如终端显示乱码，优先检查客户端或终端编码。"
 )
 MCP_TOOL_DESCRIPTIONS = {
@@ -54,14 +54,8 @@ MCP_TOOL_DESCRIPTIONS = {
         "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id。"
     ),
     "knowledge_base.get_researcher_profile": (
-        "查询研究员组合元信息，适合先获取标的评级师简介和后续读取 Soul/Method 所需 ID。"
-        "支持 researcher 按名称、编号或 ID 精确匹配。"
-    ),
-    "knowledge_base.get_researcher_soul": (
-        "按 soul_id 读取研究员 Soul 文件内容。仅在已通过 profile 获取 soul_id 后调用，不要猜测 ID。"
-    ),
-    "knowledge_base.get_researcher_method": (
-        "按 method_id 读取研究员 Method 文件内容。仅在已通过 profile 获取 method_id 后调用，不要猜测 ID。"
+        "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
+        "支持 researcher 按展示名称、researcher_code 或 ID 精确匹配。"
     ),
     "report_library.list_reports": (
         "查询报告库列表，适合查找 report_library.read_report_content 所需的 report_id。"
@@ -237,24 +231,6 @@ def _register_tools(server: FastMCP) -> None:
             "knowledge_base.get_researcher_profile",
             {"researcher": researcher},
             knowledge_base.get_researcher_profile,
-        )
-
-    @server.tool(name="knowledge_base.get_researcher_soul", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_soul"])
-    def mcp_knowledge_base_get_researcher_soul(ctx: Context, soul_id: int) -> dict:
-        return _run_tool(
-            ctx,
-            "knowledge_base.get_researcher_soul",
-            {"soul_id": soul_id},
-            knowledge_base.get_researcher_soul,
-        )
-
-    @server.tool(name="knowledge_base.get_researcher_method", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_method"])
-    def mcp_knowledge_base_get_researcher_method(ctx: Context, method_id: int) -> dict:
-        return _run_tool(
-            ctx,
-            "knowledge_base.get_researcher_method",
-            {"method_id": method_id},
-            knowledge_base.get_researcher_method,
         )
 
     @server.tool(name="report_library.list_reports", description=MCP_TOOL_DESCRIPTIONS["report_library.list_reports"])

@@ -16,42 +16,48 @@ def test_knowledge_backend_uses_new_boundary_names():
 
     for expected in [
         "knowledge_external_skill",
-        "knowledge_researcher_soul",
-        "knowledge_researcher_method",
         "knowledge_researcher",
         "knowledge_research_feedback",
         "KnowledgeExternalSkill",
-        "KnowledgeResearcherSoul",
-        "KnowledgeResearcherMethod",
         "KnowledgeResearcher",
         "KnowledgeResearchFeedback",
     ]:
         assert expected in models + schemas + service + router
 
     for expected in [
-        "已有研究回流引用关联研究员，不能删除该 Soul",
-        "已有研究回流引用关联研究员，不能删除该 Method",
-        "db.delete(researcher)",
-        "code: Mapped[str | None]",
-        "description: Mapped[str | None]",
-        '"code": "ALTER TABLE knowledge_researcher ADD COLUMN code VARCHAR(64)"',
-        '"description": "ALTER TABLE knowledge_researcher ADD COLUMN description TEXT"',
-        "code: str | None = None",
-        "description: str | None = None",
+        "researcher_code: Mapped[str]",
+        "display_name: Mapped[str]",
+        "profile_path: Mapped[str]",
+        "profile_hash: Mapped[str | None]",
+        "researcher_code: str",
+        "display_name: str",
+        "profile_content: str = \"\"",
+        "intro: str = \"\"",
+        "soul: str = \"\"",
+        "method: str = \"\"",
+        "RESEARCHER_PROFILE_ROOT",
+        "format_researcher_profile_markdown",
+        "parse_researcher_profile_markdown",
     ]:
         assert expected in models + schemas + service
 
     for route in [
         '"/external-skills"',
         '"/external-skills/{skill_id}/export"',
-        '"/researcher-souls"',
-        '"/researcher-methods"',
         '"/researchers"',
         '"/research-feedback"',
     ]:
         assert route in router
 
     for legacy in [
+        "knowledge_researcher_soul",
+        "knowledge_researcher_method",
+        "KnowledgeResearcherSoul",
+        "KnowledgeResearcherMethod",
+        '"/researcher-souls"',
+        '"/researcher-methods"',
+        "soul_id",
+        "method_id",
         "KnowledgeSkill",
         "KnowledgeAgent",
         "KnowledgeFeedbackLog",
@@ -81,13 +87,9 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
     for expected in [
         "listKnowledgeExternalSkills",
         "exportKnowledgeExternalSkill",
-        "listKnowledgeResearcherSouls",
-        "listKnowledgeResearcherMethods",
         "listKnowledgeResearchers",
         "listKnowledgeResearchFeedback",
         "/api/knowledge/external-skills",
-        "/api/knowledge/researcher-souls",
-        "/api/knowledge/researcher-methods",
         "/api/knowledge/researchers",
         "/api/knowledge/research-feedback",
     ]:
@@ -95,13 +97,13 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
 
     for expected in [
         "width={920}",
-        "width={820}",
-        "width={520}",
-        "Segmented",
-        "researcherView",
+        "width={860}",
+        "Tabs",
         "新增研究员",
-        "新增 Soul",
-        "新增 Method",
+        "MarkdownViewer",
+        "createPortal",
+        "full-screen-reader-overlay",
+        "查看",
         "getApiErrorDetail",
         "研究时间",
         "回流时间",
@@ -110,14 +112,31 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         assert expected in page
 
     for expected in [
-        "code?: string | null",
-        "description?: string | null",
-        'name="code"',
+        "researcher_code: string",
+        "display_name: string",
+        "profile_path: string",
+        "profile_hash?: string | null",
+        "profile_content: string",
+        "intro: string",
+        "soul: string",
+        "method: string",
+        'name="researcher_code"',
         'label="编号"',
-        'name="description"',
+        'name="display_name"',
+        'label="展示名称"',
+        'name="intro"',
         'label="简介"',
+        'name="soul"',
+        'label="价值观"',
+        'name="method"',
+        'label="方法论"',
     ]:
         assert expected in page + api
+
+    payload_start = api.index("export type KnowledgeResearcherPayload = {")
+    payload_end = api.index("};", payload_start)
+    payload_block = api[payload_start:payload_end]
+    assert "profile_content" not in payload_block
 
     for expected in [
         ".data-panel-toolbar .ant-segmented",
@@ -130,7 +149,15 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "listKnowledgeSkills",
         "listKnowledgeAgents",
         "listKnowledgeFeedbackLogs",
+        "listKnowledgeResearcherSouls",
+        "listKnowledgeResearcherMethods",
+        "createKnowledgeResearcherSoul",
+        "createKnowledgeResearcherMethod",
+        "/api/knowledge/researcher-souls",
+        "/api/knowledge/researcher-methods",
         'name="file_path"',
+        'name="soul_id"',
+        'name="method_id"',
         'name="trigger_condition"',
         'name="operation_steps"',
         'name="mcp_flow"',
@@ -142,6 +169,8 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "研究员组合",
         "Soul 世界观库",
         "Method 方法论库",
+        "新增 Soul",
+        "新增 Method",
         "判断风格",
         "风险偏好",
         "研究禁区",
@@ -172,11 +201,23 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "knowledge_external_skill",
         "knowledge_researcher",
         "knowledge_research_feedback",
-        "code, name, description, soul_id",
+        "researcher_code, display_name, profile_path, profile_hash, status",
+        "external/researchers/{researcher_code}/profile.md",
+        "researcher_code: analyst_001",
+        "display_name: A股标的研究员",
+        "## 简介 intro",
+        "## 价值观 soul",
+        "## 方法论 method",
     ]:
         assert expected in docs
 
     for legacy in [
+        "knowledge_researcher_soul",
+        "knowledge_researcher_method",
+        "get_researcher_soul",
+        "get_researcher_method",
+        "soul_id",
+        "method_id",
         "knowledge_skill",
         "knowledge_agent",
         "knowledge_feedback_log",

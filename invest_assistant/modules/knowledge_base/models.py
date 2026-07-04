@@ -57,39 +57,15 @@ class KnowledgeExternalSkill(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class KnowledgeResearcherSoul(Base):
-    __tablename__ = "knowledge_researcher_soul"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
-    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-
-
-class KnowledgeResearcherMethod(Base):
-    __tablename__ = "knowledge_researcher_method"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
-    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    file_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
-
-
 class KnowledgeResearcher(Base):
     __tablename__ = "knowledge_researcher"
+    __table_args__ = (UniqueConstraint("researcher_code", name="uq_knowledge_researcher_code"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    soul_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_soul.id"), nullable=False, index=True)
-    method_id: Mapped[int] = mapped_column(ForeignKey("knowledge_researcher_method.id"), nullable=False, index=True)
+    researcher_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    profile_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    profile_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -137,8 +113,6 @@ def ensure_knowledge_base_schema(engine: Engine) -> None:
     KnowledgeNoteGroup.__table__.create(bind=engine, checkfirst=True)
     KnowledgeNoteTagRelation.__table__.create(bind=engine, checkfirst=True)
     KnowledgeExternalSkill.__table__.create(bind=engine, checkfirst=True)
-    KnowledgeResearcherSoul.__table__.create(bind=engine, checkfirst=True)
-    KnowledgeResearcherMethod.__table__.create(bind=engine, checkfirst=True)
     KnowledgeResearcher.__table__.create(bind=engine, checkfirst=True)
     KnowledgeResearchFeedback.__table__.create(bind=engine, checkfirst=True)
     if engine.dialect.name != "sqlite":
@@ -162,8 +136,10 @@ def ensure_knowledge_base_schema(engine: Engine) -> None:
                 conn.execute(text(statement))
         researcher_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(knowledge_researcher)")).all()}
         researcher_column_migrations = {
-            "code": "ALTER TABLE knowledge_researcher ADD COLUMN code VARCHAR(64)",
-            "description": "ALTER TABLE knowledge_researcher ADD COLUMN description TEXT",
+            "researcher_code": "ALTER TABLE knowledge_researcher ADD COLUMN researcher_code VARCHAR(64)",
+            "display_name": "ALTER TABLE knowledge_researcher ADD COLUMN display_name VARCHAR(255)",
+            "profile_path": "ALTER TABLE knowledge_researcher ADD COLUMN profile_path VARCHAR(512)",
+            "profile_hash": "ALTER TABLE knowledge_researcher ADD COLUMN profile_hash VARCHAR(128)",
         }
         for column_name, statement in researcher_column_migrations.items():
             if column_name not in researcher_columns:
