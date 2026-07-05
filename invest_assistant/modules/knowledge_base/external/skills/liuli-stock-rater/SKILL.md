@@ -31,7 +31,7 @@ The report must include:
 - 数据覆盖范围：Tushare 财务和估值期间、公告期间、新闻/观点期间。
 - 商业模式、管理层、治理、战略、确定性、成长性逐项评分和证据。
 - 综合评分、等级、估值区间、关键假设、主要风险。
-- 最终 JSON，字段和评分口径按 profile 的方法论优先；缺字段时使用 `null` 并解释原因。
+- 最终 JSON，字段和评分口径按 profile 的方法论优先；用于评分导入的字段必须使用扁平结构：`company_code`、`business_moat_score`、`management_score`、`governance_score`、`strategy_score`、`certainty_score`、`growth_score`、`total_score`、`investment_level`、`core_logic`、`primary_risk`、`researcher_code`。
 
 Do not output direct buy/sell or position-sizing instructions unless the user explicitly asks for investment decision support. Ratings are research analysis, not trading orders.
 

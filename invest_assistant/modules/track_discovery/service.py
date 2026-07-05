@@ -409,7 +409,6 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
 
     db.execute(delete(StockTrackRelation).where(StockTrackRelation.track_id == track_id))
     db.execute(update(StockResearchNote).where(StockResearchNote.related_track_id == track_id).values(related_track_id=None))
-    db.execute(update(StockScoreSnapshot).where(StockScoreSnapshot.track_id == track_id).values(track_id=None))
     db.execute(update(StockCompareGroup).where(StockCompareGroup.track_id == track_id).values(track_id=None))
     db.execute(delete(TrackStatusHistory).where(TrackStatusHistory.track_id == track_id))
     db.execute(delete(TrackMaterial).where(TrackMaterial.track_id == track_id))

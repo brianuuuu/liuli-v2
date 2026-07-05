@@ -1,8 +1,10 @@
-import { Button, Space, Table } from "antd";
+import { Button, Modal, Popconfirm, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listStockScoreComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
+import { deleteStockScore, listStockScoreComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
 import { listTracks } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
@@ -17,6 +19,8 @@ export function CompareSection() {
   const [activeTab, setActiveTab] = useState("score");
   const [trackFilter, setTrackFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [radarScore, setRadarScore] = useState<StockScoreComparisonItem | null>(null);
+  const [viewingScore, setViewingScore] = useState<StockScoreComparisonItem | null>(null);
 
   const visibleTracks = useMemo(
     () => tracks.data.filter((track) => ["candidate", "active", "paused"].includes(track.status)),
@@ -119,6 +123,42 @@ export function CompareSection() {
     return <span className={strong ? "stock-compare-score-value strong" : "stock-compare-score-value"}>{formatScore(value)}</span>;
   }
 
+  function scoreRadarOption(record: StockScoreComparisonItem): EChartsOption {
+    const dimensions = scoreDimensions(record);
+    return {
+      tooltip: {},
+      radar: {
+        indicator: dimensions.map((item) => ({ name: item.label, max: 10 })),
+        radius: "68%"
+      },
+      series: [
+        {
+          type: "radar",
+          data: [{ value: dimensions.map((item) => Number(item.value || 0)), name: record.stock_name || "评分" }],
+          areaStyle: { opacity: 0.16 }
+        }
+      ]
+    };
+  }
+
+  function scoreDimensions(record: StockScoreComparisonItem) {
+    return [
+      { label: "壁垒", value: record.business_moat_score },
+      { label: "管理", value: record.management_score },
+      { label: "治理", value: record.governance_score },
+      { label: "战略", value: record.strategy_score },
+      { label: "确定性", value: record.certainty_score },
+      { label: "成长", value: record.growth_score }
+    ];
+  }
+
+  async function removeScore(record: StockScoreComparisonItem) {
+    if (!record.score_id) return;
+    await deleteStockScore(record.score_id);
+    message.success("评分已删除");
+    await comparison.refresh();
+  }
+
   function renderGap(value?: number | null) {
     if (value == null) return "-";
     const numeric = Number(value);
@@ -151,13 +191,29 @@ export function CompareSection() {
       width: 190,
       render: (_, record) => renderStockLink(record)
     },
-    { title: "评分日期", dataIndex: "score_date", width: 110, render: (value) => value || "-" },
-    { title: "总分", dataIndex: "total_score", width: 80, sorter: numericSorter("total_score"), defaultSortOrder: "descend", render: (value) => renderScoreValue(value, true) },
+    { title: "报告时间", dataIndex: "report_time", width: 110, render: (value) => value || "-" },
+    { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" },
+    { title: "等级", dataIndex: "investment_level", width: 70, render: (value) => value || "-" },
+    { title: "总分", dataIndex: "total_score", width: 78, sorter: numericSorter("total_score"), defaultSortOrder: "descend", render: (value) => renderScoreValue(value, true) },
+    { title: "壁垒", dataIndex: "business_moat_score", width: 72, sorter: numericSorter("business_moat_score"), render: renderScoreValue },
+    { title: "管理", dataIndex: "management_score", width: 72, sorter: numericSorter("management_score"), render: renderScoreValue },
+    { title: "治理", dataIndex: "governance_score", width: 72, sorter: numericSorter("governance_score"), render: renderScoreValue },
+    { title: "战略", dataIndex: "strategy_score", width: 72, sorter: numericSorter("strategy_score"), render: renderScoreValue },
+    { title: "确定性", dataIndex: "certainty_score", width: 82, sorter: numericSorter("certainty_score"), render: renderScoreValue },
     { title: "成长", dataIndex: "growth_score", width: 80, sorter: numericSorter("growth_score"), render: renderScoreValue },
-    { title: "估值", dataIndex: "valuation_score", width: 80, sorter: numericSorter("valuation_score"), render: renderScoreValue },
-    { title: "护城河", dataIndex: "moat_score", width: 90, sorter: numericSorter("moat_score"), render: renderScoreValue },
-    { title: "风险", dataIndex: "risk_score", width: 80, sorter: numericSorter("risk_score"), render: renderScoreValue },
-    { title: "操作", width: 90, render: (_, record) => <Link to={`/stock-analysis/stocks/${record.stock_id}`}>详情</Link> }
+    {
+      title: "操作",
+      width: 170,
+      render: (_, record) => record.score_id ? (
+        <Space size={4}>
+          <Button size="small" onClick={() => setRadarScore(record)}>雷达图</Button>
+          <Button size="small" onClick={() => setViewingScore(record)}>查看</Button>
+          <Popconfirm title="删除这条评分？" okText="删除" cancelText="取消" onConfirm={() => void removeScore(record)}>
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      ) : "-"
+    }
   ];
 
   const valuationColumns: ColumnsType<StockValuationComparisonItem> = [
@@ -239,16 +295,33 @@ export function CompareSection() {
       ]}
     >
       {activeTab === "score" ? (
-        <Table
-          rowKey="stock_id"
-          size="small"
-          loading={comparison.loading || tracks.loading}
-          dataSource={scoreRows}
-          columns={scoreColumns}
-          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
-          locale={{ emptyText: <EmptyAction description={emptyDescription(comparison.data.length)} /> }}
-          scroll={{ x: 760 }}
-        />
+        <>
+          <Table
+            rowKey={(record) => String(record.score_id || `stock-${record.stock_id}`)}
+            size="small"
+            loading={comparison.loading || tracks.loading}
+            dataSource={scoreRows}
+            columns={scoreColumns}
+            pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+            locale={{ emptyText: <EmptyAction description={emptyDescription(comparison.data.length)} /> }}
+            scroll={{ x: 1160 }}
+          />
+          <Modal title={`${radarScore?.stock_name || "标的"} 雷达图`} open={!!radarScore} onCancel={() => setRadarScore(null)} footer={null} width={560} destroyOnHidden>
+            {radarScore ? <ReactECharts option={scoreRadarOption(radarScore)} style={{ height: 360 }} /> : null}
+          </Modal>
+          <Modal title={`${viewingScore?.stock_name || "标的"} 评分详情`} open={!!viewingScore} onCancel={() => setViewingScore(null)} footer={null} width={720} destroyOnHidden>
+            {viewingScore ? (
+              <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                <div>报告时间：{viewingScore.report_time || "-"}　研究员：{viewingScore.researcher_code || "-"}　等级：{viewingScore.investment_level || "-"}</div>
+                <div>
+                  {scoreDimensions(viewingScore).map((item) => `${item.label}：${formatScore(item.value)}`).join("　")}　总分：{formatScore(viewingScore.total_score)}
+                </div>
+                <div>核心逻辑：{viewingScore.core_logic || "-"}</div>
+                <div>主要风险：{viewingScore.primary_risk || "-"}</div>
+              </Space>
+            ) : null}
+          </Modal>
+        </>
       ) : (
         <Table
           rowKey="stock_id"

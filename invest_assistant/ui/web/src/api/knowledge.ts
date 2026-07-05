@@ -147,6 +147,28 @@ export type KnowledgeResearchFeedback = {
 
 export type KnowledgeResearchFeedbackPayload = Omit<KnowledgeResearchFeedback, "id" | "created_at" | "updated_at">;
 
+export type KnowledgeResearchFeedbackImportResult = {
+  target: string;
+  message: string;
+  company_name?: string | null;
+  score?: {
+    id: number;
+    stock_id: number;
+    report_time: string;
+    researcher_code?: string | null;
+    business_moat_score: number;
+    management_score: number;
+    governance_score: number;
+    strategy_score: number;
+    certainty_score: number;
+    growth_score: number;
+    total_score: number;
+    investment_level?: string | null;
+    core_logic?: string | null;
+    primary_risk?: string | null;
+  };
+};
+
 export async function listKnowledgeNotes(params: KnowledgeNoteQuery = {}): Promise<KnowledgeNotePage> {
   const response = await apiClient.get<unknown>("/api/knowledge/notes", { params });
   return normalizeKnowledgeNotePage(response.data, params);
@@ -246,6 +268,11 @@ export async function createKnowledgeResearchFeedback(payload: KnowledgeResearch
 
 export async function updateKnowledgeResearchFeedback(id: number, payload: KnowledgeResearchFeedbackPayload): Promise<KnowledgeResearchFeedback> {
   const response = await apiClient.put<KnowledgeResearchFeedback>(`/api/knowledge/research-feedback/${id}`, payload);
+  return response.data;
+}
+
+export async function importKnowledgeResearchFeedback(id: number): Promise<KnowledgeResearchFeedbackImportResult> {
+  const response = await apiClient.post<KnowledgeResearchFeedbackImportResult>(`/api/knowledge/research-feedback/${id}/import`);
   return response.data;
 }
 

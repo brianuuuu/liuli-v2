@@ -21,18 +21,20 @@ export function StatusTag({ status }: { status?: string | null }) {
 }
 
 export function scoreTrendOption(rows: StockScoreSnapshot[]): EChartsOption {
-  const ordered = [...rows].sort((a, b) => a.score_date.localeCompare(b.score_date));
+  const ordered = [...rows].sort((a, b) => a.report_time.localeCompare(b.report_time));
   return {
     tooltip: { trigger: "axis" },
     grid: { left: 42, right: 18, top: 26, bottom: 28 },
-    xAxis: { type: "category", data: ordered.map((item) => item.score_date) },
-    yAxis: { type: "value", min: 0 },
+    xAxis: { type: "category", data: ordered.map((item) => item.report_time) },
+    yAxis: { type: "value", min: 0, max: 10 },
     series: [
       { name: "总分", type: "line", smooth: true, data: ordered.map((item) => item.total_score) },
-      { name: "成长", type: "line", smooth: true, data: ordered.map((item) => item.growth_score) },
-      { name: "估值", type: "line", smooth: true, data: ordered.map((item) => item.valuation_score) },
-      { name: "护城河", type: "line", smooth: true, data: ordered.map((item) => item.moat_score) },
-      { name: "风险", type: "line", smooth: true, data: ordered.map((item) => item.risk_score) }
+      { name: "壁垒", type: "line", smooth: true, data: ordered.map((item) => item.business_moat_score) },
+      { name: "管理", type: "line", smooth: true, data: ordered.map((item) => item.management_score) },
+      { name: "治理", type: "line", smooth: true, data: ordered.map((item) => item.governance_score) },
+      { name: "战略", type: "line", smooth: true, data: ordered.map((item) => item.strategy_score) },
+      { name: "确定性", type: "line", smooth: true, data: ordered.map((item) => item.certainty_score) },
+      { name: "成长", type: "line", smooth: true, data: ordered.map((item) => item.growth_score) }
     ]
   };
 }

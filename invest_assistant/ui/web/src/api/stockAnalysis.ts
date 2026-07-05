@@ -17,13 +17,18 @@ export type StockNotePayload = {
 };
 
 export type StockScorePayload = {
-  score_date: string;
-  track_id?: number | null;
+  report_time: string;
+  researcher_code?: string | null;
+  business_moat_score?: number;
+  management_score?: number;
+  governance_score?: number;
+  strategy_score?: number;
+  certainty_score?: number;
   growth_score?: number;
-  valuation_score?: number;
-  moat_score?: number;
-  risk_score?: number;
   total_score?: number;
+  investment_level?: string | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
 };
 
 export type CompareGroupPayload = {
@@ -128,6 +133,11 @@ export async function listStockScores(stockId: number): Promise<StockScoreSnapsh
 
 export async function createStockScore(stockId: number, payload: StockScorePayload): Promise<StockScoreSnapshot> {
   const response = await apiClient.post<StockScoreSnapshot>(`/api/stock-analysis/stocks/${stockId}/scores`, payload);
+  return response.data;
+}
+
+export async function deleteStockScore(scoreId: number): Promise<{ deleted: boolean }> {
+  const response = await apiClient.delete<{ deleted: boolean }>(`/api/stock-analysis/scores/${scoreId}`);
   return response.data;
 }
 

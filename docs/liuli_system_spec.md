@@ -4493,6 +4493,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/stock-analysis/stocks/{stock_id}/notes` | 新增标的研究笔记 |
 | GET | `/api/stock-analysis/stocks/{stock_id}/scores` | 标的评分快照 |
 | POST | `/api/stock-analysis/stocks/{stock_id}/scores` | 新增标的评分快照 |
+| DELETE | `/api/stock-analysis/scores/{score_id}` | 删除标的评分记录 |
 | GET | `/api/stock-analysis/score-comparison` | 标的评分对比 |
 | GET | `/api/stock-analysis/valuation-comparison` | 标的估值对比 |
 | GET | `/api/stock-analysis/compare-groups` | 标的对比组列表 |
@@ -4584,8 +4585,9 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | PUT | `/api/knowledge/researchers/{id}` | 编辑研究员并更新 profile 文件 |
 | DELETE | `/api/knowledge/researchers/{id}` | 删除研究员 |
 | GET | `/api/knowledge/research-feedback` | 研究回流报告列表 |
-| POST | `/api/knowledge/research-feedback` | MCP 写入研究回流报告 |
-| PUT | `/api/knowledge/research-feedback/{id}` | 更新研究回流验证结果 |
+| GET | `/api/knowledge/research-feedback/{id}` | 研究回流详情并通过报告库读取正文 |
+| POST | `/api/knowledge/research-feedback` | MCP 写入研究回流索引 |
+| POST | `/api/knowledge/research-feedback/{id}/import` | 按标题自动识别并导入业务表 |
 
 ### 33.15 对外 MCP 入口
 
@@ -4866,7 +4868,7 @@ id, stock_id, material_type, material_id, impact_direction, importance_level, st
 字段：
 
 ```text
-id, stock_id, score_date, track_id, growth_score, valuation_score, moat_score, risk_score, total_score, created_at
+id, stock_id, report_time, researcher_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk, created_at
 ```
 
 #### `stock_daily_bar`：标的日线行情表，保存 K 线和均线指标
@@ -5196,6 +5198,8 @@ Skill 名称
 ```
 
 报告库 ID 和报告路径是内部索引字段，用于从报告库读取正文，不作为研究回流列表或详情页的展示列。通过 `liuli-stock-rater` 回流的标题格式固定为 `公司名称-YYYY-MM-DD-报告类型`，其中报告类型为 `标的评级报告`，例如 `万东医疗-2026-07-05-标的评级报告`。
+
+研究回流导入由后端自动识别，不在页面暴露目标表选择。第一版只按标题识别：按最后两个 `-` 拆出公司名称、`YYYY-MM-DD` 日期和报告类型；报告类型为 `标的评级报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_score_snapshot`。最终 JSON 必须包含 `company_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk`，`researcher_code` 可由 JSON 覆盖，否则使用回流记录中的研究员编号。`company_code` 必须匹配已有 `stock.stock_code`，系统不自动创建标的。
 
 ## 对外 MCP 服务设计
 

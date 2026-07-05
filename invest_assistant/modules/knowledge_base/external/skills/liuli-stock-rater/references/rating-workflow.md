@@ -94,25 +94,21 @@ Use the profile method section's JSON schema when present. If it lacks a strict 
 
 ```json
 {
-  "company": "",
-  "ts_code": "",
-  "rating_date": "",
+  "company_code": "",
+  "company_name": "",
+  "report_time": "",
   "data_cutoff": "",
-  "analyst": {
-    "display_name": "标的评级师",
-    "researcher_code": "<value from researcher profile>",
-    "profile_hash": ""
-  },
-  "scores": {
-    "business_model": null,
-    "management": null,
-    "governance": null,
-    "strategy": null,
-    "certainty": null,
-    "growth": null,
-    "total": null
-  },
-  "rating": "",
+  "researcher_code": "<value from researcher profile>",
+  "business_moat_score": null,
+  "management_score": null,
+  "governance_score": null,
+  "strategy_score": null,
+  "certainty_score": null,
+  "growth_score": null,
+  "total_score": null,
+  "investment_level": "",
+  "core_logic": "",
+  "primary_risk": "",
   "valuation_range": {
     "low": null,
     "base": null,
@@ -127,6 +123,8 @@ Use the profile method section's JSON schema when present. If it lacks a strict 
 ```
 
 Use `null` for missing numeric values. Do not fabricate unavailable data.
+
+The trailing final JSON is the source for later score import. For `标的评级报告`, `company_code`, all six `*_score` fields, `total_score`, `investment_level`, `core_logic`, and `primary_risk` are required for import into `stock_score_snapshot`.
 
 ## Research Feedback Upload
 

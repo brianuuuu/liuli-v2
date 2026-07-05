@@ -38,13 +38,18 @@ class StockResearchNoteRead(StockResearchNoteCreate):
 
 
 class StockScoreSnapshotCreate(BaseModel):
-    score_date: date
-    track_id: int | None = None
+    report_time: date
+    researcher_code: str | None = None
+    business_moat_score: float = 0
+    management_score: float = 0
+    governance_score: float = 0
+    strategy_score: float = 0
+    certainty_score: float = 0
     growth_score: float = 0
-    valuation_score: float = 0
-    moat_score: float = 0
-    risk_score: float = 0
     total_score: float = 0
+    investment_level: str | None = None
+    core_logic: str | None = None
+    primary_risk: str | None = None
 
 
 class StockScoreSnapshotRead(StockScoreSnapshotCreate):
@@ -87,13 +92,18 @@ class StockScoreComparisonRead(BaseModel):
     status: str | None = None
     tracks: list[dict] = Field(default_factory=list)
     score_id: int | None = None
-    score_date: date | None = None
-    track_id: int | None = None
+    report_time: date | None = None
+    researcher_code: str | None = None
+    business_moat_score: float | None = None
+    management_score: float | None = None
+    governance_score: float | None = None
+    strategy_score: float | None = None
+    certainty_score: float | None = None
     growth_score: float | None = None
-    valuation_score: float | None = None
-    moat_score: float | None = None
-    risk_score: float | None = None
     total_score: float | None = None
+    investment_level: str | None = None
+    core_logic: str | None = None
+    primary_risk: str | None = None
     created_at: datetime | None = None
 
 
@@ -301,12 +311,14 @@ class StockDashboardSummary(BaseModel):
 
 
 class StockDashboardScorePoint(BaseModel):
-    score_date: date
+    report_time: date
     total_score: float
+    business_moat_score: float | None = None
+    management_score: float | None = None
+    governance_score: float | None = None
+    strategy_score: float | None = None
+    certainty_score: float | None = None
     growth_score: float | None = None
-    valuation_score: float | None = None
-    moat_score: float | None = None
-    risk_score: float | None = None
 
 
 class StockDashboardScoreTrend(BaseModel):
@@ -352,11 +364,15 @@ class StockDashboardScoreRanking(BaseModel):
     stock_code: str | None = None
     status: str | None = None
     tracks: list[dict] = Field(default_factory=list)
-    score_date: date | None = None
+    report_time: date | None = None
+    researcher_code: str | None = None
+    investment_level: str | None = None
+    business_moat_score: float | None = None
+    management_score: float | None = None
+    governance_score: float | None = None
+    strategy_score: float | None = None
+    certainty_score: float | None = None
     growth_score: float | None = None
-    valuation_score: float | None = None
-    moat_score: float | None = None
-    risk_score: float | None = None
     total_score: float | None = None
 
 

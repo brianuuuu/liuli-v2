@@ -137,6 +137,14 @@ def create_score(stock_id: int, payload: StockScoreSnapshotCreate, db: Session =
     return service.create_score(db, stock_id, payload)
 
 
+@router.delete("/scores/{score_id}")
+def delete_score(score_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
+    deleted = service.delete_score(db, score_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="score not found")
+    return {"deleted": True}
+
+
 @router.get("/score-comparison", response_model=list[StockScoreComparisonRead])
 def list_score_comparison(db: Session = Depends(get_db)) -> list:
     return service.list_score_comparison(db)

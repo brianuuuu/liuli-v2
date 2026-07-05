@@ -22,6 +22,7 @@ import {
   listKnowledgePrompts,
   listKnowledgeResearchers,
   listKnowledgeResearchFeedback,
+  importKnowledgeResearchFeedback,
   readKnowledgeExternalSkillFile,
   restoreKnowledgeNote,
   updateKnowledgeNote,
@@ -1021,6 +1022,7 @@ function ResearchFeedbackSection() {
   const [viewing, setViewing] = useState<KnowledgeResearchFeedback | null>(null);
   const [reportContent, setReportContent] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
+  const [importingId, setImportingId] = useState<number | null>(null);
 
   async function viewFeedback(record: KnowledgeResearchFeedback) {
     setViewing(record);
@@ -1036,6 +1038,22 @@ function ResearchFeedbackSection() {
     }
   }
 
+  async function importFeedback(record: KnowledgeResearchFeedback) {
+    setImportingId(record.id);
+    try {
+      const result = await importKnowledgeResearchFeedback(record.id);
+      message.success(`${result.message || "导入成功"}${result.score?.id ? `：评分 ID ${result.score.id}` : ""}`);
+      await feedback.refresh();
+    } catch (error) {
+      Modal.error({
+        title: "导入失败",
+        content: getApiErrorDetail(error) || "未识别可导入的报告类型"
+      });
+    } finally {
+      setImportingId(null);
+    }
+  }
+
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
     { title: "标题", dataIndex: "title", ellipsis: true },
     { title: "研究员编号", dataIndex: "researcher_code", width: 130, render: (value) => value || "-" },
@@ -1045,7 +1063,16 @@ function ResearchFeedbackSection() {
     { title: "状态", dataIndex: "status", width: 100, render: (value) => value || "-" },
     { title: "回流时间", dataIndex: "returned_at", width: 150, render: formatDateTime },
     { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime },
-    { title: "操作", width: 80, render: (_, record) => <Button size="small" onClick={() => void viewFeedback(record)}>查看</Button> }
+    {
+      title: "操作",
+      width: 130,
+      render: (_, record) => (
+        <Space size={6}>
+          <Button size="small" onClick={() => void viewFeedback(record)}>查看</Button>
+          <Button className="import-feedback" size="small" loading={importingId === record.id} onClick={() => void importFeedback(record)}>导入</Button>
+        </Space>
+      )
+    }
   ];
 
   return (

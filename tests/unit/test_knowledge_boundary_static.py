@@ -135,6 +135,7 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "readKnowledgeExternalSkillFile",
         "listKnowledgeResearchers",
         "listKnowledgeResearchFeedback",
+        "importKnowledgeResearchFeedback",
         "/api/knowledge/external-skills",
         "/api/knowledge/external-skills/files",
         "/api/knowledge/external-skills/files/content",
@@ -151,6 +152,9 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "createPortal",
         "full-screen-reader-overlay",
         "查看",
+        "导入",
+        "import-feedback",
+        "未识别可导入的报告类型",
         "getApiErrorDetail",
         "标题",
         "Skill 名称",
@@ -300,6 +304,9 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "## 方法论 method",
         "公司名称-YYYY-MM-DD-报告类型",
         "万东医疗-2026-07-05-标的评级报告",
+        "stock_score_snapshot",
+        "report_time, researcher_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk",
+        "报告类型为 `标的评级报告`",
     ]:
         assert expected in docs
 

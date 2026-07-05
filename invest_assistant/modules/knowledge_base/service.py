@@ -1,7 +1,8 @@
 import hashlib
+import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.report_library import service as report_service
+from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import (
     KnowledgeNote,
     KnowledgeNoteGroup,
@@ -36,12 +38,29 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeResearcherRead,
 )
 from invest_assistant.modules.market_radar.models import Tag
+from invest_assistant.modules.stock_analysis import service as stock_service
+from invest_assistant.modules.stock_analysis.schemas import StockScoreSnapshotCreate
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY = "market_radar.generate_daily_report"
 DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_deepseek"
 DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
 RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
+SCORE_REPORT_TYPE = "标的评级报告"
+SCORE_REPORT_TITLE_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(.+)$")
+SCORE_IMPORT_FIELDS = [
+    "company_code",
+    "business_moat_score",
+    "management_score",
+    "governance_score",
+    "strategy_score",
+    "certainty_score",
+    "growth_score",
+    "total_score",
+    "investment_level",
+    "core_logic",
+    "primary_risk",
+]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 KNOWLEDGE_BASE_ROOT = Path(__file__).resolve().parent
@@ -849,6 +868,147 @@ def update_research_feedback(
     db.commit()
     db.refresh(item)
     return item
+
+
+def import_research_feedback(db: Session, feedback_id: int) -> dict:
+    feedback = get_research_feedback(db, feedback_id)
+    if feedback is None:
+        raise ValueError("research feedback not found")
+    company_name, report_time, report_type = _parse_feedback_report_title(feedback.title)
+    if report_type != SCORE_REPORT_TYPE:
+        raise ValueError("未识别可导入的报告类型")
+    if not feedback.report_id:
+        raise ValueError("research feedback report_id is required")
+    report = report_service.get_report(db, feedback.report_id)
+    if report is None:
+        raise ValueError("report not found")
+    report_path = report_service.resolve_report_path(report)
+    if not report_path.exists():
+        raise ValueError("report file not found")
+    content = report_path.read_text(encoding="utf-8")
+    payload = _normalize_score_import_payload(_extract_trailing_json_object(content))
+    stock = _resolve_score_import_stock(db, payload["company_code"])
+    score = stock_service.create_score(
+        db,
+        stock.id,
+        StockScoreSnapshotCreate(
+            report_time=report_time,
+            researcher_code=_normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
+            business_moat_score=payload["business_moat_score"],
+            management_score=payload["management_score"],
+            governance_score=payload["governance_score"],
+            strategy_score=payload["strategy_score"],
+            certainty_score=payload["certainty_score"],
+            growth_score=payload["growth_score"],
+            total_score=payload["total_score"],
+            investment_level=payload["investment_level"],
+            core_logic=payload["core_logic"],
+            primary_risk=payload["primary_risk"],
+        ),
+    )
+    feedback.status = "parsed"
+    db.commit()
+    db.refresh(feedback)
+    return {
+        "target": "stock_score_snapshot",
+        "message": "评分导入成功",
+        "company_name": company_name,
+        "score": stock_service._score_snapshot_dict(score),
+    }
+
+
+def _parse_feedback_report_title(title: str) -> tuple[str, date, str]:
+    match = SCORE_REPORT_TITLE_RE.match(str(title or "").strip())
+    if not match:
+        raise ValueError("未识别可导入的报告类型")
+    company_name, report_date, report_type = match.groups()
+    try:
+        parsed_date = date.fromisoformat(report_date)
+    except ValueError as exc:
+        raise ValueError("报告标题日期格式必须为 YYYY-MM-DD") from exc
+    return company_name.strip(), parsed_date, report_type.strip()
+
+
+def _extract_trailing_json_object(markdown: str) -> dict:
+    content = str(markdown or "").strip()
+    if not content:
+        raise ValueError("报告内容为空")
+    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```\s*$", content, re.IGNORECASE)
+    candidates = []
+    if fenced_match:
+        candidates.append(fenced_match.group(1).strip())
+    candidates.append(content)
+    decoder = json.JSONDecoder()
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if not text:
+            continue
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+        for index in range(len(text) - 1, -1, -1):
+            if text[index] != "{":
+                continue
+            fragment = text[index:].strip()
+            try:
+                parsed, end = decoder.raw_decode(fragment)
+            except Exception:
+                continue
+            if isinstance(parsed, dict) and not fragment[end:].strip():
+                return parsed
+    raise ValueError("未在报告末尾解析到 JSON")
+
+
+def _normalize_score_import_payload(payload: dict) -> dict:
+    normalized: dict[str, Any] = {}
+    for field in SCORE_IMPORT_FIELDS:
+        value = payload.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError(f"评分导入缺少字段: {field}")
+        normalized[field] = value
+    for field in [
+        "business_moat_score",
+        "management_score",
+        "governance_score",
+        "strategy_score",
+        "certainty_score",
+        "growth_score",
+        "total_score",
+    ]:
+        normalized[field] = _score_import_float(payload.get(field), field)
+    normalized["company_code"] = str(payload.get("company_code") or "").strip()
+    normalized["investment_level"] = str(payload.get("investment_level") or "").strip()
+    normalized["core_logic"] = str(payload.get("core_logic") or "").strip()
+    normalized["primary_risk"] = str(payload.get("primary_risk") or "").strip()
+    normalized["researcher_code"] = _normalize_optional_text(str(payload.get("researcher_code") or ""))
+    return normalized
+
+
+def _score_import_float(value: Any, field: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} 必须是 0-10 数值")
+    try:
+        number = float(value)
+    except Exception as exc:
+        raise ValueError(f"{field} 必须是 0-10 数值") from exc
+    if number < 0 or number > 10:
+        raise ValueError(f"{field} 必须是 0-10 数值")
+    return round(number, 4)
+
+
+def _resolve_score_import_stock(db: Session, company_code: str) -> Stock:
+    code = str(company_code or "").strip()
+    if not code:
+        raise ValueError("评分导入缺少字段: company_code")
+    rows = list(db.scalars(select(Stock).where(Stock.stock_code == code).order_by(Stock.id.asc())))
+    if not rows:
+        raise ValueError(f"未找到股票: {code}")
+    if len(rows) > 1:
+        raise ValueError(f"匹配到多个股票: {code}")
+    return rows[0]
 
 
 def _note_payload_data(payload: KnowledgeNoteCreate, tags_by_id: dict[int, Tag]) -> dict:
