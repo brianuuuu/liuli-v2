@@ -60,8 +60,8 @@ def test_stock_detail_aggregates_current_stock_research_data():
             StockPoolItem(stock_id=stock.id, status="focused", source="manual", reason="现金流稳定"),
             StockTrackRelation(stock_id=stock.id, track_id=track.id, relation_type="core", conviction=0.8, status="active"),
             StockTagRelation(stock_id=stock.id, tag_id=tag.id, source="manual", status="active"),
-            StockScoreSnapshot(stock_id=stock.id, score_date=date(2026, 5, 1), total_score=70, growth_score=60),
-            StockScoreSnapshot(stock_id=stock.id, score_date=date(2026, 5, 31), total_score=86, growth_score=80),
+            StockScoreSnapshot(stock_id=stock.id, report_time=date(2026, 5, 1), total_score=7.0, growth_score=6.0),
+            StockScoreSnapshot(stock_id=stock.id, report_time=date(2026, 5, 31), total_score=8.6, growth_score=8.0, investment_level="A"),
             StockValuationSnapshot(
                 stock_id=stock.id,
                 report_period="2025A",
@@ -117,8 +117,9 @@ def test_stock_detail_aggregates_current_stock_research_data():
 
     assert detail["stock"]["stock_name"] == "美的集团"
     assert detail["pool"]["status"] == "focused"
-    assert detail["latest_score"]["total_score"] == 86
-    assert [item["score_date"] for item in detail["score_history"]] == [date(2026, 5, 1), date(2026, 5, 31)]
+    assert detail["latest_score"]["total_score"] == 8.6
+    assert detail["latest_score"]["investment_level"] == "A"
+    assert [item["report_time"] for item in detail["score_history"]] == [date(2026, 5, 1), date(2026, 5, 31)]
     assert detail["latest_valuation"]["report_period"] == "2026Q1"
     assert [item["report_period"] for item in detail["valuation_history"]] == ["2025A", "2026Q1"]
     assert detail["tracks"][0]["track"]["name"] == "智能家电"

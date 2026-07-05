@@ -91,32 +91,42 @@ def test_stock_dashboard_aggregates_pool_scores_materials_and_summary():
         [
             StockScoreSnapshot(
                 stock_id=focused_stock.id,
-                score_date=date(2026, 5, 30),
-                track_id=robot_track.id,
-                growth_score=70,
-                valuation_score=60,
-                moat_score=75,
-                risk_score=50,
-                total_score=72,
+                report_time=date(2026, 5, 30),
+                researcher_code="analyst_001",
+                business_moat_score=7.5,
+                management_score=7.0,
+                governance_score=7.0,
+                strategy_score=7.2,
+                certainty_score=6.8,
+                growth_score=7.0,
+                total_score=7.2,
+                investment_level="B",
             ),
             StockScoreSnapshot(
                 stock_id=focused_stock.id,
-                score_date=date(2026, 5, 31),
-                track_id=robot_track.id,
-                growth_score=91,
-                valuation_score=82,
-                moat_score=88,
-                risk_score=40,
-                total_score=90,
+                report_time=date(2026, 5, 31),
+                researcher_code="analyst_001",
+                business_moat_score=8.8,
+                management_score=8.4,
+                governance_score=8.2,
+                strategy_score=8.6,
+                certainty_score=8.0,
+                growth_score=9.1,
+                total_score=9.0,
+                investment_level="A",
             ),
             StockScoreSnapshot(
                 stock_id=candidate_stock.id,
-                score_date=date(2026, 5, 31),
-                growth_score=65,
-                valuation_score=77,
-                moat_score=61,
-                risk_score=35,
-                total_score=76,
+                report_time=date(2026, 5, 31),
+                researcher_code="analyst_001",
+                business_moat_score=6.1,
+                management_score=6.0,
+                governance_score=6.2,
+                strategy_score=6.4,
+                certainty_score=5.8,
+                growth_score=6.5,
+                total_score=7.6,
+                investment_level="B",
             ),
             StockValuationSnapshot(
                 stock_id=focused_stock.id,
@@ -180,11 +190,11 @@ def test_stock_dashboard_aggregates_pool_scores_materials_and_summary():
         "stock_id": focused_stock.id,
         "stock_name": "重点科技",
         "stock_code": "300001",
-        "total_score": 90,
+        "total_score": 9.0,
     }
     assert dashboard["default_stock_id"] == focused_stock.id
     assert dashboard["score_rankings"][0]["stock_id"] == focused_stock.id
-    assert dashboard["score_rankings"][0]["total_score"] == 90
+    assert dashboard["score_rankings"][0]["total_score"] == 9.0
     assert dashboard["score_rankings"][0]["tracks"][0]["name"] == "AI算力"
     assert dashboard["score_rankings"][0]["tracks"][1]["name"] == "机器人"
     assert dashboard["focus_stocks"][0]["stock_id"] == focused_stock.id
@@ -194,7 +204,7 @@ def test_stock_dashboard_aggregates_pool_scores_materials_and_summary():
     assert dashboard["pending_materials"][0]["impact_direction"] == "positive"
     assert dashboard["latest_materials"][0]["material_title"] == "重点科技签订机器人订单"
     assert dashboard["selected_stock_summary"]["stock_name"] == "重点科技"
-    assert dashboard["selected_stock_summary"]["latest_score"]["total_score"] == 90
+    assert dashboard["selected_stock_summary"]["latest_score"]["total_score"] == 9.0
     assert dashboard["selected_stock_summary"]["latest_valuation"]["expectation_gap_rate"] == 0.5
     assert dashboard["selected_stock_summary"]["latest_note"]["title"] == "机器人订单兑现"
     assert len(dashboard["score_trends"][0]["points"]) == 2
@@ -215,8 +225,8 @@ def test_stock_dashboard_uses_latest_valuation_per_stock_and_builds_trends():
         [
             StockPoolItem(stock_id=first.id, status="focused", source="manual"),
             StockPoolItem(stock_id=second.id, status="watching", source="manual"),
-            StockScoreSnapshot(stock_id=first.id, score_date=date(2026, 5, 31), total_score=80),
-            StockScoreSnapshot(stock_id=second.id, score_date=date(2026, 5, 31), total_score=78),
+            StockScoreSnapshot(stock_id=first.id, report_time=date(2026, 5, 31), total_score=8.0),
+            StockScoreSnapshot(stock_id=second.id, report_time=date(2026, 5, 31), total_score=7.8),
             StockValuationSnapshot(
                 stock_id=first.id,
                 report_period="2025Q4",
@@ -265,12 +275,14 @@ def test_stock_dashboard_selected_summary_returns_latest_10_materials():
     db.add(
         StockScoreSnapshot(
             stock_id=stock.id,
-            score_date=date(2026, 5, 31),
-            growth_score=80,
-            valuation_score=70,
-            moat_score=75,
-            risk_score=35,
-            total_score=82,
+            report_time=date(2026, 5, 31),
+            business_moat_score=7.5,
+            management_score=7.0,
+            governance_score=7.2,
+            strategy_score=7.4,
+            certainty_score=7.0,
+            growth_score=8.0,
+            total_score=8.2,
         )
     )
     db.flush()

@@ -456,13 +456,18 @@ export type StockResearchNote = {
 export type StockScoreSnapshot = {
   id: number;
   stock_id: number;
-  score_date: string;
-  track_id?: number | null;
+  report_time: string;
+  researcher_code?: string | null;
+  business_moat_score: number;
+  management_score: number;
+  governance_score: number;
+  strategy_score: number;
+  certainty_score: number;
   growth_score: number;
-  valuation_score: number;
-  moat_score: number;
-  risk_score: number;
   total_score: number;
+  investment_level?: string | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
   created_at?: string | null;
 };
 
@@ -498,13 +503,18 @@ export type StockScoreComparisonItem = {
   status?: string;
   tracks?: Pick<Track, "id" | "name" | "status">[];
   score_id?: number | null;
-  score_date?: string | null;
-  track_id?: number | null;
+  report_time?: string | null;
+  researcher_code?: string | null;
+  business_moat_score?: number | null;
+  management_score?: number | null;
+  governance_score?: number | null;
+  strategy_score?: number | null;
+  certainty_score?: number | null;
   growth_score?: number | null;
-  valuation_score?: number | null;
-  moat_score?: number | null;
-  risk_score?: number | null;
   total_score?: number | null;
+  investment_level?: string | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
   created_at?: string | null;
 };
 
@@ -607,12 +617,14 @@ export type StockDashboardSummary = {
 };
 
 export type StockDashboardScorePoint = {
-  score_date: string;
+  report_time: string;
   total_score: number;
+  business_moat_score?: number | null;
+  management_score?: number | null;
+  governance_score?: number | null;
+  strategy_score?: number | null;
+  certainty_score?: number | null;
   growth_score?: number | null;
-  valuation_score?: number | null;
-  moat_score?: number | null;
-  risk_score?: number | null;
 };
 
 export type StockDashboardScoreTrend = {
@@ -644,11 +656,15 @@ export type StockDashboardScoreRanking = {
   stock_code?: string | null;
   status?: string | null;
   tracks?: Pick<Track, "id" | "name" | "status">[];
-  score_date?: string | null;
+  report_time?: string | null;
+  researcher_code?: string | null;
+  investment_level?: string | null;
+  business_moat_score?: number | null;
+  management_score?: number | null;
+  governance_score?: number | null;
+  strategy_score?: number | null;
+  certainty_score?: number | null;
   growth_score?: number | null;
-  valuation_score?: number | null;
-  moat_score?: number | null;
-  risk_score?: number | null;
   total_score?: number | null;
 };
 

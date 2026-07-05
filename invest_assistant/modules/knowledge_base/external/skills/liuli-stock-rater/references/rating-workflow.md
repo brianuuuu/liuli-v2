@@ -11,7 +11,7 @@ Always build the researcher context in this order:
 方法论 method
 ```
 
-Use the single `knowledge_base.get_researcher_profile` response as both metadata and content. Include `id`, `researcher_code`, `display_name`, `status`, `profile_path`, `profile_hash`, `intro`, `soul`, `method`, and `profile_content` in the evidence scope when available. Do not call legacy standalone researcher soul/method tools.
+Use the single `knowledge_base.get_researcher_profile` response as both metadata and content. Include `id`, `researcher_code`, `display_name`, `status`, `profile_path`, `profile_hash`, `intro`, `soul`, `method`, and `profile_content` in the evidence scope when available. Do not call legacy standalone researcher soul/method tools. Stop when `researcher_code` is absent.
 
 ## Financial Data Window
 
@@ -94,25 +94,21 @@ Use the profile method section's JSON schema when present. If it lacks a strict 
 
 ```json
 {
-  "company": "",
-  "ts_code": "",
-  "rating_date": "",
+  "company_code": "",
+  "company_name": "",
+  "report_time": "",
   "data_cutoff": "",
-  "analyst": {
-    "display_name": "标的评级师",
-    "researcher_code": "analyst_001",
-    "profile_hash": ""
-  },
-  "scores": {
-    "business_model": null,
-    "management": null,
-    "governance": null,
-    "strategy": null,
-    "certainty": null,
-    "growth": null,
-    "total": null
-  },
-  "rating": "",
+  "researcher_code": "<value from researcher profile>",
+  "business_moat_score": null,
+  "management_score": null,
+  "governance_score": null,
+  "strategy_score": null,
+  "certainty_score": null,
+  "growth_score": null,
+  "total_score": null,
+  "investment_level": "",
+  "core_logic": "",
+  "primary_risk": "",
   "valuation_range": {
     "low": null,
     "base": null,
@@ -128,22 +124,30 @@ Use the profile method section's JSON schema when present. If it lacks a strict 
 
 Use `null` for missing numeric values. Do not fabricate unavailable data.
 
+The trailing final JSON is the source for later score import. For `标的评级报告`, `company_code`, all six `*_score` fields, `total_score`, `investment_level`, `core_logic`, and `primary_risk` are required for import into `stock_score_snapshot`.
+
 ## Research Feedback Upload
 
-After the Markdown report is complete, upload it through liuli MCP tool `knowledge_base.upload_research_feedback` when the client allowlist includes that controlled write tool.
+After the Markdown report is complete, upload it through liuli MCP tool `knowledge_base.upload_research_feedback`. Do not use default upload metadata embedded in this reference. Derive the required metadata from the current execution:
+
+- `researcher_code`: the non-empty value returned by `knowledge_base.get_researcher_profile`.
+- `skill_name`: the non-empty `name` in the current skill frontmatter.
+- `business_module`: the non-empty business module from the current task context.
+
+Stop and mark the report as not uploaded when the upload tool is unavailable, not allowlisted, or any required metadata value is missing.
+
+The upload `title` must use `公司名称-YYYY-MM-DD-报告类型`. For this skill, `报告类型` is fixed as `标的评级报告`; example: `万东医疗-2026-07-05-标的评级报告`.
 
 Use this payload shape:
 
 ```json
 {
-  "title": "标的评级报告：公司名称（股票代码）",
+  "title": "万东医疗-2026-07-05-标的评级报告",
   "markdown": "完整 Markdown 报告正文",
-  "researcher_code": "analyst_001",
-  "skill_name": "liuli-stock-rater",
-  "business_module": "stock_analysis",
-  "source": "mcp",
-  "status": "received"
+  "researcher_code": "<value from researcher profile>",
+  "skill_name": "<current skill frontmatter name>",
+  "business_module": "<current task business module>"
 }
 ```
 
-Prefer the actual `researcher_code` returned by `knowledge_base.get_researcher_profile`; use `analyst_001` only when the profile lookup confirmed that code. The feedback table is only an index. Report body belongs to the report library Markdown file, and follow-up valuation or scoring imports should be handled by later specialized parsing tools.
+After upload, include the returned `feedback_id`, `report_id`, `report_path`, and `status` in the final response. If the upload response lacks any of these fields, treat the upload as unconfirmed. The feedback table is only an index. Report body belongs to the report library Markdown file, and follow-up valuation or scoring imports should be handled by later specialized parsing tools.

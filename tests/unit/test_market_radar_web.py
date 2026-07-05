@@ -133,6 +133,49 @@ def test_knowledge_menu_replaces_review_and_principles_with_prompt():
     assert "export async function listKnowledgeExternalSkills" in api
 
 
+def test_stock_score_comparison_uses_rating_center_columns_and_actions():
+    compare = Path("invest_assistant/ui/web/src/pages/stock-analysis/sections/CompareSection.tsx").read_text(encoding="utf-8")
+    detail = Path("invest_assistant/ui/web/src/pages/stock-analysis/StockDetailPage.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/stockAnalysis.ts").read_text(encoding="utf-8")
+    types = Path("invest_assistant/ui/web/src/types/api.ts").read_text(encoding="utf-8")
+
+    for expected in [
+        "报告时间",
+        "研究员",
+        "等级",
+        "壁垒",
+        "管理",
+        "治理",
+        "战略",
+        "确定性",
+        "成长",
+        "雷达图",
+        "查看",
+        "删除",
+        "business_moat_score",
+        "management_score",
+        "governance_score",
+        "strategy_score",
+        "certainty_score",
+        "investment_level",
+        "deleteStockScore",
+    ]:
+        assert expected in compare + detail + api + types
+
+    score_section = compare[compare.index("const scoreColumns") : compare.index("const valuationColumns")]
+    for legacy in [
+        "评分日期",
+        "估值",
+        "风险",
+        "score_date",
+        "track_id",
+        "valuation_score",
+        "risk_score",
+    ]:
+        assert legacy not in score_section
+    assert 'dataIndex: "moat_score"' not in score_section
+
+
 def test_prompt_editor_is_compact_and_modern():
     source = Path("invest_assistant/ui/web/src/pages/knowledge/KnowledgePage.tsx").read_text(encoding="utf-8")
 

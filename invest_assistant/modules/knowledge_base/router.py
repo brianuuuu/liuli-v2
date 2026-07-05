@@ -218,3 +218,13 @@ def update_research_feedback(feedback_id: int, payload: KnowledgeResearchFeedbac
         return service.update_research_feedback(db, item, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/research-feedback/{feedback_id}/import")
+def import_research_feedback(feedback_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return service.import_research_feedback(db, feedback_id)
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 404 if "not found" in detail and "未找到股票" not in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail) from exc

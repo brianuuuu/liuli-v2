@@ -38,13 +38,18 @@ class StockScoreSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
-    score_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    track_id: Mapped[int | None] = mapped_column(ForeignKey("track.id"), nullable=True)
+    report_time: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    researcher_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    business_moat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    management_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    governance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    strategy_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    certainty_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     growth_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
-    valuation_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
-    moat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
-    risk_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     total_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    investment_level: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    core_logic: Mapped[str | None] = mapped_column(Text, nullable=True)
+    primary_risk: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 

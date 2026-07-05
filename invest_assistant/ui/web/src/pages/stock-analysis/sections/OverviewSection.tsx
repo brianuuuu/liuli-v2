@@ -72,7 +72,7 @@ export function OverviewSection() {
     },
     { title: "状态", dataIndex: "status", width: 86, render: (value) => <StatusTag status={value} /> },
     { title: "总分", dataIndex: "total_score", width: 76, render: (value) => <strong>{formatScore(value)}</strong> },
-    { title: "评分日", dataIndex: "score_date", width: 104, render: (value) => value || "-" }
+    { title: "报告时间", dataIndex: "report_time", width: 104, render: (value) => value || "-" }
   ];
 
   const valuationColumns: ColumnsType<StockDashboardLatestValuation> = [

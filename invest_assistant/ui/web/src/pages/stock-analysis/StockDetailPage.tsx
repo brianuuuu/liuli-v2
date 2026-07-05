@@ -42,13 +42,18 @@ type NoteFormValues = {
 };
 
 type ScoreFormValues = {
-  score_date: string;
-  track_id?: number;
+  report_time: string;
+  researcher_code?: string;
+  business_moat_score?: number;
+  management_score?: number;
+  governance_score?: number;
+  strategy_score?: number;
+  certainty_score?: number;
   growth_score?: number;
-  valuation_score?: number;
-  moat_score?: number;
-  risk_score?: number;
   total_score?: number;
+  investment_level?: string;
+  core_logic?: string;
+  primary_risk?: string;
 };
 
 type TrackBindingFormValues = {
@@ -168,13 +173,18 @@ export function StockDetailPage() {
   async function submitScore() {
     const values = await scoreForm.validateFields();
     await createStockScore(stockId, {
-      score_date: values.score_date,
-      track_id: values.track_id || null,
+      report_time: values.report_time,
+      researcher_code: values.researcher_code || null,
+      business_moat_score: values.business_moat_score || 0,
+      management_score: values.management_score || 0,
+      governance_score: values.governance_score || 0,
+      strategy_score: values.strategy_score || 0,
+      certainty_score: values.certainty_score || 0,
       growth_score: values.growth_score || 0,
-      valuation_score: values.valuation_score || 0,
-      moat_score: values.moat_score || 0,
-      risk_score: values.risk_score || 0,
-      total_score: values.total_score || 0
+      total_score: values.total_score || 0,
+      investment_level: values.investment_level || null,
+      core_logic: values.core_logic || null,
+      primary_risk: values.primary_risk || null
     });
     message.success("评分快照已新增");
     scoreForm.resetFields();
@@ -287,18 +297,21 @@ export function StockDetailPage() {
       <Modal title="新增评分" open={scoreOpen} onCancel={() => setScoreOpen(false)} onOk={submitScore} destroyOnHidden forceRender width={680}>
         <Form form={scoreForm} layout="vertical" preserve={false}>
           <div className="stock-detail-form-grid">
-            <Form.Item name="score_date" label="评分日" rules={[{ required: true, message: "请输入评分日" }]}>
+            <Form.Item name="report_time" label="报告时间" rules={[{ required: true, message: "请输入报告时间" }]}>
               <input className="ant-input" type="date" />
             </Form.Item>
-            <Form.Item name="track_id" label="关联赛道">
-              <Select allowClear showSearch options={trackOptions} loading={tracks.loading} />
-            </Form.Item>
-            <Form.Item name="total_score" label="总分"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="growth_score" label="成长"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="valuation_score" label="估值"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="moat_score" label="护城河"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="risk_score" label="风险"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="researcher_code" label="研究员"><Input /></Form.Item>
+            <Form.Item name="investment_level" label="等级"><Input /></Form.Item>
+            <Form.Item name="total_score" label="总分"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="business_moat_score" label="壁垒"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="management_score" label="管理"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="governance_score" label="治理"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="strategy_score" label="战略"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="certainty_score" label="确定性"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="growth_score" label="成长"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
           </div>
+          <Form.Item name="core_logic" label="核心逻辑"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="primary_risk" label="主要风险"><Input.TextArea rows={3} /></Form.Item>
         </Form>
       </Modal>
 
@@ -416,7 +429,7 @@ function OverviewTab({ data }: { data: StockDetail }) {
           <div className="detail-list stock-detail-keyfacts">
             <div className="detail-row"><span>入池状态</span><span>{data.pool?.status || data.stock.status || "-"}</span></div>
             <div className="detail-row"><span>最新评分</span><span>{numberText(data.latest_score?.total_score)}</span></div>
-            <div className="detail-row"><span>评分日</span><span>{data.latest_score?.score_date || "-"}</span></div>
+            <div className="detail-row"><span>报告时间</span><span>{data.latest_score?.report_time || "-"}</span></div>
             <div className="detail-row"><span>估值期</span><span>{data.latest_valuation?.report_period || "-"}</span></div>
             <div className="detail-row"><span>当前市值</span><span>{numberText(data.latest_valuation?.current_market_value)}</span></div>
             <div className="detail-row"><span>高重要材料</span><span>{data.summary.high_importance_material_count}</span></div>
@@ -716,12 +729,16 @@ function InlineChart({ option, height = 240 }: { option: EChartsOption; height?:
 
 function ScoresTab({ data, onAddScore }: { data: StockDetail; onAddScore: () => void }) {
   const scoreColumns: ColumnsType<StockScoreSnapshot> = [
-    { title: "评分日", dataIndex: "score_date", width: 110 },
+    { title: "报告时间", dataIndex: "report_time", width: 110 },
+    { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" },
+    { title: "等级", dataIndex: "investment_level", width: 70, render: (value) => value || "-" },
     { title: "总分", dataIndex: "total_score", width: 80, render: (value) => numberText(value) },
+    { title: "壁垒", dataIndex: "business_moat_score", width: 80, render: (value) => numberText(value) },
+    { title: "管理", dataIndex: "management_score", width: 80, render: (value) => numberText(value) },
+    { title: "治理", dataIndex: "governance_score", width: 80, render: (value) => numberText(value) },
+    { title: "战略", dataIndex: "strategy_score", width: 80, render: (value) => numberText(value) },
+    { title: "确定性", dataIndex: "certainty_score", width: 90, render: (value) => numberText(value) },
     { title: "成长", dataIndex: "growth_score", width: 80, render: (value) => numberText(value) },
-    { title: "估值", dataIndex: "valuation_score", width: 80, render: (value) => numberText(value) },
-    { title: "护城河", dataIndex: "moat_score", width: 90, render: (value) => numberText(value) },
-    { title: "风险", dataIndex: "risk_score", width: 80, render: (value) => numberText(value) },
     { title: "创建时间", dataIndex: "created_at", width: 160, render: formatTime }
   ];
   return (

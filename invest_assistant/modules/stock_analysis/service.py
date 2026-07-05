@@ -412,11 +412,15 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
                 "stock_code": stock.stock_code,
                 "status": item.status,
                 "tracks": tracks_by_stock_id.get(item.stock_id, []),
-                "score_date": score.score_date if score else None,
+                "report_time": score.report_time if score else None,
+                "researcher_code": score.researcher_code if score else None,
+                "investment_level": score.investment_level if score else None,
+                "business_moat_score": score.business_moat_score if score else None,
+                "management_score": score.management_score if score else None,
+                "governance_score": score.governance_score if score else None,
+                "strategy_score": score.strategy_score if score else None,
+                "certainty_score": score.certainty_score if score else None,
                 "growth_score": score.growth_score if score else None,
-                "valuation_score": score.valuation_score if score else None,
-                "moat_score": score.moat_score if score else None,
-                "risk_score": score.risk_score if score else None,
                 "total_score": score.total_score if score else None,
             }
         )
@@ -510,7 +514,7 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         db.scalars(
             select(StockScoreSnapshot)
             .where(StockScoreSnapshot.stock_id == stock_id)
-            .order_by(StockScoreSnapshot.score_date.asc(), StockScoreSnapshot.id.asc())
+            .order_by(StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
         )
     )
     valuation_history = list(
@@ -575,13 +579,18 @@ def _score_snapshot_dict(item: StockScoreSnapshot) -> dict:
     return {
         "id": item.id,
         "stock_id": item.stock_id,
-        "score_date": item.score_date,
-        "track_id": item.track_id,
+        "report_time": item.report_time,
+        "researcher_code": item.researcher_code,
+        "business_moat_score": item.business_moat_score,
+        "management_score": item.management_score,
+        "governance_score": item.governance_score,
+        "strategy_score": item.strategy_score,
+        "certainty_score": item.certainty_score,
         "growth_score": item.growth_score,
-        "valuation_score": item.valuation_score,
-        "moat_score": item.moat_score,
-        "risk_score": item.risk_score,
         "total_score": item.total_score,
+        "investment_level": item.investment_level,
+        "core_logic": item.core_logic,
+        "primary_risk": item.primary_risk,
         "created_at": item.created_at,
     }
 
@@ -740,7 +749,7 @@ def _latest_scores_by_stock(db: Session, stock_ids: list[int]) -> dict[int, Stoc
             .where(StockScoreSnapshot.stock_id.in_(stock_ids))
             .order_by(
                 StockScoreSnapshot.stock_id.asc(),
-                StockScoreSnapshot.score_date.desc(),
+                StockScoreSnapshot.report_time.desc(),
                 StockScoreSnapshot.id.desc(),
             )
         )
@@ -756,12 +765,14 @@ def _score_point(score: StockScoreSnapshot | None) -> dict | None:
     if score is None:
         return None
     return {
-        "score_date": score.score_date,
+        "report_time": score.report_time,
         "total_score": score.total_score,
+        "business_moat_score": score.business_moat_score,
+        "management_score": score.management_score,
+        "governance_score": score.governance_score,
+        "strategy_score": score.strategy_score,
+        "certainty_score": score.certainty_score,
         "growth_score": score.growth_score,
-        "valuation_score": score.valuation_score,
-        "moat_score": score.moat_score,
-        "risk_score": score.risk_score,
     }
 
 
@@ -772,7 +783,7 @@ def _score_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stoc
         db.scalars(
             select(StockScoreSnapshot)
             .where(StockScoreSnapshot.stock_id.in_(stock_ids))
-            .order_by(StockScoreSnapshot.stock_id.asc(), StockScoreSnapshot.score_date.asc(), StockScoreSnapshot.id.asc())
+            .order_by(StockScoreSnapshot.stock_id.asc(), StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
         )
     )
     points_by_stock: dict[int, list[dict]] = defaultdict(list)
@@ -1082,7 +1093,16 @@ def create_score(db: Session, stock_id: int, payload: StockScoreSnapshotCreate) 
 
 
 def list_scores(db: Session, stock_id: int) -> list[StockScoreSnapshot]:
-    return list(db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.stock_id == stock_id).order_by(StockScoreSnapshot.score_date.desc())))
+    return list(db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.stock_id == stock_id).order_by(StockScoreSnapshot.report_time.desc(), StockScoreSnapshot.id.desc())))
+
+
+def delete_score(db: Session, score_id: int) -> bool:
+    item = db.get(StockScoreSnapshot, score_id)
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
 
 
 def list_score_comparison(db: Session) -> list[dict]:
@@ -1098,7 +1118,7 @@ def _score_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> di
     score = db.scalar(
         select(StockScoreSnapshot)
         .where(StockScoreSnapshot.stock_id == item.stock_id)
-        .order_by(StockScoreSnapshot.score_date.desc(), StockScoreSnapshot.id.desc())
+        .order_by(StockScoreSnapshot.report_time.desc(), StockScoreSnapshot.id.desc())
         .limit(1)
     )
     row = {
@@ -1109,13 +1129,18 @@ def _score_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> di
         "status": item.status,
         "tracks": _active_track_summaries_for_stock(db, item.stock_id),
         "score_id": None,
-        "score_date": None,
-        "track_id": None,
+        "report_time": None,
+        "researcher_code": None,
+        "investment_level": None,
+        "business_moat_score": None,
+        "management_score": None,
+        "governance_score": None,
+        "strategy_score": None,
+        "certainty_score": None,
         "growth_score": None,
-        "valuation_score": None,
-        "moat_score": None,
-        "risk_score": None,
         "total_score": None,
+        "core_logic": None,
+        "primary_risk": None,
         "created_at": None,
     }
     if score is None:
@@ -1123,13 +1148,18 @@ def _score_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> di
     row.update(
         {
             "score_id": score.id,
-            "score_date": score.score_date,
-            "track_id": score.track_id,
+            "report_time": score.report_time,
+            "researcher_code": score.researcher_code,
+            "investment_level": score.investment_level,
+            "business_moat_score": score.business_moat_score,
+            "management_score": score.management_score,
+            "governance_score": score.governance_score,
+            "strategy_score": score.strategy_score,
+            "certainty_score": score.certainty_score,
             "growth_score": score.growth_score,
-            "valuation_score": score.valuation_score,
-            "moat_score": score.moat_score,
-            "risk_score": score.risk_score,
             "total_score": score.total_score,
+            "core_logic": score.core_logic,
+            "primary_risk": score.primary_risk,
             "created_at": score.created_at,
         }
     )
