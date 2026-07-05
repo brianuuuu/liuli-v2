@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.report_library.models import Report
@@ -25,9 +25,43 @@ def list_reports(db: Session) -> list[Report]:
     return list(db.scalars(select(Report).order_by(Report.created_at.desc(), Report.id.desc())))
 
 
-def list_reports_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[Report]:
+def list_reports_page(db: Session, limit: int | None = 50, offset: int = 0, report_kind: str | None = None) -> Page[Report]:
     stmt = select(Report).order_by(Report.created_at.desc(), Report.id.desc())
+    stmt = _filter_reports_by_kind(stmt, report_kind)
     return page_from_statement(db, stmt, limit=limit, offset=offset)
+
+
+def _filter_reports_by_kind(stmt, report_kind: str | None):
+    if report_kind == "market":
+        return stmt.where(
+            or_(
+                Report.target_type == "market",
+                Report.target_type == "market_daily",
+                func.lower(Report.report_type).contains("market"),
+                func.lower(Report.title).contains("market"),
+                func.lower(Report.title).contains("市场日报"),
+                func.lower(Report.title).contains("市场雷达日报"),
+            )
+        )
+    if report_kind == "track":
+        return stmt.where(
+            or_(
+                Report.target_type == "track",
+                func.lower(Report.report_type).contains("track"),
+                func.lower(Report.title).contains("track"),
+                func.lower(Report.title).contains("赛道"),
+            )
+        )
+    if report_kind == "stock":
+        return stmt.where(
+            or_(
+                Report.target_type == "stock",
+                func.lower(Report.report_type).contains("stock"),
+                func.lower(Report.title).contains("stock"),
+                func.lower(Report.title).contains("标的"),
+            )
+        )
+    return stmt
 
 
 def get_report(db: Session, report_id: int) -> Report | None:

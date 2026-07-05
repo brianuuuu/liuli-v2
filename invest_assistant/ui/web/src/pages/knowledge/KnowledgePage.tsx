@@ -1023,6 +1023,7 @@ function ResearchFeedbackSection() {
   const [reportContent, setReportContent] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [importingId, setImportingId] = useState<number | null>(null);
+  const [bulkImporting, setBulkImporting] = useState(false);
 
   async function viewFeedback(record: KnowledgeResearchFeedback) {
     setViewing(record);
@@ -1045,7 +1046,8 @@ function ResearchFeedbackSection() {
       message.success(`${result.message || "导入成功"}${result.score?.id ? `：评分 ID ${result.score.id}` : ""}`);
       await feedback.refresh();
     } catch (error) {
-      Modal.error({
+      const showImportError = Modal.error;
+      showImportError({
         title: "导入失败",
         content: getApiErrorDetail(error) || "未识别可导入的报告类型"
       });
@@ -1054,12 +1056,39 @@ function ResearchFeedbackSection() {
     }
   }
 
+  async function importAllPendingFeedback() {
+    const pendingFeedback = feedback.data.filter((record) => record.status !== "imported");
+    if (!pendingFeedback.length) {
+      message.success("一键导入完成：成功 0 个，失败 0 个");
+      return;
+    }
+    setBulkImporting(true);
+    try {
+      const results = await Promise.all(
+        pendingFeedback.map(async (record) => {
+          try {
+            await importKnowledgeResearchFeedback(record.id);
+            return true;
+          } catch {
+            return false;
+          }
+        })
+      );
+      const successCount = results.filter(Boolean).length;
+      const failureCount = results.length - successCount;
+      message.success(`一键导入完成：成功 ${successCount} 个，失败 ${failureCount} 个`);
+      await feedback.refresh();
+    } finally {
+      setBulkImporting(false);
+    }
+  }
+
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
-    { title: "标题", dataIndex: "title", ellipsis: true },
+    { title: "标题", dataIndex: "title", width: 320, ellipsis: true },
     { title: "研究员编号", dataIndex: "researcher_code", width: 130, render: (value) => value || "-" },
     { title: "Skill 名称", dataIndex: "skill_name", width: 150, render: (value) => value || "-" },
     { title: "业务模块", dataIndex: "business_module", width: 120, render: (value) => value || "-" },
-    { title: "来源", dataIndex: "source", width: 90, render: (value) => value || "-" },
+    { title: "来源", dataIndex: "source", width: 130, ellipsis: true, render: (value) => <span style={{ whiteSpace: "nowrap" }}>{value || "-"}</span> },
     { title: "状态", dataIndex: "status", width: 100, render: (value) => value || "-" },
     { title: "回流时间", dataIndex: "returned_at", width: 150, render: formatDateTime },
     { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime },
@@ -1081,7 +1110,8 @@ function ResearchFeedbackSection() {
         toolbar={
           <>
             <div className="data-panel-toolbar-spacer" />
-            <Button size="small" icon={<ReloadOutlined />} onClick={() => feedback.refresh()}>刷新 MCP 回流</Button>
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => feedback.refresh()}>刷新</Button>
+            <Button size="small" className="import-feedback" loading={bulkImporting} onClick={() => void importAllPendingFeedback()}>一键导入</Button>
           </>
         }
       >

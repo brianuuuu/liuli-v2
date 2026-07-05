@@ -15,9 +15,10 @@ router = APIRouter(prefix="/api/reports", tags=["report_library"], dependencies=
 def list_reports(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    report_kind: str | None = Query(None, pattern="^(market|track|stock)$"),
     db: Session = Depends(get_db),
 ) -> Page[ReportRead]:
-    return service.list_reports_page(db, limit=limit, offset=offset)
+    return service.list_reports_page(db, limit=limit, offset=offset, report_kind=report_kind)
 
 
 @router.post("", response_model=ReportRead)
