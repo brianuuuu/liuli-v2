@@ -35,7 +35,7 @@ The report must include:
 
 Do not output direct buy/sell or position-sizing instructions unless the user explicitly asks for investment decision support. Ratings are research analysis, not trading orders.
 
-When uploading to `knowledge_base.upload_research_feedback`, pass the exact Markdown report body as `markdown` and a concise report title as `title`. The tool writes the report body to the report library and stores only the feedback index fields such as `report_id`, `report_path`, `researcher_code`, `skill_name`, and `business_module`; do not ask the tool or database to store a second copy of the report body in `knowledge_research_feedback`.
+When uploading to `knowledge_base.upload_research_feedback`, pass the exact Markdown report body as `markdown`. The `title` must use the strict format `公司名称-YYYY-MM-DD-报告类型`; for this skill the report type is always `标的评级报告`, for example `万东医疗-2026-07-05-标的评级报告`. The tool writes the report body to the report library and stores only the feedback index fields such as `report_id`, `report_path`, `researcher_code`, `skill_name`, and `business_module`; do not ask the tool or database to store a second copy of the report body in `knowledge_research_feedback`.
 
 After a successful upload, include a research feedback result section with `feedback_id`, `report_id`, `report_path`, and `status`. If any of these fields are absent from the upload response, treat the upload as incomplete and state that the report was not confirmed as uploaded.
 

@@ -152,8 +152,7 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "full-screen-reader-overlay",
         "查看",
         "getApiErrorDetail",
-        "报告库 ID",
-        "报告路径",
+        "标题",
         "Skill 名称",
         "业务模块",
         "来源",
@@ -191,6 +190,12 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "knowledge-selected-row",
     ]:
         assert legacy not in page + api
+
+    for legacy in [
+        "报告库 ID",
+        "报告路径",
+    ]:
+        assert legacy not in page
 
     for expected in [
         "researcher_code: string",
@@ -293,6 +298,8 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "## 简介 intro",
         "## 价值观 soul",
         "## 方法论 method",
+        "公司名称-YYYY-MM-DD-报告类型",
+        "万东医疗-2026-07-05-标的评级报告",
     ]:
         assert expected in docs
 

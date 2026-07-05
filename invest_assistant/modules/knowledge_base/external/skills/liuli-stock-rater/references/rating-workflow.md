@@ -138,11 +138,13 @@ After the Markdown report is complete, upload it through liuli MCP tool `knowled
 
 Stop and mark the report as not uploaded when the upload tool is unavailable, not allowlisted, or any required metadata value is missing.
 
+The upload `title` must use `公司名称-YYYY-MM-DD-报告类型`. For this skill, `报告类型` is fixed as `标的评级报告`; example: `万东医疗-2026-07-05-标的评级报告`.
+
 Use this payload shape:
 
 ```json
 {
-  "title": "标的评级报告：公司名称（股票代码）",
+  "title": "万东医疗-2026-07-05-标的评级报告",
   "markdown": "完整 Markdown 报告正文",
   "researcher_code": "<value from researcher profile>",
   "skill_name": "<current skill frontmatter name>",

@@ -1037,9 +1037,7 @@ function ResearchFeedbackSection() {
   }
 
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
-    { title: "报告", dataIndex: "title", ellipsis: true },
-    { title: "报告库 ID", dataIndex: "report_id", width: 100, render: (value) => value || "-" },
-    { title: "报告路径", dataIndex: "report_path", width: 210, ellipsis: true, render: (value) => value || "-" },
+    { title: "标题", dataIndex: "title", ellipsis: true },
     { title: "研究员编号", dataIndex: "researcher_code", width: 130, render: (value) => value || "-" },
     { title: "Skill 名称", dataIndex: "skill_name", width: 150, render: (value) => value || "-" },
     { title: "业务模块", dataIndex: "business_module", width: 120, render: (value) => value || "-" },
@@ -1066,12 +1064,11 @@ function ResearchFeedbackSection() {
         {viewing ? (
           <Space direction="vertical" size={12} style={{ width: "100%" }}>
             <Typography.Text type="secondary">
-              报告库 ID：{viewing.report_id || "-"}　来源：{viewing.source || "-"}　状态：{viewing.status || "-"}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}
+              来源：{viewing.source || "-"}　状态：{viewing.status || "-"}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}
             </Typography.Text>
             <Typography.Text type="secondary">
               研究员编号：{viewing.researcher_code || "-"}　Skill 名称：{viewing.skill_name || "-"}　业务模块：{viewing.business_module || "-"}
             </Typography.Text>
-            <Typography.Text type="secondary">报告路径：{viewing.report_path || "-"}</Typography.Text>
             <Typography.Title level={5}>研究报告</Typography.Title>
             <Input.TextArea readOnly rows={14} value={reportLoading ? "读取中..." : reportContent || "暂无报告内容"} />
           </Space>
