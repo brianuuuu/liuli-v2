@@ -5197,9 +5197,9 @@ Skill 名称
 回流时间
 ```
 
-报告库 ID 和报告路径是内部索引字段，用于从报告库读取正文，不作为研究回流列表或详情页的展示列。通过 `liuli-stock-rater` 回流的标题格式固定为 `公司名称-YYYY-MM-DD-报告类型`，其中报告类型为 `标的评级报告`，例如 `万东医疗-2026-07-05-标的评级报告`。
+报告库 ID 和报告路径是内部索引字段，用于从报告库读取正文，不作为研究回流列表或详情页的展示列。通过 `liuli-stock-rater` 和 `liuli-stock-valuator` 回流的标题格式固定为 `公司名称-YYYY-MM-DD-报告类型`，其中报告类型包括 `标的评级报告` 和 `标的估值报告`，例如 `万东医疗-2026-07-05-标的评级报告`、`万东医疗-2026-07-05-标的估值报告`。
 
-研究回流导入由后端自动识别，不在页面暴露目标表选择。第一版只按标题识别：按最后两个 `-` 拆出公司名称、`YYYY-MM-DD` 日期和报告类型；报告类型为 `标的评级报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_score_snapshot`。最终 JSON 必须包含 `company_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk`，`researcher_code` 可由 JSON 覆盖，否则使用回流记录中的研究员编号。`company_code` 必须匹配已有 `stock.stock_code`，系统不自动创建标的。
+研究回流导入由后端自动识别，不在页面暴露目标表选择。第一版只按标题识别：按最后两个 `-` 拆出公司名称、`YYYY-MM-DD` 日期和报告类型；报告类型为 `标的评级报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_score_snapshot`。最终 JSON 必须包含 `company_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk`，`researcher_code` 可由 JSON 覆盖，否则使用回流记录中的研究员编号。报告类型为 `标的估值报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_valuation_snapshot`；最终 JSON 必须包含 `company, company_code, report_period, report_release_date, current_market_value, financial_performance, trend_reference, guidance_check, quarter_performance, quarter_main_reason, profit_model, fcf_model, revenue_model, primary_model, expected_market_value_3y, analysis_date, researcher_code`，导入端会按当前市值和三年合理市值重算 `expectation_gap_rate`。`company_code` 必须匹配已有 `stock.stock_code`，系统不自动创建标的。
 
 ## 对外 MCP 服务设计
 

@@ -14,6 +14,7 @@ from invest_assistant.modules.knowledge_base.service import (
     create_research_feedback,
     import_research_feedback,
 )
+from invest_assistant.modules.stock_analysis.models import StockValuationSnapshot
 from invest_assistant.modules.stock_analysis.service import delete_score
 
 
@@ -66,7 +67,66 @@ def score_markdown(**overrides) -> str:
     return "# 万东医疗评级\n\n正文。\n\n```json\n" + json.dumps(data, ensure_ascii=False, indent=2) + "\n```\n"
 
 
-def create_feedback(db: Session, title: str, markdown: str) -> KnowledgeResearchFeedback:
+def valuation_markdown(**overrides) -> str:
+    data = {
+        "company": "万东医疗",
+        "company_code": "600055",
+        "report_period": "2026-Q1",
+        "report_release_date": "2026-04-25",
+        "current_market_value": 100.0,
+        "financial_performance": {
+            "beat_items": ["收入同比改善"],
+            "inline_items": ["毛利率稳定"],
+            "miss_items": ["经营现金流偏弱"],
+        },
+        "trend_reference": {
+            "revenue_yoy": 12.3,
+            "revenue_qoq": 4.5,
+            "profit_yoy": 8.0,
+            "profit_qoq": -2.0,
+        },
+        "guidance_check": {
+            "has_guidance": False,
+            "guidance_conflict": False,
+            "note": "未发布单季指引",
+        },
+        "quarter_performance": "符合预期",
+        "quarter_main_reason": "收入同比增速",
+        "profit_model": {
+            "growth_rate": 0.12,
+            "target_multiple": 25,
+            "market_value_3y": 140.0,
+        },
+        "fcf_model": {
+            "growth_rate": 0.08,
+            "target_multiple": 18,
+            "market_value_3y": 110.0,
+        },
+        "revenue_model": {
+            "growth_rate": 0.15,
+            "target_multiple": 3.5,
+            "market_value_3y": 150.0,
+        },
+        "primary_model": "revenue",
+        "expected_market_value_3y": 150.0,
+        "expectation_gap_rate": 999,
+        "analysis_date": "2026-07-05",
+        "researcher_code": "valuator_001",
+    }
+    data.update(overrides)
+    import json
+
+    return "# 万东医疗估值\n\n正文。\n\n```json\n" + json.dumps(data, ensure_ascii=False, indent=2) + "\n```\n"
+
+
+def create_feedback(
+    db: Session,
+    title: str,
+    markdown: str,
+    *,
+    researcher_code: str = "analyst_001",
+    skill_name: str = "liuli-stock-rater",
+) -> KnowledgeResearchFeedback:
     report, _size = report_service.create_markdown_report_file_and_index(
         db,
         title=title,
@@ -79,8 +139,8 @@ def create_feedback(db: Session, title: str, markdown: str) -> KnowledgeResearch
             title=title,
             report_id=report.id,
             report_path=report.file_path,
-            researcher_code="analyst_001",
-            skill_name="liuli-stock-rater",
+            researcher_code=researcher_code,
+            skill_name=skill_name,
             business_module="stock_analysis",
             source="mcp",
             status="received",
@@ -114,6 +174,75 @@ def test_import_research_feedback_imports_stock_score_by_title(tmp_path, monkeyp
     assert score["core_logic"] == "产品处于修复期。"
     assert score["primary_risk"] == "盈利修复不及预期。"
     assert db.get(KnowledgeResearchFeedback, feedback.id).status == "parsed"
+
+
+def test_import_research_feedback_imports_stock_valuation_by_title(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        valuation_markdown(),
+        researcher_code="valuator_001",
+        skill_name="liuli-stock-valuator",
+    )
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["target"] == "stock_valuation_snapshot"
+    assert result["message"] == "估值导入成功"
+    valuation = result["valuation"]
+    assert valuation["stock_id"] == 1
+    assert valuation["company"] == "万东医疗"
+    assert valuation["company_code"] == "600055"
+    assert valuation["report_period"] == "2026-Q1"
+    assert valuation["report_release_date"] == date(2026, 4, 25)
+    assert valuation["current_market_value"] == 100.0
+    assert valuation["quarter_performance"] == "符合预期"
+    assert valuation["quarter_main_reason"] == "收入同比增速"
+    assert valuation["primary_model"] == "revenue"
+    assert valuation["expected_market_value_3y"] == 150.0
+    assert valuation["expectation_gap_rate"] == 0.5
+    assert valuation["analysis_date"] == date(2026, 7, 5)
+    assert valuation["researcher"] == "valuator_001"
+    assert '"beat_items": ["收入同比改善"]' in valuation["financial_performance_json"]
+    assert '"market_value_3y": 150.0' in valuation["revenue_model_json"]
+    assert db.get(KnowledgeResearchFeedback, feedback.id).status == "parsed"
+    assert db.query(StockValuationSnapshot).count() == 1
+
+
+def test_import_research_feedback_rejects_valuation_error_json(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        "# 万东医疗估值\n\n```json\n{\"error\": \"数据不足或财报周期无法确认\"}\n```\n",
+        researcher_code="valuator_001",
+        skill_name="liuli-stock-valuator",
+    )
+
+    with pytest.raises(ValueError, match="数据不足或财报周期无法确认"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_research_feedback_rejects_non_numeric_valuation_company_code(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        valuation_markdown(company_code="600055.SH"),
+        researcher_code="valuator_001",
+        skill_name="liuli-stock-valuator",
+    )
+
+    with pytest.raises(ValueError, match="company_code 必须为纯数字"):
+        import_research_feedback(db, feedback.id)
 
 
 def test_import_research_feedback_rejects_unknown_report_type(tmp_path, monkeypatch):

@@ -59,6 +59,27 @@ class StockScoreSnapshotRead(StockScoreSnapshotCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StockValuationSnapshotCreate(BaseModel):
+    company: str | None = None
+    company_code: str | None = None
+    report_period: str | None = None
+    report_release_date: date | None = None
+    current_market_value: float | None = None
+    financial_performance_json: str | None = None
+    trend_reference_json: str | None = None
+    guidance_check_json: str | None = None
+    quarter_performance: str | None = None
+    quarter_main_reason: str | None = None
+    profit_model_json: str | None = None
+    fcf_model_json: str | None = None
+    revenue_model_json: str | None = None
+    primary_model: str | None = None
+    expected_market_value_3y: float | None = None
+    expectation_gap_rate: float | None = None
+    analysis_date: date | None = None
+    researcher: str | None = None
+
+
 class StockDailyBarRead(BaseModel):
     id: int
     stock_id: int

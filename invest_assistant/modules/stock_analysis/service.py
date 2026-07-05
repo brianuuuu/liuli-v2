@@ -30,6 +30,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockScoreSnapshotCreate,
     StockTrackRelationCreate,
     StockTrackRelationUpdate,
+    StockValuationSnapshotCreate,
 )
 from invest_assistant.services.tushare import client as tushare_client
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
@@ -1094,6 +1095,14 @@ def create_score(db: Session, stock_id: int, payload: StockScoreSnapshotCreate) 
 
 def list_scores(db: Session, stock_id: int) -> list[StockScoreSnapshot]:
     return list(db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.stock_id == stock_id).order_by(StockScoreSnapshot.report_time.desc(), StockScoreSnapshot.id.desc())))
+
+
+def create_valuation(db: Session, stock_id: int, payload: StockValuationSnapshotCreate) -> StockValuationSnapshot:
+    item = StockValuationSnapshot(stock_id=stock_id, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 def delete_score(db: Session, score_id: int) -> bool:
