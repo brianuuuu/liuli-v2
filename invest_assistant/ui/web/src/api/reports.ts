@@ -4,6 +4,7 @@ import { apiClient } from "./client";
 export type PageParams = {
   limit?: number;
   offset?: number;
+  report_kind?: "market" | "track" | "stock";
 };
 
 export type ReportCreate = {

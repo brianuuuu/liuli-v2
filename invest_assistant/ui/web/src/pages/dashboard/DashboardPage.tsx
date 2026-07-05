@@ -38,7 +38,7 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Page, Report } from "../../types/api";
-import { DEFAULT_REPORT_PAGE_SIZE, reportMatchesKind, reportPageParams, type ReportKind } from "./dashboardReports";
+import { DEFAULT_REPORT_PAGE_SIZE, reportPageParams, type ReportKind } from "./dashboardReports";
 
 const initialWorkbenchToday = {
   market_indices: {
@@ -653,7 +653,7 @@ function LatestReportsSection() {
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(DEFAULT_REPORT_PAGE_SIZE);
   const reports = useAsyncData(
-    useCallback(async () => listReports(reportPageParams(reportPage, reportPageSize)), [reportPage, reportPageSize]),
+    useCallback(async () => listReports(reportPageParams(reportPage, reportPageSize, activeKind)), [activeKind, reportPage, reportPageSize]),
     initialReportPage
   );
   const [activeReport, setActiveReport] = useState<Report | null>(null);
@@ -664,11 +664,6 @@ function LatestReportsSection() {
     { label: "赛道", value: "track" },
     { label: "标的", value: "stock" }
   ];
-
-  const visibleReports = useMemo(
-    () => reports.data.items.filter((item) => reportMatchesKind(item, activeKind)),
-    [activeKind, reports.data.items]
-  );
 
   async function openReport(record: Report) {
     setActiveReport(record);
@@ -710,7 +705,7 @@ function LatestReportsSection() {
           }
         >
           <ReportTable
-            rows={visibleReports}
+            rows={reports.data.items}
             loading={reports.loading}
             page={reportPage}
             pageSize={reportPageSize}
