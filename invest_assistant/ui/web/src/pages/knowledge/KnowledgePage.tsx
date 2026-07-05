@@ -1043,7 +1043,9 @@ function ResearchFeedbackSection() {
     setImportingId(record.id);
     try {
       const result = await importKnowledgeResearchFeedback(record.id);
-      message.success(`${result.message || "导入成功"}${result.score?.id ? `：评分 ID ${result.score.id}` : ""}`);
+      message.success(
+        `${result.message || "导入成功"}${result.score?.id ? `：评分 ID ${result.score.id}` : result.valuation?.id ? `：估值 ID ${result.valuation.id}` : ""}`
+      );
       await feedback.refresh();
     } catch (error) {
       const showImportError = Modal.error;
@@ -1057,7 +1059,7 @@ function ResearchFeedbackSection() {
   }
 
   async function importAllPendingFeedback() {
-    const pendingFeedback = feedback.data.filter((record) => record.status !== "imported");
+    const pendingFeedback = feedback.data.filter((record) => !["parsed", "imported"].includes(record.status));
     if (!pendingFeedback.length) {
       message.success("一键导入完成：成功 0 个，失败 0 个");
       return;

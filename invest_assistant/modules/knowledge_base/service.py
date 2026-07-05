@@ -39,7 +39,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 )
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.stock_analysis import service as stock_service
-from invest_assistant.modules.stock_analysis.schemas import StockScoreSnapshotCreate
+from invest_assistant.modules.stock_analysis.schemas import StockScoreSnapshotCreate, StockValuationSnapshotCreate
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY = "market_radar.generate_daily_report"
@@ -47,6 +47,7 @@ DEEPSEEK_STOCK_EVENT_REVIEW_PROMPT_KEY = "stock_analysis.review_stock_events_dee
 DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_deepseek"
 RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 SCORE_REPORT_TYPE = "标的评级报告"
+VALUATION_REPORT_TYPE = "标的估值报告"
 SCORE_REPORT_TITLE_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(.+)$")
 SCORE_IMPORT_FIELDS = [
     "company_code",
@@ -60,6 +61,24 @@ SCORE_IMPORT_FIELDS = [
     "investment_level",
     "core_logic",
     "primary_risk",
+]
+VALUATION_IMPORT_FIELDS = [
+    "company",
+    "company_code",
+    "report_period",
+    "report_release_date",
+    "current_market_value",
+    "financial_performance",
+    "trend_reference",
+    "guidance_check",
+    "quarter_performance",
+    "quarter_main_reason",
+    "profit_model",
+    "fcf_model",
+    "revenue_model",
+    "primary_model",
+    "expected_market_value_3y",
+    "analysis_date",
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -875,8 +894,6 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     if feedback is None:
         raise ValueError("research feedback not found")
     company_name, report_time, report_type = _parse_feedback_report_title(feedback.title)
-    if report_type != SCORE_REPORT_TYPE:
-        raise ValueError("未识别可导入的报告类型")
     if not feedback.report_id:
         raise ValueError("research feedback report_id is required")
     report = report_service.get_report(db, feedback.report_id)
@@ -886,7 +903,22 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     if not report_path.exists():
         raise ValueError("report file not found")
     content = report_path.read_text(encoding="utf-8")
-    payload = _normalize_score_import_payload(_extract_trailing_json_object(content))
+    payload = _extract_trailing_json_object(content)
+    if report_type == SCORE_REPORT_TYPE:
+        return _import_score_feedback(db, feedback, company_name, report_time, payload)
+    if report_type == VALUATION_REPORT_TYPE:
+        return _import_valuation_feedback(db, feedback, company_name, payload)
+    raise ValueError("未识别可导入的报告类型")
+
+
+def _import_score_feedback(
+    db: Session,
+    feedback: KnowledgeResearchFeedback,
+    company_name: str,
+    report_time: date,
+    raw_payload: dict,
+) -> dict:
+    payload = _normalize_score_import_payload(raw_payload)
     stock = _resolve_score_import_stock(db, payload["company_code"])
     score = stock_service.create_score(
         db,
@@ -914,6 +946,49 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
         "message": "评分导入成功",
         "company_name": company_name,
         "score": stock_service._score_snapshot_dict(score),
+    }
+
+
+def _import_valuation_feedback(
+    db: Session,
+    feedback: KnowledgeResearchFeedback,
+    company_name: str,
+    raw_payload: dict,
+) -> dict:
+    payload = _normalize_valuation_import_payload(raw_payload, feedback)
+    stock = _resolve_import_stock(db, payload["company_code"], target="估值")
+    valuation = stock_service.create_valuation(
+        db,
+        stock.id,
+        StockValuationSnapshotCreate(
+            company=payload["company"],
+            company_code=payload["company_code"],
+            report_period=payload["report_period"],
+            report_release_date=payload["report_release_date"],
+            current_market_value=payload["current_market_value"],
+            financial_performance_json=_json_text(payload["financial_performance"]),
+            trend_reference_json=_json_text(payload["trend_reference"]),
+            guidance_check_json=_json_text(payload["guidance_check"]),
+            quarter_performance=payload["quarter_performance"],
+            quarter_main_reason=payload["quarter_main_reason"],
+            profit_model_json=_json_text(payload["profit_model"]),
+            fcf_model_json=_json_text(payload["fcf_model"]),
+            revenue_model_json=_json_text(payload["revenue_model"]),
+            primary_model=payload["primary_model"],
+            expected_market_value_3y=payload["expected_market_value_3y"],
+            expectation_gap_rate=payload["expectation_gap_rate"],
+            analysis_date=payload["analysis_date"],
+            researcher=payload["researcher_code"],
+        ),
+    )
+    feedback.status = "parsed"
+    db.commit()
+    db.refresh(feedback)
+    return {
+        "target": "stock_valuation_snapshot",
+        "message": "估值导入成功",
+        "company_name": company_name,
+        "valuation": stock_service._valuation_snapshot_dict(valuation),
     }
 
 
@@ -987,6 +1062,83 @@ def _normalize_score_import_payload(payload: dict) -> dict:
     return normalized
 
 
+def _normalize_valuation_import_payload(payload: dict, feedback: KnowledgeResearchFeedback) -> dict:
+    if payload.get("error"):
+        raise ValueError(str(payload["error"]))
+    normalized: dict[str, Any] = {}
+    for field in VALUATION_IMPORT_FIELDS:
+        value = payload.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError(f"估值导入缺少字段: {field}")
+        normalized[field] = value
+    normalized["company"] = str(payload.get("company") or "").strip()
+    normalized["company_code"] = _normalize_company_code(payload.get("company_code"))
+    normalized["report_period"] = str(payload.get("report_period") or "").strip()
+    normalized["report_release_date"] = _valuation_import_date(payload.get("report_release_date"), "report_release_date")
+    normalized["current_market_value"] = _valuation_import_positive_float(payload.get("current_market_value"), "current_market_value")
+    normalized["financial_performance"] = _valuation_import_object(payload.get("financial_performance"), "financial_performance")
+    normalized["trend_reference"] = _valuation_import_object(payload.get("trend_reference"), "trend_reference")
+    normalized["guidance_check"] = _valuation_import_object(payload.get("guidance_check"), "guidance_check")
+    normalized["quarter_performance"] = str(payload.get("quarter_performance") or "").strip()
+    normalized["quarter_main_reason"] = str(payload.get("quarter_main_reason") or "").strip()
+    normalized["profit_model"] = _valuation_import_object(payload.get("profit_model"), "profit_model")
+    normalized["fcf_model"] = _valuation_import_object(payload.get("fcf_model"), "fcf_model")
+    normalized["revenue_model"] = _valuation_import_object(payload.get("revenue_model"), "revenue_model")
+    primary_model = str(payload.get("primary_model") or "").strip()
+    if primary_model not in {"profit", "fcf", "revenue"}:
+        raise ValueError("primary_model 必须是 profit、fcf 或 revenue")
+    normalized["primary_model"] = primary_model
+    normalized["expected_market_value_3y"] = _valuation_import_float(payload.get("expected_market_value_3y"), "expected_market_value_3y")
+    normalized["expectation_gap_rate"] = round(normalized["expected_market_value_3y"] / normalized["current_market_value"] - 1, 6)
+    normalized["analysis_date"] = _valuation_import_date(payload.get("analysis_date"), "analysis_date")
+    normalized["researcher_code"] = _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")) or "valuator_001"
+    return normalized
+
+
+def _normalize_company_code(value: Any) -> str:
+    code = str(value or "").strip()
+    if not code:
+        raise ValueError("估值导入缺少字段: company_code")
+    if not code.isdigit():
+        raise ValueError("company_code 必须为纯数字")
+    return code
+
+
+def _valuation_import_date(value: Any, field: str) -> date:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    try:
+        return date.fromisoformat(str(value or "").strip())
+    except ValueError as exc:
+        raise ValueError(f"{field} 必须是 YYYY-MM-DD") from exc
+
+
+def _valuation_import_float(value: Any, field: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field} 必须是数值")
+    try:
+        return float(value)
+    except Exception as exc:
+        raise ValueError(f"{field} 必须是数值") from exc
+
+
+def _valuation_import_positive_float(value: Any, field: str) -> float:
+    number = _valuation_import_float(value, field)
+    if number <= 0:
+        raise ValueError(f"{field} 必须大于 0")
+    return number
+
+
+def _valuation_import_object(value: Any, field: str) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} 必须是 JSON 对象")
+    return value
+
+
+def _json_text(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
 def _score_import_float(value: Any, field: str) -> float:
     if isinstance(value, bool):
         raise ValueError(f"{field} 必须是 0-10 数值")
@@ -1000,9 +1152,13 @@ def _score_import_float(value: Any, field: str) -> float:
 
 
 def _resolve_score_import_stock(db: Session, company_code: str) -> Stock:
+    return _resolve_import_stock(db, company_code, target="评分")
+
+
+def _resolve_import_stock(db: Session, company_code: str, *, target: str) -> Stock:
     code = str(company_code or "").strip()
     if not code:
-        raise ValueError("评分导入缺少字段: company_code")
+        raise ValueError(f"{target}导入缺少字段: company_code")
     rows = list(db.scalars(select(Stock).where(Stock.stock_code == code).order_by(Stock.id.asc())))
     if not rows:
         raise ValueError(f"未找到股票: {code}")

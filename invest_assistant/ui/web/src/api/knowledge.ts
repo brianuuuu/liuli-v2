@@ -167,6 +167,21 @@ export type KnowledgeResearchFeedbackImportResult = {
     core_logic?: string | null;
     primary_risk?: string | null;
   };
+  valuation?: {
+    id: number;
+    stock_id: number;
+    company?: string | null;
+    company_code?: string | null;
+    report_period?: string | null;
+    report_release_date?: string | null;
+    current_market_value?: number | null;
+    quarter_performance?: string | null;
+    primary_model?: string | null;
+    expected_market_value_3y?: number | null;
+    expectation_gap_rate?: number | null;
+    analysis_date?: string | null;
+    researcher?: string | null;
+  };
 };
 
 export async function listKnowledgeNotes(params: KnowledgeNoteQuery = {}): Promise<KnowledgeNotePage> {

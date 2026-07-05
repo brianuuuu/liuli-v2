@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("./KnowledgePage.tsx", import.meta.url), "utf8");
 
 assert.match(source, /const\s+\[bulkImporting,\s*setBulkImporting\]\s*=\s*useState\(false\)/, "research feedback must track one-click import loading state");
-assert.match(source, /record\.status\s*!==\s*"imported"/, "one-click import must skip already imported feedback rows");
+assert.match(source, /!\["parsed",\s*"imported"\]\.includes\(record\.status\)/, "one-click import must skip already parsed or imported feedback rows");
 assert.match(source, /Promise\.all\(/, "one-click import must attempt remaining feedback rows without stopping at the first failure");
 assert.match(source, /message\.success\(`一键导入完成：成功 \$\{successCount\} 个，失败 \$\{failureCount\} 个`\)/, "one-click import must summarize success and failure counts");
+assert.match(source, /result\.valuation\?\.id\s*\?\s*`：估值 ID \$\{result\.valuation\.id\}`/, "single import success message must include valuation id when present");
 assert.doesNotMatch(source, /Modal\.error\(\{[\s\S]*一键导入/, "one-click import failures must not show a blocking error modal");
 assert.match(source, />刷新<\/Button>/, "refresh button label should be concise");
 assert.match(source, />一键导入<\/Button>/, "toolbar must expose one-click import");
