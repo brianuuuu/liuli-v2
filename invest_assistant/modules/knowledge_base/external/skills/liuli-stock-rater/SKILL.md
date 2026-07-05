@@ -1,6 +1,6 @@
 ---
 name: liuli-stock-rater
-description: Use when rating an A-share listed company with liuli's 标的评级师, including target stock rating, company research, financial analysis, valuation, announcements, and recent company or industry news. Fetch the complete researcher profile from liuli MCP first, gather Tushare and official/news context, produce a structured Markdown rating, then upload the report through the controlled research-feedback MCP tool when available.
+description: Use when rating an A-share listed company with liuli's 标的评级师, including target stock rating, company research, financial analysis, valuation, announcements, and recent company or industry news. Fetch the complete researcher profile from liuli MCP first, gather Tushare and official/news context, produce a structured Markdown rating, and upload the report through the controlled research-feedback MCP tool; stop when required MCP context or upload metadata is missing.
 ---
 
 # Liuli Stock Rater
@@ -11,14 +11,14 @@ Use this skill to rate an A-share target company with liuli's `标的评级师` 
 
 ## Required Source Order
 
-1. Fetch the researcher profile from the liuli MCP tool `knowledge_base.get_researcher_profile` with `researcher="标的评级师"`. If exact display-name lookup fails, retry with `researcher="analyst_001"`.
+1. Fetch the researcher profile from the liuli MCP tool `knowledge_base.get_researcher_profile` with `researcher="标的评级师"`. If the MCP tool is unavailable, the profile is not found, or the response lacks `researcher_code`, stop and explain that the rating cannot continue.
 2. Build the rater context from that single response in this exact order: researcher metadata, `intro`, `soul`, `method`. Keep `profile_content`, `profile_path`, `profile_hash`, `researcher_code`, `display_name`, and `status` in the evidence scope.
 3. Do not call legacy standalone researcher soul/method tools; they are no longer part of the liuli researcher model.
 4. Resolve the target company through Tushare MCP, then gather the most recent 3-5 years of structured data. At minimum use `stock_basic`, `income`, `balancesheet`, `cashflow`, `fina_indicator`, and `daily_basic` when available.
 5. Query official announcements first. Use liuli `market_radar.search_source_items` for locally ingested items, prioritizing `source_type="announcement"` and `source_name="cninfo"`. If local coverage is insufficient and browsing or an official connector is available, use CNINFO as the primary announcement source.
 6. Gather recent company and industry news from Eastmoney, Sina Finance, Xueqiu, and Zhihu when accessible. Treat Xueqiu and Zhihu as opinion or sentiment evidence only; they must not override Tushare financials or official announcements.
 7. Apply the profile's `method` section to produce the rating. Do not invent missing data. State gaps clearly and lower confidence when key evidence is missing.
-8. After the final Markdown report is produced, upload it through liuli MCP tool `knowledge_base.upload_research_feedback` when the tool is available and explicitly allowed. Use `researcher_code` from the profile response, `skill_name="liuli-stock-rater"`, `business_module="stock_analysis"`, `source="mcp"`, and `status="received"`. If the upload tool is unavailable or not allowlisted, do not fail the rating; state that the report was generated but not uploaded.
+8. After the final Markdown report is produced, upload it through liuli MCP tool `knowledge_base.upload_research_feedback`. The upload metadata must come from the current execution context: `researcher_code` from the profile response, `skill_name` from this skill's frontmatter `name`, and `business_module` from the current task context. If the upload tool is unavailable, not allowlisted, or any required metadata is missing, stop and state that the report was not uploaded.
 
 ## Output Contract
 
@@ -37,9 +37,13 @@ Do not output direct buy/sell or position-sizing instructions unless the user ex
 
 When uploading to `knowledge_base.upload_research_feedback`, pass the exact Markdown report body as `markdown` and a concise report title as `title`. The tool writes the report body to the report library and stores only the feedback index fields such as `report_id`, `report_path`, `researcher_code`, `skill_name`, and `business_module`; do not ask the tool or database to store a second copy of the report body in `knowledge_research_feedback`.
 
+After a successful upload, include a research feedback result section with `feedback_id`, `report_id`, `report_path`, and `status`. If any of these fields are absent from the upload response, treat the upload as incomplete and state that the report was not confirmed as uploaded.
+
 ## Failure Handling
 
-If `knowledge_base.get_researcher_profile` is unavailable, stop and explain that the rater context cannot be built. Do not substitute memory or a stale local copy unless the user explicitly accepts it.
+If `knowledge_base.get_researcher_profile` is unavailable, the profile cannot be found, or `researcher_code` is missing, stop and explain that the rater context cannot be built. Do not substitute memory, local files, or stale copies.
+
+If `knowledge_base.upload_research_feedback` is unavailable or the required upload metadata cannot be derived from the current MCP/profile/task context, stop before claiming completion and explicitly mark the report as not uploaded.
 
 If Tushare data is unavailable, continue only when the user accepts a lower-confidence qualitative rating. Mark financial and valuation scores as insufficiently supported.
 
