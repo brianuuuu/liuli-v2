@@ -1229,12 +1229,13 @@ body {
 
 .market-rising-card-body {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 12px;
 }
 
 .market-rising-list {
   display: grid;
+  min-width: 0;
   align-content: start;
   gap: 8px;
 }
@@ -1246,14 +1247,22 @@ body {
 }
 
 .market-rising-list-rows {
+  min-width: 0;
   gap: 6px;
+}
+
+.market-rising-list-rows .compact-list-row {
+  min-width: 0;
+  gap: 8px;
 }
 
 .market-rising-row-label {
   display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
 }
 
 .market-rising-rank-no {
@@ -1265,6 +1274,7 @@ body {
 }
 
 .market-rising-name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1276,6 +1286,12 @@ body {
   color: var(--ll-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.market-rising-list-rows .track-change {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  text-align: right;
 }
 
 .workbench-card .ant-card-extra .heat-board-segmented {

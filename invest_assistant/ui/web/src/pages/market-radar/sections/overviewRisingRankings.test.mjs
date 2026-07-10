@@ -149,6 +149,39 @@ if (!risingListRule.includes("align-content: start")) {
   throw new Error("Sparse heat ranking columns should stay top-aligned and leave missing rows at the bottom");
 }
 
+const risingCardBodyRule = css.match(/\.market-rising-card-body \{[\s\S]*?\}/)?.[0] || "";
+if (risingCardBodyRule.includes("repeat(3, minmax(0, 1fr))")) {
+  throw new Error("Overview heat board columns must not stay fixed at three columns");
+}
+
+if (!risingCardBodyRule.includes("auto-fit") || !risingCardBodyRule.includes("minmax(min(")) {
+  throw new Error("Overview heat board columns should automatically wrap as the card narrows");
+}
+
+if (!risingListRule.includes("min-width: 0")) {
+  throw new Error("Overview heat board columns should be allowed to shrink inside their card");
+}
+
+const risingListRowsItemRule = css.match(/\.market-rising-list-rows \.compact-list-row \{[\s\S]*?\}/)?.[0] || "";
+if (!risingListRowsItemRule.includes("min-width: 0")) {
+  throw new Error("Overview heat board item tiles should not force horizontal overflow");
+}
+
+const risingRowLabelRule = css.match(/\.market-rising-row-label \{[\s\S]*?\}/)?.[0] || "";
+if (!risingRowLabelRule.includes("flex: 1 1 auto") || !risingRowLabelRule.includes("overflow: hidden")) {
+  throw new Error("Overview heat board label area should shrink and clip before overlapping the movement value");
+}
+
+const risingNameRule = css.match(/\.market-rising-name \{[\s\S]*?\}/)?.[0] || "";
+if (!risingNameRule.includes("flex: 1 1 auto") || !risingNameRule.includes("text-overflow: ellipsis")) {
+  throw new Error("Overview heat board names should keep single-line ellipsis in narrow cards");
+}
+
+const risingMovementRule = css.match(/\.market-rising-list-rows \.track-change \{[\s\S]*?\}/)?.[0] || "";
+if (!risingMovementRule.includes("flex: 0 0 auto")) {
+  throw new Error("Overview heat board movement value should stay fixed at the right edge");
+}
+
 const heatSegmentedContainerRule = css.match(/\.workbench-card \.ant-card-extra \.heat-board-segmented \{[\s\S]*?\}/)?.[0] || "";
 if (heatSegmentedContainerRule.includes("border:")) {
   throw new Error("Heat board segmented container should not render an outer border");
