@@ -290,7 +290,7 @@ def _news_payload(items: list[SourceItem]) -> list[dict]:
 def _normalized_existing_hotword_names(db) -> set[str]:
     tag_names = {
         str(name).strip().casefold()
-        for name in db.scalars(select(Tag.name).where(Tag.type.in_(["hotword", "track"]), Tag.status != "disabled"))
+        for name in db.scalars(select(Tag.name).where(Tag.status != "disabled"))
         if str(name).strip()
     }
     track_names = {

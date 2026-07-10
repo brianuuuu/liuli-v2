@@ -210,7 +210,10 @@ def list_ai_tag_suggestions(
 
 @router.post("/ai-tag-suggestions", response_model=AiTagSuggestionRead)
 def create_ai_tag_suggestion(payload: AiTagSuggestionCreate, db: Session = Depends(get_db)):
-    return service.create_ai_tag_suggestion(db, payload)
+    try:
+        return service.create_ai_tag_suggestion(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/ai-tag-suggestions/{suggestion_id}/approve", response_model=AiTagSuggestionRead)

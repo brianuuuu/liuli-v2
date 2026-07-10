@@ -965,7 +965,21 @@ def graph_edges(db: Session, related_type: str, window: str) -> dict:
     }
 
 
+def _normalize_ai_suggestion_text(value: str | None) -> str:
+    return str(value or "").strip().casefold()
+
+
+def ai_tag_suggestion_text_exists(db: Session, suggested_text: str) -> bool:
+    normalized = _normalize_ai_suggestion_text(suggested_text)
+    if not normalized:
+        return False
+    existing_names = db.scalars(select(AiTagSuggestion.suggested_text))
+    return any(_normalize_ai_suggestion_text(name) == normalized for name in existing_names)
+
+
 def create_ai_tag_suggestion(db: Session, payload: AiTagSuggestionCreate) -> AiTagSuggestion:
+    if ai_tag_suggestion_text_exists(db, payload.suggested_text):
+        raise ValueError("ai tag suggestion already exists")
     item = AiTagSuggestion(**payload.model_dump())
     db.add(item)
     db.commit()

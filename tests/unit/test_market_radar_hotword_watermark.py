@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.system_config.service import get_runtime_state
 from invest_assistant.modules.market_radar import jobs as market_jobs
-from invest_assistant.modules.market_radar.models import AiTagSuggestion, SourceItem
+from invest_assistant.modules.market_radar.models import AiTagSuggestion, SourceItem, Tag
 from invest_assistant.modules.stock_analysis import jobs as stock_jobs
 from invest_assistant.modules.track_discovery import jobs as track_jobs
 
@@ -84,7 +85,7 @@ def test_hotword_job_uses_source_item_id_watermark_for_same_day_incremental_runs
         first_result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20")
 
         third = add_news(db, "第三条新闻")
-        second_result = market_jobs.extract_daily_hotwords_deepseek_job()
+        second_result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20")
 
         state = get_runtime_state(db, market_jobs.DAILY_HOTWORD_STATE_NAMESPACE, market_jobs.HOTWORD_SOURCE_ITEM_CURSOR_KEY)
         names = list(db.scalars(select(AiTagSuggestion.suggested_text).order_by(AiTagSuggestion.id.asc())))
@@ -133,7 +134,7 @@ def test_hotword_job_ignore_watermark_reprocesses_but_keeps_id_cursor(monkeypatc
         latest = add_news(db, "可重跑新闻")
 
         first_result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20")
-        second_result = market_jobs.extract_daily_hotwords_deepseek_job(ignore_watermark=True)
+        second_result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20", ignore_watermark=True)
 
         state = get_runtime_state(db, market_jobs.DAILY_HOTWORD_STATE_NAMESPACE, market_jobs.HOTWORD_SOURCE_ITEM_CURSOR_KEY)
         assert first_result.processed_count == 1
@@ -143,6 +144,88 @@ def test_hotword_job_ignore_watermark_reprocesses_but_keeps_id_cursor(monkeypatc
         assert calls == [["可重跑新闻"], ["可重跑新闻"]]
         assert state is not None
         assert state.state_value == str(latest.id)
+    finally:
+        db.close()
+
+
+def test_hotword_job_skips_name_that_already_exists_as_active_tag(monkeypatch):
+    SessionLocal = make_session_factory()
+    monkeypatch.setattr(market_jobs, "SessionLocal", SessionLocal)
+    monkeypatch.setattr(
+        market_jobs,
+        "get_active_prompt_by_key",
+        lambda db, key: type("Prompt", (), {"model": "deepseek-v4-flash"})(),
+    )
+
+    def extract_hotwords(news, prompt, model):
+        return {
+            "hotwords": [{"name": "已有启动标签", "score": 8, "reason": "测试"}],
+            "usage": {},
+        }
+
+    monkeypatch.setattr(market_jobs.deepseek_client, "extract_hotwords", extract_hotwords)
+    db = SessionLocal()
+    try:
+        db.add(Tag(name="已有启动标签", type="stock", source="manual", status="active"))
+        db.commit()
+        add_news(db, "包含已有启动标签的新闻")
+
+        result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20")
+
+        names = list(db.scalars(select(AiTagSuggestion.suggested_text).order_by(AiTagSuggestion.id.asc())))
+        assert result.success
+        assert result.inserted_count == 0
+        assert names == []
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_rejected_count"),
+    [
+        ("pending", 0),
+        ("approved", 0),
+        ("rejected", 3),
+    ],
+)
+def test_hotword_job_skips_names_that_already_exist_as_ai_suggestions(monkeypatch, status, expected_rejected_count):
+    SessionLocal = make_session_factory()
+    monkeypatch.setattr(market_jobs, "SessionLocal", SessionLocal)
+    monkeypatch.setattr(
+        market_jobs,
+        "get_active_prompt_by_key",
+        lambda db, key: type("Prompt", (), {"model": "deepseek-v4-flash"})(),
+    )
+
+    def extract_hotwords(news, prompt, model):
+        return {
+            "hotwords": [{"name": "历史推荐词", "score": 8, "reason": "测试"}],
+            "usage": {},
+        }
+
+    monkeypatch.setattr(market_jobs.deepseek_client, "extract_hotwords", extract_hotwords)
+    db = SessionLocal()
+    try:
+        db.add(
+            AiTagSuggestion(
+                suggested_text="历史推荐词",
+                score=7.0,
+                status=status,
+                rejected_count=2 if status == "rejected" else 0,
+            )
+        )
+        db.commit()
+        add_news(db, "包含历史推荐词的新闻")
+
+        result = market_jobs.extract_daily_hotwords_deepseek_job(target_date="2026-06-20")
+
+        rows = list(db.scalars(select(AiTagSuggestion).order_by(AiTagSuggestion.id.asc())))
+        assert result.success
+        assert result.inserted_count == 0
+        assert result.skipped_count == 1
+        assert len(rows) == 1
+        assert rows[0].status == status
+        assert rows[0].rejected_count == expected_rejected_count
     finally:
         db.close()
 

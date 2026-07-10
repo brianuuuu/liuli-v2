@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
@@ -29,15 +30,30 @@ def make_session(name: str):
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
-def test_ai_tag_suggestions_do_not_require_business_type():
+def test_ai_tag_suggestions_do_not_require_business_type_or_allow_duplicate_names():
     SessionLocal = make_session("service")
     db = SessionLocal()
     try:
-        create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=8.0, reason="关注度上升"))
-        create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=7.0, reason="重复推荐"))
+        row = create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=8.0, reason="关注度上升"))
+        with pytest.raises(ValueError, match="ai tag suggestion already exists"):
+            create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI算力", score=7.0, reason="重复推荐"))
         rows = list(db.scalars(select(AiTagSuggestion).where(AiTagSuggestion.suggested_text == "AI算力")))
-        assert len(rows) == 2
+        assert len(rows) == 1
+        assert rows[0].id == row.id
         assert all(not hasattr(row, "suggested_type") for row in rows)
+    finally:
+        db.close()
+
+
+def test_ai_tag_suggestion_duplicate_check_normalizes_whitespace_and_case():
+    SessionLocal = make_session("service-normalized")
+    db = SessionLocal()
+    try:
+        create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="AI Server", score=8.0))
+        with pytest.raises(ValueError, match="ai tag suggestion already exists"):
+            create_ai_tag_suggestion(db, AiTagSuggestionCreate(suggested_text="  ai server  ", score=7.0))
+        rows = list(db.scalars(select(AiTagSuggestion)))
+        assert len(rows) == 1
     finally:
         db.close()
 
@@ -156,3 +172,33 @@ def test_ai_tag_suggestion_api_accepts_plain_words():
     assert response.status_code == 200
     assert "suggested_type" not in response.json()
     assert response.json()["rejected_count"] == 0
+
+
+def test_ai_tag_suggestion_api_rejects_duplicate_plain_words():
+    SessionLocal = make_session("api-duplicate")
+    client = TestClient(create_app())
+
+    def override_get_db():
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    client.app.dependency_overrides[get_db] = override_get_db
+    client.app.dependency_overrides[get_current_user] = lambda: UserAccount(id=1, username="tester", password_hash="x", status="active")
+    first = client.post(
+        "/api/market-radar/ai-tag-suggestions",
+        json={"suggested_text": "AI Server", "score": 8.5, "reason": "多条新闻提及"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    second = client.post(
+        "/api/market-radar/ai-tag-suggestions",
+        json={"suggested_text": "  ai server  ", "score": 7.0, "reason": "重复推荐"},
+        headers={"Authorization": "Bearer test-token"},
+    )
+    client.app.dependency_overrides.clear()
+
+    assert first.status_code == 200
+    assert second.status_code == 400
+    assert second.json()["detail"] == "ai tag suggestion already exists"
