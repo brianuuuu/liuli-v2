@@ -1,9 +1,9 @@
 # 琉璃 Android App 技术规格
 
 > 首次制定：2026-07-10  
-> 最后更新：2026-07-11  
-> 当前版本：v6
-> 状态：第一版实现基线  
+> 最后更新：2026-07-18
+> 当前版本：v7.2
+> 状态：第一版全量 UI 重构实现基线
 > 产品形态：个人使用的 Android 原生客户端  
 > 系统基线：`docs/liuli_system_spec.md`  
 > 视觉基线：本文第 10 章、Web 现有 Logo 资产与 GitHub Primer 官方设计原则
@@ -67,6 +67,37 @@
 - 折线图、柱状图和组合图固定使用 Vico Compose Material 3，首版锁定 `3.2.3`；环形分布和热度矩阵使用 Compose Canvas 自绘。
 - Release 包名固定为 `com.liuli.app`；Debug 使用 `.debug` 后缀和“琉璃 Dev”应用名，可与正式版同时安装。
 - 本文档 v6 正文覆盖此前版本中未确定 Android API Level、Markdown/图表实现和 Debug 包名的描述。
+
+### v7：原型壳层与真实 Web 业务全量对齐（2026-07-18）
+
+- 删除通用 `RemoteObjectScreen / RemoteListScreen` 和业务页面中的动态 `JsonObject` 展示；现有 REST 响应改为 Kotlinx Serialization 强类型 DTO。
+- 以 15 张 v1 原型作为手机壳层，以当前 Web 与后端 Schema 作为业务内容基线，重做登录、五看板、记录、新闻、预警、报告和设置。
+- 建立 `LiuliTheme / LiuliTokens / LiuliComponents`，落实 48dp AppBar、16dp 页面边距、8dp 卡片圆角、56dp 四项底栏、浅色/深色/跟随系统和真实 Material 图标。
+- 根页面使用 Navigation Compose；五看板使用 `HorizontalPager`；赛道、标的、组合提供移动摘要详情，报告仍为二级路由。
+- 引入 Hilt、`ApiSession`、`DashboardRepository`、`DashboardViewModel`、`StateFlow<UiState<T>>` 和五分钟进程缓存；刷新失败时保留旧内容。
+- Room 仍只保存知识笔记草稿；记录页实现搜索、类型筛选、草稿状态、800ms 自动保存、提交失败保留和手动重试。
+- 新闻实现日期吸顶时间线、节点、来源、标签、关联对象和详情；预警实现状态筛选、等级语义、已读、已处理和关联笔记。
+- 报告实现现有三类筛选、Material 3 Markdown 阅读、应用缓存和 `FileProvider` 外部打开；设置补齐主题、服务器、草稿数、报告缓存、修改密码、退出和版本信息。
+- 现有 Kotlin `1.9.24` / Compose BOM `2024.09.03` 与计划锁定的 Markdown `0.39.0`、Vico `3.2.3` 二进制不兼容，因此首版实际锁定兼容版本 Markdown `0.28.0`、Vico `1.15.0`，不为升级渲染库改动既有 Android 技术栈。
+- v7 未新增、修改或调用任何 Android 专用后端接口，也未调用 `/api/console/*`。
+
+### v7.1：模拟器实机尺寸视觉校准（2026-07-18）
+
+- API 36.1 模拟器通过 WHPX 硬件加速启动，并以真实 `1080 × 2400 px / 420 dpi` 竖屏截图重新对照 15 张原型；此前 WMI 的固件虚拟化字段在 Hyper-V 接管后不可靠，以 Android Emulator `WHPX is installed and usable` 自检为准。
+- 视觉 Token 从偏重的 GitHub 默认控件外观收敛为原型实际参数：页面底色 `#F3F6FA`、细边框 `#E2E8F0`、页面内容边距 `12dp`、普通卡片圆角 `10dp`、看板 Tab `40dp`、底栏内容 `56dp`。
+- 登录页移除额外表单大卡片，恢复 `60dp` Web Logo、`46dp` 输入框与按钮、24dp 水平边距、简洁服务器入口和底部个人使用说明；浅色、深色均使用主题文字色，修复深色标题发黑。
+- AppBar 使用 28dp Logo、18sp 主标题、9sp 副标题和 30dp 个人头像；底栏改为四等分自定义导航，选中态只突出图标轻背景、图标和文字。
+- 今日、赛道、标的、记录、预警、报告和设置由“每行一张厚卡片”改为分组卡片加弱分隔线；新闻时间线去掉节点外层卡片，恢复日期吸顶、纵向轨道、菱形节点与正文扫描节奏。
+- v7.1 仍只消费现有接口，不修改后端、数据库、REST 路径或字段。
+
+### v7.2：主壳层精简与个人入口收口（2026-07-18）
+
+- 移除四个业务主模块顶部仅重复显示模块名称的 48dp AppBar，根页面内容直接从状态栏安全区下方开始；二级详情、编辑器、报告阅读和服务器设置仍保留带返回动作的 AppBar。
+- 底部根导航调整为“看板 / 记录 / 新闻 / 预警 / 我的”；“我的”只承接账号、主题、服务器、草稿、缓存和版本设置，不成为业务能力所有者，报告仍是二级入口。
+- Launcher、登录页和“我的-关于”统一使用由 Web `favicon.svg` 确定性转换的蓝色渐变六边形 Logo；adaptive icon 仅增加浅蓝蒙版背景，不重绘 Logo。
+- 普通控件的主色限定为白、灰、蓝、黑，Material `secondary / tertiary` 和完成态全部映射为琉璃蓝；红、绿、橙仅用于风险、涨跌、成功和提醒语义，禁止出现默认紫色。
+- 知识笔记定位为短文本记录，列表、详情和编辑均使用纯文本；新闻正文同样按服务端文本展示。Markdown Renderer 只用于报告阅读与报告文件打开。
+- 市场看板使用现有热榜接口补齐四项指标、真实热度条和标签排行；赛道、标的看板补齐移动端四项摘要指标，不新增任何接口。
 
 ## 1. 文档定位
 
@@ -179,18 +210,18 @@ Android 是个人投资研究的随身客户端，负责：
 
 ### 4.1 底部导航
 
-底部导航固定为四项：
+底部导航固定为五项：
 
 ```text
-看板｜记录｜新闻｜预警
+看板｜记录｜新闻｜预警｜我的
 ```
 
 规则：
 
 - 登录后默认进入“看板”。
 - 底部导航只承载高频顶级目的地。
-- 报告不是第五个底部模块。
-- 设置通过顶部用户入口进入。
+- “我的”是个人账号与本机设置入口，不是业务模块。
+- 报告不占底部模块。
 - 二级页面保留当前底部模块上下文；全屏编辑器和报告阅读器可隐藏底栏。
 
 ### 4.2 看板分页
@@ -201,7 +232,7 @@ Android 是个人投资研究的随身客户端，负责：
 今日｜市场｜赛道｜标的｜组合
 ```
 
-实现使用 `ScrollableTabRow + HorizontalPager`：
+实现使用五等分自定义 Tab Row + `HorizontalPager`：
 
 - 点击标签与滑动分页双向同步。
 - 冷启动固定打开“今日”。
@@ -222,12 +253,12 @@ Android 是个人投资研究的随身客户端，负责：
 /news/{sourceItemId}
 /alerts
 /alerts/{alertEventId}
+/my
 /reports
 /reports/{reportId}
 /tracks/{trackId}
 /stocks/{stockId}
 /portfolios/{portfolioId}
-/settings
 /settings/change-password
 /settings/server
 ```
@@ -237,7 +268,7 @@ Android 是个人投资研究的随身客户端，负责：
 - 二级详情返回时恢复来源页面、筛选条件和列表位置。
 - 从新闻、报告或预警打开笔记编辑器，返回时回到原对象详情。
 - Token 失效时清空受保护页面栈并进入 `/login`。
-- 看板 AppBar 右侧固定提供账户按钮，打开包含“设置 / 修改密码 / 退出登录”的菜单；设置不占底部导航。
+- 四个业务根页面不显示重复模块名称 AppBar；“我的”根页承载账号、主题、服务器、缓存、修改密码和退出登录。
 - `/settings/server` 不要求登录，可从登录页和已登录设置页进入；其余业务路由仍要求本地存在 Token。
 
 ## 5. 页面规格
@@ -260,7 +291,7 @@ Android 是个人投资研究的随身客户端，负责：
 
 1. 启动时先读取 DataStore，不用网络请求阻塞启动画面。
 2. 已有 Token 时立即进入主 App 壳层，并在后台调用 `/api/auth/me`。
-3. `/api/auth/me` 成功时更新用户摘要；返回 401 时清除旧登录态并进入登录页；断网、超时或 5xx 时保留登录态和当前页面，顶部显示离线状态。
+3. `/api/auth/me` 成功时更新用户摘要；返回 401 时清除旧登录态并进入登录页；断网、超时或 5xx 时保留登录态和当前页面，今日卡片显示离线状态。
 4. 本地没有 Token 时进入登录页；登录页和服务器设置始终可离线打开。
 5. 离线进入主壳层时，Room 草稿可查看和编辑；需要服务端的看板、新闻、报告和预警显示离线空状态或本进程已有缓存，不伪造数据。
 
@@ -326,7 +357,7 @@ Android 是个人投资研究的随身客户端，负责：
 
 支持：搜索、分组、标签、状态筛选；查看、新增、编辑、归档和恢复。笔记类型在列表项中展示，但当前列表 API 没有 `note_type` 查询参数，因此第一版不提供类型筛选。
 
-首版不单独维护只读笔记详情组件：`/notes/{noteId}` 加载成功后使用与编辑页相同的内容布局，默认只读，点击 AppBar“编辑”后进入 `/notes/{noteId}/edit`。新增和编辑共用同一编辑器，避免为个人使用维护两套 Markdown 展示逻辑。
+`/notes/{noteId}` 使用紧凑的纯文本只读详情；新增和编辑共用纯文本编辑器。知识笔记是短信息记录，不解析标题、列表、代码块等 Markdown 语法。
 
 类型沿用系统知识库语义：
 
@@ -340,7 +371,7 @@ market / stock / thesis / portfolio / alert / mistake / principle
 
 ![笔记编辑](prototypes/liuli-android-v1/08-note-editor.png)
 
-字段：类型、分组、标题、关联对象、标签和 Markdown 正文。
+字段：类型、分组、标题、关联对象、标签和纯文本正文。
 
 草稿规则：
 
@@ -534,12 +565,12 @@ Vico Compose M3
 - Android 品牌图形使用 `docs/assets/android/liuli-web-logo.svg`；该文件必须与上游 `invest_assistant/ui/web/public/favicon.svg` 保持完全一致。
 - 最终适配基准为用户当前主力手机的分辨率、系统版本和系统字体设置；模拟器只用于快速开发，不建立公众设备矩阵。
 
-其余依赖版本在创建工程时按当时稳定且互相兼容的版本锁定到 Gradle Version Catalog。工程 README 保存 AGP、Kotlin、Compose BOM、Hilt、Room、Retrofit、Markdown、Vico 和 SDK 的版本矩阵；后续升级依赖时同步更新矩阵。Markdown 首版锁定 `com.mikepenz:multiplatform-markdown-renderer-m3:0.39.0`，Vico 首版锁定 `com.patrykandpatrick.vico:compose-m3:3.2.3`；若与最终 Compose BOM 存在已证实的二进制冲突，可选择最近兼容稳定版本并在 README 记录原因。
+依赖统一锁定在 Gradle Version Catalog。v7 实际版本为 AGP `8.13.2`、Gradle `8.13`、Kotlin `1.9.24`、Compose BOM `2024.09.03`、Hilt `2.51.1`、Room `2.6.1`、Retrofit `2.11.0`、Markdown Renderer M3 `0.28.0`、Vico Compose M3 `1.15.0`。AGP/Gradle 升级用于完整支持 API `36.1` 的 D8 与 Lint，不改变应用技术栈。计划中的 Markdown `0.39.0` 使用 Kotlin `2.3.0`，Vico `3.2.3` 也需要升级 Kotlin/Compose 链；本轮选用已通过当前工程编译验证的兼容版本。
 
 渲染分工：
 
-- Markdown 阅读和预览使用 `multiplatform-markdown-renderer-m3`；编辑器继续编辑原始 Markdown 文本，不引入富文本编辑器。
-- 折线图、柱状图和折线柱状组合图使用 Vico，并统一封装在 `core/design/chart/`。
+- 只有报告阅读使用 `multiplatform-markdown-renderer-m3`；知识笔记和新闻正文使用 Compose `Text / TextField` 展示、编辑纯文本，不提供 Markdown 预览或富文本编辑。
+- 折线图使用 Vico，并通过 `core/design/LiuliComponents.kt` 的 `MiniLineChart` 统一封装；后续新增柱状图和折线柱状组合图继续复用该设计层入口。
 - 组合资产环形图和市场热度矩阵使用 Compose Canvas 自绘，因为它们结构简单且不属于 Vico 的笛卡尔图主能力。
 - 页面不得直接依赖第三方图表颜色和排版默认值，必须映射到第 10 章的琉璃 Token。
 - 选型来源：[multiplatform-markdown-renderer](https://github.com/mikepenz/multiplatform-markdown-renderer)、[Vico](https://github.com/patrykandpatrick/vico)。
@@ -555,9 +586,11 @@ invest_assistant/ui/android/
 │       ├── navigation/
 │       ├── core/
 │       │   ├── network/
-│       │   │   ├── ServerConfigRepository.kt
-│       │   │   ├── ServerUrlInterceptor.kt
-│       │   │   └── ApiService.kt
+│       │   │   ├── ApiClient.kt
+│       │   │   ├── ApiSession.kt
+│       │   │   ├── ApiService.kt
+│       │   │   ├── BusinessDtos.kt
+│       │   │   └── ServerEndpoint.kt
 │       │   ├── database/
 │       │   ├── auth/
 │       │   ├── model/
@@ -570,28 +603,24 @@ invest_assistant/ui/android/
 │           ├── news/
 │           ├── alerts/
 │           ├── reports/
-│           ├── trackdetail/
-│           ├── stockdetail/
-│           ├── portfoliodetail/
 │           └── settings/
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── gradle/
 ```
 
-每个 feature 内按需要包含 `Screen / ViewModel / UiState / Repository interface`。网络 DTO 与 Room Entity 不直接暴露给 Compose。
+看板 feature 使用 `Screen / ViewModel / Repository` 分层；其余首版页面保持模块化 Screen，并只消费强类型只读 DTO。Room Entity 仅在记录模块的本地草稿流中使用，不进入其他业务页面。后续复杂状态增长时再按同一模式拆出各自 ViewModel，不为个人客户端预建空接口层。
 
 ### 6.3 状态管理
 
 统一页面状态：
 
 ```kotlin
-sealed interface LoadState<out T> {
-    data object Idle : LoadState<Nothing>
-    data object Loading : LoadState<Nothing>
-    data class Content<T>(val value: T, val refreshing: Boolean = false) : LoadState<T>
-    data class Empty(val message: String) : LoadState<Nothing>
-    data class Error(val message: String, val cached: Boolean = false) : LoadState<Nothing>
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+    data class Content<T>(val data: T, val refreshing: Boolean = false) : UiState<T>
+    data class Empty(val message: String) : UiState<Nothing>
+    data class Error(val message: String, val canRetry: Boolean = true) : UiState<Nothing>
 }
 ```
 
@@ -601,25 +630,25 @@ sealed interface LoadState<out T> {
 - 有旧内容时刷新失败，继续展示旧内容并显示非阻塞错误条。
 - 无旧内容且失败，显示错误状态和重试按钮。
 - 空状态必须说明当前无数据，不能用示例数据填充运行页面。
-- ViewModel 使用 `SavedStateHandle` 保存当前看板 Tab、详情 ID 和轻量筛选参数；进程被回收后列表重新请求，不持久化整页业务响应。
+- Navigation Compose 对五个根路由启用 `saveState / restoreState`；看板 Pager 保存当前 Tab，进程被回收后业务列表重新请求，不持久化整页业务响应。
 - 看板进程内缓存有效期为 5 分钟；有效期内返回页面先展示缓存，用户下拉刷新始终请求服务端。
-- 应用从后台回到前台超过 5 分钟时只刷新当前可见根页面；预警仍遵守其独立的 60 秒刷新规则。
+- 返回页面时先检查五分钟进程缓存；过期后由当前可见看板重新加载，用户点击刷新始终请求服务端。
 - 服务端时间统一按 ISO 8601 解析为 `Instant`，展示时转换为设备当前时区；无法解析的时间显示 `--`，不导致整页失败。
-- 全局连接状态只区分 `Online / Offline / Checking`；它用于顶部状态提示，不替代每个页面自己的加载和错误状态。
+- 全局连接状态只区分 `Online / Offline / Checking`；它用于今日卡片的轻量状态提示，不替代每个页面自己的加载和错误状态。
 - 离线状态不禁止进入路由：有 Token 时允许浏览 App 壳层和 Room 草稿，所有远程操作在触发时给出明确失败提示。
 
 ### 6.4 网络与鉴权
 
 - `BuildConfig.DEFAULT_SERVER_URL` 固定为 `http://115.29.176.240:5173/`；DataStore 中存在用户配置时优先使用用户配置。
-- `ServerConfigRepository` 负责地址读取、规范化和持久化；`ServerUrlInterceptor` 根据内存中的当前配置改写每个请求的 scheme、host、port 和 base path，使修改地址不需要重启 App。
-- 保存新服务器地址时先取消 OkHttp Dispatcher 中的在途请求，再更新当前配置；下一次请求立即使用新地址。
-- 登录调用 `/api/auth/login`，保存 `access_token` 和 `token_type`。
+- `AppPreferences` 负责服务器地址、Token 和主题的 DataStore 持久化；`ServerEndpoint` 负责 URL 规范化。
+- `ApiSession` 以 `server + token` 作为实例键；地址或 Token 变化时清空进程业务缓存并重建 Retrofit/OkHttp 实例，下一次请求立即使用新配置。
+- 登录调用 `/api/auth/login`，保存 `access_token`；当前后端固定使用 Bearer，因此不单独持久化 `token_type`。
 - OkHttp Auth Interceptor 添加 `Authorization: Bearer <token>`。
 - 启动时本地有 Token 就先进入 App，再异步调用 `/api/auth/me` 校验登录态；网络失败不清除 Token，只有明确 401 才清除。
-- 连接超时 `10s`、读取超时 `30s`、写入超时 `30s`；报告下载使用独立客户端，读取超时 `120s`。
-- GET 请求只对连接失败或明确可重试的 `502 / 503 / 504` 自动重试 1 次；POST、PUT 和所有状态变更请求不自动重试，由用户手动触发。
+- 连接超时 `10s`、读取超时 `30s`、写入超时 `30s`；报告正文成功后写入应用缓存，通过 `FileProvider` 只读打开。
+- 首版不做隐式网络重试；GET、POST、PUT 和状态变更失败均保留当前内容或草稿，由用户明确点击刷新/重试，避免个人投资操作产生不可见的重复请求。
 - 提交按钮在请求完成前禁用；笔记 POST 超时按“结果未知”处理，保留本地草稿并提示用户先刷新笔记列表再决定是否重试，避免重复创建。
-- 任意受保护接口返回 401：通过单例 AuthSession 只执行一次清除 Token、取消在途请求、清空受保护导航栈并进入登录页；并发 401 不重复弹窗或重复导航。
+- 任意带 Token 请求返回 401：`ApiSession` 通过原子门控只发送一次失效事件，根页面清除 Token 并进入登录页；并发 401 不重复处理。
 - 400/422 显示服务端可读错误，404 使用页面级不存在状态，500/502/503/504 统一提示服务暂时不可用，网络断开和超时分别提示并允许重试。
 - 不保存 Cookie，不在日志中输出密码和完整 Token。
 - 允许 HTTP 和 HTTPS 服务器地址；当前个人服务器使用 HTTP 明文连接。此选择只服务个人部署，不增加证书或协议升级逻辑。
@@ -820,7 +849,7 @@ docs/assets/android/android-launcher-icon-v1.png
 - 不重新绘制 Android 专用 Logo，不使用文字“琉”代替正式 Logo。
 - 保留 SVG 的 `64 × 64 viewBox`、六边形路径、三条白色结构线、蓝色渐变和透明背景。
 - Android 工程创建时，通过 Android Studio SVG Import 或等价的确定性转换生成 `res/drawable/liuli_logo.xml`；生成后不得独立手改图形路径和颜色。
-- Launcher adaptive icon 的 foreground、登录页、AppBar 和关于页面共用该生成资源。
+- Launcher adaptive icon 的 foreground、登录页和“我的-关于”共用该生成资源。
 - Web Logo 发生变化时，先用新的 `favicon.svg` 覆盖同步 `docs/assets/android/liuli-web-logo.svg`，校验两者哈希一致后再重新生成 Android 资源，禁止两端分别维护。
 - Logo 本体在浅色和深色模式下保持原始蓝白配色，不做主题 tint；只允许外围容器背景和描边随主题变化。
 
@@ -843,7 +872,7 @@ enum class ThemeMode {
 - `SYSTEM` 监听系统深浅色变化并实时更新，不要求重启 Activity。
 - 设置页可切换浅色、深色、跟随系统。
 - 状态栏、导航栏及其图标明暗随 resolved theme 更新。
-- Compose 页面、Dialog、BottomSheet、输入框、骨架屏、空状态、错误状态、Markdown 阅读器和图表全部使用主题 Token，业务 feature 不写死页面背景与正文颜色。
+- Compose 页面、Dialog、BottomSheet、输入框、骨架屏、空状态、错误状态、报告 Markdown 阅读器和图表全部使用主题 Token，业务 feature 不写死页面背景与正文颜色。
 - 主题切换不得清空页面状态、看板分页位置、新闻滚动位置或笔记草稿。
 - v1 浅色原型不构成深色延期依据；深色不可读、突兀白块或图表反色均属于第一版阻断问题。
 
@@ -853,46 +882,47 @@ enum class ThemeMode {
 
 | Token | 浅色 | 深色 | 用途 |
 |---|---:|---:|---|
-| `canvas` | `#FFFFFF` | `#0D1117` | 页面背景 |
-| `canvasSubtle` | `#F6F8FA` | `#161B22` | 次级区域、列表分组 |
-| `canvasInset` | `#EFF2F5` | `#010409` | 内嵌区、代码块、图表底层 |
-| `borderDefault` | `#D0D7DE` | `#30363D` | 卡片、输入框、分隔线 |
-| `borderMuted` | `#D8DEE4` | `#21262D` | 弱分隔线 |
-| `fgDefault` | `#1F2328` | `#F0F6FC` | 主要文字 |
-| `fgMuted` | `#59636E` | `#9198A1` | 辅助文字、图标 |
-| `accent` | `#2563EB` | `#58A6FF` | 品牌、主操作、选中状态 |
-| `accentMuted` | `#EFF6FF` | `rgba(56,139,253,0.15)` | 选中轻背景、信息提示 |
-| `success` | `#1A7F37` | `#3FB950` | 成功、健康、完成 |
-| `successMuted` | `#DAFBE1` | `rgba(46,160,67,0.15)` | 成功轻背景 |
-| `attention` | `#9A6700` | `#D29922` | 警告、待处理 |
-| `attentionMuted` | `#FFF8C5` | `rgba(187,128,9,0.15)` | 警告轻背景 |
-| `danger` | `#CF222E` | `#F85149` | 错误、危险操作、高等级预警 |
-| `dangerMuted` | `#FFEBE9` | `rgba(248,81,73,0.15)` | 错误轻背景 |
-| `done` | `#8250DF` | `#A371F7` | 已归档、特殊完成态 |
-| `doneMuted` | `#F5F0FF` | `rgba(163,113,247,0.15)` | 特殊完成轻背景 |
+| `canvas` | `#FFFFFF` | `#111820` | 卡片、输入框和主要面板 |
+| `canvasSubtle` | `#F3F6FA` | `#0D141C` | 页面背景、列表分组 |
+| `canvasInset` | `#F8FAFC` | `#18212B` | 内嵌区、代码块、图表底层 |
+| `borderDefault` | `#E2E8F0` | `#2B3745` | 卡片、输入框、分隔线 |
+| `borderMuted` | `#EEF2F7` | `#202B37` | 弱分隔线 |
+| `fgDefault` | `#0F172A` | `#F1F5F9` | 主要文字 |
+| `fgMuted` | `#64748B` | `#94A3B8` | 辅助文字、图标 |
+| `accent` | `#2563EB` | `#60A5FA` | 品牌、主操作、选中状态 |
+| `accentMuted` | `#EFF6FF` | `#172A46` | 选中轻背景、信息提示 |
+| `success` | `#059669` | `#34D399` | 成功、健康、完成 |
+| `successMuted` | `#ECFDF5` | `#13342C` | 成功轻背景 |
+| `attention` | `#EA580C` | `#FB923C` | 警告、待处理 |
+| `attentionMuted` | `#FFF7ED` | `#3B2418` | 警告轻背景 |
+| `danger` | `#DC2626` | `#F87171` | 错误、危险操作、高等级预警 |
+| `dangerMuted` | `#FFF1F2` | `#3B1C24` | 错误轻背景 |
+| `done` | `#2563EB` | `#60A5FA` | 已归档、完成态；与品牌蓝统一 |
+| `doneMuted` | `#EFF6FF` | `#172A46` | 完成态轻背景 |
 
 #### 10.4.2 业务语义 Token
 
 - A 股行情固定为 `marketUp = danger`、`marketDown = success`、`marketFlat = fgMuted`，即涨红跌绿；不得直接把通用“正向/负向”颜色套到行情方向。
 - 预警等级固定为高 `danger`、中 `attention`、低 `accent`，并同时显示等级文字或图标。
 - 成功、排队中、失败、已完成分别使用 `success / attention / danger / done`，同时保留明确文本。
+- 普通控件只使用白、灰、蓝、黑，Material `secondary / tertiary` 和完成态均映射到品牌蓝，禁止出现默认紫色。
 - 未读通过字重、标记和语义说明共同表达；草稿通过“草稿”文字与图标表达；颜色不得成为唯一信息载体。
 - 图表系列色从受控的主题调色板取值；涨跌、基准、选中和告警色不得在不同图表中交换语义。
 
 ### 10.5 排版
 
 - 使用 Android 系统字体栈：拉丁字符采用 Roboto，中文采用设备系统 CJK 字体；首版不内置自定义字体。
-- AppBar 标题：`20sp / 600`；页面区块标题：`16sp / 600`；卡片标题：`14sp / 600`。
-- 正文：`14sp / 20sp`；辅助文字：`12sp / 16sp`；短标签与图表轴标签最低 `11sp`。
-- 核心指标：`24sp / 700`，数字使用等宽数字特性时不得影响中文回退字体。
+- AppBar 标题：`18sp / 700`；页面区块标题：`13sp / 800`；卡片标题：`12–13sp / 600`。
+- 正文：`12–13sp / 18–19sp`；辅助文字：`10.5sp / 16sp`；短标签与图表轴标签为 `8–10sp`。
+- 核心指标：`19–25sp / 800`，数字使用等宽数字特性时不得影响中文回退字体。
 - 按用户主力手机当前字体和显示大小验收；布局仍避免明显的固定高度裁切，但不为超大字体建立额外适配分支。
 - 层级优先通过字号、字重和间距建立，避免大面积彩色标题或全大写英文。
 
 ### 10.6 间距、尺寸与安全区
 
 - 采用 `4dp` 基础网格，标准间距为 `4 / 8 / 12 / 16 / 20 / 24 / 32dp`。
-- 页面左右安全间距统一为 `16dp`；高密度列表内部可使用 `12dp`，但文字不得贴边。
-- 页面区块间距为 `16–24dp`，同组元素为 `4–12dp`。
+- 页面左右内容间距统一为 `12dp`；登录页表单使用 `24dp`，详情正文可按内容使用 `12–16dp`。
+- 页面区块间距为 `8–12dp`，同组元素为 `4–8dp`；依靠分组标题和卡片边界保持层级。
 - AppBar 内容高度 `48dp`；底部导航内容高度约 `56dp`，并额外消费系统导航安全区。
 - 可点击目标最小 `48 × 48dp`；紧凑图标可保持 `20–24dp` 视觉尺寸，但点击区域不能缩小。
 - 页面必须处理状态栏、导航栏、显示挖孔和横屏 inset，不以固定设备高度定位底部操作。
@@ -900,7 +930,7 @@ enum class ThemeMode {
 
 ### 10.7 圆角、边框与层级
 
-- 小组件圆角 `6dp`，输入框和普通卡片 `8dp`，Dialog、BottomSheet 和大容器 `12dp`。
+- 小组件圆角 `5–8dp`，输入框 `11dp`，普通卡片 `10dp`，Dialog、BottomSheet 和大容器 `12dp`。
 - 胶囊形只用于短状态、筛选 Chip 和数量 Badge，不用于顶部看板 Tab。
 - 卡片和输入框使用 `1dp borderDefault`；弱分组使用 `borderMuted`。
 - 普通卡片默认无投影。阴影只用于 Dialog、BottomSheet、浮动按钮和确有遮挡关系的浮层。
@@ -908,16 +938,16 @@ enum class ThemeMode {
 
 ### 10.8 核心组件规范
 
-- **AppBar**：左侧返回或 Logo，中间标题，右侧最多两个高频动作；溢出动作进入菜单。
+- **AppBar**：只用于二级详情、编辑器、报告阅读和服务器设置；左侧返回，中间标题，右侧最多两个高频动作。五个根页面不显示重复模块标题栏。
 - **看板分页**：`HorizontalPager` 与顶部可横向滚动 Tab 同步；选中项使用 `accent` 文字和 `2dp` 下划线，不使用胶囊选中块。
-- **底部导航**：始终四项；图标、文字和选中状态同时变化；报告不得出现为第五项。
+- **底部导航**：始终五项；图标、文字和选中状态同时变化；第五项固定为“我的”，报告不得占用底部入口。
 - **卡片与列表**：标题、核心值、辅助信息、动作按固定层级排列；整行可点击时不再放含义相同的箭头按钮。
 - **按钮**：主按钮使用 `accent` 实底，次按钮使用透明底加边框，危险按钮使用 `danger`；同一区域最多一个主按钮。
 - **标签与筛选**：业务标签使用中性或轻语义背景；可交互筛选必须有选中、按下、禁用和清除状态。
 - **输入框**：常驻可见 Label；错误信息放在字段下方并说明修复方式；仅占位符不能替代 Label。
 - **状态反馈**：首屏使用骨架屏，局部刷新保留旧内容并显示轻量进度；空状态说明原因和下一步；错误状态提供明确重试动作。
 - **新闻时间线**：日期吸顶、节点、时间、来源、标签和关联对象保持纵向扫描节奏；未读不能只靠节点颜色区分。
-- **Markdown 阅读器**：标题、正文、引用、列表、表格、代码块和链接全部使用主题 Token；宽表允许横向滚动，正文不整体横滚。
+- **报告 Markdown 阅读器**：标题、正文、引用、列表、表格、代码块和链接全部使用主题 Token；宽表允许横向滚动，正文不整体横滚。知识笔记和新闻不得调用该组件。
 - **图表**：背景透明或使用 `canvas`，网格线使用 `borderMuted`，轴文字使用 `fgMuted`；点击数据点应提供文本值，不能只显示颜色图例。
 
 ### 10.9 动效与反馈
@@ -940,21 +970,19 @@ enum class ThemeMode {
 Android 工程建立单一设计系统入口：
 
 ```text
-designsystem/
+core/design/
 ├── LiuliTheme.kt
-├── LiuliColors.kt
-├── LiuliTypography.kt
-├── LiuliSpacing.kt
-├── LiuliShapes.kt
-└── components/
+├── LiuliTokens.kt
+├── LiuliComponents.kt
+└── ThemeMode.kt
 ```
 
 - `LiuliTheme` 根据 resolved theme 创建 Material `ColorScheme`，并通过 `CompositionLocal` 暴露 Material 未覆盖的业务语义色和间距。
-- 原始色值只允许出现在 `LiuliColors.kt`；feature 只能引用 `MaterialTheme` 或 `LiuliTheme` 的语义属性。
-- `LiuliTypography`、`LiuliSpacing` 和 `LiuliShapes` 是唯一尺寸来源；页面不得复制一套局部规范。
+- 原始色值只允许出现在 `LiuliTokens.kt`；feature 只能引用 `MaterialTheme`、`LocalLiuliColors` 或明确的品牌白色。
+- `LiuliTheme`、`LiuliTokens` 和 `LiuliComponents` 是统一视觉入口；页面不得复制一套局部规范。
 - 复用 Material 3 的语义、状态和无障碍行为，再用琉璃 Token 调整外观；不自行重写基础点击、焦点或输入行为。
 - Preview 与截图测试必须分别渲染 light、dark；`SYSTEM` 只负责解析后复用其中一套，不维护第三套颜色。
-- 深色模式避免大面积纯黑，`#010409` 只用于内嵌层；禁止硬编码白色卡片、黑色正文或给 Logo 加 tint。
+- 深色模式避免大面积纯黑，页面使用 `#0D141C`、卡片使用 `#111820`；禁止硬编码白色卡片、黑色正文或给 Logo 加 tint。
 
 ## 11. 测试策略
 
@@ -972,7 +1000,7 @@ designsystem/
 - 5 分钟缓存、前后台刷新和 ISO 8601 时间转换。
 - 新闻分页、筛选取消、刷新锚点和新增数量。
 - 笔记草稿防抖保存、恢复、提交成功清理、失败保留。
-- 并发 401 只触发一次会话清理，GET 最多重试一次，POST/PUT 不自动重试。
+- 并发 401 只触发一次会话清理，所有失败请求只允许用户手动重试。
 - 预警已读和处理状态更新。
 - 预警规则列表对 `rule_id` 的目标映射，以及规则缺失时隐藏跳转入口。
 
@@ -981,10 +1009,10 @@ designsystem/
 使用 MockWebServer 覆盖：
 
 - Bearer Header。
-- `ServerUrlInterceptor` 对 HTTP/HTTPS、端口和 base path 的地址改写。
+- `ServerEndpoint` 对 HTTP/HTTPS、端口和 base path 的地址规范化，以及 `ApiSession` 在配置变化后重建客户端。
 - `Page<T>` 的 `items/total/limit/offset/has_more`。
 - 401、404、422、500、超时和非 JSON 错误。
-- `502 / 503 / 504` 的 GET 单次重试，以及笔记 POST 超时后的“结果未知”状态。
+- 401 单次失效事件，以及笔记 POST 超时后的“结果未知”状态。
 - 信息流 `source_tags` 缺失时按空列表处理，不读取不存在的关联实体字段。
 - 报告正文纯文本和下载文件响应。
 - 组合列表、组合详情、组合 dashboard 和带 `portfolio_id` 的价值快照。
@@ -1002,20 +1030,20 @@ designsystem/
 
 ### 11.4 Compose UI 测试
 
-- 底栏只存在四项。
+- 底栏只存在看板、记录、新闻、预警、我的五项。
 - 看板存在五个横向分页且点击与滑动同步。
 - 报告只能作为二级页面进入，且只出现 market、track、stock 三类筛选。
 - 新闻、报告和预警均能进入关联笔记编辑器。
-- AppBar 账户菜单可以进入设置、修改密码和退出登录。
+- “我的”根页可以修改主题、服务器和密码，清理报告缓存并退出登录。
 - 登录页和已登录设置页均能进入服务器设置；无网络时服务器设置仍可保存，保存后回到登录页。
 - 有 Token 的冷启动断网场景进入完整 App 壳层，草稿可编辑，远程页面显示离线状态。
 - 赛道、标的和组合简版详情能从对应看板进入并正确返回原位置。
 - 加载、空、失败、缓存内容加错误条四类状态可见。
 - 浅色、深色两套 Compose 截图测试覆盖登录、五个看板、笔记、新闻、预警、报告和设置；跟随系统分别在 light/dark 系统配置下复用同一断言。
-- 核心组件截图矩阵覆盖 AppBar、底部导航、Tab、卡片、按钮、输入框、标签、骨架屏、空状态、错误重试、时间线、Markdown 和图表。
-- Markdown 标题、列表、引用、代码块、表格和链接在 `multiplatform-markdown-renderer-m3` 下使用琉璃主题；Vico 折线/柱状/组合图及 Canvas 环形图/热度矩阵颜色语义一致。
+- 核心组件截图矩阵覆盖二级 AppBar、底部导航、Tab、卡片、按钮、输入框、标签、骨架屏、空状态、错误重试、时间线、报告 Markdown 和图表。
+- 报告 Markdown 的标题、列表、引用、代码块、表格和链接在 `multiplatform-markdown-renderer-m3` 下使用琉璃主题；知识笔记和新闻保持纯文本；Vico 折线/柱状/组合图及 Canvas 环形图/热度矩阵颜色语义一致。
 - 主题切换前后页面状态、滚动位置和本地草稿保持不变。
-- 登录页、AppBar、关于页和 Launcher 使用由 `docs/assets/android/liuli-web-logo.svg` 生成的同一 Logo 资源，且两种主题下不被 tint。
+- 登录页、“我的-关于”和 Launcher 使用由 `docs/assets/android/liuli-web-logo.svg` 生成的同一 Logo 资源，且两种主题下不被 tint。
 - 在用户主力手机当前字体和显示大小下检查文字、图表、表单和 `48 × 48dp` 高频操作区域，不建立额外设备和无障碍矩阵。
 - 静态扫描或架构测试禁止 feature 直接声明原始颜色，原始色值仅存在于设计系统模块。
 
@@ -1033,9 +1061,20 @@ designsystem/
 - 既有 Web 调用和全部后端接口保持不变。
 - 后端测试必须使用隔离数据库；执行任何清表、重建或删除类测试前，仍需按仓库约束取得用户当轮明确批准。
 
+### 11.7 v7.2 当前验证记录（2026-07-18）
+
+- `testDebugUnitTest`：20 项通过，0 失败；覆盖设计尺寸、主题、服务器 URL、强类型 DTO、Bearer Header、503、401 单次失效、五分钟缓存、草稿策略、五导航/五看板模型和网络底层错误中文化。
+- `lintDebug`：通过，0 error、30 warning；保留项为依赖版本提示、Kapt/KSP 建议、Compose 参数顺序和 minSdk 36 下 adaptive icon 目录提示，不阻断个人 Debug 包。
+- `assembleDebug`：通过；包名 `com.liuli.app.debug`，版本 `0.1.0-debug`，`minSdk / targetSdk / compileSdk = 36`。
+- Debug APK：`invest_assistant/ui/android/app/build/outputs/apk/debug/app-debug.apk`；SHA256 `E824A15844ECD99724A8A98780824CFC9B1B22C9B9A59646A6500119C8BD2971`。
+- 本轮没有运行任何数据库测试、清表脚本或数据库写入命令。
+- API 36.1 模拟器已通过 WHPX 硬件加速启动；最终 Debug APK 覆盖安装并保留登录状态，浅色/深色登录、状态栏、手势导航安全区、五个看板、记录、新闻、预警、我的、报告与设置均以真实服务端数据或真实加载/错误状态检查，应用崩溃/ANR 为 0。
+- 模拟器网络曾出现 OkHttp `unexpected end of stream`，服务端恢复后重试加载成功；最终客户端已将 IOException、超时和 HTTP 错误映射为中文提示，不向界面暴露传输层英文。
+- 小米 17 真机触控、挖孔和 HyperOS 桌面图标蒙版仍需连接设备后完成最终验收。
+
 ## 12. 验收标准
 
-1. 底部只出现看板、记录、新闻、预警。
+1. 底部只出现看板、记录、新闻、预警、我的；报告不占底部入口。
 2. 看板可在今日、市场、赛道、标的、组合之间点击或滑动切换。
 3. 报告可从今日、市场、赛道、标的看板以及明确 `related_type=report` 的新闻详情进入，但不占底部入口。
 4. 知识笔记可独立管理，并能从新闻、报告和预警带上下文创建。
@@ -1045,7 +1084,7 @@ designsystem/
 8. 所有页面提供明确的加载、空、失败和重试状态。
 9. Android 只调用受鉴权 REST API，不读取数据库、服务端文件目录或 MCP。
 10. 第一版不新增或修改任何后端接口、参数、响应字段和业务行为。
-11. 登录页、应用栏、关于页和 Launcher 复用 `docs/assets/android/liuli-web-logo.svg` 的图形，不出现临时文字 Logo 或另一套品牌图形；该 SVG 与 Web 上游 `favicon.svg` 保持一致。
+11. 登录页、“我的-关于”和 Launcher 复用 `docs/assets/android/liuli-web-logo.svg` 的图形，不出现临时文字 Logo 或另一套品牌图形；该 SVG 与 Web 上游 `favicon.svg` 保持一致。
 12. 浅色、深色、跟随系统三种模式均可用；所有页面、图表和 Markdown 阅读器在两种 resolved theme 下可读且无突兀反色块。
 13. Android UI 遵循第 10 章的语义 Token、排版、间距、圆角、组件和动效规范，feature 不直接使用原始色值。
 14. 用户主力手机当前字体、显示大小和导航方式下，文字、图表、表单与关键操作清晰可用；不要求大众无障碍和多设备适配认证。
@@ -1056,7 +1095,7 @@ designsystem/
 19. 已有 Token 时断网冷启动可以进入完整 App 壳层并编辑 Room 草稿；远程页面明确显示离线状态，网络失败不误清 Token。
 20. Release APK 在 Android 16 / API 36 小米 17 上完成默认 HTTP 服务器、手势导航和个人投资主流程验收；不要求更早 Android、应用商店、平板或多厂商兼容。
 21. Release 与 Debug 分别使用 `com.liuli.app` 和 `com.liuli.app.debug`，可以同时安装且本地数据完全隔离。
-22. Markdown、Vico 和 Compose Canvas 按第 6.1 节分工渲染，所有颜色、排版和交互映射到琉璃设计 Token。
+22. 报告 Markdown、Vico 和 Compose Canvas 按第 6.1 节分工渲染；知识笔记和新闻为纯文本；所有颜色、排版和交互映射到琉璃设计 Token。
 
 ## 13. 后续实施阶段
 
