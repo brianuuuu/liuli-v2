@@ -57,13 +57,6 @@ android {
     }
 }
 
-kapt {
-    arguments {
-        arg("room.schemaLocation", "$projectDir/schemas")
-        arg("room.incremental", "true")
-    }
-}
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -85,9 +78,6 @@ dependencies {
     implementation(libs.okhttp.core)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    kapt(libs.androidx.room.compiler)
     implementation(libs.markdown.renderer.m3)
     implementation(libs.vico.compose.m3)
 

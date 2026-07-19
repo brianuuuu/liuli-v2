@@ -1,6 +1,9 @@
 package com.liuli.app.core.common
 
 import java.text.DecimalFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 enum class MarketTone { Rise, Fall, Neutral }
 
@@ -25,15 +28,32 @@ fun formatCompactCount(value: Long?): String = when {
     else -> value.toString()
 }
 
-fun dateBucket(value: String?): String = value
-    ?.takeIf { it.length >= 10 }
-    ?.substring(0, 10)
-    ?: "日期未知"
+private val sourceTimeFormats = listOf(
+    DateTimeFormatter.ISO_LOCAL_DATE_TIME,
+    DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss"),
+)
 
-fun timeLabel(value: String?): String = value
-    ?.takeIf { it.length >= 16 }
-    ?.substring(11, 16)
-    ?: "--:--"
+private fun parseSourceTime(value: String?): LocalDateTime? {
+    val text = value?.trim().orEmpty()
+    if (text.isBlank()) return null
+    sourceTimeFormats.forEach { formatter ->
+        try {
+            return LocalDateTime.parse(text.take(19), formatter)
+        } catch (_: DateTimeParseException) {
+            // 兼容现有接口同时返回 ISO 与美式日期格式。
+        }
+    }
+    return null
+}
+
+fun dateBucket(value: String?): String =
+    parseSourceTime(value)?.toLocalDate()?.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        ?: value?.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }?.take(10)
+        ?: "日期未知"
+
+fun timeLabel(value: String?): String =
+    parseSourceTime(value)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm"))
+        ?: "--:--"
 
 fun reportKindLabel(value: String?): String = when (value) {
     "market" -> "市场"

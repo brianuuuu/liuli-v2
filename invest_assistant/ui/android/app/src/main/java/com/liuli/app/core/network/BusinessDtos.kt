@@ -306,16 +306,30 @@ data class PortfolioValuePoint(
 )
 
 @Serializable
+data class KnowledgeNoteGroupDto(
+    val id: Long,
+    val name: String,
+    @SerialName("sort_order") val sortOrder: Int = 0,
+    val status: String = "active",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+)
+
+@Serializable
 data class KnowledgeNoteDto(
     val id: Long,
     val title: String,
     val content: String,
     @SerialName("note_type") val noteType: String = "",
+    @SerialName("group_id") val groupId: Long? = null,
     @SerialName("related_module") val relatedModule: String? = null,
     @SerialName("related_id") val relatedId: Long? = null,
+    @SerialName("tags_text") val tagsText: String? = null,
     val status: String = "active",
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
+    val group: KnowledgeNoteGroupDto? = null,
+    val tags: List<TagDto> = emptyList(),
 )
 
 @Serializable

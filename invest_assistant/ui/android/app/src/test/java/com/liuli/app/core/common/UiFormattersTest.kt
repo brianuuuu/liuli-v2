@@ -8,6 +8,8 @@ class UiFormattersTest {
     fun `iso timestamp is split into stable date and minute labels`() {
         assertEquals("2026-07-18", dateBucket("2026-07-18T10:20:31+08:00"))
         assertEquals("10:20", timeLabel("2026-07-18T10:20:31+08:00"))
+        assertEquals("2026-07-19", dateBucket("07/19/2026 00:38:21"))
+        assertEquals("00:38", timeLabel("07/19/2026 00:38:21"))
         assertEquals("日期未知", dateBucket(null))
         assertEquals("--:--", timeLabel(""))
     }

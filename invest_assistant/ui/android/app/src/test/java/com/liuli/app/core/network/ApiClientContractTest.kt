@@ -49,4 +49,50 @@ class ApiClientContractTest {
         assertTrue(failure is HttpException)
         assertEquals(503, (failure as HttpException).code())
     }
+
+    @Test
+    fun sendsExistingGroupAndTagsFieldsForQuickMemo() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("""{"id":11,"title":"机器人订单","content":"机器人订单 #机器人","note_type":""}"""),
+        )
+
+        ApiClient.create(server.url("/").toString()).createNote(
+            NoteCreateRequest(
+                content = "机器人订单 #机器人",
+                groupId = 3,
+                tags = "#机器人",
+            ),
+        )
+
+        val request = server.takeRequest()
+        assertEquals("/api/knowledge/notes", request.path)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"group_id\":3"))
+        assertTrue(body.contains("\"tags\":\"#机器人\""))
+    }
+
+    @Test
+    fun updatesMemoThroughExistingPutEndpoint() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("""{"id":11,"title":"机器人订单","content":"更新后的判断","note_type":"","group_id":3,"tags":[]}"""),
+        )
+
+        ApiClient.create(server.url("/").toString()).updateNote(
+            11,
+            NoteCreateRequest(
+                content = "更新后的判断",
+                groupId = 3,
+                tagIds = listOf(8),
+            ),
+        )
+
+        val request = server.takeRequest()
+        assertEquals("PUT", request.method)
+        assertEquals("/api/knowledge/notes/11", request.path)
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"group_id\":3"))
+        assertTrue(body.contains("\"tag_ids\":[8]"))
+    }
 }

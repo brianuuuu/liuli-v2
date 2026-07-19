@@ -13,7 +13,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.liuli.app.core.common.AppPreferences
 import com.liuli.app.core.design.LiuliTheme
-import com.liuli.app.core.database.LiuliDatabase
 import com.liuli.app.core.network.ApiClient
 import com.liuli.app.core.network.ApiSession
 import com.liuli.app.core.network.LoginRequest
@@ -21,7 +20,6 @@ import com.liuli.app.core.network.ServerEndpoint
 import com.liuli.app.feature.dashboard.MainShell
 import com.liuli.app.feature.login.LoginScreen
 import com.liuli.app.feature.settings.ServerSettingsScreen
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import dagger.hilt.android.AndroidEntryPoint
@@ -30,25 +28,22 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var preferences: AppPreferences
-    @Inject lateinit var draftDao: com.liuli.app.core.database.NoteDraftDao
     @Inject lateinit var apiSession: ApiSession
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { LiuliRoot(preferences, draftDao, apiSession) }
+        setContent { LiuliRoot(preferences, apiSession) }
     }
 }
 
 @Composable
 private fun LiuliRoot(
     preferences: AppPreferences,
-    draftDao: com.liuli.app.core.database.NoteDraftDao,
     apiSession: ApiSession,
 ) {
     val server by preferences.server.collectAsState(initial = BuildConfig.DEFAULT_SERVER_URL)
     val token by preferences.token.collectAsState(initial = null)
     val theme by preferences.themeMode.collectAsState(initial = com.liuli.app.core.design.ThemeMode.System)
-    val drafts by draftDao.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     var editingServer by remember { mutableStateOf(false) }
     var serverDraft by remember(server) { mutableStateOf(server) }
     var serverError by remember { mutableStateOf<String?>(null) }
@@ -116,11 +111,9 @@ private fun LiuliRoot(
             }
             MainShell(
                 api = api,
-                draftDao = draftDao,
                 offlineMessage = offlineMessage,
                 server = server,
                 themeMode = theme,
-                draftCount = drafts.size,
                 onThemeChange = { mode -> scope.launch { preferences.saveTheme(mode) } },
                 onEditServer = { serverDraft = server; editingServer = true },
                 onLogout = { scope.launch { preferences.clearToken() } },

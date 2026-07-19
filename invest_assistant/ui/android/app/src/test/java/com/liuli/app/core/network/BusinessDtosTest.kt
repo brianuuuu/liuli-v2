@@ -46,4 +46,27 @@ class BusinessDtosTest {
         assertEquals(1_000_000.0, portfolio.summary.totalValue, 0.001)
         assertTrue(portfolio.pieItems.isEmpty())
     }
+
+    @Test
+    fun decodesMemoGroupAndTagsFromExistingKnowledgeApi() {
+        val value = json.decodeFromString<PageDto<KnowledgeNoteDto>>(
+            """
+            {
+              "items":[{
+                "id":9,
+                "title":"机器人产业链",
+                "content":"机器人订单继续改善",
+                "group_id":3,
+                "tags_text":"#机器人 #订单",
+                "group":{"id":3,"name":"产业跟踪","sort_order":1,"status":"active"},
+                "tags":[{"id":5,"name":"机器人","status":"active"}]
+              }],
+              "total":1,"limit":20,"offset":0,"has_more":false
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals("产业跟踪", value.items.single().group?.name)
+        assertEquals("机器人", value.items.single().tags.single().name)
+    }
 }

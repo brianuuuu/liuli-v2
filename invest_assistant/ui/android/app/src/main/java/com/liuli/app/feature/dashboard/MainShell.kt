@@ -55,8 +55,6 @@ import com.liuli.app.core.common.UiState
 import com.liuli.app.core.common.formatCompactCount
 import com.liuli.app.core.common.formatMoney
 import com.liuli.app.core.common.formatSignedPercent
-import com.liuli.app.core.database.NoteDraftDao
-import com.liuli.app.core.database.NoteDraftEntity
 import com.liuli.app.core.design.DonutChart
 import com.liuli.app.core.design.EmptyPane
 import com.liuli.app.core.design.ErrorPane
@@ -83,22 +81,20 @@ import com.liuli.app.core.network.TrackRanking
 import com.liuli.app.feature.alerts.AlertsScreen
 import com.liuli.app.feature.news.NewsScreen
 import com.liuli.app.feature.notes.NotesScreen
+import com.liuli.app.feature.notes.NoteComposerContext
 import com.liuli.app.feature.reports.ReportsScreen
 import com.liuli.app.feature.settings.SettingsScreen
 import com.liuli.app.navigation.AppIcon
 import com.liuli.app.navigation.AppSection
 import com.liuli.app.navigation.DashboardTab
-import java.util.UUID
 import kotlinx.coroutines.launch
 
 @Composable
 fun MainShell(
     api: ApiService,
-    draftDao: NoteDraftDao,
     offlineMessage: String?,
     server: String,
     themeMode: ThemeMode,
-    draftCount: Int,
     onThemeChange: (ThemeMode) -> Unit,
     onEditServer: () -> Unit,
     onLogout: () -> Unit,
@@ -108,31 +104,27 @@ fun MainShell(
     val route = backStackEntry?.destination?.route.orEmpty()
     val section = AppSection.entries.firstOrNull { route == it.name.lowercase() } ?: AppSection.Dashboard
     val secondary = route.startsWith("reports/")
-    val scope = rememberCoroutineScope()
+    var newsDetailOpen by remember { mutableStateOf(false) }
+    var noteComposerContext by remember { mutableStateOf<NoteComposerContext?>(null) }
+    LaunchedEffect(route) {
+        if (route != AppSection.News.name.lowercase()) newsDetailOpen = false
+    }
     val writeContextNote: (String, Long?, String) -> Unit = { module, relatedId, title ->
-        scope.launch {
-            draftDao.upsert(
-                NoteDraftEntity(
-                    localId = UUID.randomUUID().toString(),
-                    serverNoteId = null,
-                    title = title,
-                    content = "",
-                    relatedModule = module,
-                    relatedId = relatedId,
-                    updatedAtEpochMillis = System.currentTimeMillis(),
-                ),
-            )
-            navController.navigate(AppSection.Notes.name.lowercase()) {
-                launchSingleTop = true
-                restoreState = true
-            }
+        noteComposerContext = NoteComposerContext(
+            relatedModule = module,
+            relatedId = relatedId,
+            initialText = title,
+        )
+        navController.navigate(AppSection.Notes.name.lowercase()) {
+            launchSingleTop = true
+            restoreState = true
         }
     }
 
     Scaffold(
         containerColor = LocalLiuliColors.current.canvasSubtle,
         bottomBar = {
-            if (!secondary) {
+            if (!secondary && !newsDetailOpen) {
                 Column(
                     modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).navigationBarsPadding(),
                 ) {
@@ -199,15 +191,26 @@ fun MainShell(
                     onWriteNote = writeContextNote,
                 )
             }
-            composable(AppSection.Notes.name.lowercase()) { NotesScreen(api, draftDao) }
-            composable(AppSection.News.name.lowercase()) { NewsScreen(api, writeContextNote) }
+            composable(AppSection.Notes.name.lowercase()) {
+                NotesScreen(
+                    api = api,
+                    initialComposerContext = noteComposerContext,
+                    onComposerContextConsumed = { noteComposerContext = null },
+                )
+            }
+            composable(AppSection.News.name.lowercase()) {
+                NewsScreen(
+                    api = api,
+                    onWriteNote = writeContextNote,
+                    onDetailVisibilityChange = { newsDetailOpen = it },
+                )
+            }
             composable(AppSection.Alerts.name.lowercase()) { AlertsScreen(api, writeContextNote) }
             composable(AppSection.My.name.lowercase()) {
                 SettingsScreen(
                     api = api,
                     server = server,
                     themeMode = themeMode,
-                    draftCount = draftCount,
                     onThemeChange = onThemeChange,
                     onEditServer = onEditServer,
                     onBack = {},

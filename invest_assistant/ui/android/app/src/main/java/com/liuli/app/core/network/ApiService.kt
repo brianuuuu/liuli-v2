@@ -7,6 +7,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 @Serializable
@@ -38,18 +39,20 @@ data class OperationResult(val success: Boolean = true)
 data class NoteCreateRequest(
     val title: String? = null,
     val content: String,
-    @SerialName("note_type") val noteType: String = "thesis",
+    @SerialName("note_type") val noteType: String = "",
+    @SerialName("group_id") val groupId: Long? = null,
     @SerialName("related_module") val relatedModule: String? = null,
     @SerialName("related_id") val relatedId: Long? = null,
+    val tags: String? = null,
+    @SerialName("tag_ids") val tagIds: List<Long> = emptyList(),
     val status: String = "active",
 )
 
 @Serializable
-data class NoteResponse(
-    val id: Long,
-    val title: String,
-    val content: String,
-    @SerialName("note_type") val noteType: String = "",
+data class NoteGroupWriteRequest(
+    val name: String,
+    @SerialName("sort_order") val sortOrder: Int = 0,
+    val status: String = "active",
 )
 
 interface ApiService {
@@ -102,13 +105,32 @@ interface ApiService {
         @Query("offset") offset: Int = 0,
         @Query("q") query: String? = null,
         @Query("status") status: String? = null,
+        @Query("group_id") groupId: Long? = null,
     ): PageDto<KnowledgeNoteDto>
 
     @GET("api/knowledge/notes/{id}")
     suspend fun noteDetail(@Path("id") id: Long): KnowledgeNoteDto
 
     @POST("api/knowledge/notes")
-    suspend fun createNote(@Body request: NoteCreateRequest): NoteResponse
+    suspend fun createNote(@Body request: NoteCreateRequest): KnowledgeNoteDto
+
+    @PUT("api/knowledge/notes/{id}")
+    suspend fun updateNote(
+        @Path("id") id: Long,
+        @Body request: NoteCreateRequest,
+    ): KnowledgeNoteDto
+
+    @GET("api/knowledge/note-groups")
+    suspend fun noteGroups(): List<KnowledgeNoteGroupDto>
+
+    @POST("api/knowledge/note-groups")
+    suspend fun createNoteGroup(@Body request: NoteGroupWriteRequest): KnowledgeNoteGroupDto
+
+    @PUT("api/knowledge/note-groups/{id}")
+    suspend fun updateNoteGroup(
+        @Path("id") id: Long,
+        @Body request: NoteGroupWriteRequest,
+    ): KnowledgeNoteGroupDto
 
     @GET("api/alerts/events")
     suspend fun alertsData(

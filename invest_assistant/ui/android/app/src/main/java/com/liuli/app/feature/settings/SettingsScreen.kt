@@ -15,7 +15,6 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.AlertDialog
@@ -61,7 +60,6 @@ fun SettingsScreen(
     api: ApiService,
     server: String,
     themeMode: ThemeMode,
-    draftCount: Int,
     onThemeChange: (ThemeMode) -> Unit,
     onEditServer: () -> Unit,
     onBack: () -> Unit,
@@ -127,7 +125,6 @@ fun SettingsScreen(
             item {
                 LiuliListCard(Modifier.fillMaxWidth()) {
                     SettingsRow(Icons.Outlined.Dns, "服务地址", server.removeSuffix("/"), onEditServer)
-                    SettingsRow(Icons.Outlined.EditNote, "本地草稿", "$draftCount 条草稿 · 仅保存在本机", {})
                     SettingsRow(
                         Icons.Outlined.DeleteSweep,
                         "报告缓存",
