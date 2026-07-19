@@ -6,6 +6,7 @@ set -e
 # Get absolute path to the directory containing this script
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 WEB_DIR="$ROOT/invest_assistant/ui/web"
+H5_DIR="$ROOT/invest_assistant/ui/android/h5"
 LOG_DIR="$ROOT/var/logs"
 PID_DIR="$ROOT/var/run"
 
@@ -45,6 +46,19 @@ if [ ! -d "$WEB_DIR/node_modules" ]; then
   npm install --no-audit --no-fund
   popd >/dev/null
 fi
+
+if [ ! -d "$H5_DIR/node_modules" ]; then
+  echo "[INFO] Android H5 dependencies (node_modules) are missing. Installing..."
+  pushd "$H5_DIR" >/dev/null
+  npm install --no-audit --no-fund
+  popd >/dev/null
+fi
+
+echo "[INFO] Building isolated Android H5..."
+pushd "$H5_DIR" >/dev/null
+npm run build
+popd >/dev/null
+node "$ROOT/scripts/sync-mobile-h5.mjs"
 
 # Function to check if a port is in use
 is_port_in_use() {
@@ -99,5 +113,6 @@ echo ""
 echo "Access endpoints:"
 echo "  - API: http://127.0.0.1:8000/api/health"
 echo "  - Web: http://127.0.0.1:5173"
+echo "  - Android H5: http://127.0.0.1:5173/mobile/"
 echo ""
 echo "Use ./stop.sh to stop all processes."

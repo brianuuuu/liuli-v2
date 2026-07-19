@@ -9,7 +9,13 @@ node_modules/
 dist/
 invest_assistant/ui/web/node_modules/
 invest_assistant/ui/web/dist/
+invest_assistant/ui/web/public/mobile/
+invest_assistant/ui/android/h5/node_modules/
+invest_assistant/ui/android/h5/dist/
+invest_assistant/ui/android/h5/*.tsbuildinfo
 .playwright-mcp/
+.playwright-cli/
+output/
 .superpowers/
 liuli-*.png
 var/*

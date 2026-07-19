@@ -6,6 +6,9 @@ object LiuliDimensions {
     const val appBarHeightDp = 48
     const val bottomBarHeightDp = 56
     const val dashboardTabHeightDp = 40
+    const val secondaryNavigationHeightDp = 72
+    const val secondaryNavigationTopPaddingDp = 16
+    const val secondaryNavigationTouchTargetDp = 48
     const val pageGutterDp = 12
     const val cardCornerDp = 10
     const val minimumTouchTargetDp = 48

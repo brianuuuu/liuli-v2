@@ -14,31 +14,18 @@ private val Context.liuliDataStore by preferencesDataStore(name = "liuli_prefere
 class AppPreferences(private val context: Context) {
     private object Keys {
         val server = stringPreferencesKey("server_url")
-        val token = stringPreferencesKey("access_token")
         val theme = stringPreferencesKey("theme_mode")
     }
 
     val server: Flow<String> = context.liuliDataStore.data.map {
         it[Keys.server] ?: BuildConfig.DEFAULT_SERVER_URL
     }
-    val token: Flow<String?> = context.liuliDataStore.data.map { it[Keys.token] }
     val themeMode: Flow<ThemeMode> = context.liuliDataStore.data.map {
         ThemeMode.fromStorage(it[Keys.theme])
     }
 
     suspend fun saveServer(value: String) {
-        context.liuliDataStore.edit {
-            it[Keys.server] = value
-            it.remove(Keys.token)
-        }
-    }
-
-    suspend fun saveToken(value: String) {
-        context.liuliDataStore.edit { it[Keys.token] = value }
-    }
-
-    suspend fun clearToken() {
-        context.liuliDataStore.edit { it.remove(Keys.token) }
+        context.liuliDataStore.edit { it[Keys.server] = value }
     }
 
     suspend fun saveTheme(mode: ThemeMode) {
