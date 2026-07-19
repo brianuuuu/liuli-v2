@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 set "WEB_DIR=%ROOT%invest_assistant\ui\web"
 set "H5_DIR=%ROOT%invest_assistant\ui\android\h5"
 
-echo Starting Liuli backend and Web frontend...
+echo Starting Liuli backend, desktop Web and Android H5...
 echo Root: %ROOT%
 
 where python >nul 2>nul
@@ -44,39 +44,28 @@ if not exist "%H5_DIR%\node_modules" (
   popd
 )
 
-echo [INFO] Building isolated Android H5...
-pushd "%H5_DIR%"
-call npm.cmd run build
-if errorlevel 1 (
-  popd
-  echo [ERROR] Android H5 build failed.
-  exit /b 1
-)
-popd
-node "%ROOT%scripts\sync-mobile-h5.mjs"
-if errorlevel 1 (
-  echo [ERROR] Android H5 sync failed.
-  exit /b 1
-)
-
 call :ensure_port_free 8000 API
 if errorlevel 1 exit /b 1
 
 call :ensure_port_free 5173 Web
 if errorlevel 1 exit /b 1
 
+call :ensure_port_free 5174 H5
+if errorlevel 1 exit /b 1
+
 start "Liuli API :8000" /D "%ROOT%" cmd /k python -m uvicorn invest_assistant.main:app --host 127.0.0.1 --port 8000
 start "Liuli Worker" /D "%ROOT%" cmd /k python -m invest_assistant.worker
 start "Liuli Web :5173" /D "%WEB_DIR%" cmd /k npm.cmd run dev -- --host 127.0.0.1 --port 5173
+start "Liuli H5 :5174" /D "%H5_DIR%" cmd /k npm.cmd run dev -- --host 127.0.0.1 --port 5174
 
 echo.
 echo Liuli is starting:
 echo   API: http://127.0.0.1:8000/api/health
 echo   Worker: python -m invest_assistant.worker
 echo   Web: http://127.0.0.1:5173
-echo   Android H5: http://127.0.0.1:5173/mobile/
+echo   Android H5: http://127.0.0.1:5174/
 echo.
-echo Use stop.bat to stop processes listening on ports 8000 and 5173.
+echo Use stop.bat to stop processes listening on ports 8000, 5173 and 5174.
 
 endlocal
 exit /b 0

@@ -14,7 +14,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://115.29.176.240:5173/\"")
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://115.29.176.240:5174/\"")
         resValue("string", "app_name", "琉璃")
     }
 

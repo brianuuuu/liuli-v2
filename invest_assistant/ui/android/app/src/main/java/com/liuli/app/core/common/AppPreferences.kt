@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.liuli.app.BuildConfig
 import com.liuli.app.core.design.ThemeMode
+import com.liuli.app.hybrid.effectiveMobileServer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -18,7 +19,7 @@ class AppPreferences(private val context: Context) {
     }
 
     val server: Flow<String> = context.liuliDataStore.data.map {
-        it[Keys.server] ?: BuildConfig.DEFAULT_SERVER_URL
+        effectiveMobileServer(it[Keys.server], BuildConfig.DEFAULT_SERVER_URL)
     }
     val themeMode: Flow<ThemeMode> = context.liuliDataStore.data.map {
         ThemeMode.fromStorage(it[Keys.theme])

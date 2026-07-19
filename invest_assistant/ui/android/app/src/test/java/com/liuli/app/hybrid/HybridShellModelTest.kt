@@ -9,8 +9,26 @@ class HybridShellModelTest {
     @Test
     fun `mobile url is derived from the configured server`() {
         assertEquals(
-            "http://115.29.176.240:5173/mobile/",
-            mobileAppUrl("http://115.29.176.240:5173/"),
+            "http://115.29.176.240:5174/",
+            mobileAppUrl(" http://115.29.176.240:5174/ "),
+        )
+    }
+
+    @Test
+    fun `legacy public default is migrated without changing custom servers`() {
+        assertEquals(
+            "http://115.29.176.240:5174/",
+            effectiveMobileServer(
+                stored = "http://115.29.176.240:5173/",
+                default = "http://115.29.176.240:5174/",
+            ),
+        )
+        assertEquals(
+            "http://192.168.1.8:5173/",
+            effectiveMobileServer(
+                stored = "http://192.168.1.8:5173/",
+                default = "http://115.29.176.240:5174/",
+            ),
         )
     }
 

@@ -26,7 +26,7 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <div className="login-brand">
-        <img src="/mobile/liuli-logo.svg" alt="" />
+        <img src="/liuli-logo.svg" alt="" />
         <h1>琉璃</h1>
         <p>个人投资研究工作台</p>
       </div>

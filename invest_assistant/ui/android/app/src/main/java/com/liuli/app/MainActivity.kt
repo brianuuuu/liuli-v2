@@ -316,7 +316,7 @@ private class LiuliWebViewClient(
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val uri = request?.url ?: return false
         val sameServer = uri.scheme == serverUri.scheme && uri.host == serverUri.host && uri.port == serverUri.port
-        if (sameServer && (uri.path?.startsWith("/mobile/") == true || uri.path?.startsWith("/api/") == true)) {
+        if (sameServer) {
             return false
         }
         view?.context?.startActivity(Intent(Intent.ACTION_VIEW, uri))

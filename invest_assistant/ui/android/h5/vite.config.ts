@@ -5,14 +5,15 @@ import { defineConfig } from "vitest/config";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   return {
-    base: "/mobile/",
+    base: "/",
     plugins: [react()],
     server: {
       host: "0.0.0.0",
       port: 5174,
+      strictPort: true,
       proxy: {
         "/api": {
-          target: env.VITE_API_PROXY_TARGET || "http://115.29.176.240:5173",
+          target: env.VITE_API_PROXY_TARGET || "http://127.0.0.1:8000",
           changeOrigin: true
         }
       }

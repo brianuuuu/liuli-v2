@@ -4,7 +4,7 @@
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PID_DIR="$ROOT/var/run"
 
-echo "Stopping Liuli backend, worker, and Web frontend..."
+echo "Stopping Liuli backend, worker, desktop Web, and Android H5..."
 
 stop_process_tree() {
   local pid=$1
@@ -34,13 +34,22 @@ stop_process_tree() {
 # Function to stop a process by its PID file
 stop_by_pid_file() {
   local name=$1
+  local expected_command=$2
   local pid_file="$PID_DIR/$name.pid"
   
   if [ -f "$pid_file" ]; then
     local pid=$(cat "$pid_file")
     if kill -0 "$pid" 2>/dev/null; then
-      echo "[INFO] Stopping $name (PID $pid)..."
-      stop_process_tree "$pid" "$name"
+      local command_line=""
+      if [ -r "/proc/$pid/cmdline" ]; then
+        command_line=$(tr '\0' ' ' < "/proc/$pid/cmdline")
+      fi
+      if [[ "$command_line" == *"$expected_command"* ]]; then
+        echo "[INFO] Stopping $name (PID $pid)..."
+        stop_process_tree "$pid" "$name"
+      else
+        echo "[WARNING] PID $pid does not match $name. Refusing to stop it from a stale PID file."
+      fi
     else
       echo "[INFO] Process $name (PID $pid) is already stopped."
     fi
@@ -72,9 +81,10 @@ stop_by_port() {
 }
 
 # 1. Stop using PID files first
-stop_by_pid_file "api"
-stop_by_pid_file "worker"
-stop_by_pid_file "web"
+stop_by_pid_file "api" "invest_assistant.main:app"
+stop_by_pid_file "worker" "invest_assistant.worker"
+stop_by_pid_file "web" "npm run dev -- --host 0.0.0.0 --port 5173"
+stop_by_pid_file "h5" "npm run dev -- --host 0.0.0.0 --port 5174"
 
 # 2. Fallback scan using pgrep / ps to ensure no orphaned processes remain
 echo "[INFO] Scanning for any orphaned Liuli processes..."
@@ -86,6 +96,9 @@ PATTERNS=(
   "npm run dev -- --host 0.0.0.0 --port 5173"
   "vite --host 0.0.0.0 --port 5173"
   "vite.*--port 5173"
+  "npm run dev -- --host 0.0.0.0 --port 5174"
+  "vite --host 0.0.0.0 --port 5174"
+  "vite.*--port 5174"
 )
 
 for pattern in "${PATTERNS[@]}"; do
@@ -102,6 +115,7 @@ for pattern in "${PATTERNS[@]}"; do
 done
 
 stop_by_port 5173
+stop_by_port 5174
 
 # Clean up PID directory if it exists and is empty
 if [ -d "$PID_DIR" ]; then

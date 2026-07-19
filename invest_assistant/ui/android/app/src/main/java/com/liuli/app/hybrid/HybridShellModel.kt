@@ -11,7 +11,12 @@ enum class HybridSection(
     Me("我的", "me"),
 }
 
-fun mobileAppUrl(server: String): String = "${server.trim().trimEnd('/')}/mobile/"
+fun mobileAppUrl(server: String): String = "${server.trim().trimEnd('/')}/"
+
+fun effectiveMobileServer(stored: String?, default: String): String {
+    val normalizedStored = stored?.trim()?.trimEnd('/')
+    return if (normalizedStored == "http://115.29.176.240:5173") default else stored ?: default
+}
 
 fun shouldShowBottomNavigation(path: String): Boolean =
     path != "/login" && !Regex("^/reports/\\d+$").matches(path)

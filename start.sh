@@ -14,7 +14,7 @@ PID_DIR="$ROOT/var/run"
 mkdir -p "$LOG_DIR"
 mkdir -p "$PID_DIR"
 
-echo "Starting Liuli backend and Web frontend on Linux..."
+echo "Starting Liuli backend, desktop Web and Android H5 on Linux..."
 echo "Root directory: $ROOT"
 
 # 1. Check for python/python3
@@ -54,12 +54,6 @@ if [ ! -d "$H5_DIR/node_modules" ]; then
   popd >/dev/null
 fi
 
-echo "[INFO] Building isolated Android H5..."
-pushd "$H5_DIR" >/dev/null
-npm run build
-popd >/dev/null
-node "$ROOT/scripts/sync-mobile-h5.mjs"
-
 # Function to check if a port is in use
 is_port_in_use() {
   local port=$1
@@ -86,6 +80,11 @@ if is_port_in_use 5173; then
   exit 1
 fi
 
+if is_port_in_use 5174; then
+  echo "[ERROR] Port 5174 is already in use (H5). Please run stop.sh first." >&2
+  exit 1
+fi
+
 # 5. Start API
 echo "[INFO] Starting Liuli API on port 8000..."
 nohup "$PYTHON" -m uvicorn invest_assistant.main:app --host 0.0.0.0 --port 8000 > "$LOG_DIR/api.log" 2>&1 &
@@ -103,16 +102,24 @@ nohup npm run dev -- --host 0.0.0.0 --port 5173 > "$LOG_DIR/web.log" 2>&1 &
 echo $! > "$PID_DIR/web.pid"
 popd >/dev/null
 
+# 8. Start Android H5
+echo "[INFO] Starting Android H5 on port 5174..."
+pushd "$H5_DIR" >/dev/null
+nohup npm run dev -- --host 0.0.0.0 --port 5174 > "$LOG_DIR/h5.log" 2>&1 &
+echo $! > "$PID_DIR/h5.pid"
+popd >/dev/null
+
 echo ""
 echo "Liuli has been started in the background!"
 echo "Log files are located in: $LOG_DIR"
 echo "  - API Log:     $LOG_DIR/api.log"
 echo "  - Worker Log:  $LOG_DIR/worker.log"
 echo "  - Web Log:     $LOG_DIR/web.log"
+echo "  - H5 Log:      $LOG_DIR/h5.log"
 echo ""
 echo "Access endpoints:"
 echo "  - API: http://127.0.0.1:8000/api/health"
 echo "  - Web: http://127.0.0.1:5173"
-echo "  - Android H5: http://127.0.0.1:5173/mobile/"
+echo "  - Android H5: http://127.0.0.1:5174/"
 echo ""
 echo "Use ./stop.sh to stop all processes."

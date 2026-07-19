@@ -3,12 +3,14 @@ setlocal
 
 set "ROOT=%~dp0"
 set "WEB_DIR=%ROOT%invest_assistant\ui\web"
+set "H5_DIR=%ROOT%invest_assistant\ui\android\h5"
 
-echo Stopping Liuli backend, worker and Web frontend...
+echo Stopping Liuli backend, worker, desktop Web and Android H5...
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$root = '%ROOT%'.TrimEnd('\'); " ^
   "$web = '%WEB_DIR%'.TrimEnd('\'); " ^
+  "$h5 = '%H5_DIR%'.TrimEnd('\'); " ^
   "$all = Get-CimInstance Win32_Process; " ^
   "$matched = $all | Where-Object { " ^
   "  $cmd = [string]$_.CommandLine; " ^
@@ -17,8 +19,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "    $cmd -like '*invest_assistant.main:app*' -or " ^
   "    $cmd -like '*invest_assistant.worker*' -or " ^
   "    $cmd -like ('*' + $web + '*') -or " ^
+  "    $cmd -like ('*' + $h5 + '*') -or " ^
   "    $cmd -like '*invest_assistant\\ui\\web*' -or " ^
-  "    $cmd -like '*vite --host 127.0.0.1 --port 5173*' " ^
+  "    $cmd -like '*invest_assistant\\ui\\android\\h5*' -or " ^
+  "    $cmd -like '*npm.cmd run dev -- --host 127.0.0.1 --port 5173*' -or " ^
+  "    $cmd -like '*npm.cmd run dev -- --host 127.0.0.1 --port 5174*' -or " ^
+  "    $cmd -like '*vite --host 127.0.0.1 --port 5173*' -or " ^
+  "    $cmd -like '*vite --host 127.0.0.1 --port 5174*' " ^
   "  )" ^
   "}; " ^
   "$ids = @($matched | Select-Object -ExpandProperty ProcessId); " ^
