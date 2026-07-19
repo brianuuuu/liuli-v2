@@ -45,7 +45,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -154,7 +153,9 @@ private fun HybridApp(
     var webView by remember(server) { mutableStateOf<WebView?>(null) }
 
     LiuliTheme(themeMode) {
+        val systemChromeBackground = if (MaterialTheme.colorScheme.surface == Color.White) Color.White else Color.Black
         Scaffold(
+            containerColor = systemChromeBackground,
             contentWindowInsets = WindowInsets.systemBars.only(
                 WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
             ),
@@ -162,6 +163,7 @@ private fun HybridApp(
                 if (showBottomNavigation && !loadFailed) {
                     HybridBottomBar(
                         selected = selectedSection,
+                        background = systemChromeBackground,
                         onSelected = { section ->
                             selectedSection = section
                             webView?.evaluateJavascript(
@@ -177,7 +179,7 @@ private fun HybridApp(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .background(MaterialTheme.colorScheme.background),
+                    .background(systemChromeBackground),
             ) {
                 if (loadFailed) {
                     LoadFailure(
@@ -248,6 +250,10 @@ private fun HybridApp(
                                 }
                             },
                             modifier = Modifier.fillMaxSize(),
+                            onRelease = { releasedWebView ->
+                                releasedWebView.removeJavascriptInterface("LiuliNative")
+                                releasedWebView.destroy()
+                            },
                         )
                     }
                     if (loading) {
@@ -263,12 +269,6 @@ private fun HybridApp(
 
     BackHandler(enabled = webView?.canGoBack() == true) {
         webView?.goBack()
-    }
-    DisposableEffect(webView) {
-        onDispose {
-            webView?.removeJavascriptInterface("LiuliNative")
-            webView?.destroy()
-        }
     }
 }
 
@@ -327,42 +327,45 @@ private class LiuliWebViewClient(
 @Composable
 private fun HybridBottomBar(
     selected: HybridSection,
+    background: Color,
     onSelected: (HybridSection) -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = background,
         tonalElevation = 0.dp,
         shadowElevation = 8.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+        Column(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
         ) {
-            HybridSection.entries.forEach { section ->
-                val active = section == selected
-                TextButton(
-                    onClick = { onSelected(section) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                HybridSection.entries.forEach { section ->
+                    val active = section == selected
+                    TextButton(
+                        onClick = { onSelected(section) },
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Icon(
-                            imageVector = section.icon(),
-                            contentDescription = null,
-                            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = section.label,
-                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(
+                                imageVector = section.icon(),
+                                contentDescription = null,
+                                tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = section.label,
+                                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
                 }
             }

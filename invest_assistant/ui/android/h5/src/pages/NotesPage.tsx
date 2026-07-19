@@ -1,41 +1,49 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
 
 export function NotesPage() {
-  const navigate = useNavigate();
   const client = useQueryClient();
   const [groupId, setGroupId] = useState("all");
   const [composer, setComposer] = useState(false);
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
   const [manageGroups, setManageGroups] = useState(false);
+  const pager = useRef<HorizontalTabPagerHandle<string>>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const groupItems = useMemo(() => [{ key: "all", label: "全部" }, ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))], [groups.data]);
-  const notes = useQuery({
-    queryKey: ["notes", groupId],
-    queryFn: () => mobileApi.notes({ limit: 30, offset: 0, status: "active", group_id: groupId === "all" ? undefined : Number(groupId) })
-  });
   const create = useMutation({
     mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: groupId === "all" ? null : Number(groupId), tags: tags.trim() || null }),
     onSuccess: async () => { setContent(""); setTags(""); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
   });
 
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation items={groupItems} activeKey={groupId} onChange={setGroupId} />}>
-      <div className="note-toolbar"><button type="button" className="text-button" onClick={() => setManageGroups(true)}>编辑分组</button></div>
-      {notes.isLoading ? <LoadingState /> : notes.isError ? <ErrorState onRetry={() => void notes.refetch()} /> : notes.data?.items.length ? <div className="note-list">{notes.data.items.map((note) => <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}><header><time>{formatDateTime(note.updated_at ?? note.created_at)}</time><MoreHorizontal size={20} /></header><p>{note.content}</p>{note.tags?.length ? <footer>{note.tags.map((tag) => <span key={tag.id}>#{tag.name}</span>)}</footer> : null}</article>)}</div> : <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />}
+    <MobilePageFrame navigation={<SecondaryNavigation items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑分组", onClick: () => setManageGroups(true) }} />}>
+      <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} renderPage={(key) => <NotesGroupContent groupId={key} />} />
       <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
-      {composer ? <div className="sheet-backdrop"><section className="composer-sheet"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea autoFocus value={content} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，用逗号分隔" /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
+      {composer ? <div className="sheet-backdrop"><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，用逗号分隔" /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
       {manageGroups ? <GroupManager groups={groups.data ?? []} onClose={() => setManageGroups(false)} /> : null}
     </MobilePageFrame>
   );
+}
+
+function NotesGroupContent({ groupId }: { groupId: string }) {
+  const navigate = useNavigate();
+  const notes = useQuery({
+    queryKey: ["notes", groupId],
+    queryFn: () => mobileApi.notes({ limit: 30, offset: 0, status: "active", group_id: groupId === "all" ? undefined : Number(groupId) })
+  });
+  if (notes.isLoading) return <LoadingState />;
+  if (notes.isError) return <ErrorState onRetry={() => void notes.refetch()} />;
+  if (!notes.data?.items.length) return <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />;
+  return <div className="note-list">{notes.data.items.map((note) => <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}><header><time>{formatDateTime(note.updated_at ?? note.created_at)}</time><MoreHorizontal size={20} /></header><p>{note.content}</p>{note.tags?.length ? <footer>{note.tags.map((tag) => <span key={tag.id}>#{tag.name}</span>)}</footer> : null}</article>)}</div>;
 }
 
 function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof mobileApi.noteGroups>>; onClose: () => void }) {

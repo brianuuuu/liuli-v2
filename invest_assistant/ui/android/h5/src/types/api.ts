@@ -66,6 +66,23 @@ export type TagHeat = {
   rank_no: number;
   tag?: Tag | null;
 };
+export type WorkbenchMarketIndex = {
+  code: string;
+  name: string;
+  price?: number | null;
+  change?: number | null;
+  pct_chg?: number | null;
+  quote_time?: string | null;
+  source?: string | null;
+  status: string;
+  message?: string | null;
+  updated_at?: string | null;
+};
+export type WorkbenchToday = {
+  market_indices: {
+    items: WorkbenchMarketIndex[];
+  };
+};
 export type TrackDashboard = {
   summary?: {
     warming_tracks_count?: number;

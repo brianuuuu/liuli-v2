@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
@@ -22,10 +22,12 @@ describe("mobile H5 app", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.location.hash = "";
+    vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     delete window.LiuliNative;
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -56,7 +58,7 @@ describe("mobile H5 app", () => {
     renderApp();
 
     expect(await screen.findByRole("tab", { name: "个股" })).toBeInTheDocument();
-    expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "44");
+    expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "36");
   });
 
   it("hides the native bottom bar only while reading a report", async () => {
@@ -96,5 +98,94 @@ describe("mobile H5 app", () => {
 
     expect(await screen.findByText("admin")).toBeInTheDocument();
     expect(screen.queryByText("brian")).not.toBeInTheDocument();
+  });
+
+  it("renders every cached major index on the today dashboard", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({
+          market_indices: {
+            items: [
+              { code: "000001.SH", name: "上证指数", price: 3200.12, change: 12.3, pct_chg: 0.39, status: "success" },
+              { code: "399001.SZ", name: "深证成指", price: 10200.45, change: -20.1, pct_chg: -0.2, status: "success" }
+            ]
+          }
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/market-radar/overview")) {
+        return new Response(JSON.stringify({ source_items: 0, active_tags: 0 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/market-radar/rankings")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByText("上证指数")).toBeInTheDocument();
+    expect(screen.getByText("深证成指")).toBeInTheDocument();
+    await waitFor(() => {
+      const rankingUrl = fetchMock.mock.calls.map(([input]) => String(input)).find((url) => url.includes("/rankings"));
+      expect(rankingUrl).toContain("type=all");
+    });
+  });
+
+  it("keeps edit groups as the pinned note navigation action", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => new Response(
+        String(input).includes("note-groups")
+          ? "[]"
+          : JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      ))
+    );
+
+    renderApp();
+
+    const editGroups = await screen.findByRole("button", { name: "编辑分组" });
+    expect(editGroups).toHaveClass("secondary-navigation__end-action");
+    expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
+  });
+
+  it("continues alert pagination when the selected status is absent from the first page", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/alerts";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("offset=0")) {
+        return new Response(JSON.stringify({
+          items: [{ id: 1, status: "read", event_level: "info", title: "已读事件", message: "第一页", event_time: "2026-07-20T00:00:00" }],
+          total: 51,
+          limit: 50,
+          offset: 0,
+          has_more: true
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        items: [{ id: 2, status: "handled", event_level: "info", title: "已处理事件", message: "第二页", event_time: "2026-07-19T00:00:00" }],
+        total: 51,
+        limit: 50,
+        offset: 50,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "已处理" }));
+
+    expect(await screen.findByText("已处理事件")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("offset=50"))).toBe(true);
   });
 });

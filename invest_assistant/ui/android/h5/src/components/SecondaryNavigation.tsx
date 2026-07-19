@@ -7,12 +7,16 @@ type Props<T extends string> = {
   items: readonly SecondaryNavigationItem<T>[];
   activeKey: T;
   onChange: (key: T) => void;
+  endAction?: {
+    label: string;
+    onClick: () => void;
+  };
 };
 
-export function SecondaryNavigation<T extends string>({ items, activeKey, onChange }: Props<T>) {
+export function SecondaryNavigation<T extends string>({ items, activeKey, onChange, endAction }: Props<T>) {
   return (
-    <div className="secondary-navigation" data-height="44" role="tablist" aria-label="二级导航">
-      <div className="secondary-navigation__track">
+    <div className="secondary-navigation" data-height="36" role="tablist" aria-label="二级导航">
+      <div className="secondary-navigation__track" data-horizontal-scroll="true">
         {items.map((item) => (
           <button
             type="button"
@@ -26,6 +30,16 @@ export function SecondaryNavigation<T extends string>({ items, activeKey, onChan
           </button>
         ))}
       </div>
+      {endAction ? (
+        <button
+          type="button"
+          className="secondary-navigation__end-action"
+          data-swipe-ignore="true"
+          onClick={endAction.onClick}
+        >
+          {endAction.label}
+        </button>
+      ) : null}
     </div>
   );
 }

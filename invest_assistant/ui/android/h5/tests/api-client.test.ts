@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient, tokenStorageKey } from "../src/api/client";
+import { mobileApi } from "../src/api/mobileApi";
 
 describe("mobile API client", () => {
   afterEach(() => {
@@ -54,5 +55,38 @@ describe("mobile API client", () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.signal).toBe(controller.signal);
+  });
+
+  it("loads market heat rankings across every tag type", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("[]", {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.marketRankings();
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toContain("/api/market-radar/rankings");
+    expect(url).toContain("type=all");
+    expect(url).not.toContain("type=tag");
+  });
+
+  it("loads cached major indices from the existing read-only workbench endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ market_indices: { items: [] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.workbenchToday();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/api\/console\/workbench-today$/);
+    expect(init.method).toBe("GET");
   });
 });

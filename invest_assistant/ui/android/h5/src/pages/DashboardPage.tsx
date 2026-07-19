@@ -1,9 +1,9 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
-import { useSwipeTabs } from "../app/swipe";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
@@ -14,22 +14,23 @@ const MiniChart = lazy(() => import("../components/MiniChart").then((module) => 
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
-  const swipe = useSwipeTabs(dashboardTabs, tab, setTab);
+  const pager = useRef<HorizontalTabPagerHandle<DashboardTab>>(null);
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation items={dashboardTabs} activeKey={tab} onChange={setTab} />}>
-      <div {...swipe}>
-        {tab === "today" ? <TodayDashboard /> : null}
-        {tab === "market" ? <MarketDashboard /> : null}
-        {tab === "track" ? <TrackDashboard /> : null}
-        {tab === "stock" ? <StockDashboard /> : null}
-        {tab === "portfolio" ? <PortfolioDashboard /> : null}
-      </div>
+    <MobilePageFrame navigation={<SecondaryNavigation items={dashboardTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
+      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} renderPage={(key) => {
+        if (key === "today") return <TodayDashboard />;
+        if (key === "market") return <MarketDashboard />;
+        if (key === "track") return <TrackDashboard />;
+        if (key === "stock") return <StockDashboard />;
+        return <PortfolioDashboard />;
+      }} />
     </MobilePageFrame>
   );
 }
 
 function TodayDashboard() {
   const navigate = useNavigate();
+  const market = useQuery({ queryKey: ["workbench-today"], queryFn: mobileApi.workbenchToday, staleTime: 300_000 });
   const results = useQueries({
     queries: [
       { queryKey: ["today-news"], queryFn: () => mobileApi.news({ limit: 4, offset: 0, important_only: true }), staleTime: 300_000 },
@@ -47,6 +48,17 @@ function TodayDashboard() {
         <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
         <p>重要信息、风险事件和研究记录集中在这里。</p>
       </section>
+      <SectionCard title="今日大盘">
+        {market.isLoading ? <LoadingState /> : market.isError ? <ErrorState message="大盘行情加载失败" onRetry={() => void market.refetch()} /> : market.data?.market_indices.items.length ? (
+          <div className="market-index-grid">
+            {market.data.market_indices.items.map((item) => {
+              const failed = item.status === "failed" || item.price === null || item.price === undefined;
+              const tone = failed ? "flat" : (item.pct_chg ?? 0) > 0 ? "up" : (item.pct_chg ?? 0) < 0 ? "down" : "flat";
+              return <article className={`market-index-card market-index-card--${tone}`} key={item.code}><header><strong>{item.name}</strong><span>{item.code}</span></header><b>{failed ? "--" : formatNumber(item.price, 2)}</b><footer><span>{failed ? "行情不可用" : formatSigned(item.change)}</span><span>{failed ? "--" : formatSigned(item.pct_chg, "%")}</span></footer><time>{formatDateTime(item.quote_time ?? item.updated_at)}</time></article>;
+            })}
+          </div>
+        ) : <EmptyState title="暂无大盘行情" detail="等待行情任务写入数据" />}
+      </SectionCard>
       <div className="metric-grid">
         <Metric label="重要新闻" value={(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.total ?? 0} />
         <Metric label="未读预警" value={(alerts as Awaited<ReturnType<typeof mobileApi.alerts>> | undefined)?.items.filter((item) => item.status === "unread").length ?? 0} />
@@ -69,7 +81,7 @@ function MarketDashboard() {
   const rankings = useQuery({ queryKey: ["market-rankings"], queryFn: mobileApi.marketRankings, staleTime: 300_000 });
   if (overview.isLoading || rankings.isLoading) return <LoadingState />;
   if (overview.isError || rankings.isError) return <ErrorState onRetry={() => { void overview.refetch(); void rankings.refetch(); }} />;
-  return <div className="page-stack"><div className="metric-grid"><Metric label="信息总量" value={formatNumber(overview.data?.source_items)} /><Metric label="活跃标签" value={formatNumber(overview.data?.active_tags)} /></div><SectionCard title="市场热度排行">{rankings.data?.slice(0, 10).map((item) => <ListRow key={item.tag_id} title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`} meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`} trailing={<strong className="score">{formatNumber(item.heat_score, 1)}</strong>} />)}</SectionCard></div>;
+  return <div className="page-stack"><div className="metric-grid"><Metric label="信息总量" value={formatNumber(overview.data?.source_items)} /><Metric label="活跃标签" value={formatNumber(overview.data?.active_tags)} /></div><SectionCard title="市场热度排行">{rankings.data?.length ? rankings.data.slice(0, 10).map((item) => <ListRow key={item.tag_id} title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`} meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`} trailing={<strong className="score">{formatNumber(item.heat_score, 1)}</strong>} />) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}</SectionCard></div>;
 }
 
 function TrackDashboard() {
@@ -94,4 +106,10 @@ function PortfolioDashboard() {
   if (overview.isError || snapshots.isError) return <ErrorState onRetry={() => { void overview.refetch(); void snapshots.refetch(); }} />;
   const summary = overview.data?.summary;
   return <div className="page-stack"><SectionCard className="portfolio-total"><span className="eyebrow">组合总资产</span><strong className="hero-number">{formatMoney(summary?.total_value)}</strong><span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>今日 {formatMoney(summary?.day_pnl)} · {formatNumber((summary?.day_pct ?? 0) * 100, 2)}%</span></SectionCard><div className="metric-grid"><Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} /><Metric label="现金" value={formatMoney(summary?.cash_amount)} /></div>{snapshots.data?.length ? <SectionCard title="资产趋势"><Suspense fallback={<LoadingState />}><MiniChart labels={snapshots.data.map((item) => item.snapshot_date)} values={snapshots.data.map((item) => item.total_value)} /></Suspense></SectionCard> : <EmptyState title="暂无资产快照" />}</div>;
+}
+
+function formatSigned(value?: number | null, suffix = "") {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatNumber(value, 2)}${suffix}`;
 }

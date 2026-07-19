@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -10,6 +10,10 @@ import { formatDateTime } from "../utils/format";
 
 function DetailFrame({ title, children }: { title: string; children: React.ReactNode }) {
   const navigate = useNavigate();
+  useLayoutEffect(() => {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+  }, []);
   return <main className="detail-page"><header className="detail-header"><button type="button" aria-label="返回" onClick={() => navigate(-1)}><ArrowLeft /></button><h1>{title}</h1><span /></header><div className="detail-content">{children}</div></main>;
 }
 
@@ -29,14 +33,18 @@ export function NoteDetailPage() {
   const query = useQuery({ queryKey: ["note", id], queryFn: () => mobileApi.noteDetail(id) });
   const [content, setContent] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<number | null | undefined>(undefined);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const update = useMutation({
     mutationFn: () => mobileApi.updateNote(id, { content: content ?? query.data?.content ?? "", group_id: groupId === undefined ? query.data?.group_id : groupId, tags: query.data?.tags_text }),
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ["notes"] }); navigate(-1); }
   });
+  useLayoutEffect(() => {
+    if (query.data) textareaRef.current?.scrollTo({ left: 0 });
+  }, [query.data]);
   if (query.isLoading) return <DetailFrame title="编辑笔记"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) return <DetailFrame title="编辑笔记"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
-  return <DetailFrame title="编辑笔记"><div className="note-editor"><textarea value={content ?? query.data.content} onChange={(event) => setContent(event.target.value)} /><label>分组<select value={String(groupId === undefined ? query.data.group_id ?? "" : groupId ?? "")} onChange={(event) => setGroupId(event.target.value ? Number(event.target.value) : null)}><option value="">未分组</option>{groups.data?.filter((item) => item.status === "active").map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label><button className="primary-button" disabled={update.isPending || !(content ?? query.data.content).trim()} onClick={() => update.mutate()}>{update.isPending ? "保存中…" : "保存修改"}</button></div></DetailFrame>;
+  return <DetailFrame title="编辑笔记"><div className="note-editor"><textarea wrap="soft" ref={textareaRef} value={content ?? query.data.content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} /><label>分组<select value={String(groupId === undefined ? query.data.group_id ?? "" : groupId ?? "")} onChange={(event) => setGroupId(event.target.value ? Number(event.target.value) : null)}><option value="">未分组</option>{groups.data?.filter((item) => item.status === "active").map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label><button className="primary-button" disabled={update.isPending || !(content ?? query.data.content).trim()} onClick={() => update.mutate()}>{update.isPending ? "保存中…" : "保存修改"}</button></div></DetailFrame>;
 }
 
 export function AlertDetailPage() {

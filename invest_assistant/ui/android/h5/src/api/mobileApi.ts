@@ -13,7 +13,8 @@ import type {
   StockDashboard,
   TagHeat,
   TrackDashboard,
-  UserMe
+  UserMe,
+  WorkbenchToday
 } from "../types/api";
 
 export type NoteWrite = {
@@ -33,7 +34,8 @@ export const mobileApi = {
   changePassword: (oldPassword: string, newPassword: string) =>
     apiClient.post("/api/auth/change-password", { old_password: oldPassword, new_password: newPassword }),
   marketOverview: () => apiClient.get<MarketOverview>("/api/market-radar/overview"),
-  marketRankings: () => apiClient.get<TagHeat[]>("/api/market-radar/rankings", { type: "tag", window: "24h" }),
+  marketRankings: () => apiClient.get<TagHeat[]>("/api/market-radar/rankings", { type: "all", window: "24h" }),
+  workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
   portfolioOverview: () => apiClient.get<PortfolioOverview>("/api/portfolios/overview"),
