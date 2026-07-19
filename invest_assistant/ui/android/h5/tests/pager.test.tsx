@@ -14,7 +14,10 @@ const items = [
 ] as const;
 
 describe("horizontal tab pager", () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
   it("follows a horizontal drag and selects one adjacent page after release", () => {
     vi.useFakeTimers();
@@ -68,6 +71,10 @@ describe("horizontal tab pager", () => {
 
   it("ignores another navigation request while a transition is being scheduled", () => {
     vi.useFakeTimers();
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
     const onChange = vi.fn();
     const ref = createRef<HorizontalTabPagerHandle<(typeof items)[number]["key"]>>();
     render(
@@ -84,7 +91,7 @@ describe("horizontal tab pager", () => {
       ref.current?.requestChange("track");
       ref.current?.requestChange("market");
     });
-    act(() => vi.runAllTimers());
+    act(() => vi.advanceTimersByTime(220));
 
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("track");
