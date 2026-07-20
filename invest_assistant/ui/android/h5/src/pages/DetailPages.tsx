@@ -1,29 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, ExternalLink } from "lucide-react";
+import { Archive, ArrowLeft, Check, ExternalLink, Trash2 } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
-import { nativeBridge } from "../native/bridge";
+import { nativeBridge, requestAppBack } from "../native/bridge";
 import { formatDateTime } from "../utils/format";
 
 function DetailFrame({ title, children }: { title: string; children: React.ReactNode }) {
-  const navigate = useNavigate();
   useLayoutEffect(() => {
     document.documentElement.scrollLeft = 0;
     document.body.scrollLeft = 0;
   }, []);
-  return <main className="detail-page"><header className="detail-header"><button type="button" aria-label="返回" onClick={() => navigate(-1)}><ArrowLeft /></button><h1>{title}</h1><span /></header><div className="detail-content">{children}</div></main>;
+  return <main className="detail-page"><header className="detail-header"><button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button><h1>{title}</h1><span /></header><div className="detail-content">{children}</div></main>;
 }
 
 export function NewsDetailPage() {
   const id = Number(useParams().id);
   const query = useQuery({ queryKey: ["news-detail", id], queryFn: () => mobileApi.newsDetail(id) });
-  if (query.isLoading) return <DetailFrame title="新闻详情"><LoadingState /></DetailFrame>;
-  if (query.isError || !query.data) return <DetailFrame title="新闻详情"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
+  if (query.isLoading) return <DetailFrame title="资讯详情"><LoadingState /></DetailFrame>;
+  if (query.isError || !query.data) return <DetailFrame title="资讯详情"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
   const item = query.data;
-  return <DetailFrame title="新闻详情"><article className="article-detail"><p className="article-source">{item.source_name} · {formatDateTime(item.publish_time)}</p><h2>{item.title}</h2><p>{item.content}</p>{item.source_tags?.length ? <div className="tag-row">{item.source_tags.map((tag) => <span key={tag.id}>#{tag.tag?.name}</span>)}</div> : null}{item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer">查看原文 <ExternalLink size={15} /></a> : null}</article></DetailFrame>;
+  return <DetailFrame title="资讯详情"><article className="article-detail"><p className="article-source">{item.source_name} · {formatDateTime(item.publish_time)}</p><h2>{item.title}</h2><p>{item.content}</p>{item.source_tags?.length ? <div className="tag-row">{item.source_tags.map((tag) => <span key={tag.id}>#{tag.tag?.name}</span>)}</div> : null}{item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer">查看原文 <ExternalLink size={15} /></a> : null}</article></DetailFrame>;
 }
 
 export function NoteDetailPage() {
@@ -37,14 +36,34 @@ export function NoteDetailPage() {
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const update = useMutation({
     mutationFn: () => mobileApi.updateNote(id, { content: content ?? query.data?.content ?? "", group_id: groupId === undefined ? query.data?.group_id : groupId, tags: query.data?.tags_text }),
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["notes"] }); navigate(-1); }
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["notes"] }); requestAppBack(); }
+  });
+  const archive = useMutation({
+    mutationFn: () => mobileApi.archiveNote(id),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["notes"] }),
+        client.invalidateQueries({ queryKey: ["note", id] })
+      ]);
+      navigate("/notes", { replace: true });
+    }
+  });
+  const remove = useMutation({
+    mutationFn: () => mobileApi.deleteNote(id),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["notes"] }),
+        client.invalidateQueries({ queryKey: ["note", id] })
+      ]);
+      navigate("/notes", { replace: true });
+    }
   });
   useLayoutEffect(() => {
-    if (query.data) textareaRef.current?.scrollTo({ left: 0 });
+    if (query.data && typeof textareaRef.current?.scrollTo === "function") textareaRef.current.scrollTo({ left: 0 });
   }, [query.data]);
   if (query.isLoading) return <DetailFrame title="编辑笔记"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) return <DetailFrame title="编辑笔记"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
-  return <DetailFrame title="编辑笔记"><div className="note-editor"><textarea wrap="soft" ref={textareaRef} value={content ?? query.data.content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} /><label>分组<select value={String(groupId === undefined ? query.data.group_id ?? "" : groupId ?? "")} onChange={(event) => setGroupId(event.target.value ? Number(event.target.value) : null)}><option value="">未分组</option>{groups.data?.filter((item) => item.status === "active").map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label><button className="primary-button" disabled={update.isPending || !(content ?? query.data.content).trim()} onClick={() => update.mutate()}>{update.isPending ? "保存中…" : "保存修改"}</button></div></DetailFrame>;
+  return <DetailFrame title="编辑笔记"><div className="note-editor"><textarea wrap="soft" ref={textareaRef} value={content ?? query.data.content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} /><label>分组<select value={String(groupId === undefined ? query.data.group_id ?? "" : groupId ?? "")} onChange={(event) => setGroupId(event.target.value ? Number(event.target.value) : null)}><option value="">未分组</option>{groups.data?.filter((item) => item.status === "active").map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label><button className="primary-button" disabled={update.isPending || !(content ?? query.data.content).trim()} onClick={() => update.mutate()}>{update.isPending ? "保存中…" : "保存修改"}</button><div className="note-danger-actions"><button type="button" aria-label="归档笔记" disabled={archive.isPending || remove.isPending} onClick={() => { if (window.confirm("归档这条笔记？")) archive.mutate(); }}><Archive size={17} />归档</button><button type="button" aria-label="删除笔记" className="danger-text" disabled={archive.isPending || remove.isPending} onClick={() => { if (window.confirm("删除这条笔记？删除后不会出现在笔记列表中。")) remove.mutate(); }}><Trash2 size={17} />删除</button></div>{archive.isError || remove.isError ? <span className="form-error">操作失败，请重试</span> : null}</div></DetailFrame>;
 }
 
 export function AlertDetailPage() {

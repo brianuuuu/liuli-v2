@@ -5,9 +5,9 @@ enum class HybridSection(
     val route: String,
 ) {
     Dashboard("看板", "dashboard"),
+    News("资讯", "news"),
     Notes("笔记", "notes"),
-    News("新闻", "news"),
-    Alerts("预警", "alerts"),
+    Tasks("待办", "tasks"),
     Me("我的", "me"),
 }
 

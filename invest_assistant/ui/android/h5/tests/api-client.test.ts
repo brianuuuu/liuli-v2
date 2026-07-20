@@ -89,4 +89,59 @@ describe("mobile API client", () => {
     expect(url).toMatch(/\/api\/console\/workbench-today$/);
     expect(init.method).toBe("GET");
   });
+
+  it("sends DELETE requests for soft deleting notes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 9, status: "deleted" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.deleteNote(9);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/api\/knowledge\/notes\/9$/);
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("loads a selected portfolio overview and 180 day snapshots", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ summary: {}, portfolio_options: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.portfolioOverview(7);
+    await mobileApi.portfolioSnapshots(7);
+
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(urls[0]).toContain("portfolio_id=7");
+    expect(urls[1]).toContain("portfolio_id=7");
+    expect(urls[1]).toContain("days=180");
+  });
+
+  it("uses the existing AI recommendation review endpoints", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ items: [], total: 0, limit: 20, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }))
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.aiTagSuggestions({ status: "pending", q: "机器人", limit: 20, offset: 0 });
+    await mobileApi.rejectAiTagSuggestion(3);
+    await mobileApi.restoreAiTagSuggestion(4);
+
+    const requests = fetchMock.mock.calls.map(([url, init]) => ({ url: String(url), method: (init as RequestInit).method }));
+    expect(requests[0].url).toContain("status=pending");
+    expect(requests[0].url).toContain(`q=${encodeURIComponent("机器人")}`);
+    expect(requests[1]).toEqual(expect.objectContaining({ method: "POST" }));
+    expect(requests[1].url).toMatch(/\/3\/reject$/);
+    expect(requests[2].url).toMatch(/\/4\/restore$/);
+  });
 });

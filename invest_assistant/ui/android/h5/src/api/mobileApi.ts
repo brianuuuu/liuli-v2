@@ -2,6 +2,10 @@ import { apiClient, tokenStorageKey } from "./client";
 import type {
   AlertEvent,
   AlertStats,
+  AiTagSuggestion,
+  AiTagSuggestionApprove,
+  AiTagSuggestionWrite,
+  HotwordOption,
   KnowledgeNote,
   MarketOverview,
   NoteGroup,
@@ -11,8 +15,10 @@ import type {
   Report,
   SourceItem,
   StockDashboard,
+  StockOption,
   TagHeat,
   TrackDashboard,
+  TrackOption,
   UserMe,
   WorkbenchToday
 } from "../types/api";
@@ -38,8 +44,10 @@ export const mobileApi = {
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
-  portfolioOverview: () => apiClient.get<PortfolioOverview>("/api/portfolios/overview"),
-  portfolioSnapshots: () => apiClient.get<PortfolioValuePoint[]>("/api/portfolios/value-snapshots", { days: 90 }),
+  portfolioOverview: (portfolioId?: number | null) =>
+    apiClient.get<PortfolioOverview>("/api/portfolios/overview", { portfolio_id: portfolioId }),
+  portfolioSnapshots: (portfolioId?: number | null) =>
+    apiClient.get<PortfolioValuePoint[]>("/api/portfolios/value-snapshots", { portfolio_id: portfolioId, days: 180 }),
   news: (query: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
     apiClient.get<PageDto<SourceItem>>("/api/market-radar/source-items", query, signal),
   newsDetail: (id: number) => apiClient.get<SourceItem>(`/api/market-radar/source-items/${id}`),
@@ -67,6 +75,8 @@ export const mobileApi = {
       tag_ids: [],
       status: write.status ?? "active"
     }),
+  archiveNote: (id: number) => apiClient.post<KnowledgeNote>(`/api/knowledge/notes/${id}/archive`),
+  deleteNote: (id: number) => apiClient.delete<KnowledgeNote>(`/api/knowledge/notes/${id}`),
   createNoteGroup: (name: string) =>
     apiClient.post<NoteGroup>("/api/knowledge/note-groups", { name, sort_order: 0, status: "active" }),
   updateNoteGroup: (group: NoteGroup) =>
@@ -77,6 +87,20 @@ export const mobileApi = {
   alertDetail: (id: number) => apiClient.get<AlertEvent>(`/api/alerts/events/${id}`),
   markAlertRead: (id: number) => apiClient.post<AlertEvent>(`/api/alerts/events/${id}/read`),
   handleAlert: (id: number) => apiClient.post<AlertEvent>(`/api/alerts/events/${id}/handle`),
+  aiTagSuggestions: (query: { status?: string; q?: string; limit?: number; offset?: number }, signal?: AbortSignal) =>
+    apiClient.get<PageDto<AiTagSuggestion>>("/api/market-radar/ai-tag-suggestions", query, signal),
+  createAiTagSuggestion: (write: AiTagSuggestionWrite) =>
+    apiClient.post<AiTagSuggestion>("/api/market-radar/ai-tag-suggestions", { ...write, status: "pending" }),
+  approveAiTagSuggestion: (id: number, write: AiTagSuggestionApprove) =>
+    apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${id}/approve`, write),
+  rejectAiTagSuggestion: (id: number) =>
+    apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${id}/reject`),
+  restoreAiTagSuggestion: (id: number) =>
+    apiClient.post<AiTagSuggestion>(`/api/market-radar/ai-tag-suggestions/${id}/restore`),
+  hotwordOptions: () =>
+    apiClient.get<PageDto<HotwordOption>>("/api/market-radar/hotwords", { limit: 100, offset: 0 }),
+  trackOptions: () => apiClient.get<TrackOption[]>("/api/track-discovery/tracks", { limit: 50 }),
+  stockOptions: (keyword: string) => apiClient.get<StockOption[]>("/api/stocks/search", { keyword }),
   reports: (offset = 0, limit = 30) =>
     apiClient.get<PageDto<Report>>("/api/reports", { offset, limit }),
   reportDetail: (id: number) => apiClient.get<Report>(`/api/reports/${id}`),

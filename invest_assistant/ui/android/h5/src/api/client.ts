@@ -63,6 +63,9 @@ export function createApiClient() {
     },
     put<T>(path: string, body?: unknown) {
       return request<T>("PUT", path, body);
+    },
+    delete<T>(path: string) {
+      return request<T>("DELETE", path);
     }
   };
 }

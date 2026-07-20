@@ -147,6 +147,7 @@ private fun HybridApp(
     val scope = rememberCoroutineScope()
     var selectedSection by remember { mutableStateOf(HybridSection.Dashboard) }
     var showBottomNavigation by remember { mutableStateOf(false) }
+    var canHandleBack by remember { mutableStateOf(false) }
     var loadFailed by remember(server) { mutableStateOf(false) }
     var loading by remember(server) { mutableStateOf(true) }
     var serverDraft by remember(server) { mutableStateOf(server) }
@@ -214,11 +215,12 @@ private fun HybridApp(
                                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                 addJavascriptInterface(
                                     LiuliJavascriptBridge(
-                                        onNavigationState = { section, visible ->
+                                        onNavigationState = { section, visible, handleBack ->
                                             activity.runOnUiThread {
                                                 selectedSection = HybridSection.entries.firstOrNull { it.route == section }
                                                     ?: HybridSection.Dashboard
                                                 showBottomNavigation = visible
+                                                canHandleBack = handleBack
                                             }
                                         },
                                         onTheme = { mode ->
@@ -243,6 +245,7 @@ private fun HybridApp(
                                         loading = false
                                         loadFailed = true
                                         showBottomNavigation = false
+                                        canHandleBack = false
                                     },
                                 )
                                 loadUrl(mobileAppUrl(server))
@@ -267,19 +270,23 @@ private fun HybridApp(
         }
     }
 
-    BackHandler(enabled = webView?.canGoBack() == true) {
-        webView?.goBack()
+    BackHandler(enabled = canHandleBack) {
+        webView?.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('liuli:back'))",
+            null,
+        )
     }
 }
 
 private class LiuliJavascriptBridge(
-    val onNavigationState: (String, Boolean) -> Unit,
+    val onNavigationState: (String, Boolean, Boolean) -> Unit,
     val onTheme: (String) -> Unit,
     val onServer: (String) -> Unit,
     val onDownload: (String, String) -> Unit,
 ) {
     @JavascriptInterface
-    fun setNavigationState(section: String, showBottomBar: Boolean) = onNavigationState(section, showBottomBar)
+    fun setNavigationState(section: String, showBottomBar: Boolean, canHandleBack: Boolean) =
+        onNavigationState(section, showBottomBar, canHandleBack)
 
     @JavascriptInterface
     fun setTheme(mode: String) = onTheme(mode)
@@ -291,7 +298,7 @@ private class LiuliJavascriptBridge(
     fun openDownloadedFile(url: String, filename: String) = onDownload(url, filename)
 
     @JavascriptInterface
-    fun logout() = onNavigationState("dashboard", false)
+    fun logout() = onNavigationState("dashboard", false, false)
 }
 
 private class LiuliWebViewClient(
@@ -415,8 +422,8 @@ private fun normalizeServer(raw: String): String {
 
 private fun HybridSection.icon(): ImageVector = when (this) {
     HybridSection.Dashboard -> Icons.Outlined.Dashboard
-    HybridSection.Notes -> Icons.Outlined.EditNote
     HybridSection.News -> Icons.Outlined.Newspaper
-    HybridSection.Alerts -> Icons.Outlined.Notifications
+    HybridSection.Notes -> Icons.Outlined.EditNote
+    HybridSection.Tasks -> Icons.Outlined.Notifications
     HybridSection.Me -> Icons.Outlined.AccountCircle
 }

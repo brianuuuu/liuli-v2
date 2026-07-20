@@ -35,11 +35,11 @@ class HybridShellModelTest {
     @Test
     fun `native sections keep the approved order and routes`() {
         assertEquals(
-            listOf("看板", "笔记", "新闻", "预警", "我的"),
+            listOf("看板", "资讯", "笔记", "待办", "我的"),
             HybridSection.entries.map { it.label },
         )
         assertEquals(
-            listOf("dashboard", "notes", "news", "alerts", "me"),
+            listOf("dashboard", "news", "notes", "tasks", "me"),
             HybridSection.entries.map { it.route },
         )
     }
@@ -49,6 +49,6 @@ class HybridShellModelTest {
         assertFalse(shouldShowBottomNavigation("/login"))
         assertFalse(shouldShowBottomNavigation("/reports/42"))
         assertTrue(shouldShowBottomNavigation("/reports"))
-        assertTrue(shouldShowBottomNavigation("/news/42"))
+        assertTrue(shouldShowBottomNavigation("/tasks/alerts/42"))
     }
 }

@@ -11,6 +11,7 @@ import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
 const MiniChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.MiniChart })));
+const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
@@ -41,6 +42,7 @@ function TodayDashboard() {
   });
   if (results.some((result) => result.isLoading)) return <LoadingState />;
   const [news, alerts, reports, notes] = results.map((result) => result.data);
+  const portfolio = market.data?.portfolio_today;
   return (
     <div className="page-stack">
       <section className="welcome-card">
@@ -59,11 +61,25 @@ function TodayDashboard() {
           </div>
         ) : <EmptyState title="暂无大盘行情" detail="等待行情任务写入数据" />}
       </SectionCard>
+      {portfolio ? (
+        <SectionCard title="组合表现">
+          <div className="today-portfolio-total">
+            <span>总市值</span>
+            <strong>{formatMoney(portfolio.total_value)}</strong>
+          </div>
+          <div className="today-portfolio-stats">
+            <span>今日盈亏 <b className={portfolio.day_pnl >= 0 ? "positive" : "negative"}>{formatSignedMoney(portfolio.day_pnl)}</b></span>
+            <span>今日涨跌幅 <b className={(portfolio.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(portfolio.day_pct, "%")}</b></span>
+            <span>{portfolio.portfolio_count} 个组合 · {portfolio.position_count} 个持仓</span>
+            <time>报价 {formatDateTime(portfolio.latest_quote_time)}</time>
+          </div>
+        </SectionCard>
+      ) : null}
       <div className="metric-grid">
-        <Metric label="重要新闻" value={(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.total ?? 0} />
+        <Metric label="重要资讯" value={(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.total ?? 0} />
         <Metric label="未读预警" value={(alerts as Awaited<ReturnType<typeof mobileApi.alerts>> | undefined)?.items.filter((item) => item.status === "unread").length ?? 0} />
       </div>
-      <SectionCard title="重要新闻">
+      <SectionCard title="重要资讯">
         {(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.title} meta={`${item.source_name} · ${formatDateTime(item.publish_time)}`} onClick={() => navigate(`/news/${item.id}`)} />)}
       </SectionCard>
       <SectionCard title="最新报告" action={<button className="text-button" onClick={() => navigate("/reports")}>全部</button>}>
@@ -100,16 +116,61 @@ function StockDashboard() {
 }
 
 function PortfolioDashboard() {
-  const overview = useQuery({ queryKey: ["portfolio-overview"], queryFn: mobileApi.portfolioOverview, staleTime: 300_000 });
-  const snapshots = useQuery({ queryKey: ["portfolio-snapshots"], queryFn: mobileApi.portfolioSnapshots, staleTime: 300_000 });
+  const [portfolioId, setPortfolioId] = useState<number | null>(null);
+  const overview = useQuery({ queryKey: ["portfolio-overview", portfolioId], queryFn: () => mobileApi.portfolioOverview(portfolioId), staleTime: 300_000 });
+  const snapshots = useQuery({ queryKey: ["portfolio-snapshots", portfolioId], queryFn: () => mobileApi.portfolioSnapshots(portfolioId), staleTime: 300_000 });
   if (overview.isLoading || snapshots.isLoading) return <LoadingState />;
   if (overview.isError || snapshots.isError) return <ErrorState onRetry={() => { void overview.refetch(); void snapshots.refetch(); }} />;
   const summary = overview.data?.summary;
-  return <div className="page-stack"><SectionCard className="portfolio-total"><span className="eyebrow">组合总资产</span><strong className="hero-number">{formatMoney(summary?.total_value)}</strong><span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>今日 {formatMoney(summary?.day_pnl)} · {formatNumber((summary?.day_pct ?? 0) * 100, 2)}%</span></SectionCard><div className="metric-grid"><Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} /><Metric label="现金" value={formatMoney(summary?.cash_amount)} /></div>{snapshots.data?.length ? <SectionCard title="资产趋势"><Suspense fallback={<LoadingState />}><MiniChart labels={snapshots.data.map((item) => item.snapshot_date)} values={snapshots.data.map((item) => item.total_value)} /></Suspense></SectionCard> : <EmptyState title="暂无资产快照" />}</div>;
+  const pieItems = overview.data?.pie_items ?? [];
+  return (
+    <div className="page-stack portfolio-dashboard-mobile">
+      <SectionCard>
+        <label className="portfolio-selector">组合范围
+          <select value={portfolioId ?? ""} onChange={(event) => setPortfolioId(event.target.value ? Number(event.target.value) : null)}>
+            <option value="">所有组合</option>
+            {overview.data?.portfolio_options?.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+      </SectionCard>
+      <div className="metric-grid">
+        <Metric label="总市值" value={formatMoney(summary?.total_value)} />
+        <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
+        <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
+        <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
+      </div>
+      <SectionCard title="今日表现">
+        <div className="portfolio-day-row">
+          <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
+          <span className={(summary?.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(summary?.day_pct, "%")}</span>
+        </div>
+      </SectionCard>
+      {pieItems.length ? (
+        <SectionCard title="标的市值占比">
+          <Suspense fallback={<LoadingState />}>
+            <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
+          </Suspense>
+        </SectionCard>
+      ) : <EmptyState title="暂无持仓标的数据" />}
+      {snapshots.data?.length ? (
+        <SectionCard title="组合市值曲线">
+          <Suspense fallback={<LoadingState />}>
+            <MiniChart labels={snapshots.data.map((item) => item.snapshot_date)} values={snapshots.data.map((item) => item.total_value)} />
+          </Suspense>
+        </SectionCard>
+      ) : <EmptyState title="暂无市值快照" detail="每日快照生成后将在这里显示" />}
+    </div>
+  );
 }
 
 function formatSigned(value?: number | null, suffix = "") {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${formatNumber(value, 2)}${suffix}`;
+}
+
+function formatSignedMoney(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatMoney(value)}`;
 }

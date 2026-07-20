@@ -82,6 +82,16 @@ export type WorkbenchToday = {
   market_indices: {
     items: WorkbenchMarketIndex[];
   };
+  portfolio_today?: {
+    portfolio_count: number;
+    position_count: number;
+    total_value: number;
+    position_market_value: number;
+    cash_amount: number;
+    day_pnl: number;
+    day_pct?: number | null;
+    latest_quote_time?: string | null;
+  };
 };
 export type TrackDashboard = {
   summary?: {
@@ -121,6 +131,9 @@ export type StockDashboard = {
   }>;
 };
 export type PortfolioOverview = {
+  scope?: string;
+  portfolio_id?: number | null;
+  portfolio_options?: Array<{ id: number; name: string; base_currency: string }>;
   summary?: {
     portfolio_count?: number;
     position_count?: number;
@@ -132,8 +145,45 @@ export type PortfolioOverview = {
     year_pnl?: number | null;
   };
   allocation_rows?: Array<{ label: string; market_value: number; weight?: number | null }>;
+  pie_items?: Array<{ label: string; market_value: number; weight?: number | null }>;
 };
 export type PortfolioValuePoint = {
   snapshot_date: string;
   total_value: number;
+  position_market_value?: number;
+  cash_amount?: number;
+  day_pnl?: number | null;
+  day_pct?: number | null;
+  position_count?: number;
+};
+export type AiTagSuggestion = {
+  id: number;
+  suggested_text: string;
+  final_tag_name?: string | null;
+  score?: number | null;
+  reason?: string | null;
+  status: string;
+  rejected_count: number;
+  created_at?: string | null;
+};
+export type AiTagSuggestionWrite = {
+  suggested_text: string;
+  score?: number | null;
+  reason?: string | null;
+  status?: string;
+};
+export type AiTagSuggestionApprove = {
+  final_tag_name?: string | null;
+  target_type: "hotword" | "track" | "stock";
+  target_id?: number | null;
+  target_name?: string | null;
+};
+export type HotwordOption = { id: number; name: string; description?: string | null; status: string };
+export type TrackOption = { id: number; name: string; description?: string | null; status: string };
+export type StockOption = {
+  id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  symbol?: string | null;
+  name?: string | null;
 };

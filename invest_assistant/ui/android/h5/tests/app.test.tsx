@@ -39,7 +39,7 @@ describe("mobile H5 app", () => {
 
     expect(await screen.findByRole("heading", { name: "琉璃" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
-    expect(setNavigationState).toHaveBeenCalledWith("dashboard", false);
+    expect(setNavigationState).toHaveBeenCalledWith("dashboard", false, false);
   });
 
   it("renders the news root with the shared compact secondary navigation", async () => {
@@ -78,7 +78,7 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    await waitFor(() => expect(setNavigationState).toHaveBeenCalledWith("dashboard", false));
+    await waitFor(() => expect(setNavigationState).toHaveBeenCalledWith("dashboard", false, true));
   });
 
   it("shows the authenticated username instead of a stale display name", async () => {
@@ -160,7 +160,7 @@ describe("mobile H5 app", () => {
 
   it("continues alert pagination when the selected status is absent from the first page", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
-    window.location.hash = "#/alerts";
+    window.location.hash = "#/tasks";
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("offset=0")) {
@@ -183,9 +183,83 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "已处理" }));
+    fireEvent.click(await screen.findByRole("button", { name: "已处理" }));
 
     expect(await screen.findByText("已处理事件")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("offset=50"))).toBe(true);
+  });
+
+  it("renders tasks with alerts and AI recommendation as secondary items", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ items: [], total: 0, limit: 50, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+    );
+
+    renderApp();
+
+    expect(await screen.findByRole("tab", { name: "预警" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "AI 推荐词" })).toBeInTheDocument();
+  });
+
+  it("shows the web-aligned portfolio performance on the today dashboard", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/console/workbench-today")) {
+          return new Response(JSON.stringify({
+            market_indices: { items: [] },
+            portfolio_today: {
+              portfolio_count: 2,
+              position_count: 6,
+              total_value: 123456,
+              position_market_value: 100000,
+              cash_amount: 23456,
+              day_pnl: 789,
+              day_pct: 1.23,
+              latest_quote_time: "2026-07-20T07:00:00Z"
+            }
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      })
+    );
+
+    renderApp();
+
+    expect(await screen.findByText("组合表现")).toBeInTheDocument();
+    expect(screen.getByText("+1.23%")).toBeInTheDocument();
+    expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
+  });
+
+  it("offers archive and delete actions on a note detail", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes/7";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => new Response(
+        String(input).includes("note-groups")
+          ? "[]"
+          : JSON.stringify({ id: 7, content: "需要处理的笔记", status: "active", group_id: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      ))
+    );
+
+    renderApp();
+
+    expect(await screen.findByRole("button", { name: "归档笔记" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "删除笔记" })).toBeInTheDocument();
   });
 });

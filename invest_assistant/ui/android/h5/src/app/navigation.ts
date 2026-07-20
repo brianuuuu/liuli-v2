@@ -1,4 +1,4 @@
-export type SectionKey = "dashboard" | "notes" | "news" | "alerts" | "me";
+export type SectionKey = "dashboard" | "news" | "notes" | "tasks" | "me";
 
 export type NavigationItem<T extends string = string> = {
   key: T;
@@ -8,9 +8,9 @@ export type NavigationItem<T extends string = string> = {
 
 export const rootSections: NavigationItem<SectionKey>[] = [
   { key: "dashboard", label: "看板", path: "/dashboard" },
+  { key: "news", label: "资讯", path: "/news" },
   { key: "notes", label: "笔记", path: "/notes" },
-  { key: "news", label: "新闻", path: "/news" },
-  { key: "alerts", label: "预警", path: "/alerts" },
+  { key: "tasks", label: "待办", path: "/tasks" },
   { key: "me", label: "我的", path: "/me" }
 ];
 
@@ -27,4 +27,13 @@ export function sectionForPath(pathname: string): SectionKey {
   if (direct) return direct.key;
   if (pathname.startsWith("/reports/")) return "dashboard";
   return "dashboard";
+}
+
+export function parentPathForDetail(pathname: string): string | null {
+  if (/^\/news\/\d+$/.test(pathname)) return "/news";
+  if (/^\/notes\/\d+$/.test(pathname)) return "/notes";
+  if (/^\/tasks\/alerts\/\d+$/.test(pathname)) return "/tasks";
+  if (/^\/reports\/\d+$/.test(pathname)) return "/reports";
+  if (pathname === "/reports") return "/dashboard";
+  return null;
 }

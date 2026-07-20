@@ -3,7 +3,7 @@ import type { SectionKey } from "../app/navigation";
 export type ThemeMode = "light" | "dark" | "system";
 
 export type LiuliNativeApi = {
-  setNavigationState?: (section: SectionKey, showBottomBar: boolean) => void;
+  setNavigationState?: (section: SectionKey, showBottomBar: boolean, canHandleBack: boolean) => void;
   setTheme?: (mode: ThemeMode) => void;
   setServer?: (url: string) => void;
   openDownloadedFile?: (url: string, filename: string) => void;
@@ -34,6 +34,10 @@ export const nativeBridge = {
   }
 };
 
-export function publishNavigationState(section: SectionKey, showBottomBar: boolean) {
-  window.LiuliNative?.setNavigationState?.(section, showBottomBar);
+export function publishNavigationState(section: SectionKey, showBottomBar: boolean, canHandleBack: boolean) {
+  window.LiuliNative?.setNavigationState?.(section, showBottomBar, canHandleBack);
+}
+
+export function requestAppBack() {
+  window.dispatchEvent(new CustomEvent("liuli:back"));
 }
