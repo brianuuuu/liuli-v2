@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
@@ -21,6 +21,7 @@ function renderApp() {
 describe("mobile H5 app", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     window.location.hash = "";
     vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   });
@@ -215,45 +216,144 @@ describe("mobile H5 app", () => {
     expect(screen.queryByRole("button", { name: "已拒绝" })).not.toBeInTheDocument();
   });
 
-  it("reveals review actions after a one-second long press and opens approval from the viewport bottom", async () => {
+  it("opens a compact review detail page when a recommendation card is clicked", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
     vi.stubGlobal(
       "fetch",
+      vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+        String(input).includes("/hotwords")
+          ? { items: [], total: 0, limit: 100, offset: 0, has_more: false }
+          : {
+            items: [{
+              id: 11,
+              suggested_text: "半导体设备",
+              score: 8.5,
+              reason: "订单增长与国产替代共振",
+              status: "pending",
+              rejected_count: 3,
+              created_at: "2026-07-20T08:00:00Z"
+            }],
+            total: 1,
+            limit: 20,
+            offset: 0,
+            has_more: false
+          }
+      ), { status: 200, headers: { "Content-Type": "application/json" } }))
+    );
+
+    renderApp();
+    const card = (await screen.findByText("半导体设备")).closest("button");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(await screen.findByRole("heading", { name: "审核推荐词" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#/tasks/suggestions/11");
+    expect(screen.getByText("订单增长与国产替代共振")).toBeInTheDocument();
+    expect(screen.getByLabelText("最终标签词")).toHaveValue("半导体设备");
+    expect(screen.queryByText(/评分/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/历史拒绝/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("长按卡片 1 秒进行审核")).not.toBeInTheDocument();
+  });
+
+  it("restores a directly opened recommendation detail from session storage", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.sessionStorage.setItem("liuli.mobile.ai-suggestion.31", JSON.stringify({
+      id: 31,
+      suggested_text: "先进封装",
+      reason: "封装技术持续演进",
+      status: "pending",
+      rejected_count: 0
+    }));
+    window.location.hash = "#/tasks/suggestions/31";
+    vi.stubGlobal(
+      "fetch",
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({
-          items: [{
-            id: 11,
-            suggested_text: "半导体设备",
-            score: 8.5,
-            reason: "订单增长与国产替代共振",
-            status: "pending",
-            rejected_count: 0,
-            created_at: "2026-07-20T08:00:00Z"
-          }],
-          total: 1,
-          limit: 20,
-          offset: 0,
-          has_more: false
-        }), { status: 200, headers: { "Content-Type": "application/json" } })
+        new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
       )
     );
 
     renderApp();
-    const card = (await screen.findByText("半导体设备")).closest("article");
-    expect(card).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "通过半导体设备" })).not.toBeInTheDocument();
 
-    vi.useFakeTimers();
-    fireEvent.pointerDown(card!);
-    act(() => vi.advanceTimersByTime(1000));
-    fireEvent.pointerUp(card!);
+    expect(await screen.findByRole("heading", { name: "审核推荐词" })).toBeInTheDocument();
+    expect(screen.getByText("先进封装")).toBeInTheDocument();
+    expect(screen.getByText("封装技术持续演进")).toBeInTheDocument();
+  });
 
-    const approveButton = screen.getByRole("button", { name: "通过半导体设备" });
-    fireEvent.click(approveButton);
-    const sheet = screen.getByRole("dialog", { name: "通过 AI 推荐词" });
-    expect(sheet.parentElement?.parentElement).toBe(document.body);
-    vi.useRealTimers();
+  it("shows a deterministic fallback when recommendation detail data is unavailable", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks/suggestions/99";
+    vi.stubGlobal("fetch", vi.fn());
+
+    renderApp();
+
+    expect(await screen.findByText("推荐词数据已失效")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "返回待办列表" }));
+    expect(window.location.hash).toBe("#/tasks");
+  });
+
+  it("approves a recommendation from the detail page and returns to tasks", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.sessionStorage.setItem("liuli.mobile.ai-suggestion.33", JSON.stringify({
+      id: 33,
+      suggested_text: "机器人关节",
+      reason: "产业链需求增加",
+      status: "pending",
+      rejected_count: 0
+    }));
+    window.location.hash = "#/tasks/suggestions/33";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => new Response(JSON.stringify(
+      init?.method === "POST"
+        ? { id: 33, suggested_text: "机器人关节", status: "approved", rejected_count: 0 }
+        : { items: [], total: 0, limit: 100, offset: 0, has_more: false }
+    ), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.change(await screen.findByLabelText("最终标签词"), { target: { value: "机器人核心零部件" } });
+    fireEvent.click(screen.getByRole("button", { name: "通过" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks"));
+    const approveCall = fetchMock.mock.calls.find(([input, init]) =>
+      init?.method === "POST" && String(input).includes("/ai-tag-suggestions/33/approve")
+    );
+    expect(approveCall).toBeDefined();
+    expect(JSON.parse(String(approveCall?.[1]?.body))).toMatchObject({
+      final_tag_name: "机器人核心零部件",
+      target_type: "hotword"
+    });
+  });
+
+  it("rejects one recommendation without confirmation and returns to tasks", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.sessionStorage.setItem("liuli.mobile.ai-suggestion.32", JSON.stringify({
+      id: 32,
+      suggested_text: "液冷服务器",
+      reason: "数据中心散热需求提升",
+      status: "pending",
+      rejected_count: 0
+    }));
+    window.location.hash = "#/tasks/suggestions/32";
+    const confirmSpy = vi.spyOn(window, "confirm");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => new Response(JSON.stringify(
+      init?.method === "POST"
+        ? { id: 32, suggested_text: "液冷服务器", status: "rejected", rejected_count: 1 }
+        : { items: [], total: 0, limit: 100, offset: 0, has_more: false }
+    ), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "拒绝" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks"));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([input, init]) =>
+      init?.method === "POST" && String(input).includes("/ai-tag-suggestions/32/reject")
+    )).toBe(true);
   });
 
   it("rejects every currently loaded recommendation one by one and reports the success count", async () => {
@@ -279,7 +379,7 @@ describe("mobile H5 app", () => {
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, "confirm");
 
     renderApp();
     await screen.findByText("推荐词二");
@@ -293,6 +393,105 @@ describe("mobile H5 app", () => {
       expect.stringContaining("/ai-tag-suggestions/21/reject"),
       expect.stringContaining("/ai-tag-suggestions/22/reject")
     ]);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("continues bulk rejection after a failure and reports both counts", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.includes("/41/reject")) {
+        return new Response("failed", { status: 500 });
+      }
+      if (init?.method === "POST" && url.includes("/reject")) {
+        return new Response(JSON.stringify({ id: 42, status: "rejected" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({
+        items: [
+          { id: 41, suggested_text: "失败项", reason: "原因一", status: "pending", rejected_count: 0 },
+          { id: 42, suggested_text: "成功项", reason: "原因二", status: "pending", rejected_count: 0 }
+        ],
+        total: 2,
+        limit: 20,
+        offset: 0,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    await screen.findByText("成功项");
+    fireEvent.click(screen.getByRole("button", { name: "一键拒绝已加载推荐词" }));
+
+    expect(await screen.findByText("已拒绝 1 条，1 条失败")).toBeInTheDocument();
+    expect(screen.getByText("失败项")).toBeInTheDocument();
+    expect(screen.queryByText("成功项")).not.toBeInTheDocument();
+  });
+
+  it("keeps all loaded rows when every bulk rejection request fails", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") return new Response("failed", { status: 500 });
+      return new Response(JSON.stringify({
+        items: [
+          { id: 61, suggested_text: "保留一", reason: "原因一", status: "pending", rejected_count: 0 },
+          { id: 62, suggested_text: "保留二", reason: "原因二", status: "pending", rejected_count: 0 }
+        ],
+        total: 2,
+        limit: 20,
+        offset: 0,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    await screen.findByText("保留二");
+    fireEvent.click(screen.getByRole("button", { name: "一键拒绝已加载推荐词" }));
+
+    expect(await screen.findByText("已拒绝 0 条，2 条失败")).toBeInTheDocument();
+    expect(screen.getByText("保留一")).toBeInTheDocument();
+    expect(screen.getByText("保留二")).toBeInTheDocument();
+  });
+
+  it("prevents duplicate bulk rejection while requests are running", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    let resolveReject!: () => void;
+    const pendingReject = new Promise<void>((resolve) => { resolveReject = resolve; });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        await pendingReject;
+        return new Response(JSON.stringify({ id: 51, status: "rejected" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({
+        items: [{ id: 51, suggested_text: "唯一推荐词", reason: "原因", status: "pending", rejected_count: 0 }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    await screen.findByText("唯一推荐词");
+    const button = screen.getByRole("button", { name: "一键拒绝已加载推荐词" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+    resolveReject();
+    expect(await screen.findByText("已拒绝 1 条推荐词")).toBeInTheDocument();
   });
 
   it("shows the web-aligned portfolio performance on the today dashboard", async () => {

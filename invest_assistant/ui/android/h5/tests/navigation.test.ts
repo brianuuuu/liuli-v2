@@ -28,6 +28,7 @@ describe("mobile navigation", () => {
     expect(parentPathForDetail("/news/42")).toBe("/news");
     expect(parentPathForDetail("/notes/5")).toBe("/notes");
     expect(parentPathForDetail("/tasks/alerts/8")).toBe("/tasks");
+    expect(parentPathForDetail("/tasks/suggestions/11")).toBe("/tasks");
     expect(parentPathForDetail("/reports/9")).toBe("/reports");
     expect(parentPathForDetail("/dashboard")).toBeNull();
   });

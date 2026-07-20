@@ -33,6 +33,7 @@ export function parentPathForDetail(pathname: string): string | null {
   if (/^\/news\/\d+$/.test(pathname)) return "/news";
   if (/^\/notes\/\d+$/.test(pathname)) return "/notes";
   if (/^\/tasks\/alerts\/\d+$/.test(pathname)) return "/tasks";
+  if (/^\/tasks\/suggestions\/\d+$/.test(pathname)) return "/tasks";
   if (/^\/reports\/\d+$/.test(pathname)) return "/reports";
   if (pathname === "/reports") return "/dashboard";
   return null;

@@ -10,6 +10,7 @@ import { MePage } from "../pages/MePage";
 import { NewsPage } from "../pages/NewsPage";
 import { NotesPage } from "../pages/NotesPage";
 import { TasksPage } from "../pages/TasksPage";
+import { AiSuggestionReviewPage } from "../pages/AiSuggestionReviewPage";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState(() => Boolean(window.localStorage.getItem(tokenStorageKey)));
@@ -68,6 +69,7 @@ export function MobileApp() {
         <Route path="/news" element={<RequireAuth><NewsPage /></RequireAuth>} />
         <Route path="/news/:id" element={<RequireAuth><NewsDetailPage /></RequireAuth>} />
         <Route path="/tasks" element={<RequireAuth><TasksPage /></RequireAuth>} />
+        <Route path="/tasks/suggestions/:id" element={<RequireAuth><AiSuggestionReviewPage /></RequireAuth>} />
         <Route path="/tasks/alerts/:id" element={<RequireAuth><AlertDetailPage /></RequireAuth>} />
         <Route path="/me" element={<RequireAuth><MePage /></RequireAuth>} />
         <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />

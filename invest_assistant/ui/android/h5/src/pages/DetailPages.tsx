@@ -8,7 +8,7 @@ import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
 import { nativeBridge, requestAppBack } from "../native/bridge";
 import { formatDateTime } from "../utils/format";
 
-function DetailFrame({ title, children }: { title: string; children: React.ReactNode }) {
+export function DetailFrame({ title, children }: { title: string; children: React.ReactNode }) {
   useLayoutEffect(() => {
     document.documentElement.scrollLeft = 0;
     document.body.scrollLeft = 0;
