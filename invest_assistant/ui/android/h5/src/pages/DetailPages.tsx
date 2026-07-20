@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArrowLeft, Check, ExternalLink, Trash2 } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { MarkdownBody } from "../components/MarkdownBody";
 import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
 import { nativeBridge, requestAppBack } from "../native/bridge";
 import { formatDateTime } from "../utils/format";
@@ -89,5 +89,5 @@ export function ReportReaderPage() {
   const content = useQuery({ queryKey: ["report-content", id], queryFn: () => mobileApi.reportContent(id) });
   if (metadata.isLoading || content.isLoading) return <DetailFrame title="报告"><LoadingState /></DetailFrame>;
   if (metadata.isError || content.isError) return <DetailFrame title="报告"><ErrorState onRetry={() => { void metadata.refetch(); void content.refetch(); }} /></DetailFrame>;
-  return <DetailFrame title={metadata.data?.title ?? "报告"}><article className="markdown-body"><ReactMarkdown>{content.data ?? ""}</ReactMarkdown></article><button className="report-download" onClick={() => nativeBridge.openDownloadedFile(`/api/reports/${id}/content`, `${metadata.data?.title ?? "报告"}.md`)}>下载并打开</button></DetailFrame>;
+  return <DetailFrame title={metadata.data?.title ?? "报告"}><MarkdownBody content={content.data ?? ""} /><button className="report-download" onClick={() => nativeBridge.openDownloadedFile(`/api/reports/${id}/content`, `${metadata.data?.title ?? "报告"}.md`)}>下载并打开</button></DetailFrame>;
 }
