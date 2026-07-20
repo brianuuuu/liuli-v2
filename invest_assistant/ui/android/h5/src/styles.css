@@ -9,7 +9,7 @@
   --border: #e5e9f0;
   --blue: #2563eb;
   --blue-soft: #eaf1ff;
-  --shadow: 0 4px 18px rgba(17, 24, 39, .055);
+  --shadow: none;
   --top-bg: #ffffff;
   --content-font-size: 14px;
 }
