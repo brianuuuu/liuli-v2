@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
@@ -26,6 +26,7 @@ describe("mobile H5 app", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     delete window.LiuliNative;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -183,13 +184,14 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "预警事件" }));
     fireEvent.click(await screen.findByRole("button", { name: "已处理" }));
 
     expect(await screen.findByText("已处理事件")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("offset=50"))).toBe(true);
   });
 
-  it("renders tasks with alerts and AI recommendation as secondary items", async () => {
+  it("opens tasks on AI recommendations before alert events", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
     vi.stubGlobal(
@@ -204,8 +206,93 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByRole("tab", { name: "预警" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "AI 推荐词" })).toBeInTheDocument();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "预警事件"]);
+    expect(screen.getByRole("tab", { name: "AI 推荐词" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByPlaceholderText("搜索推荐词")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "新增 AI 推荐词" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "已通过" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "已拒绝" })).not.toBeInTheDocument();
+  });
+
+  it("reveals review actions after a one-second long press and opens approval from the viewport bottom", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({
+          items: [{
+            id: 11,
+            suggested_text: "半导体设备",
+            score: 8.5,
+            reason: "订单增长与国产替代共振",
+            status: "pending",
+            rejected_count: 0,
+            created_at: "2026-07-20T08:00:00Z"
+          }],
+          total: 1,
+          limit: 20,
+          offset: 0,
+          has_more: false
+        }), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+    );
+
+    renderApp();
+    const card = (await screen.findByText("半导体设备")).closest("article");
+    expect(card).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "通过半导体设备" })).not.toBeInTheDocument();
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(card!);
+    act(() => vi.advanceTimersByTime(1000));
+    fireEvent.pointerUp(card!);
+
+    const approveButton = screen.getByRole("button", { name: "通过半导体设备" });
+    fireEvent.click(approveButton);
+    const sheet = screen.getByRole("dialog", { name: "通过 AI 推荐词" });
+    expect(sheet.parentElement?.parentElement).toBe(document.body);
+    vi.useRealTimers();
+  });
+
+  it("rejects every currently loaded recommendation one by one and reports the success count", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.includes("/reject")) {
+        return new Response(JSON.stringify({ id: Number(url.match(/suggestions\/(\d+)/)?.[1]), status: "rejected" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({
+        items: [
+          { id: 21, suggested_text: "推荐词一", score: 7, reason: "原因一", status: "pending", rejected_count: 0 },
+          { id: 22, suggested_text: "推荐词二", score: 6, reason: "原因二", status: "pending", rejected_count: 1 }
+        ],
+        total: 4,
+        limit: 20,
+        offset: 0,
+        has_more: true
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderApp();
+    await screen.findByText("推荐词二");
+    fireEvent.click(screen.getByRole("button", { name: "一键拒绝已加载推荐词" }));
+
+    expect(await screen.findByText("已拒绝 2 条推荐词")).toBeInTheDocument();
+    const rejectCalls = fetchMock.mock.calls.filter(([input, init]) =>
+      init?.method === "POST" && String(input).includes("/reject")
+    );
+    expect(rejectCalls.map(([input]) => String(input))).toEqual([
+      expect.stringContaining("/ai-tag-suggestions/21/reject"),
+      expect.stringContaining("/ai-tag-suggestions/22/reject")
+    ]);
   });
 
   it("shows the web-aligned portfolio performance on the today dashboard", async () => {

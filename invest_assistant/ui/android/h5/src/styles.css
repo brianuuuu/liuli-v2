@@ -303,25 +303,30 @@ a { color: var(--blue); text-decoration: none; }
 .compact-search button { display: grid; width: 42px; height: 40px; place-items: center; color: var(--muted); }
 .icon-primary-button { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 9px; background: var(--blue); color: #fff; }
 .tasks-status-filter { position: sticky; z-index: 3; top: 36px; }
-.suggestion-list { display: grid; gap: 10px; }
-.suggestion-card { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
-.suggestion-card header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
-.suggestion-card header strong { min-width: 0; overflow-wrap: anywhere; }
-.suggestion-status { flex: 0 0 auto; padding: 3px 7px; border-radius: 5px; background: var(--panel-soft); color: var(--muted); font-size: 11px; }
-.suggestion-status--pending { background: #fff7df; color: #b45309; }
-.suggestion-status--approved { background: #e8f8ef; color: #15803d; }
-.suggestion-status--rejected { background: #fff0f0; color: #dc2626; }
-:root[data-theme="dark"] .suggestion-status--pending { background: #3a2d13; }
-:root[data-theme="dark"] .suggestion-status--approved { background: #173528; }
-:root[data-theme="dark"] .suggestion-status--rejected { background: #3a1d22; }
-.suggestion-meta { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 8px; color: var(--subtle); font-size: 11px; }
-.suggestion-card p { margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
-.suggestion-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-.suggestion-card footer button { min-width: 58px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; color: var(--blue); }
+.ai-suggestions-panel { gap: 8px; }
+.suggestion-review-hint { display: flex; min-height: 28px; align-items: center; justify-content: space-between; color: var(--subtle); font-size: 11px; }
+.suggestion-review-hint span:first-child { color: var(--muted); font-weight: 600; }
+.suggestion-list { display: grid; gap: 8px; }
+.suggestion-card { position: relative; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); box-shadow: var(--shadow); touch-action: pan-y; user-select: none; -webkit-touch-callout: none; transition: border-color .15s ease, box-shadow .15s ease; }
+.suggestion-card.is-reviewing { border-color: #9dbcf7; box-shadow: 0 0 0 2px rgba(37, 99, 235, .08); }
+.suggestion-card header { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 10px; }
+.suggestion-card header strong { min-width: 0; color: var(--text); font-size: var(--content-font-size); font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+.suggestion-card header time { flex: 0 0 auto; color: var(--subtle); font-size: 10px; }
+.suggestion-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; color: var(--subtle); font-size: 11px; }
+.suggestion-card p { display: -webkit-box; overflow: hidden; margin: 6px 0 0; color: var(--muted); font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.suggestion-review-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--border); }
+.suggestion-review-actions button { display: inline-flex; min-width: 0; height: 36px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border); border-radius: 7px; color: var(--blue); font-size: 13px; }
+.suggestion-list-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .7fr); gap: 8px; align-items: center; margin-top: 2px; }
+.suggestion-list-actions .load-more { height: 42px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.suggestion-list-end { display: flex; height: 42px; align-items: center; justify-content: center; color: var(--subtle); font-size: 11px; }
+.reject-loaded-button { height: 42px; padding: 0 10px; border: 1px solid #fecaca; border-radius: 8px; background: var(--panel); color: #dc2626; font-size: 12px; }
+.reject-loaded-button:disabled { opacity: .6; }
+.operation-feedback { position: fixed; z-index: 130; right: 50%; bottom: calc(70px + env(safe-area-inset-bottom)); max-width: min(340px, calc(100vw - 32px)); padding: 9px 14px; border-radius: 18px; background: rgba(15, 23, 42, .92); color: #fff; font-size: 12px; text-align: center; transform: translateX(50%); box-shadow: 0 8px 24px rgba(15, 23, 42, .2); }
 .danger-text { color: #dc2626 !important; }
 .composer-sheet label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .composer-sheet .compact-textarea { min-height: 90px; }
-.approve-sheet { max-height: 88dvh; overflow-y: auto; }
+.viewport-sheet-backdrop { width: 100vw; max-width: none; }
+.approve-sheet { max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; }
 
 .profile-row { display: flex; align-items: center; gap: 12px; }
 .profile-avatar { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); }
@@ -377,4 +382,5 @@ a { color: var(--blue); text-decoration: none; }
 @media (min-width: 600px) {
   body { display: flex; justify-content: center; background: #dce2ea; }
   #root { width: 430px; background: var(--bg); box-shadow: 0 0 30px rgba(0, 0, 0, .12); }
+  .viewport-sheet-backdrop { right: 50%; left: auto; width: 430px; transform: translateX(50%); }
 }

@@ -1,148 +1,198 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import type { AiTagSuggestion, AiTagSuggestionApprove } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
 
-type SuggestionStatus = "pending" | "approved" | "rejected";
 type TargetType = AiTagSuggestionApprove["target_type"];
 
-const statusItems: Array<{ key: SuggestionStatus; label: string }> = [
-  { key: "pending", label: "待审核" },
-  { key: "approved", label: "已通过" },
-  { key: "rejected", label: "已拒绝" }
-];
+const longPressDelay = 1000;
+const longPressMoveTolerance = 10;
 
 export function AiSuggestionsPanel() {
   const client = useQueryClient();
-  const [status, setStatus] = useState<SuggestionStatus>("pending");
-  const [searchDraft, setSearchDraft] = useState("");
-  const [queryText, setQueryText] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [approving, setApproving] = useState<AiTagSuggestion | null>(null);
+  const [removedIds, setRemovedIds] = useState<Set<number>>(() => new Set());
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [feedback, setFeedback] = useState("");
   const query = useInfiniteQuery({
-    queryKey: ["ai-tag-suggestions", status, queryText],
+    queryKey: ["ai-tag-suggestions", "pending"],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => mobileApi.aiTagSuggestions({
-      status,
-      q: queryText || undefined,
+      status: "pending",
       limit: 20,
       offset: pageParam
     }, signal),
     getNextPageParam: (last) => last.has_more ? last.offset + last.limit : undefined
   });
-  const rows = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
+  const rows = useMemo(
+    () => (query.data?.pages.flatMap((page) => page.items) ?? []).filter((item) => !removedIds.has(item.id)),
+    [query.data, removedIds]
+  );
   const refresh = async () => {
     await client.invalidateQueries({ queryKey: ["ai-tag-suggestions"] });
   };
-  const reject = useMutation({ mutationFn: mobileApi.rejectAiTagSuggestion, onSuccess: refresh });
-  const restore = useMutation({ mutationFn: mobileApi.restoreAiTagSuggestion, onSuccess: refresh });
+  const reject = useMutation({
+    mutationFn: mobileApi.rejectAiTagSuggestion,
+    onSuccess: async (_, id) => {
+      setRemovedIds((current) => new Set(current).add(id));
+      setActiveId(null);
+      await refresh();
+    }
+  });
+
+  const rejectLoaded = async () => {
+    const loadedRows = [...rows];
+    if (!loadedRows.length || !window.confirm(`拒绝当前已加载的 ${loadedRows.length} 条推荐词？`)) return;
+    setFeedback("");
+    setBatchProgress({ current: 0, total: loadedRows.length });
+    const succeeded: number[] = [];
+    for (let index = 0; index < loadedRows.length; index += 1) {
+      try {
+        await mobileApi.rejectAiTagSuggestion(loadedRows[index].id);
+        succeeded.push(loadedRows[index].id);
+      } catch {
+        // Continue so one failed request does not block the remaining loaded rows.
+      }
+      setBatchProgress({ current: index + 1, total: loadedRows.length });
+    }
+    setRemovedIds((current) => new Set([...current, ...succeeded]));
+    setActiveId(null);
+    setBatchProgress(null);
+    setFeedback(
+      succeeded.length === loadedRows.length
+        ? `已拒绝 ${succeeded.length} 条推荐词`
+        : `已拒绝 ${succeeded.length} 条，${loadedRows.length - succeeded.length} 条失败`
+    );
+    await refresh();
+  };
 
   return (
-    <section className="tasks-panel">
-      <div className="tasks-toolbar" data-swipe-ignore="true">
-        <form
-          className="compact-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setQueryText(searchDraft.trim());
-          }}
-        >
-          <input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="搜索推荐词" />
-          <button type="submit" aria-label="搜索"><Search size={17} /></button>
-        </form>
-        <button type="button" className="icon-primary-button" aria-label="新增 AI 推荐词" onClick={() => setCreateOpen(true)}>
-          <Plus size={18} />
-        </button>
-      </div>
-      <div className="segmented tasks-status-filter" data-swipe-ignore="true">
-        {statusItems.map((item) => (
-          <button type="button" key={item.key} className={item.key === status ? "is-active" : ""} onClick={() => setStatus(item.key)}>
-            {item.label}
-          </button>
-        ))}
+    <section className="tasks-panel ai-suggestions-panel">
+      <div className="suggestion-review-hint">
+        <span>待审核 {query.data?.pages[0]?.total ?? 0}</span>
+        <span>长按卡片 1 秒进行审核</span>
       </div>
       {query.isLoading ? <LoadingState /> : query.isError ? (
         <ErrorState message="AI 推荐词加载失败" onRetry={() => void query.refetch()} />
       ) : rows.length ? (
         <div className="suggestion-list">
           {rows.map((item) => (
-            <article className="suggestion-card" key={item.id}>
-              <header>
-                <strong>{item.suggested_text}</strong>
-                <span className={`suggestion-status suggestion-status--${item.status}`}>{statusLabel(item.status)}</span>
-              </header>
-              <div className="suggestion-meta">
-                <span>分数 {item.score == null ? "-" : formatNumber(item.score, 1)}</span>
-                <span>拒绝 {item.rejected_count || 0} 次</span>
-                <time>{formatDateTime(item.created_at)}</time>
-              </div>
-              {item.final_tag_name ? <p>最终标签：{item.final_tag_name}</p> : null}
-              {item.reason ? <p>{item.reason}</p> : null}
-              <footer>
-                {item.status === "pending" ? (
-                  <>
-                    <button type="button" onClick={() => setApproving(item)}>通过</button>
-                    <button
-                      type="button"
-                      className="danger-text"
-                      disabled={reject.isPending}
-                      onClick={() => {
-                        if (window.confirm(`拒绝推荐词“${item.suggested_text}”？`)) reject.mutate(item.id);
-                      }}
-                    >
-                      拒绝
-                    </button>
-                  </>
-                ) : item.status === "rejected" ? (
-                  <button type="button" disabled={restore.isPending} onClick={() => restore.mutate(item.id)}>恢复</button>
-                ) : null}
-              </footer>
-            </article>
+            <SuggestionCard
+              key={item.id}
+              item={item}
+              active={activeId === item.id}
+              disabled={reject.isPending || Boolean(batchProgress)}
+              onActivate={() => setActiveId(item.id)}
+              onApprove={() => setApproving(item)}
+              onReject={() => {
+                if (window.confirm(`拒绝推荐词“${item.suggested_text}”？`)) reject.mutate(item.id);
+              }}
+            />
           ))}
-          {query.hasNextPage ? (
-            <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
-              {query.isFetchingNextPage ? "加载中…" : "加载更多"}
+          <div className="suggestion-list-actions" data-swipe-ignore="true">
+            {query.hasNextPage ? (
+              <button className="load-more" disabled={query.isFetchingNextPage || Boolean(batchProgress)} onClick={() => void query.fetchNextPage()}>
+                {query.isFetchingNextPage ? "加载中…" : "加载更多"}
+              </button>
+            ) : <span className="suggestion-list-end">已加载全部</span>}
+            <button
+              type="button"
+              className="reject-loaded-button"
+              aria-label="一键拒绝已加载推荐词"
+              disabled={Boolean(batchProgress)}
+              onClick={() => void rejectLoaded()}
+            >
+              {batchProgress ? `拒绝中 ${batchProgress.current}/${batchProgress.total}` : "一键拒绝"}
             </button>
-          ) : null}
+          </div>
         </div>
-      ) : <EmptyState title="暂无 AI 推荐词" detail="可新增推荐词，或切换状态查看历史记录" />}
-      {createOpen ? <CreateSuggestionSheet onClose={() => setCreateOpen(false)} onSaved={refresh} /> : null}
-      {approving ? <ApproveSuggestionSheet item={approving} onClose={() => setApproving(null)} onSaved={refresh} /> : null}
+      ) : <EmptyState title="暂无待审核推荐词" detail="新的推荐词会显示在这里" />}
+      {feedback ? createPortal(<div className="operation-feedback" role="status">{feedback}</div>, document.body) : null}
+      {approving ? (
+        <ApproveSuggestionSheet
+          item={approving}
+          onClose={() => setApproving(null)}
+          onSaved={async () => {
+            setRemovedIds((current) => new Set(current).add(approving.id));
+            setActiveId(null);
+            await refresh();
+          }}
+        />
+      ) : null}
     </section>
   );
 }
 
-function CreateSuggestionSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
-  const [text, setText] = useState("");
-  const [score, setScore] = useState("");
-  const [reason, setReason] = useState("");
-  const create = useMutation({
-    mutationFn: () => mobileApi.createAiTagSuggestion({
-      suggested_text: text.trim(),
-      score: score === "" ? null : Number(score),
-      reason: reason.trim() || null
-    }),
-    onSuccess: async () => {
-      await onSaved();
-      onClose();
-    }
-  });
+function SuggestionCard({
+  item,
+  active,
+  disabled,
+  onActivate,
+  onApprove,
+  onReject
+}: {
+  item: AiTagSuggestion;
+  active: boolean;
+  disabled: boolean;
+  onActivate: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const origin = useRef({ x: 0, y: 0 });
+  const cancelPress = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   return (
-    <div className="sheet-backdrop">
-      <section className="composer-sheet" data-swipe-ignore="true">
-        <header><strong>新增 AI 推荐词</strong><button type="button" onClick={onClose}><X /></button></header>
-        <label>推荐词<input autoFocus value={text} onChange={(event) => setText(event.target.value)} /></label>
-        <label>分数<input type="number" step="0.1" value={score} onChange={(event) => setScore(event.target.value)} /></label>
-        <label>原因<textarea className="compact-textarea" value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-        {create.isError ? <span className="form-error">新增失败，请检查内容后重试</span> : null}
-        <button className="primary-button" disabled={!text.trim() || create.isPending} onClick={() => create.mutate()}>
-          {create.isPending ? "保存中…" : "保存"}
-        </button>
-      </section>
-    </div>
+    <article
+      className={`suggestion-card ${active ? "is-reviewing" : ""}`}
+      data-swipe-ignore="true"
+      onContextMenu={(event) => event.preventDefault()}
+      onPointerDown={(event) => {
+        origin.current = { x: event.clientX, y: event.clientY };
+        cancelPress();
+        timer.current = setTimeout(() => {
+          onActivate();
+          timer.current = null;
+          if ("vibrate" in navigator) navigator.vibrate(20);
+        }, longPressDelay);
+      }}
+      onPointerMove={(event) => {
+        if (
+          Math.abs(event.clientX - origin.current.x) > longPressMoveTolerance
+          || Math.abs(event.clientY - origin.current.y) > longPressMoveTolerance
+        ) cancelPress();
+      }}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onPointerLeave={cancelPress}
+    >
+      <header>
+        <strong>{item.suggested_text}</strong>
+        <time>{formatDateTime(item.created_at)}</time>
+      </header>
+      <div className="suggestion-meta">
+        <span>评分 {item.score == null ? "-" : formatNumber(item.score, 1)}</span>
+        <span>历史拒绝 {item.rejected_count || 0} 次</span>
+      </div>
+      {item.reason ? <p>{item.reason}</p> : null}
+      {active ? (
+        <footer className="suggestion-review-actions">
+          <button type="button" aria-label={`通过${item.suggested_text}`} disabled={disabled} onClick={onApprove}>
+            <Check size={16} />通过
+          </button>
+          <button type="button" aria-label={`拒绝${item.suggested_text}`} className="danger-text" disabled={disabled} onClick={onReject}>
+            <X size={16} />拒绝
+          </button>
+        </footer>
+      ) : null}
+    </article>
   );
 }
 
@@ -188,10 +238,17 @@ function ApproveSuggestionSheet({
     }
   });
   const valid = targetType !== "stock" || Boolean(targetId);
-  return (
-    <div className="sheet-backdrop">
-      <section className="composer-sheet approve-sheet" data-swipe-ignore="true">
-        <header><strong>通过 AI 推荐词</strong><button type="button" onClick={onClose}><X /></button></header>
+  return createPortal(
+    <div className="sheet-backdrop viewport-sheet-backdrop" onClick={onClose}>
+      <section
+        className="composer-sheet approve-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="通过 AI 推荐词"
+        data-swipe-ignore="true"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header><strong>通过 AI 推荐词</strong><button type="button" aria-label="关闭审核面板" onClick={onClose}><X /></button></header>
         <label>最终标签词<input value={finalName} onChange={(event) => setFinalName(event.target.value)} /></label>
         <label>绑定对象
           <select
@@ -225,12 +282,7 @@ function ApproveSuggestionSheet({
           {approve.isPending ? "提交中…" : "确认通过"}
         </button>
       </section>
-    </div>
+    </div>,
+    document.body
   );
-}
-
-function statusLabel(status: string) {
-  if (status === "pending") return "待审核";
-  if (status === "approved") return "已通过";
-  return "已拒绝";
 }

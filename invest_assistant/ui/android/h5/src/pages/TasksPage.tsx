@@ -6,14 +6,14 @@ import { AiSuggestionsPanel } from "./AiSuggestionsPanel";
 import { AlertsContent } from "./AlertsPage";
 
 const taskTabs = [
-  { key: "alerts", label: "预警" },
-  { key: "suggestions", label: "AI 推荐词" }
+  { key: "suggestions", label: "AI 推荐词" },
+  { key: "alerts", label: "预警事件" }
 ] as const;
 
 type TaskTab = typeof taskTabs[number]["key"];
 
 export function TasksPage() {
-  const [tab, setTab] = useState<TaskTab>("alerts");
+  const [tab, setTab] = useState<TaskTab>("suggestions");
   const pager = useRef<HorizontalTabPagerHandle<TaskTab>>(null);
   return (
     <MobilePageFrame navigation={<SecondaryNavigation items={taskTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
@@ -22,7 +22,7 @@ export function TasksPage() {
         items={taskTabs}
         activeKey={tab}
         onChange={setTab}
-        renderPage={(key) => key === "alerts" ? <AlertsContent /> : <AiSuggestionsPanel />}
+        renderPage={(key) => key === "suggestions" ? <AiSuggestionsPanel /> : <AlertsContent />}
       />
     </MobilePageFrame>
   );
