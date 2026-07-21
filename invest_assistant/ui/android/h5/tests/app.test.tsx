@@ -525,7 +525,12 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByText("组合表现")).toBeInTheDocument();
+    expect(await screen.findByText("投研工作台")).toBeInTheDocument();
+    expect(screen.getByText("今日组合")).toBeInTheDocument();
+    expect(screen.queryByText("组合表现")).not.toBeInTheDocument();
+    expect(screen.queryByText("重要资讯")).not.toBeInTheDocument();
+    expect(screen.queryByText("未读预警")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近笔记")).not.toBeInTheDocument();
     expect(screen.getByText("+1.23%")).toBeInTheDocument();
     expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
   });
