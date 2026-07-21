@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -10,7 +11,6 @@ import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } fr
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
-const MiniChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.MiniChart })));
 const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
 
 export function DashboardPage() {
@@ -100,20 +100,17 @@ function StockDashboard() {
 function PortfolioDashboard() {
   const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const overview = useQuery({ queryKey: ["portfolio-overview", portfolioId], queryFn: () => mobileApi.portfolioOverview(portfolioId), staleTime: 300_000 });
-  const snapshots = useQuery({ queryKey: ["portfolio-snapshots", portfolioId], queryFn: () => mobileApi.portfolioSnapshots(portfolioId), staleTime: 300_000 });
-  if (overview.isLoading || snapshots.isLoading) return <LoadingState />;
-  if (overview.isError || snapshots.isError) return <ErrorState onRetry={() => { void overview.refetch(); void snapshots.refetch(); }} />;
+  if (overview.isLoading) return <LoadingState />;
+  if (overview.isError) return <ErrorState onRetry={() => void overview.refetch()} />;
   const summary = overview.data?.summary;
   const pieItems = overview.data?.pie_items ?? [];
   return (
     <div className="page-stack portfolio-dashboard-mobile">
       <SectionCard>
-        <label className="portfolio-selector">组合范围
-          <select value={portfolioId ?? ""} onChange={(event) => setPortfolioId(event.target.value ? Number(event.target.value) : null)}>
-            <option value="">所有组合</option>
-            {overview.data?.portfolio_options?.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-          </select>
-        </label>
+        <div className="portfolio-selector"><span>组合选择</span><div className="portfolio-segments" role="group" aria-label="组合选择">
+          <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>全部</button>
+          {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
+        </div></div>
       </SectionCard>
       <div className="metric-grid">
         <Metric label="总市值" value={formatMoney(summary?.total_value)} />
@@ -128,19 +125,14 @@ function PortfolioDashboard() {
         </div>
       </SectionCard>
       {pieItems.length ? (
-        <SectionCard title="标的市值占比">
-          <Suspense fallback={<LoadingState />}>
+        <SectionCard title="标的市值占比" action={<button type="button" className="portfolio-refresh" aria-label="刷新标的市值占比" onClick={() => void overview.refetch()} disabled={overview.isFetching}><RefreshCw className={overview.isFetching ? "is-spinning" : ""} size={17} /></button>}>
+          <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
             <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
-          </Suspense>
+          </Suspense><div className="portfolio-allocation__list">
+            {pieItems.map((item) => <div className="portfolio-allocation__item" key={item.label}><strong>{item.label}</strong><span className={(item.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(item.day_pct, "%")}</span></div>)}
+          </div></div>
         </SectionCard>
       ) : <EmptyState title="暂无持仓标的数据" />}
-      {snapshots.data?.length ? (
-        <SectionCard title="组合市值曲线">
-          <Suspense fallback={<LoadingState />}>
-            <MiniChart labels={snapshots.data.map((item) => item.snapshot_date)} values={snapshots.data.map((item) => item.total_value)} />
-          </Suspense>
-        </SectionCard>
-      ) : <EmptyState title="暂无市值快照" detail="每日快照生成后将在这里显示" />}
     </div>
   );
 }

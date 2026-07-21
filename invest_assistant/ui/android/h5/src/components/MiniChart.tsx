@@ -41,11 +41,10 @@ export function DonutChart({ items }: { items: Array<{ name: string; value: numb
     chart.setOption({
       animationDuration: 260,
       tooltip: { trigger: "item", formatter: "{b}<br/>¥{c}（{d}%）" },
-      legend: { type: "scroll", bottom: 0, textStyle: { fontSize: 10 } },
       series: [{
         type: "pie",
         radius: ["45%", "68%"],
-        center: ["50%", "42%"],
+        center: ["50%", "50%"],
         label: { show: false },
         data: items
       }]
