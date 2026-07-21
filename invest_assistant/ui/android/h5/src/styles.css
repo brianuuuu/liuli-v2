@@ -364,6 +364,10 @@ a { color: var(--blue); text-decoration: none; }
 .note-editor select { min-width: 0; max-width: 100%; }
 .note-danger-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
 .note-danger-actions button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); }
+.note-action-confirm p { margin: 0; color: var(--muted); line-height: 1.6; }
+.note-action-confirm-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.note-action-confirm-buttons button { min-height: 44px; border-radius: 10px; }
+.note-action-confirm-buttons .danger-button { border-color: #dc2626; background: #dc2626; color: #fff; }
 .detail-message { color: var(--muted); font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
 .level-badge { display: inline-block; padding: 3px 7px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 11px; }
 .detail-actions { display: flex; gap: 10px; }

@@ -525,27 +525,38 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByText("组合表现")).toBeInTheDocument();
+    expect(await screen.findByText("投研工作台")).toBeInTheDocument();
+    expect(screen.getByText("今日组合")).toBeInTheDocument();
+    expect(screen.queryByText("组合表现")).not.toBeInTheDocument();
+    expect(screen.queryByText("重要资讯")).not.toBeInTheDocument();
+    expect(screen.queryByText("未读预警")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近笔记")).not.toBeInTheDocument();
     expect(screen.getByText("+1.23%")).toBeInTheDocument();
     expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
   });
 
-  it("offers archive and delete actions on a note detail", async () => {
+  it.each([
+    ["归档笔记", "确认归档笔记", "确认归档", "POST", "/api/knowledge/notes/7/archive"],
+    ["删除笔记", "确认删除笔记", "确认删除", "DELETE", "/api/knowledge/notes/7"]
+  ])("runs the %s action after in-page confirmation", async (actionLabel, dialogTitle, confirmLabel, method, endpoint) => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes/7";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => new Response(
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(
         String(input).includes("note-groups")
           ? "[]"
           : JSON.stringify({ id: 7, content: "需要处理的笔记", status: "active", group_id: null }),
         { status: 200, headers: { "Content-Type": "application/json" } }
-      ))
-    );
+      ));
+    vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
 
-    expect(await screen.findByRole("button", { name: "归档笔记" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除笔记" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: actionLabel }));
+    expect(screen.getByRole("dialog", { name: dialogTitle })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: confirmLabel }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(endpoint),
+      expect.objectContaining({ method })
+    ));
   });
 });
