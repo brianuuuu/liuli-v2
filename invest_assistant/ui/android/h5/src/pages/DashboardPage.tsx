@@ -1,4 +1,4 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -32,21 +32,13 @@ export function DashboardPage() {
 function TodayDashboard() {
   const navigate = useNavigate();
   const market = useQuery({ queryKey: ["workbench-today"], queryFn: mobileApi.workbenchToday, staleTime: 300_000 });
-  const results = useQueries({
-    queries: [
-      { queryKey: ["today-news"], queryFn: () => mobileApi.news({ limit: 4, offset: 0, important_only: true }), staleTime: 300_000 },
-      { queryKey: ["today-alerts"], queryFn: () => mobileApi.alerts(0, 4), staleTime: 300_000 },
-      { queryKey: ["today-reports"], queryFn: () => mobileApi.reports(0, 4), staleTime: 300_000 },
-      { queryKey: ["today-notes"], queryFn: () => mobileApi.notes({ limit: 3, offset: 0, status: "active" }), staleTime: 300_000 }
-    ]
-  });
-  if (results.some((result) => result.isLoading)) return <LoadingState />;
-  const [news, alerts, reports, notes] = results.map((result) => result.data);
+  const reports = useQuery({ queryKey: ["today-reports"], queryFn: () => mobileApi.reports(0, 4), staleTime: 300_000 });
+  if (reports.isLoading) return <LoadingState />;
   const portfolio = market.data?.portfolio_today;
   return (
     <div className="page-stack">
       <section className="welcome-card">
-        <span>今日投资工作台</span>
+        <span>投研工作台</span>
         <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
         <p>重要信息、风险事件和研究记录集中在这里。</p>
       </section>
@@ -62,7 +54,7 @@ function TodayDashboard() {
         ) : <EmptyState title="暂无大盘行情" detail="等待行情任务写入数据" />}
       </SectionCard>
       {portfolio ? (
-        <SectionCard title="组合表现">
+        <SectionCard title="今日组合">
           <div className="today-portfolio-total">
             <span>总市值</span>
             <strong>{formatMoney(portfolio.total_value)}</strong>
@@ -75,18 +67,8 @@ function TodayDashboard() {
           </div>
         </SectionCard>
       ) : null}
-      <div className="metric-grid">
-        <Metric label="重要资讯" value={(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.total ?? 0} />
-        <Metric label="未读预警" value={(alerts as Awaited<ReturnType<typeof mobileApi.alerts>> | undefined)?.items.filter((item) => item.status === "unread").length ?? 0} />
-      </div>
-      <SectionCard title="重要资讯">
-        {(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.title} meta={`${item.source_name} · ${formatDateTime(item.publish_time)}`} onClick={() => navigate(`/news/${item.id}`)} />)}
-      </SectionCard>
       <SectionCard title="最新报告" action={<button className="text-button" onClick={() => navigate("/reports")}>全部</button>}>
-        {(reports as Awaited<ReturnType<typeof mobileApi.reports>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
-      </SectionCard>
-      <SectionCard title="最近笔记">
-        {(notes as Awaited<ReturnType<typeof mobileApi.notes>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.content} meta={formatDateTime(item.updated_at ?? item.created_at)} onClick={() => navigate(`/notes/${item.id}`)} />)}
+        {reports.data?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
       </SectionCard>
     </div>
   );
