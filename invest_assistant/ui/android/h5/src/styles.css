@@ -212,14 +212,18 @@ a { color: var(--blue); text-decoration: none; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .hero-number { display: block; margin: 8px 0 4px; font-size: 27px; }
 .mini-chart { height: 148px; }
-.donut-chart { height: 230px; }
+.donut-chart { width: 118px; height: 142px; }
 .today-portfolio-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .today-portfolio-total span { color: var(--muted); font-size: 12px; }
 .today-portfolio-total strong { font-size: 22px; }
 .today-portfolio-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 12px; color: var(--muted); font-size: 11px; }
 .today-portfolio-stats span, .today-portfolio-stats time { min-width: 0; }
 .portfolio-selector { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
-.portfolio-selector select, .suggestion-review-form select {
+.portfolio-segments { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.portfolio-segments::-webkit-scrollbar { display: none; }
+.portfolio-segments button { flex: 0 0 auto; padding: 7px 11px; border-radius: 999px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.portfolio-segments button.is-active { background: var(--blue-soft); color: var(--blue); font-weight: 650; }
+.suggestion-review-form select {
   width: 100%;
   height: 42px;
   padding: 0 10px;
@@ -231,6 +235,16 @@ a { color: var(--blue); text-decoration: none; }
 }
 .portfolio-day-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .portfolio-day-row span { padding: 10px; border-radius: 8px; background: var(--panel-soft); font-size: 17px; font-weight: 680; text-align: center; }
+.portfolio-refresh { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; color: var(--muted); }
+.portfolio-refresh:active { background: var(--panel-soft); }
+.portfolio-refresh .is-spinning { animation: portfolio-refresh-spin .8s linear infinite; }
+@keyframes portfolio-refresh-spin { to { transform: rotate(360deg); } }
+.portfolio-allocation { display: grid; grid-template-columns: 118px minmax(0, 1fr); align-items: center; gap: 14px; }
+.portfolio-allocation__list { min-width: 0; max-height: 142px; overflow-y: auto; }
+.portfolio-allocation__item { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--border); }
+.portfolio-allocation__item:last-child { border-bottom: 0; }
+.portfolio-allocation__item strong { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-allocation__item span { flex: 0 0 auto; font-size: 12px; font-weight: 650; }
 
 .login-page { display: flex; min-height: 100dvh; flex-direction: column; justify-content: center; padding: 28px 26px; background: var(--panel); }
 .login-brand { margin-bottom: 40px; text-align: center; }
