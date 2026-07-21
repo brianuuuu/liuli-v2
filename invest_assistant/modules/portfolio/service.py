@@ -273,9 +273,11 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
                     "stock_code": position.get("stock_code"),
                     "label": position.get("stock_name") or position.get("stock_code") or position.get("symbol") or str(stock_id),
                     "market_value": 0.0,
+                    "previous_market_value": 0.0,
                 },
             )
             item["market_value"] += value
+            item["previous_market_value"] += float(position["previous_market_value"] or 0)
         summary = _summary(positions)
         total_position_value += float(summary["market_value"] or 0)
         total_previous_value += float(summary["previous_market_value"] or 0)
@@ -860,6 +862,7 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
     ]
     for item in sorted(allocation.values(), key=lambda row: float(row["market_value"] or 0), reverse=True):
         value = float(item["market_value"] or 0)
+        previous_value = float(item["previous_market_value"] or 0)
         rows.append(
             {
                 "type": "stock",
@@ -868,6 +871,7 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
                 "label": item["label"],
                 "market_value": value,
                 "weight": value / total_value * 100 if total_value else 0.0,
+                "day_pct": (value - previous_value) / previous_value * 100 if previous_value else None,
             }
         )
     return rows

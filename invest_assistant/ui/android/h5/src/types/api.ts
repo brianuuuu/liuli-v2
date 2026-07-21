@@ -145,7 +145,7 @@ export type PortfolioOverview = {
     year_pnl?: number | null;
   };
   allocation_rows?: Array<{ label: string; market_value: number; weight?: number | null }>;
-  pie_items?: Array<{ label: string; market_value: number; weight?: number | null }>;
+  pie_items?: Array<{ label: string; market_value: number; weight?: number | null; day_pct?: number | null }>;
 };
 export type PortfolioValuePoint = {
   snapshot_date: string;

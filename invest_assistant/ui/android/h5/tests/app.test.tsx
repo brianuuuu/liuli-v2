@@ -160,6 +160,24 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 
+  it("shows a note group before its tags on compact note cards", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).includes("note-groups")
+        ? [{ id: 3, name: "长期跟踪", sort_order: 0, status: "active" }]
+        : { items: [{ id: 7, content: "关注现金流变化", status: "active", group: { id: 3, name: "长期跟踪", sort_order: 0, status: "active" }, tags_text: "#财报 #现金流", tags: [] }], total: 1, limit: 30, offset: 0, has_more: false }
+    ), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    renderApp();
+
+    const group = await screen.findByText("长期跟踪", { selector: ".note-card footer span" });
+    const tags = screen.getByText("#财报").parentElement;
+    expect(group.parentElement).toBe(tags);
+    expect(group).toHaveClass("note-group");
+    expect(group.compareDocumentPosition(screen.getByText("#财报")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("continues alert pagination when the selected status is absent from the first page", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
@@ -525,27 +543,61 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByText("组合表现")).toBeInTheDocument();
+    expect(await screen.findByText("投研工作台")).toBeInTheDocument();
+    expect(screen.getByText("今日组合")).toBeInTheDocument();
+    expect(screen.queryByText("组合表现")).not.toBeInTheDocument();
+    expect(screen.queryByText("重要资讯")).not.toBeInTheDocument();
+    expect(screen.queryByText("未读预警")).not.toBeInTheDocument();
+    expect(screen.queryByText("最近笔记")).not.toBeInTheDocument();
     expect(screen.getByText("+1.23%")).toBeInTheDocument();
     expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
   });
 
-  it("offers archive and delete actions on a note detail", async () => {
+  it.each([
+    ["归档笔记", "确认归档笔记", "确认归档", "POST", "/api/knowledge/notes/7/archive"],
+    ["删除笔记", "确认删除笔记", "确认删除", "DELETE", "/api/knowledge/notes/7"]
+  ])("runs the %s action after in-page confirmation", async (actionLabel, dialogTitle, confirmLabel, method, endpoint) => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes/7";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => new Response(
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(
         String(input).includes("note-groups")
           ? "[]"
           : JSON.stringify({ id: 7, content: "需要处理的笔记", status: "active", group_id: null }),
         { status: 200, headers: { "Content-Type": "application/json" } }
-      ))
-    );
+      ));
+    vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
 
-    expect(await screen.findByRole("button", { name: "归档笔记" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除笔记" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: actionLabel }));
+    expect(screen.getByRole("dialog", { name: dialogTitle })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: confirmLabel }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(endpoint),
+      expect.objectContaining({ method })
+    ));
+  });
+
+  it("updates tags from the note editor", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes/7";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => new Response(
+      String(input).includes("note-groups")
+        ? "[]"
+        : JSON.stringify({ id: 7, content: "需要处理的笔记", tags_text: "旧标签", tags: [], status: "active", group_id: null }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    const tags = await screen.findByRole("textbox", { name: "标签" });
+    expect(tags).toHaveValue("旧标签");
+    fireEvent.change(tags, { target: { value: "新能源, 现金流" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/knowledge/notes/7"),
+      expect.objectContaining({ method: "PUT", body: expect.stringContaining('"tags":"新能源, 现金流"') })
+    ));
   });
 });

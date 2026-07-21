@@ -115,3 +115,16 @@ def test_note_editor_forces_soft_wrapping_without_horizontal_scroll():
     assert '<textarea wrap="soft"' in page
     assert editor and "overflow-x: hidden;" in editor.group(1)
     assert editor and "white-space: pre-wrap;" in editor.group(1)
+
+
+def test_portfolio_dashboard_uses_segmented_allocation_layout_without_value_curve():
+    page = (
+        ROOT / "invest_assistant/ui/android/h5/src/pages/DashboardPage.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert 'title="组合选择"' in page
+    assert 'className="portfolio-segments"' in page
+    assert 'className="portfolio-allocation-list"' in page
+    assert 'aria-label="刷新标的市值占比"' in page
+    assert "组合市值曲线" not in page
+    assert "portfolioSnapshots" not in page

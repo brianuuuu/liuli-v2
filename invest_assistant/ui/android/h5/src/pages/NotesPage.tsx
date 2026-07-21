@@ -43,7 +43,14 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
   if (notes.isLoading) return <LoadingState />;
   if (notes.isError) return <ErrorState onRetry={() => void notes.refetch()} />;
   if (!notes.data?.items.length) return <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />;
-  return <div className="note-list">{notes.data.items.map((note) => <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}><header><time>{formatDateTime(note.updated_at ?? note.created_at)}</time><MoreHorizontal size={20} /></header><p>{note.content}</p>{note.tags?.length ? <footer>{note.tags.map((tag) => <span key={tag.id}>#{tag.name}</span>)}</footer> : null}</article>)}</div>;
+  return <div className="note-list">{notes.data.items.map((note) => {
+    const tags = note.tags?.length ? note.tags.map((tag) => tag.name) : parseTagNames(note.tags_text);
+    return <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}><header><time>{formatDateTime(note.updated_at ?? note.created_at)}</time><MoreHorizontal size={18} /></header><p>{note.content}</p>{note.group || tags.length ? <footer>{note.group ? <span className="note-group">{note.group.name}</span> : null}{tags.map((tag) => <span key={tag}>#{tag}</span>)}</footer> : null}</article>;
+  })}</div>;
+}
+
+function parseTagNames(value?: string | null) {
+  return (value ?? "").split(/[#,，\s]+/).map((tag) => tag.trim()).filter(Boolean);
 }
 
 function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof mobileApi.noteGroups>>; onClose: () => void }) {

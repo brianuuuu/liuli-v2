@@ -263,6 +263,7 @@ def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
         assert overview["allocation_rows"][0]["market_value"] == 1000
         assert overview["allocation_rows"][0]["weight"] == 100
         assert any(row["type"] == "stock" and row["label"] == "平安银行" and row["market_value"] == 1000 for row in overview["allocation_rows"])
+        assert next(row for row in overview["pie_items"] if row["label"] == "平安银行")["day_pct"] == pytest.approx(11.1111, rel=1e-4)
         assert all(row["type"] != "cash" for row in overview["allocation_rows"])
         assert overview["pie_items"] == [row for row in overview["allocation_rows"] if row["type"] == "stock"]
     finally:

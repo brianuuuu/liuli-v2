@@ -1,5 +1,6 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
@@ -10,8 +11,8 @@ import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } fr
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
-const MiniChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.MiniChart })));
 const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
+const portfolioColors = ["#2563eb", "#16a34a", "#f59e0b", "#8b5cf6", "#ef4444", "#0891b2", "#db2777", "#65a30d"];
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
@@ -32,21 +33,13 @@ export function DashboardPage() {
 function TodayDashboard() {
   const navigate = useNavigate();
   const market = useQuery({ queryKey: ["workbench-today"], queryFn: mobileApi.workbenchToday, staleTime: 300_000 });
-  const results = useQueries({
-    queries: [
-      { queryKey: ["today-news"], queryFn: () => mobileApi.news({ limit: 4, offset: 0, important_only: true }), staleTime: 300_000 },
-      { queryKey: ["today-alerts"], queryFn: () => mobileApi.alerts(0, 4), staleTime: 300_000 },
-      { queryKey: ["today-reports"], queryFn: () => mobileApi.reports(0, 4), staleTime: 300_000 },
-      { queryKey: ["today-notes"], queryFn: () => mobileApi.notes({ limit: 3, offset: 0, status: "active" }), staleTime: 300_000 }
-    ]
-  });
-  if (results.some((result) => result.isLoading)) return <LoadingState />;
-  const [news, alerts, reports, notes] = results.map((result) => result.data);
+  const reports = useQuery({ queryKey: ["today-reports"], queryFn: () => mobileApi.reports(0, 4), staleTime: 300_000 });
+  if (reports.isLoading) return <LoadingState />;
   const portfolio = market.data?.portfolio_today;
   return (
     <div className="page-stack">
       <section className="welcome-card">
-        <span>今日投资工作台</span>
+        <span>投研工作台</span>
         <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
         <p>重要信息、风险事件和研究记录集中在这里。</p>
       </section>
@@ -62,7 +55,7 @@ function TodayDashboard() {
         ) : <EmptyState title="暂无大盘行情" detail="等待行情任务写入数据" />}
       </SectionCard>
       {portfolio ? (
-        <SectionCard title="组合表现">
+        <SectionCard title="今日组合">
           <div className="today-portfolio-total">
             <span>总市值</span>
             <strong>{formatMoney(portfolio.total_value)}</strong>
@@ -75,18 +68,8 @@ function TodayDashboard() {
           </div>
         </SectionCard>
       ) : null}
-      <div className="metric-grid">
-        <Metric label="重要资讯" value={(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.total ?? 0} />
-        <Metric label="未读预警" value={(alerts as Awaited<ReturnType<typeof mobileApi.alerts>> | undefined)?.items.filter((item) => item.status === "unread").length ?? 0} />
-      </div>
-      <SectionCard title="重要资讯">
-        {(news as Awaited<ReturnType<typeof mobileApi.news>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.title} meta={`${item.source_name} · ${formatDateTime(item.publish_time)}`} onClick={() => navigate(`/news/${item.id}`)} />)}
-      </SectionCard>
       <SectionCard title="最新报告" action={<button className="text-button" onClick={() => navigate("/reports")}>全部</button>}>
-        {(reports as Awaited<ReturnType<typeof mobileApi.reports>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
-      </SectionCard>
-      <SectionCard title="最近笔记">
-        {(notes as Awaited<ReturnType<typeof mobileApi.notes>> | undefined)?.items.map((item) => <ListRow key={item.id} title={item.content} meta={formatDateTime(item.updated_at ?? item.created_at)} onClick={() => navigate(`/notes/${item.id}`)} />)}
+        {reports.data?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
       </SectionCard>
     </div>
   );
@@ -118,20 +101,17 @@ function StockDashboard() {
 function PortfolioDashboard() {
   const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const overview = useQuery({ queryKey: ["portfolio-overview", portfolioId], queryFn: () => mobileApi.portfolioOverview(portfolioId), staleTime: 300_000 });
-  const snapshots = useQuery({ queryKey: ["portfolio-snapshots", portfolioId], queryFn: () => mobileApi.portfolioSnapshots(portfolioId), staleTime: 300_000 });
-  if (overview.isLoading || snapshots.isLoading) return <LoadingState />;
-  if (overview.isError || snapshots.isError) return <ErrorState onRetry={() => { void overview.refetch(); void snapshots.refetch(); }} />;
+  if (overview.isLoading) return <LoadingState />;
+  if (overview.isError) return <ErrorState onRetry={() => void overview.refetch()} />;
   const summary = overview.data?.summary;
   const pieItems = overview.data?.pie_items ?? [];
   return (
     <div className="page-stack portfolio-dashboard-mobile">
-      <SectionCard>
-        <label className="portfolio-selector">组合范围
-          <select value={portfolioId ?? ""} onChange={(event) => setPortfolioId(event.target.value ? Number(event.target.value) : null)}>
-            <option value="">所有组合</option>
-            {overview.data?.portfolio_options?.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-          </select>
-        </label>
+      <SectionCard title="组合选择">
+        <div className="portfolio-segments" role="group" aria-label="组合选择">
+          <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>所有组合</button>
+          {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
+        </div>
       </SectionCard>
       <div className="metric-grid">
         <Metric label="总市值" value={formatMoney(summary?.total_value)} />
@@ -146,19 +126,15 @@ function PortfolioDashboard() {
         </div>
       </SectionCard>
       {pieItems.length ? (
-        <SectionCard title="标的市值占比">
-          <Suspense fallback={<LoadingState />}>
-            <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
-          </Suspense>
+        <SectionCard title="标的市值占比" action={<button type="button" className={`portfolio-refresh${overview.isFetching ? " is-refreshing" : ""}`} aria-label="刷新标的市值占比" disabled={overview.isFetching} onClick={() => void overview.refetch()}><RefreshCw size={16} /></button>}>
+          <div className="portfolio-allocation">
+            <Suspense fallback={<LoadingState />}>
+              <DonutChart items={pieItems.map((item, index) => ({ name: item.label, value: item.market_value, color: portfolioColors[index % portfolioColors.length] }))} />
+            </Suspense>
+            <div className="portfolio-allocation-list">{pieItems.map((item, index) => <div className="portfolio-allocation-item" key={`${item.label}-${index}`}><i style={{ background: portfolioColors[index % portfolioColors.length] }} /><span>{item.label}</span><b className={(item.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(item.day_pct, "%")}</b></div>)}</div>
+          </div>
         </SectionCard>
       ) : <EmptyState title="暂无持仓标的数据" />}
-      {snapshots.data?.length ? (
-        <SectionCard title="组合市值曲线">
-          <Suspense fallback={<LoadingState />}>
-            <MiniChart labels={snapshots.data.map((item) => item.snapshot_date)} values={snapshots.data.map((item) => item.total_value)} />
-          </Suspense>
-        </SectionCard>
-      ) : <EmptyState title="暂无市值快照" detail="每日快照生成后将在这里显示" />}
     </div>
   );
 }
