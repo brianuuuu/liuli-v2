@@ -160,6 +160,48 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 
+  it("shows a note group before its tags on the note card", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const payload = url.includes("note-groups")
+        ? [{ id: 3, name: "投资复盘", sort_order: 0, status: "active" }]
+        : { items: [{ id: 9, content: "关注产业链变化", status: "active", group: { id: 3, name: "投资复盘", sort_order: 0, status: "active" }, tags: [{ id: 5, name: "半导体" }] }], total: 1, limit: 30, offset: 0, has_more: false };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+
+    renderApp();
+
+    const group = await screen.findByText("投资复盘", { selector: ".note-card-group" });
+    const tag = screen.getByText("#半导体");
+    expect(group.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("edits and submits a note's tags", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes/9";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("note-groups")) return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      const note = { id: 9, content: "关注产业链变化", status: "active", tags_text: "半导体", tags: [{ id: 5, name: "半导体" }] };
+      return new Response(JSON.stringify(note), { status: init?.method === "PUT" ? 200 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    const tagsInput = await screen.findByPlaceholderText("标签，用逗号分隔");
+    expect(tagsInput).toHaveValue("半导体");
+    fireEvent.change(tagsInput, { target: { value: "半导体, AI 算力" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => {
+      const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+      expect(putCall).toBeDefined();
+      expect(JSON.parse(String(putCall?.[1]?.body))).toMatchObject({ tags: "半导体, AI 算力" });
+    });
+  });
+
   it("continues alert pagination when the selected status is absent from the first page", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
