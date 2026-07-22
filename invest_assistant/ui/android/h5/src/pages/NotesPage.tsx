@@ -6,6 +6,7 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
+import { TagPicker } from "../components/TagPicker";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
 
@@ -14,15 +15,16 @@ export function NotesPage() {
   const [groupId, setGroupId] = useState("all");
   const [composer, setComposer] = useState(false);
   const [content, setContent] = useState("");
-  const [tags, setTags] = useState("");
+  const [tagIds, setTagIds] = useState<number[]>([]);
   const [manageGroups, setManageGroups] = useState(false);
   const [composerViewport, setComposerViewport] = useState<{ height: number; offsetTop: number } | null>(null);
   const pager = useRef<HorizontalTabPagerHandle<string>>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
+  const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
   const groupItems = useMemo(() => [{ key: "all", label: "全部" }, ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))], [groups.data]);
   const create = useMutation({
-    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: groupId === "all" ? null : Number(groupId), tags: tags.trim() || null }),
-    onSuccess: async () => { setContent(""); setTags(""); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
+    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: groupId === "all" ? null : Number(groupId), tag_ids: tagIds }),
+    onSuccess: async () => { setContent(""); setTagIds([]); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
   });
   useEffect(() => {
     if (!composer || !window.visualViewport) return;
@@ -42,7 +44,7 @@ export function NotesPage() {
     <MobilePageFrame navigation={<SecondaryNavigation items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑分组", onClick: () => setManageGroups(true) }} />}>
       <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} renderPage={(key) => <NotesGroupContent groupId={key} />} />
       <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
-      {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，用逗号分隔" /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
+      {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><TagPicker tags={availableTags.data ?? []} value={tagIds} onChange={setTagIds} /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
       {manageGroups ? <GroupManager groups={groups.data ?? []} onClose={() => setManageGroups(false)} /> : null}
     </MobilePageFrame>
   );
