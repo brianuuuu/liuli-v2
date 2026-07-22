@@ -7,7 +7,7 @@ export type PageDto<T> = {
 };
 
 export type UserMe = { id: number; username: string; display_name?: string | null };
-export type Tag = { id: number; name: string };
+export type Tag = { id: number; name: string; status?: string };
 export type SourceItem = {
   id: number;
   source_type: string;

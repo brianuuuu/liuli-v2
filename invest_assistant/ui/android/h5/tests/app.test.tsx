@@ -178,27 +178,35 @@ describe("mobile H5 app", () => {
     expect(group.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("edits and submits a note's tags", async () => {
+  it("searches existing tags and submits persistent tag relations for a note", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes/9";
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("note-groups")) return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      if (url.includes("market-radar/tags")) return new Response(JSON.stringify([
+        { id: 5, name: "半导体", status: "active" },
+        { id: 8, name: "AI 算力", status: "active" },
+        { id: 13, name: "已停用", status: "disabled" }
+      ]), { status: 200, headers: { "Content-Type": "application/json" } });
       const note = { id: 9, content: "关注产业链变化", status: "active", tags_text: "半导体", tags: [{ id: 5, name: "半导体" }] };
       return new Response(JSON.stringify(note), { status: init?.method === "PUT" ? 200 : 200, headers: { "Content-Type": "application/json" } });
     });
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    const tagsInput = await screen.findByPlaceholderText("标签，用逗号分隔");
-    expect(tagsInput).toHaveValue("半导体");
-    fireEvent.change(tagsInput, { target: { value: "半导体, AI 算力" } });
+    expect(await screen.findByRole("button", { name: /#半导体/ })).toBeInTheDocument();
+    const tagsInput = screen.getByPlaceholderText("搜索并选择关联标签");
+    fireEvent.change(tagsInput, { target: { value: "算力" } });
+    expect(await screen.findByRole("option", { name: "#AI 算力" })).toBeInTheDocument();
+    expect(screen.queryByText("#已停用")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "#AI 算力" }));
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
 
     await waitFor(() => {
       const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
       expect(putCall).toBeDefined();
-      expect(JSON.parse(String(putCall?.[1]?.body))).toMatchObject({ tags: "半导体, AI 算力" });
+      expect(JSON.parse(String(putCall?.[1]?.body))).toMatchObject({ tags: null, tag_ids: [5, 8] });
     });
   });
 

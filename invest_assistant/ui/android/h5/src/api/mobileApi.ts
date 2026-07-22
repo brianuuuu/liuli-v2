@@ -16,6 +16,7 @@ import type {
   SourceItem,
   StockDashboard,
   StockOption,
+  Tag,
   TagHeat,
   TrackDashboard,
   TrackOption,
@@ -26,7 +27,7 @@ import type {
 export type NoteWrite = {
   content: string;
   group_id?: number | null;
-  tags?: string | null;
+  tag_ids?: number[];
   status?: string;
 };
 
@@ -52,6 +53,7 @@ export const mobileApi = {
     apiClient.get<PageDto<SourceItem>>("/api/market-radar/source-items", query, signal),
   newsDetail: (id: number) => apiClient.get<SourceItem>(`/api/market-radar/source-items/${id}`),
   noteGroups: () => apiClient.get<NoteGroup[]>("/api/knowledge/note-groups"),
+  tags: () => apiClient.get<Tag[]>("/api/market-radar/tags"),
   notes: (query: Record<string, string | number | undefined>) =>
     apiClient.get<PageDto<KnowledgeNote>>("/api/knowledge/notes", query),
   noteDetail: (id: number) => apiClient.get<KnowledgeNote>(`/api/knowledge/notes/${id}`),
@@ -61,8 +63,8 @@ export const mobileApi = {
       content: write.content,
       note_type: "",
       group_id: write.group_id ?? null,
-      tags: write.tags ?? null,
-      tag_ids: [],
+      tags: null,
+      tag_ids: write.tag_ids ?? [],
       status: write.status ?? "active"
     }),
   updateNote: (id: number, write: NoteWrite) =>
@@ -71,8 +73,8 @@ export const mobileApi = {
       content: write.content,
       note_type: "",
       group_id: write.group_id ?? null,
-      tags: write.tags ?? null,
-      tag_ids: [],
+      tags: null,
+      tag_ids: write.tag_ids ?? [],
       status: write.status ?? "active"
     }),
   archiveNote: (id: number) => apiClient.post<KnowledgeNote>(`/api/knowledge/notes/${id}/archive`),
