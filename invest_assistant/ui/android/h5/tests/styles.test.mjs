@@ -14,9 +14,10 @@ describe("mobile card elevation", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.note-card\s*\{[^}]*padding:\s*12px 14px;/s);
-    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*line-height:\s*1\.55;/s);
+    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*font-weight:\s*620;[^}]*line-height:\s*1\.55;/s);
     expect(styles).toMatch(/\.note-card footer\s*\{[^}]*margin-top:\s*7px;/s);
     expect(styles).toMatch(/\.note-card footer \.note-card-group\s*\{/);
+    expect(styles).toMatch(/\.note-card footer \.note-card-tag\s*\{[^}]*background:\s*transparent;/s);
   });
 
   it("allows the composer to scroll inside the visual viewport", () => {

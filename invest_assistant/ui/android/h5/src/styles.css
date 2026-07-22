@@ -274,9 +274,10 @@ a { color: var(--blue); text-decoration: none; }
 .note-list { display: grid; min-width: 0; max-width: 100%; gap: 8px; }
 .note-card { min-width: 0; max-width: 100%; overflow: hidden; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
 .note-card header { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-.note-card p { min-width: 0; max-width: 100%; margin: 6px 0 0; font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
+.note-card p { min-width: 0; max-width: 100%; margin: 6px 0 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
 .note-card footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .note-card footer span, .tag-row span { max-width: 100%; padding: 2px 6px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
+.note-card footer .note-card-tag { padding-inline: 0; background: transparent; }
 .note-card footer .note-card-group { padding-inline: 0; background: transparent; color: var(--muted); font-weight: 600; }
 .floating-button { position: fixed; z-index: 15; right: 22px; bottom: 22px; display: grid; width: 52px; height: 52px; place-items: center; border-radius: 16px; background: var(--blue); color: #fff; box-shadow: 0 8px 22px rgba(37, 99, 235, .28); }
 .sheet-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .48); }
