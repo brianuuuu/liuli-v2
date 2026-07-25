@@ -184,11 +184,13 @@ function HorizontalTabPagerInner<T extends string>(
   useEffect(() => {
     const surface = pagerRef.current?.parentElement;
     if (!surface) return;
+    surface.classList.add("horizontal-tab-pager-surface");
     surface.addEventListener("touchstart", onTouchStart);
     surface.addEventListener("touchmove", onTouchMove, { passive: false });
     surface.addEventListener("touchend", onTouchEnd);
     surface.addEventListener("touchcancel", onTouchCancel);
     return () => {
+      surface.classList.remove("horizontal-tab-pager-surface");
       surface.removeEventListener("touchstart", onTouchStart);
       surface.removeEventListener("touchmove", onTouchMove);
       surface.removeEventListener("touchend", onTouchEnd);

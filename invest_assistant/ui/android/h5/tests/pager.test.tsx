@@ -69,6 +69,25 @@ describe("horizontal tab pager", () => {
     expect(onChange).toHaveBeenCalledWith("track");
   });
 
+  it("marks the surrounding content surface for horizontal gesture handling and cleans it up", () => {
+    const { unmount } = render(
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={vi.fn()}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
+    );
+
+    const surface = screen.getByTestId("content-surface");
+    expect(surface).toHaveClass("horizontal-tab-pager-surface");
+
+    unmount();
+    expect(surface).not.toHaveClass("horizontal-tab-pager-surface");
+  });
+
   it("routes navigation clicks through the same settling transition", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
