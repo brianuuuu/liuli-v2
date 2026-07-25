@@ -17,9 +17,22 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.note-card\s*\{[^}]*padding:\s*12px 14px;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
     expect(styles).toMatch(/\.note-card \+ \.note-card\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
     expect(styles).toMatch(/\.note-card-meta\s*\{[^}]*display:\s*flex;[^}]*gap:\s*8px;/s);
-    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*font-weight:\s*620;[^}]*line-height:\s*1\.55;/s);
-    expect(styles).toMatch(/\.note-card footer\s*\{[^}]*margin-top:\s*7px;/s);
+    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.62;/s);
+    expect(styles).toMatch(/\.note-card footer\s*\{[^}]*margin-top:\s*8px;/s);
     expect(styles).toMatch(/\.note-card footer \.note-card-tag\s*\{[^}]*background:\s*transparent;/s);
+  });
+
+  it("keeps the note editor usable when the visual viewport shrinks", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.note-editor textarea\s*\{[^}]*min-height:\s*max\(280px,\s*62dvh\);/s);
+  });
+
+  it("stretches pager pages across the remaining viewport swipe area", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.horizontal-tab-pager\s*\{[^}]*min-height:\s*calc\(100dvh - 76px\);/s);
+    expect(styles).toMatch(/\.horizontal-tab-pager__page\s*\{[^}]*min-height:\s*calc\(100dvh - 76px\);/s);
   });
 
   it("allows the composer to scroll inside the visual viewport", () => {
