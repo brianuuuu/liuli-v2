@@ -187,6 +187,17 @@ function HorizontalTabPagerInner<T extends string>(
   }, []);
 
   useEffect(() => {
+    const onNativeSwipe = (event: Event) => {
+      const direction = (event as CustomEvent<{ direction?: string }>).detail?.direction;
+      if (direction === "next") settleToIndex(activeIndex + 1);
+      if (direction === "previous") settleToIndex(activeIndex - 1);
+    };
+    window.addEventListener("liuli:native-swipe", onNativeSwipe);
+    return () => window.removeEventListener("liuli:native-swipe", onNativeSwipe);
+  }, [activeIndex, settleToIndex]);
+
+  useEffect(() => {
+    if (window.LiuliNative) return;
     const surface = pagerRef.current?.parentElement;
     if (!surface) return;
     surface.classList.add("horizontal-tab-pager-surface");

@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.MotionEvent
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -63,6 +64,7 @@ import com.liuli.app.core.common.AppPreferences
 import com.liuli.app.core.design.LiuliTheme
 import com.liuli.app.core.design.ThemeMode
 import com.liuli.app.hybrid.HybridSection
+import com.liuli.app.hybrid.HorizontalSwipeDetector
 import com.liuli.app.hybrid.mobileAppUrl
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -205,6 +207,9 @@ private fun HybridApp(
                         AndroidView(
                             factory = { context ->
                                 WebView(context).apply {
+                                val horizontalSwipeDetector = HorizontalSwipeDetector(
+                                    thresholdPx = 60f * resources.displayMetrics.density,
+                                )
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.allowFileAccess = false
@@ -212,6 +217,19 @@ private fun HybridApp(
                                 settings.setSupportZoom(false)
                                 isVerticalScrollBarEnabled = false
                                 overScrollMode = WebView.OVER_SCROLL_NEVER
+                                setOnTouchListener { _, event ->
+                                    when (event.actionMasked) {
+                                        MotionEvent.ACTION_DOWN -> horizontalSwipeDetector.start(event.x, event.y)
+                                        MotionEvent.ACTION_UP -> horizontalSwipeDetector.finish(event.x, event.y)?.let { direction ->
+                                            evaluateJavascript(
+                                                "window.dispatchEvent(new CustomEvent('liuli:native-swipe',{detail:{direction:'${direction.wireValue}'}}))",
+                                                null,
+                                            )
+                                        }
+                                        MotionEvent.ACTION_CANCEL -> horizontalSwipeDetector.cancel()
+                                    }
+                                    false
+                                }
                                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                 addJavascriptInterface(
                                     LiuliJavascriptBridge(

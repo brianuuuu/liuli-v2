@@ -15,6 +15,7 @@ const items = [
 
 describe("horizontal tab pager", () => {
   afterEach(() => {
+    delete window.LiuliNative;
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -110,6 +111,43 @@ describe("horizontal tab pager", () => {
     vi.advanceTimersByTime(220);
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("uses native swipe events without intercepting WebView touch scrolling", () => {
+    vi.useFakeTimers();
+    window.LiuliNative = {};
+    const onChange = vi.fn();
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => <div>{key}</div>}
+      />
+    );
+
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    fireEvent.touchStart(pager, { touches: [{ clientX: 300, clientY: 500 }] });
+    const verticalMove = new TouchEvent("touchmove", {
+      bubbles: true,
+      cancelable: true,
+      touches: [{ clientX: 290, clientY: 300 } as Touch]
+    });
+    pager.dispatchEvent(verticalMove);
+
+    expect(verticalMove.defaultPrevented).toBe(false);
+    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
+        detail: { direction: "next" }
+      }));
+    });
+    expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
+    act(() => vi.advanceTimersByTime(220));
+
+    expect(onChange).toHaveBeenCalledWith("track");
   });
 
   it("routes navigation clicks through the same settling transition", () => {
