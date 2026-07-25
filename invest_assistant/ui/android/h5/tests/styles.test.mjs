@@ -10,13 +10,15 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.floating-button\s*\{[^}]*box-shadow:\s*(?!none)[^;}]+;/s);
   });
 
-  it("keeps note cards compact and distinguishes their group metadata", () => {
+  it("renders notes as a continuous divided list on the page background", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.note-card\s*\{[^}]*padding:\s*12px 14px;/s);
+    expect(styles).toMatch(/\.note-list\s*\{[^}]*gap:\s*0;[^}]*background:\s*transparent;/s);
+    expect(styles).toMatch(/\.note-card\s*\{[^}]*padding:\s*12px 14px;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+    expect(styles).toMatch(/\.note-card \+ \.note-card\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.note-card-meta\s*\{[^}]*display:\s*flex;[^}]*gap:\s*8px;/s);
     expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*font-weight:\s*620;[^}]*line-height:\s*1\.55;/s);
     expect(styles).toMatch(/\.note-card footer\s*\{[^}]*margin-top:\s*7px;/s);
-    expect(styles).toMatch(/\.note-card footer \.note-card-group\s*\{/);
     expect(styles).toMatch(/\.note-card footer \.note-card-tag\s*\{[^}]*background:\s*transparent;/s);
   });
 

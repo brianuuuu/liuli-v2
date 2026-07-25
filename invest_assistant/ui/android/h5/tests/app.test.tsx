@@ -160,22 +160,61 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 
-  it("shows a note group before its tags on the note card", async () => {
+  it("orders note metadata as date, group, body, and tags", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       const payload = url.includes("note-groups")
         ? [{ id: 3, name: "投资复盘", sort_order: 0, status: "active" }]
-        : { items: [{ id: 9, content: "关注产业链变化", status: "active", group: { id: 3, name: "投资复盘", sort_order: 0, status: "active" }, tags: [{ id: 5, name: "半导体" }] }], total: 1, limit: 30, offset: 0, has_more: false };
+        : url.includes("market-radar/tags")
+          ? []
+          : {
+              items: [
+                {
+                  id: 9,
+                  content: "关注产业链变化",
+                  status: "active",
+                  updated_at: "2026-07-25T09:30:00",
+                  group: { id: 3, name: "投资复盘", sort_order: 0, status: "active" },
+                  tags: [{ id: 5, name: "半导体" }]
+                },
+                {
+                  id: 10,
+                  content: "无分组随手记",
+                  status: "active",
+                  updated_at: "2026-07-25T10:00:00",
+                  group: null,
+                  tags: []
+                }
+              ],
+              total: 2,
+              limit: 30,
+              offset: 0,
+              has_more: false
+            };
       return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
     }));
 
     renderApp();
 
     const group = await screen.findByText("投资复盘", { selector: ".note-card-group" });
+    const body = screen.getByText("关注产业链变化");
     const tag = screen.getByText("#半导体");
-    expect(group.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const card = group.closest(".note-card");
+    const date = card?.querySelector("time");
+    expect(date).not.toBeNull();
+    if (!date) throw new Error("Expected note date metadata");
+    expect(date.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(body.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group.closest("header")).toBe(card?.querySelector("header"));
+    expect(tag.closest("footer")).toBe(card?.querySelector("footer"));
+
+    const ungroupedBody = screen.getByText("无分组随手记");
+    const ungroupedCard = ungroupedBody.closest(".note-card");
+    expect(ungroupedCard?.querySelector(".note-card-group")).toBeNull();
+    expect(ungroupedCard?.querySelector("footer")).toBeNull();
   });
 
   it("searches existing tags and submits persistent tag relations for a note", async () => {
