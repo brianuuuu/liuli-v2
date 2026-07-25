@@ -1,33 +1,67 @@
 package com.liuli.app.hybrid
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class HorizontalSwipeDetectorTest {
     @Test
-    fun `recognizes only dominant horizontal swipes beyond the threshold`() {
-        val detector = HorizontalSwipeDetector(thresholdPx = 60f)
+    fun `a slow drag beyond one quarter of the viewport changes page`() {
+        val detector = HorizontalSwipeDetector()
 
-        detector.start(300f, 400f)
-        assertEquals(SwipeDirection.Next, detector.finish(190f, 408f))
+        detector.start(x = 300f, y = 400f)
 
-        detector.start(100f, 400f)
-        assertEquals(SwipeDirection.Previous, detector.finish(210f, 392f))
-
-        detector.start(300f, 400f)
-        assertNull(detector.finish(250f, 402f))
-
-        detector.start(300f, 400f)
-        assertNull(detector.finish(220f, 300f))
+        assertEquals(
+            SwipeOutcome.Next,
+            detector.finish(
+                x = 190f,
+                y = 408f,
+                viewportWidthPx = 400f,
+                density = 1f,
+                velocityXPxPerSecond = -100f,
+            ),
+        )
     }
 
     @Test
-    fun `a vertical gesture stays unhandled`() {
-        val detector = HorizontalSwipeDetector(thresholdPx = 60f)
+    fun `a fast short fling changes page in either direction`() {
+        val detector = HorizontalSwipeDetector()
 
-        detector.start(200f, 600f)
+        detector.start(x = 300f, y = 400f)
+        assertEquals(
+            SwipeOutcome.Next,
+            detector.finish(270f, 404f, viewportWidthPx = 400f, density = 1f, velocityXPxPerSecond = -750f),
+        )
 
-        assertNull(detector.finish(190f, 350f))
+        detector.start(x = 100f, y = 400f)
+        assertEquals(
+            SwipeOutcome.Previous,
+            detector.finish(130f, 396f, viewportWidthPx = 400f, density = 1f, velocityXPxPerSecond = 750f),
+        )
+    }
+
+    @Test
+    fun `short slow vertical diagonal and cancelled gestures return cancel`() {
+        val detector = HorizontalSwipeDetector()
+
+        detector.start(x = 300f, y = 400f)
+        assertEquals(
+            SwipeOutcome.Cancel,
+            detector.finish(270f, 402f, viewportWidthPx = 400f, density = 1f, velocityXPxPerSecond = -60f),
+        )
+
+        detector.start(x = 200f, y = 600f)
+        assertEquals(
+            SwipeOutcome.Cancel,
+            detector.finish(190f, 350f, viewportWidthPx = 400f, density = 1f, velocityXPxPerSecond = -900f),
+        )
+
+        detector.start(x = 300f, y = 400f)
+        assertEquals(
+            SwipeOutcome.Cancel,
+            detector.finish(220f, 300f, viewportWidthPx = 400f, density = 1f, velocityXPxPerSecond = -900f),
+        )
+
+        detector.start(x = 300f, y = 400f)
+        assertEquals(SwipeOutcome.Cancel, detector.cancel())
     }
 }

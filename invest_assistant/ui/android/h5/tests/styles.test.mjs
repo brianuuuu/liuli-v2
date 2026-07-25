@@ -34,6 +34,13 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.mobile-page-frame__content\s*\{[^}]*min-height:\s*calc\(100vh - 36px\);[^}]*min-height:\s*calc\(100dvh - 36px\);/s);
   });
 
+  it("keeps every secondary menu fixed above short and long content", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.mobile-page-frame\s*\{[^}]*padding-top:\s*36px;/s);
+    expect(styles).toMatch(/\.mobile-page-frame__top\s*\{[^}]*position:\s*fixed;[^}]*top:\s*0;[^}]*right:\s*0;[^}]*left:\s*0;/s);
+  });
+
   it("lets pager pages claim horizontal gestures that start on their surrounding surface", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

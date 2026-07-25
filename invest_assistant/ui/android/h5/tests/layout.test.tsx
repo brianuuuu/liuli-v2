@@ -47,4 +47,43 @@ describe("secondary navigation", () => {
     expect(onEditGroups).toHaveBeenCalledOnce();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("interpolates one blue indicator between adjacent tabs during a pager drag", () => {
+    const items = [
+      { key: "all", label: "全部" },
+      { key: "work", label: "工作" }
+    ] as const;
+    const { rerender } = render(
+      <SecondaryNavigation
+        items={items}
+        activeKey="all"
+        onChange={vi.fn()}
+      />
+    );
+
+    const [allTab, workTab] = screen.getAllByRole("tab");
+    Object.defineProperties(allTab, {
+      offsetLeft: { configurable: true, value: 0 },
+      offsetWidth: { configurable: true, value: 100 }
+    });
+    Object.defineProperties(workTab, {
+      offsetLeft: { configurable: true, value: 100 },
+      offsetWidth: { configurable: true, value: 140 }
+    });
+
+    rerender(
+      <SecondaryNavigation
+        items={items}
+        activeKey="all"
+        motion={{ fromIndex: 0, toIndex: 1, progress: 0.5 }}
+        onChange={vi.fn()}
+      />
+    );
+
+    const indicator = screen.getByTestId("secondary-navigation-indicator");
+    expect(indicator).toHaveStyle({
+      transform: "translate3d(81.2px, 0, 0)",
+      width: "57.6px"
+    });
+  });
 });

@@ -16,6 +16,7 @@ const items = [
 describe("horizontal tab pager", () => {
   afterEach(() => {
     delete window.LiuliNative;
+    Reflect.deleteProperty(document, "elementFromPoint");
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -117,37 +118,159 @@ describe("horizontal tab pager", () => {
     vi.useFakeTimers();
     window.LiuliNative = {};
     const onChange = vi.fn();
+    const onMotionChange = vi.fn();
     render(
-      <HorizontalTabPager
-        items={items}
-        activeKey="market"
-        onChange={onChange}
-        renderPage={(key) => <div>{key}</div>}
-      />
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          onMotionChange={onMotionChange}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
     );
 
+    const surface = screen.getByTestId("content-surface");
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    fireEvent.touchStart(pager, { touches: [{ clientX: 300, clientY: 500 }] });
-    const verticalMove = new TouchEvent("touchmove", {
-      bubbles: true,
-      cancelable: true,
-      touches: [{ clientX: 290, clientY: 300 } as Touch]
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      right: 360,
+      bottom: 760,
+      left: 0,
+      width: 360,
+      height: 720,
+      x: 0,
+      y: 40,
+      toJSON: () => undefined
     });
-    pager.dispatchEvent(verticalMove);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => pager)
+    });
 
-    expect(verticalMove.defaultPrevented).toBe(false);
-    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
+    let horizontalMovePrevented: boolean | null = null;
+    document.body.addEventListener("touchmove", (event) => {
+      horizontalMovePrevented = event.defaultPrevented;
+    }, { once: true });
+    fireEvent.touchMove(document.body, { touches: [{ clientX: 180, clientY: 508 }] });
+
+    expect(horizontalMovePrevented).toBe(false);
+    expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
+    expect(onMotionChange).toHaveBeenLastCalledWith({
+      fromIndex: 1,
+      toIndex: 2,
+      progress: 120 / 312
+    });
 
     act(() => {
       window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
-        detail: { direction: "next" }
+        detail: { outcome: "next" }
       }));
     });
     expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
-    act(() => vi.advanceTimersByTime(220));
+    expect(pager.style.getPropertyValue("--pager-settle-duration")).toBe("135ms");
+    act(() => vi.advanceTimersByTime(135));
 
     expect(onChange).toHaveBeenCalledWith("track");
+  });
+
+  it("springs a native drag back when the shell cancels it", () => {
+    vi.useFakeTimers();
+    window.LiuliNative = {};
+    render(
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={vi.fn()}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
+    );
+
+    const surface = screen.getByTestId("content-surface");
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      right: 360,
+      bottom: 760,
+      left: 0,
+      width: 360,
+      height: 720,
+      x: 0,
+      y: 40,
+      toJSON: () => undefined
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => pager)
+    });
+
+    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
+    fireEvent.touchMove(document.body, { touches: [{ clientX: 220, clientY: 506 }] });
+    expect(pager).toHaveStyle({ "--pager-drag-x": "-80px" });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
+        detail: { outcome: "cancel" }
+      }));
+    });
+
+    expect(pager).toHaveClass("is-settling");
+    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    expect(pager.style.getPropertyValue("--pager-settle-duration")).toBe("120ms");
+  });
+
+  it("ignores a native swipe that starts on an action button", () => {
+    vi.useFakeTimers();
+    window.LiuliNative = {};
+    const onChange = vi.fn();
+    render(
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          renderPage={(key) => <button type="button">{key}</button>}
+        />
+      </div>
+    );
+
+    const surface = screen.getByTestId("content-surface");
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    const action = screen.getByRole("button", { name: "market" });
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      right: 360,
+      bottom: 760,
+      left: 0,
+      width: 360,
+      height: 720,
+      x: 0,
+      y: 40,
+      toJSON: () => undefined
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => action)
+    });
+
+    fireEvent.touchStart(action, { touches: [{ clientX: 300, clientY: 500 }] });
+    fireEvent.touchMove(action, { touches: [{ clientX: 160, clientY: 506 }] });
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
+        detail: { outcome: "next" }
+      }));
+      vi.advanceTimersByTime(220);
+    });
+
+    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("routes navigation clicks through the same settling transition", () => {
