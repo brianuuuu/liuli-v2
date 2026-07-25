@@ -121,7 +121,9 @@ function HorizontalTabPagerInner<T extends string>(
 
   const onTouchStart = useCallback((event: TouchEvent) => {
     const pager = pagerRef.current;
-    if (!pager) return;
+    const surface = pager?.parentElement;
+    const target = event.target;
+    if (!pager || !surface || (target !== surface && (!(target instanceof Node) || !pager.contains(target)))) return;
     if (transitionLocked.current || settling || shouldIgnoreSwipeTarget(event.target)) return;
     const touch = event.touches[0];
     if (!touch) return;

@@ -55,16 +55,15 @@ describe("horizontal tab pager", () => {
           onChange={onChange}
           renderPage={(key) => <div>{key}</div>}
         />
-        <div data-testid="blank-content-area" />
       </div>
     );
 
-    const blankArea = screen.getByTestId("blank-content-area");
+    const surface = screen.getByTestId("content-surface");
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    fireEvent.touchStart(blankArea, { touches: [{ clientX: 300, clientY: 600 }] });
-    fireEvent.touchMove(blankArea, { touches: [{ clientX: 180, clientY: 608 }] });
-    fireEvent.touchEnd(blankArea, { changedTouches: [{ clientX: 180, clientY: 608 }] });
+    fireEvent.touchStart(surface, { touches: [{ clientX: 300, clientY: 600 }] });
+    fireEvent.touchMove(surface, { touches: [{ clientX: 180, clientY: 608 }] });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 180, clientY: 608 }] });
     vi.advanceTimersByTime(220);
 
     expect(onChange).toHaveBeenCalledWith("track");
