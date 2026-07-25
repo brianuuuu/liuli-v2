@@ -345,9 +345,9 @@ a { color: var(--blue); text-decoration: none; }
 .suggestion-card__content strong { display: block; min-width: 0; font-size: var(--content-font-size); font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
 .suggestion-card__content > span { display: -webkit-box; overflow: hidden; margin-top: 5px; color: var(--muted); font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .suggestion-list-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: center; margin-top: 2px; }
-.suggestion-list-actions .load-more { height: 42px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.suggestion-list-actions .load-more { height: 42px; border: 1px solid var(--blue); border-radius: 8px; background: var(--panel); }
 .suggestion-list-end { display: flex; height: 42px; align-items: center; justify-content: center; color: var(--subtle); font-size: 11px; }
-.reject-loaded-button { height: 42px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--panel); color: #dc2626; font-size: 12px; }
+.reject-loaded-button { height: 42px; padding: 0 10px; border: 1px solid #dc2626; border-radius: 8px; background: var(--panel); color: #dc2626; font-size: 12px; }
 .reject-loaded-button:disabled { opacity: .6; }
 .batch-feedback { padding: 9px 12px; border-radius: 8px; background: var(--panel-soft); color: var(--muted); font-size: 12px; text-align: center; }
 .suggestion-review-detail { display: grid; gap: 16px; }
