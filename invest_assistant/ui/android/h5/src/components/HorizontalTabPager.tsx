@@ -124,10 +124,19 @@ function HorizontalTabPagerInner<T extends string>(
     const pager = pagerRef.current;
     const surface = pager?.parentElement;
     const target = event.target;
-    if (!pager || !surface || (target !== surface && (!(target instanceof Node) || !pager.contains(target)))) return;
-    if (transitionLocked.current || settling || shouldIgnoreSwipeTarget(event.target)) return;
     const touch = event.touches[0];
-    if (!touch) return;
+    if (!pager || !surface || !touch) return;
+    const startsInPager = target === surface || (target instanceof Node && pager.contains(target));
+    const surfaceRect = surface.getBoundingClientRect();
+    const isWebViewBlankAreaTarget =
+      target instanceof Node &&
+      !surface.contains(target) &&
+      touch.clientX >= surfaceRect.left &&
+      touch.clientX <= surfaceRect.right &&
+      touch.clientY >= surfaceRect.top &&
+      touch.clientY <= surfaceRect.bottom;
+    if (!startsInPager && !isWebViewBlankAreaTarget) return;
+    if (transitionLocked.current || settling || shouldIgnoreSwipeTarget(event.target)) return;
     touchStart.current = { x: touch.clientX, y: touch.clientY };
     axis.current = "pending";
   }, [settling]);
@@ -190,16 +199,18 @@ function HorizontalTabPagerInner<T extends string>(
     const surface = pagerRef.current?.parentElement;
     if (!surface) return;
     surface.classList.add("horizontal-tab-pager-surface");
-    surface.addEventListener("touchstart", onTouchStart);
-    surface.addEventListener("touchmove", onTouchMove, { passive: false });
-    surface.addEventListener("touchend", onTouchEnd);
-    surface.addEventListener("touchcancel", onTouchCancel);
+    document.documentElement.classList.add("horizontal-tab-pager-document");
+    document.addEventListener("touchstart", onTouchStart, true);
+    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+    document.addEventListener("touchend", onTouchEnd, true);
+    document.addEventListener("touchcancel", onTouchCancel, true);
     return () => {
       surface.classList.remove("horizontal-tab-pager-surface");
-      surface.removeEventListener("touchstart", onTouchStart);
-      surface.removeEventListener("touchmove", onTouchMove);
-      surface.removeEventListener("touchend", onTouchEnd);
-      surface.removeEventListener("touchcancel", onTouchCancel);
+      document.documentElement.classList.remove("horizontal-tab-pager-document");
+      document.removeEventListener("touchstart", onTouchStart, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
+      document.removeEventListener("touchend", onTouchEnd, true);
+      document.removeEventListener("touchcancel", onTouchCancel, true);
     };
   }, [onTouchCancel, onTouchEnd, onTouchMove, onTouchStart]);
 
