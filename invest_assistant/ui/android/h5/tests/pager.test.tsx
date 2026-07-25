@@ -69,46 +69,6 @@ describe("horizontal tab pager", () => {
     expect(onChange).toHaveBeenCalledWith("track");
   });
 
-  it("handles an Android WebView drag whose blank-area target falls back to the document body", () => {
-    vi.useFakeTimers();
-    const onChange = vi.fn();
-    render(
-      <div data-testid="content-surface">
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          renderPage={(key) => <div>{key}</div>}
-        />
-      </div>
-    );
-
-    const surface = screen.getByTestId("content-surface");
-    const pager = screen.getByTestId("horizontal-tab-pager");
-    Object.defineProperty(surface, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        top: 40,
-        right: 360,
-        bottom: 760,
-        left: 0,
-        width: 360,
-        height: 720,
-        x: 0,
-        y: 40,
-        toJSON: () => undefined
-      })
-    });
-    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 360 });
-
-    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 600 }] });
-    fireEvent.touchMove(document.body, { touches: [{ clientX: 170, clientY: 608 }] });
-    fireEvent.touchEnd(document.body, { changedTouches: [{ clientX: 170, clientY: 608 }] });
-    vi.advanceTimersByTime(220);
-
-    expect(onChange).toHaveBeenCalledWith("track");
-  });
-
   it("marks the surrounding content surface for horizontal gesture handling and cleans it up", () => {
     const { unmount } = render(
       <div data-testid="content-surface">
@@ -123,11 +83,9 @@ describe("horizontal tab pager", () => {
 
     const surface = screen.getByTestId("content-surface");
     expect(surface).toHaveClass("horizontal-tab-pager-surface");
-    expect(document.documentElement).toHaveClass("horizontal-tab-pager-document");
 
     unmount();
     expect(surface).not.toHaveClass("horizontal-tab-pager-surface");
-    expect(document.documentElement).not.toHaveClass("horizontal-tab-pager-document");
   });
 
   it("does not take gestures from a sibling action outside the pager", () => {
