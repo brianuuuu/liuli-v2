@@ -88,6 +88,30 @@ describe("horizontal tab pager", () => {
     expect(surface).not.toHaveClass("horizontal-tab-pager-surface");
   });
 
+  it("does not take gestures from a sibling action outside the pager", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    render(
+      <div>
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          renderPage={(key) => <div>{key}</div>}
+        />
+        <button type="button" aria-label="新增笔记">+</button>
+      </div>
+    );
+
+    const action = screen.getByRole("button", { name: "新增笔记" });
+    fireEvent.touchStart(action, { touches: [{ clientX: 300, clientY: 600 }] });
+    fireEvent.touchMove(action, { touches: [{ clientX: 180, clientY: 608 }] });
+    fireEvent.touchEnd(action, { changedTouches: [{ clientX: 180, clientY: 608 }] });
+    vi.advanceTimersByTime(220);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("routes navigation clicks through the same settling transition", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
@@ -145,6 +169,27 @@ describe("horizontal tab pager", () => {
     expect(pagerTargetIndex(1, 3, { deltaX: -40, deltaY: 2 })).toBe(1);
     expect(pagerTargetIndex(1, 3, { deltaX: -100, deltaY: 130 })).toBe(1);
     expect(pagerTargetIndex(1, 3, { deltaX: -100, deltaY: 20 })).toBe(2);
+  });
+
+  it("does not lock a near-diagonal upward gesture to the horizontal axis", () => {
+    const onChange = vi.fn();
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => <div>{key}</div>}
+      />
+    );
+
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    fireEvent.touchStart(pager, { touches: [{ clientX: 300, clientY: 300 }] });
+    fireEvent.touchMove(pager, { touches: [{ clientX: 291, clientY: 292 }] });
+    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+
+    fireEvent.touchMove(pager, { touches: [{ clientX: 280, clientY: 260 }] });
+    fireEvent.touchEnd(pager, { changedTouches: [{ clientX: 280, clientY: 260 }] });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("stops at the first and last page", () => {

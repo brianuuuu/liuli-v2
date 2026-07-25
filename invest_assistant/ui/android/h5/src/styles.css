@@ -109,7 +109,8 @@ a { color: var(--blue); text-decoration: none; }
   overflow-y: visible;
   touch-action: pan-y;
 }
-.horizontal-tab-pager-surface { touch-action: pan-y; }
+.horizontal-tab-pager-surface { display: flex; flex-direction: column; touch-action: pan-y; }
+.horizontal-tab-pager-surface > .horizontal-tab-pager { flex: 1 0 auto; }
 .horizontal-tab-pager__page {
   width: 100%;
   min-width: 0;

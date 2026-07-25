@@ -29,6 +29,7 @@ export type HorizontalTabPagerHandle<T extends string> = {
 };
 
 const SWIPE_THRESHOLD = 60;
+const AXIS_DOMINANCE_RATIO = 1.2;
 const SETTLE_DURATION_MS = 220;
 
 function shouldIgnoreSwipeTarget(target: EventTarget | null) {
@@ -46,7 +47,7 @@ export function pagerTargetIndex(
 ) {
   if (
     Math.abs(deltaX) <= SWIPE_THRESHOLD ||
-    Math.abs(deltaX) <= Math.abs(deltaY) * 1.2
+    Math.abs(deltaX) <= Math.abs(deltaY) * AXIS_DOMINANCE_RATIO
   ) {
     return currentIndex;
   }
@@ -138,7 +139,11 @@ function HorizontalTabPagerInner<T extends string>(
     const deltaX = touch.clientX - start.x;
     const deltaY = touch.clientY - start.y;
     if (axis.current === "pending" && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
-      axis.current = Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
+      if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
+        axis.current = "horizontal";
+      } else if (Math.abs(deltaY) > Math.abs(deltaX) * AXIS_DOMINANCE_RATIO) {
+        axis.current = "vertical";
+      }
     }
     if (axis.current !== "horizontal") return;
     event.preventDefault();

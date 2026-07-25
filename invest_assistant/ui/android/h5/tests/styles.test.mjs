@@ -37,7 +37,8 @@ describe("mobile card elevation", () => {
   it("lets pager pages claim horizontal gestures that start on their surrounding surface", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.horizontal-tab-pager-surface\s*\{[^}]*touch-action:\s*pan-y;/s);
+    expect(styles).toMatch(/\.horizontal-tab-pager-surface\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*touch-action:\s*pan-y;/s);
+    expect(styles).toMatch(/\.horizontal-tab-pager-surface > \.horizontal-tab-pager\s*\{[^}]*flex:\s*1 0 auto;/s);
   });
 
   it("keeps the suggestion list actions symmetric with action-colored borders", () => {
