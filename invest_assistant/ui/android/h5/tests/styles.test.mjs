@@ -40,6 +40,13 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.horizontal-tab-pager-surface\s*\{[^}]*touch-action:\s*pan-y;/s);
   });
 
+  it("keeps the suggestion list actions symmetric and the reject action borderless", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.suggestion-list-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/s);
+    expect(styles).toMatch(/\.reject-loaded-button\s*\{[^}]*border:\s*0;/s);
+  });
+
   it("allows the composer to scroll inside the visual viewport", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
