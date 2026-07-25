@@ -9,8 +9,7 @@ import {
   type CSSProperties,
   type ForwardedRef,
   type ReactElement,
-  type ReactNode,
-  type TouchEventHandler
+  type ReactNode
 } from "react";
 
 type TabItem<T extends string> = { key: T; label: string };
@@ -120,15 +119,19 @@ function HorizontalTabPagerInner<T extends string>(
     requestChange: (key: T) => settleToIndex(items.findIndex((item) => item.key === key))
   }), [items, settleToIndex]);
 
-  const onTouchStart: TouchEventHandler<HTMLElement> = (event) => {
+  const onTouchStart = useCallback((event: TouchEvent) => {
+    const pager = pagerRef.current;
+    const surface = pager?.parentElement;
+    const target = event.target;
+    if (!pager || !surface || (target !== surface && (!(target instanceof Node) || !pager.contains(target)))) return;
     if (transitionLocked.current || settling || shouldIgnoreSwipeTarget(event.target)) return;
     const touch = event.touches[0];
     if (!touch) return;
     touchStart.current = { x: touch.clientX, y: touch.clientY };
     axis.current = "pending";
-  };
+  }, [settling]);
 
-  const onTouchMove: TouchEventHandler<HTMLElement> = (event) => {
+  const onTouchMove = useCallback((event: TouchEvent) => {
     const start = touchStart.current;
     const touch = event.touches[0];
     if (!start || !touch || settling) return;
@@ -142,9 +145,9 @@ function HorizontalTabPagerInner<T extends string>(
     const atFirst = activeIndex === 0 && deltaX > 0;
     const atLast = activeIndex === items.length - 1 && deltaX < 0;
     setDragX(atFirst || atLast ? deltaX * 0.2 : deltaX);
-  };
+  }, [activeIndex, items.length, settling]);
 
-  const onTouchEnd: TouchEventHandler<HTMLElement> = (event) => {
+  const onTouchEnd = useCallback((event: TouchEvent) => {
     const start = touchStart.current;
     const touch = event.changedTouches[0];
     touchStart.current = null;
@@ -168,15 +171,30 @@ function HorizontalTabPagerInner<T extends string>(
       return;
     }
     settleToIndex(targetIndex);
-  };
+  }, [activeIndex, items.length, settleToIndex, settling]);
 
-  const onTouchCancel: TouchEventHandler<HTMLElement> = () => {
+  const onTouchCancel = useCallback(() => {
     touchStart.current = null;
     axis.current = "pending";
     setDragX(0);
     setSettling(false);
     transitionLocked.current = false;
-  };
+  }, []);
+
+  useEffect(() => {
+    const surface = pagerRef.current?.parentElement;
+    if (!surface) return;
+    surface.addEventListener("touchstart", onTouchStart);
+    surface.addEventListener("touchmove", onTouchMove, { passive: false });
+    surface.addEventListener("touchend", onTouchEnd);
+    surface.addEventListener("touchcancel", onTouchCancel);
+    return () => {
+      surface.removeEventListener("touchstart", onTouchStart);
+      surface.removeEventListener("touchmove", onTouchMove);
+      surface.removeEventListener("touchend", onTouchEnd);
+      surface.removeEventListener("touchcancel", onTouchCancel);
+    };
+  }, [onTouchCancel, onTouchEnd, onTouchMove, onTouchStart]);
 
   return (
     <div
@@ -184,10 +202,6 @@ function HorizontalTabPagerInner<T extends string>(
       className={`horizontal-tab-pager${settling ? " is-settling" : ""}`}
       data-testid="horizontal-tab-pager"
       style={{ "--pager-drag-x": `${dragX}px` } as PagerStyle}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchCancel}
     >
       {visiblePages.map(({ index, key }) => (
         <section

@@ -44,6 +44,31 @@ describe("horizontal tab pager", () => {
     expect(onChange).toHaveBeenCalledWith("track");
   });
 
+  it("handles a horizontal drag that starts on the surrounding content surface", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    render(
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
+    );
+
+    const surface = screen.getByTestId("content-surface");
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    fireEvent.touchStart(surface, { touches: [{ clientX: 300, clientY: 600 }] });
+    fireEvent.touchMove(surface, { touches: [{ clientX: 180, clientY: 608 }] });
+    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 180, clientY: 608 }] });
+    vi.advanceTimersByTime(220);
+
+    expect(onChange).toHaveBeenCalledWith("track");
+  });
+
   it("routes navigation clicks through the same settling transition", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();

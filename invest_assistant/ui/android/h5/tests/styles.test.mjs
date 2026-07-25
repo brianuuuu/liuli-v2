@@ -25,14 +25,13 @@ describe("mobile card elevation", () => {
   it("keeps the note editor usable when the visual viewport shrinks", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.note-editor textarea\s*\{[^}]*min-height:\s*max\(280px,\s*62dvh\);/s);
+    expect(styles).toMatch(/\.note-editor textarea\s*\{[^}]*min-height:\s*calc\(3 \* 1\.7em \+ 30px\);/s);
   });
 
-  it("stretches pager pages across the remaining viewport swipe area", () => {
+  it("keeps the mobile content surface full-height across WebView viewport implementations", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.horizontal-tab-pager\s*\{[^}]*min-height:\s*calc\(100dvh - 76px\);/s);
-    expect(styles).toMatch(/\.horizontal-tab-pager__page\s*\{[^}]*min-height:\s*calc\(100dvh - 76px\);/s);
+    expect(styles).toMatch(/\.mobile-page-frame__content\s*\{[^}]*min-height:\s*calc\(100vh - 36px\);[^}]*min-height:\s*calc\(100dvh - 36px\);/s);
   });
 
   it("allows the composer to scroll inside the visual viewport", () => {
