@@ -90,6 +90,24 @@ describe("horizontal tab pager", () => {
     expect(surface).not.toHaveClass("horizontal-tab-pager-surface");
   });
 
+  it("marks the root document while a pager is mounted and cleans it up", () => {
+    const { unmount } = render(
+      <div>
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={vi.fn()}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
+    );
+
+    expect(document.documentElement).toHaveClass("horizontal-tab-pager-document");
+
+    unmount();
+    expect(document.documentElement).not.toHaveClass("horizontal-tab-pager-document");
+  });
+
   it("does not take gestures from a sibling action outside the pager", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
@@ -173,6 +191,54 @@ describe("horizontal tab pager", () => {
     expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
     expect(pager.style.getPropertyValue("--pager-settle-duration")).toBe("135ms");
     act(() => vi.advanceTimersByTime(135));
+
+    expect(onChange).toHaveBeenCalledWith("track");
+  });
+
+  it("follows and completes a native swipe from body whitespace outside the measured content surface", () => {
+    vi.useFakeTimers();
+    window.LiuliNative = {};
+    const onChange = vi.fn();
+    render(
+      <div data-testid="content-surface">
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      </div>
+    );
+
+    const surface = screen.getByTestId("content-surface");
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      right: 360,
+      bottom: 180,
+      left: 0,
+      width: 360,
+      height: 140,
+      x: 0,
+      y: 40,
+      toJSON: () => undefined
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => document.body)
+    });
+
+    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
+    fireEvent.touchMove(document.body, { touches: [{ clientX: 180, clientY: 508 }] });
+    expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
+        detail: { outcome: "next" }
+      }));
+      vi.advanceTimersByTime(135);
+    });
 
     expect(onChange).toHaveBeenCalledWith("track");
   });

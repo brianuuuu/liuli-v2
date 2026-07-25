@@ -266,16 +266,8 @@ function HorizontalTabPagerInner<T extends string>(
     nativeGestureEligible.current = false;
     if (transitionLocked.current || settling) return;
     const pager = pagerRef.current;
-    const surface = pager?.parentElement;
     const touch = event.touches[0];
-    if (!pager || !surface || !touch) return;
-    const rect = surface.getBoundingClientRect();
-    if (
-      touch.clientX < rect.left ||
-      touch.clientX > rect.right ||
-      touch.clientY < rect.top ||
-      touch.clientY > rect.bottom
-    ) return;
+    if (!pager || !touch) return;
     const hitTarget = document.elementFromPoint?.(touch.clientX, touch.clientY) ?? event.target;
     if (shouldIgnoreSwipeTarget(hitTarget)) return;
     nativeGestureEligible.current = true;
@@ -335,6 +327,7 @@ function HorizontalTabPagerInner<T extends string>(
   useEffect(() => {
     const surface = pagerRef.current?.parentElement;
     if (!surface) return;
+    document.documentElement.classList.add("horizontal-tab-pager-document");
     surface.classList.add("horizontal-tab-pager-surface");
     const nativeMode = Boolean(window.LiuliNative);
     const touchTarget: EventTarget = nativeMode ? document : surface;
@@ -347,6 +340,7 @@ function HorizontalTabPagerInner<T extends string>(
     touchTarget.addEventListener("touchend", nativeMode ? onNativeTouchEnd as EventListener : onTouchEnd as EventListener, nativeMode);
     touchTarget.addEventListener("touchcancel", nativeMode ? onNativeTouchEnd as EventListener : onTouchCancel as EventListener, nativeMode);
     return () => {
+      document.documentElement.classList.remove("horizontal-tab-pager-document");
       surface.classList.remove("horizontal-tab-pager-surface");
       touchTarget.removeEventListener("touchstart", nativeMode ? onNativeTouchStart as EventListener : onTouchStart as EventListener, nativeMode);
       touchTarget.removeEventListener("touchmove", nativeMode ? onNativeTouchMove as EventListener : onTouchMove as EventListener, nativeMode);
