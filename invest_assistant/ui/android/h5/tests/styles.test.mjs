@@ -48,7 +48,9 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.horizontal-tab-pager-surface > \.horizontal-tab-pager\s*\{[^}]*flex:\s*1 0 auto;/s);
     expect(styles).toMatch(/html\.horizontal-tab-pager-document,\s*html\.horizontal-tab-pager-document body\s*\{[^}]*touch-action:\s*pan-y;/s);
     expect(styles).toMatch(/\.horizontal-tab-pager\s*\{[^}]*contain:\s*layout paint;/s);
-    expect(styles).toMatch(/\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*will-change:\s*transform;/s);
+    expect(styles).toMatch(/\.horizontal-tab-pager\.is-dragging \.horizontal-tab-pager__page,\s*\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*will-change:\s*transform;/s);
+    expect(styles.match(/will-change:\s*transform;/g)).toHaveLength(1);
+    expect(styles).toMatch(/\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*transition:\s*transform var\(--pager-settle-duration\)/s);
   });
 
   it("keeps the suggestion list actions symmetric with action-colored borders", () => {

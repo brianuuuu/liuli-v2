@@ -127,6 +127,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   transform-style: preserve-3d;
   background: var(--bg);
 }
+.horizontal-tab-pager.is-dragging .horizontal-tab-pager__page,
 .horizontal-tab-pager.is-settling .horizontal-tab-pager__page { will-change: transform; }
 .horizontal-tab-pager__page--current {
   position: relative;
@@ -141,7 +142,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .horizontal-tab-pager__page--previous { transform: translate3d(calc(-100% + var(--pager-drag-x)), 0, 0); }
 .horizontal-tab-pager__page--next { transform: translate3d(calc(100% + var(--pager-drag-x)), 0, 0); }
-.horizontal-tab-pager.is-settling .horizontal-tab-pager__page { transition: transform var(--pager-settle-duration) cubic-bezier(.2, .75, .25, 1); }
+.horizontal-tab-pager.is-settling .horizontal-tab-pager__page { transition: transform var(--pager-settle-duration) cubic-bezier(.2, .8, .2, 1); }
 .page-stack { display: grid; gap: 10px; }
 .welcome-card {
   padding: 18px;
