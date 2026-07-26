@@ -3,8 +3,9 @@ import { MoreHorizontal, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
-import { HorizontalTabPager, type HorizontalTabPagerHandle, type PagerMotion } from "../components/HorizontalTabPager";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
+import type { PagerMotionSink } from "../components/pagerMotion";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { TagPicker } from "../components/TagPicker";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
@@ -17,9 +18,9 @@ export function NotesPage() {
   const [content, setContent] = useState("");
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [manageGroups, setManageGroups] = useState(false);
-  const [motion, setMotion] = useState<PagerMotion | null>(null);
   const [composerViewport, setComposerViewport] = useState<{ height: number; offsetTop: number } | null>(null);
   const pager = useRef<HorizontalTabPagerHandle<string>>(null);
+  const navigationMotion = useRef<PagerMotionSink | null>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
   const groupItems = useMemo(() => [{ key: "all", label: "全部" }, ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))], [groups.data]);
@@ -42,8 +43,8 @@ export function NotesPage() {
   }, [composer]);
 
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation items={groupItems} activeKey={groupId} motion={motion} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑分组", onClick: () => setManageGroups(true) }} />}>
-      <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} onMotionChange={setMotion} renderPage={(key) => <NotesGroupContent groupId={key} />} />
+    <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑分组", onClick: () => setManageGroups(true) }} />}>
+      <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => <NotesGroupContent groupId={key} />} />
       <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
       {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><TagPicker tags={availableTags.data ?? []} value={tagIds} onChange={setTagIds} /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
       {manageGroups ? <GroupManager groups={groups.data ?? []} onClose={() => setManageGroups(false)} /> : null}

@@ -11,6 +11,7 @@ import {
   type ReactElement,
   type ReactNode
 } from "react";
+import type { PagerMotion } from "./pagerMotion";
 
 type TabItem<T extends string> = { key: T; label: string };
 type SwipeDistance = { deltaX: number; deltaY: number };
@@ -25,12 +26,6 @@ type Props<T extends string> = {
 
 type PagerStyle = CSSProperties & {
   "--pager-settle-duration": string;
-};
-
-export type PagerMotion = {
-  fromIndex: number;
-  toIndex: number;
-  progress: number;
 };
 
 export type HorizontalTabPagerHandle<T extends string> = {

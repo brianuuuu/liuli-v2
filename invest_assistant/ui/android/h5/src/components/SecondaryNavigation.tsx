@@ -1,5 +1,13 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { PagerMotion } from "./HorizontalTabPager";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  type ForwardedRef,
+  type ReactElement
+} from "react";
+import type { PagerMotion, PagerMotionSink } from "./pagerMotion";
 
 export type SecondaryNavigationItem<T extends string> = {
   key: T;
@@ -10,17 +18,15 @@ type Props<T extends string> = {
   items: readonly SecondaryNavigationItem<T>[];
   activeKey: T;
   onChange: (key: T) => void;
-  motion?: PagerMotion | null;
   endAction?: {
     label: string;
     onClick: () => void;
   };
 };
 
-type IndicatorGeometry = {
+type TabGeometry = {
   left: number;
   width: number;
-  duration: number;
 };
 
 const INDICATOR_INSET_RATIO = 0.26;
@@ -30,29 +36,24 @@ function settleDurationForProgress(progressDistance: number) {
   return Math.round(Math.max(120, Math.min(220, 220 * progressDistance)));
 }
 
-export function SecondaryNavigation<T extends string>({
+function SecondaryNavigationInner<T extends string>({
   items,
   activeKey,
   onChange,
-  motion = null,
   endAction
-}: Props<T>) {
+}: Props<T>, forwardedRef: ForwardedRef<PagerMotionSink>) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const geometries = useRef<Array<TabGeometry | null>>([]);
   const previousMotion = useRef<PagerMotion | null>(null);
-  const [indicator, setIndicator] = useState<IndicatorGeometry>({ left: 0, width: 0, duration: 0 });
 
-  useLayoutEffect(() => {
-    const geometryFor = (index: number) => {
-      const tab = tabRefs.current[index];
-      if (!tab) return null;
-      return {
-        left: tab.offsetLeft + tab.offsetWidth * INDICATOR_INSET_RATIO,
-        width: tab.offsetWidth * INDICATOR_WIDTH_RATIO
-      };
-    };
+  const applyMotion = useCallback((motion: PagerMotion | null) => {
+    const indicator = indicatorRef.current;
+    if (!indicator) return;
     const activeIndex = Math.max(0, items.findIndex((item) => item.key === activeKey));
-    const from = geometryFor(motion?.fromIndex ?? activeIndex);
-    const to = geometryFor(motion?.toIndex ?? activeIndex);
+    const from = geometries.current[motion?.fromIndex ?? activeIndex];
+    const to = geometries.current[motion?.toIndex ?? activeIndex];
     if (!from || !to) return;
 
     const progress = motion?.progress ?? 0;
@@ -73,27 +74,47 @@ export function SecondaryNavigation<T extends string>({
       previous.toIndex === motion.toIndex
         ? previous.progress
         : 0;
-    setIndicator({
-      left: from.left + (to.left - from.left) * progress,
-      width: from.width + (to.width - from.width) * progress,
-      duration: isSettling ? settleDurationForProgress(Math.abs(progress - previousProgress)) : 0
-    });
+    const duration = motion?.duration
+      ?? (isSettling ? settleDurationForProgress(Math.abs(progress - previousProgress)) : 0);
+    indicator.style.width = `${from.width + (to.width - from.width) * progress}px`;
+    indicator.style.transform = `translate3d(${from.left + (to.left - from.left) * progress}px, 0, 0)`;
+    indicator.style.transitionDuration = `${duration}ms`;
     previousMotion.current = motion;
+  }, [activeKey, items]);
 
-    if (!motion) {
-      tabRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-    }
-  }, [activeKey, items, motion]);
+  useImperativeHandle(forwardedRef, () => ({ setMotion: applyMotion }), [applyMotion]);
 
-  const indicatorStyle = {
-    width: `${indicator.width}px`,
-    transform: `translate3d(${indicator.left}px, 0, 0)`,
-    transitionDuration: `${indicator.duration}ms`
-  } as CSSProperties;
+  useLayoutEffect(() => {
+    const measure = () => {
+      geometries.current = tabRefs.current.map((tab) => tab ? {
+        left: tab.offsetLeft + tab.offsetWidth * INDICATOR_INSET_RATIO,
+        width: tab.offsetWidth * INDICATOR_WIDTH_RATIO
+      } : null);
+      applyMotion(previousMotion.current);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (trackRef.current) observer?.observe(trackRef.current);
+    tabRefs.current.forEach((tab) => {
+      if (tab) observer?.observe(tab);
+    });
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [applyMotion, items]);
+
+  useLayoutEffect(() => {
+    const activeIndex = Math.max(0, items.findIndex((item) => item.key === activeKey));
+    previousMotion.current = null;
+    applyMotion(null);
+    tabRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [activeKey, applyMotion, items]);
 
   return (
     <div className="secondary-navigation" data-height="36" role="tablist" aria-label="二级导航">
-      <div className="secondary-navigation__track" data-horizontal-scroll="true">
+      <div ref={trackRef} className="secondary-navigation__track" data-horizontal-scroll="true">
         {items.map((item, index) => (
           <button
             type="button"
@@ -110,9 +131,10 @@ export function SecondaryNavigation<T extends string>({
           </button>
         ))}
         <span
+          ref={indicatorRef}
           className="secondary-navigation__indicator"
           data-testid="secondary-navigation-indicator"
-          style={indicatorStyle}
+          style={{ width: "0px", transform: "translate3d(0px, 0, 0)", transitionDuration: "0ms" }}
         />
       </div>
       {endAction ? (
@@ -128,3 +150,7 @@ export function SecondaryNavigation<T extends string>({
     </div>
   );
 }
+
+export const SecondaryNavigation = forwardRef(SecondaryNavigationInner) as <T extends string>(
+  props: Props<T> & { ref?: ForwardedRef<PagerMotionSink> }
+) => ReactElement;

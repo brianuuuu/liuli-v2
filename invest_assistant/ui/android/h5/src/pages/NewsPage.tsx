@@ -4,8 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { newsQueryForTab, type NewsTab } from "../api/filters";
 import { mobileApi } from "../api/mobileApi";
-import { HorizontalTabPager, type HorizontalTabPagerHandle, type PagerMotion } from "../components/HorizontalTabPager";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
+import type { PagerMotionSink } from "../components/pagerMotion";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime, formatDay } from "../utils/format";
@@ -19,9 +20,9 @@ const tabs = [
 
 export function NewsPage() {
   const [tab, setTab] = useState<NewsTab>("all");
-  const [motion, setMotion] = useState<PagerMotion | null>(null);
   const pager = useRef<HorizontalTabPagerHandle<NewsTab>>(null);
-  return <MobilePageFrame navigation={<SecondaryNavigation items={tabs} activeKey={tab} motion={motion} onChange={(key) => pager.current?.requestChange(key)} />}><HorizontalTabPager ref={pager} items={tabs} activeKey={tab} onChange={setTab} onMotionChange={setMotion} renderPage={(key) => <NewsTimeline tab={key} />} /></MobilePageFrame>;
+  const navigationMotion = useRef<PagerMotionSink | null>(null);
+  return <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={tabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}><HorizontalTabPager ref={pager} items={tabs} activeKey={tab} onChange={setTab} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => <NewsTimeline tab={key} />} /></MobilePageFrame>;
 }
 
 function NewsTimeline({ tab }: { tab: NewsTab }) {

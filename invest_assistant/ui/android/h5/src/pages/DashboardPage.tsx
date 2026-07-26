@@ -4,8 +4,9 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
-import { HorizontalTabPager, type HorizontalTabPagerHandle, type PagerMotion } from "../components/HorizontalTabPager";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
+import type { PagerMotionSink } from "../components/pagerMotion";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
@@ -15,11 +16,11 @@ const DonutChart = lazy(() => import("../components/MiniChart").then((module) =>
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
-  const [motion, setMotion] = useState<PagerMotion | null>(null);
   const pager = useRef<HorizontalTabPagerHandle<DashboardTab>>(null);
+  const navigationMotion = useRef<PagerMotionSink | null>(null);
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation items={dashboardTabs} activeKey={tab} motion={motion} onChange={(key) => pager.current?.requestChange(key)} />}>
-      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} onMotionChange={setMotion} renderPage={(key) => {
+    <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={dashboardTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
+      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => {
         if (key === "today") return <TodayDashboard />;
         if (key === "market") return <MarketDashboard />;
         if (key === "track") return <TrackDashboard />;

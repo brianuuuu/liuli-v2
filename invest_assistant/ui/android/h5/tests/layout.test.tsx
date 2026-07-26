@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { MobilePageFrame } from "../src/components/MobilePageFrame";
 import { SecondaryNavigation } from "../src/components/SecondaryNavigation";
@@ -48,17 +49,28 @@ describe("secondary navigation", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("interpolates one blue indicator between adjacent tabs during a pager drag", () => {
+  it("moves the indicator imperatively without rendering the navigation again", () => {
     const items = [
       { key: "all", label: "全部" },
       { key: "work", label: "工作" }
     ] as const;
+    const motion = createRef<{
+      setMotion(value: { fromIndex: number; toIndex: number; progress: number } | null): void;
+    }>();
+    let renderCount = 0;
+    function Navigation() {
+      renderCount += 1;
+      return (
+        <SecondaryNavigation
+          ref={motion}
+          items={items}
+          activeKey="all"
+          onChange={vi.fn()}
+        />
+      );
+    }
     const { rerender } = render(
-      <SecondaryNavigation
-        items={items}
-        activeKey="all"
-        onChange={vi.fn()}
-      />
+      <Navigation />
     );
 
     const [allTab, workTab] = screen.getAllByRole("tab");
@@ -71,19 +83,21 @@ describe("secondary navigation", () => {
       offsetWidth: { configurable: true, value: 140 }
     });
 
-    rerender(
-      <SecondaryNavigation
-        items={items}
-        activeKey="all"
-        motion={{ fromIndex: 0, toIndex: 1, progress: 0.5 }}
-        onChange={vi.fn()}
-      />
-    );
+    rerender(<Navigation />);
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    const rendersBeforeMotion = renderCount;
+
+    act(() => {
+      motion.current?.setMotion({ fromIndex: 0, toIndex: 1, progress: 0.5 });
+    });
 
     const indicator = screen.getByTestId("secondary-navigation-indicator");
     expect(indicator).toHaveStyle({
       transform: "translate3d(81.2px, 0, 0)",
       width: "57.6px"
     });
+    expect(renderCount).toBe(rendersBeforeMotion);
   });
 });
