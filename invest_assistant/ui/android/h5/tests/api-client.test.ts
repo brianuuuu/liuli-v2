@@ -57,7 +57,7 @@ describe("mobile API client", () => {
     expect(init.signal).toBe(controller.signal);
   });
 
-  it("loads market heat rankings across every tag type", async () => {
+  it("loads market heat rankings with the default market and 24 hour filters", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("[]", {
         status: 200,
@@ -71,7 +71,24 @@ describe("mobile API client", () => {
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toContain("/api/market-radar/rankings");
     expect(url).toContain("type=all");
-    expect(url).not.toContain("type=tag");
+    expect(url).toContain("window=24h");
+  });
+
+  it("forwards the selected market heat type and time window", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("[]", {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.marketRankings("track", "30d");
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toContain("/api/market-radar/rankings");
+    expect(url).toContain("type=track");
+    expect(url).toContain("window=30d");
   });
 
   it("loads cached major indices from the existing read-only workbench endpoint", async () => {

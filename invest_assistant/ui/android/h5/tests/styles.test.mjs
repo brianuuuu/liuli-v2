@@ -85,4 +85,13 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[^}]*\.donut-chart\s*\{[^}]*width:\s*160px;[^}]*height:\s*168px;/s);
     expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[\s\S]*?\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*160px minmax\(0,\s*1fr\);/s);
   });
+
+  it("keeps both market ranking filters side by side below the list", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.market-ranking-filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*8px;[^}]*margin-top:\s*12px;[^}]*padding-top:\s*12px;/s);
+    expect(styles).toMatch(/\.market-ranking-filters \.segmented\s*\{[^}]*min-width:\s*0;[^}]*padding:\s*3px;/s);
+    expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters\s*\{[^}]*gap:\s*6px;/s);
+    expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters \.segmented button\s*\{[^}]*font-size:\s*11px;/s);
+  });
 });

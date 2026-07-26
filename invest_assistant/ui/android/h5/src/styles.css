@@ -190,6 +190,18 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .section-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .section-card__header h2 { margin: 0; font-size: 15px; font-weight: 680; }
+.market-ranking-card { min-width: 0; }
+.market-ranking-content { min-width: 0; }
+.market-ranking-filters {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.market-ranking-filters .segmented { min-width: 0; padding: 3px; }
 .list-row {
   display: flex;
   width: 100%;
@@ -437,6 +449,11 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 @media (min-width: 390px) and (max-width: 599px) {
   .donut-chart { width: 160px; height: 168px; }
   .portfolio-allocation { grid-template-columns: 160px minmax(0, 1fr); }
+}
+
+@media (max-width: 359px) {
+  .market-ranking-filters { gap: 6px; }
+  .market-ranking-filters .segmented button { font-size: 11px; }
 }
 
 @media (min-width: 600px) {

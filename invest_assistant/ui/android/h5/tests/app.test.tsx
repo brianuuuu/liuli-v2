@@ -148,6 +148,98 @@ describe("mobile H5 app", () => {
     });
   });
 
+  it("places market heat filters below the ranking and reloads for both selections", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/market-radar/rankings")) {
+        const name = url.includes("type=track") && url.includes("window=30d") ? "三十日赛道" : "市场热词";
+        return new Response(JSON.stringify([{
+          tag_id: name === "三十日赛道" ? 2 : 1,
+          trigger_count: 8,
+          source_count: 3,
+          heat_score: 12.5,
+          rank_no: 1,
+          tag: { id: name === "三十日赛道" ? 2 : 1, name }
+        }]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    const marketTab = await screen.findByRole("tab", { name: "市场" });
+    fireEvent.click(marketTab);
+    await waitFor(() => expect(marketTab).toHaveAttribute("aria-selected", "true"));
+
+    const heading = await screen.findByRole("heading", { name: "热度排行榜" });
+    const ranking = await screen.findByText("1. 市场热词");
+    const typeFilter = screen.getByRole("group", { name: "排行榜类型" });
+    const windowFilter = screen.getByRole("group", { name: "时间范围" });
+
+    expect(heading.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ranking.compareDocumentPosition(typeFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(typeFilter.compareDocumentPosition(windowFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(typeFilter.parentElement).toHaveAttribute("data-swipe-ignore", "true");
+    expect(screen.queryByText("信息总量")).not.toBeInTheDocument();
+    expect(screen.queryByText("活跃标签")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/market-radar/overview"))).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "赛道" }));
+    fireEvent.click(screen.getByRole("button", { name: "30d" }));
+
+    expect(await screen.findByText("1. 三十日赛道")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "赛道" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "30d" })).toHaveAttribute("aria-pressed", "true");
+    expect(fetchMock.mock.calls.some(([input]) => {
+      const url = String(input);
+      return url.includes("/api/market-radar/rankings") && url.includes("type=track") && url.includes("window=30d");
+    })).toBe(true);
+  });
+
+  it("keeps the market heat filters available below the loading state", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    let resolveRankings!: (response: Response) => void;
+    const pendingRankings = new Promise<Response>((resolve) => { resolveRankings = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/market-radar/rankings")) return pendingRankings;
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    renderApp();
+    const marketTab = await screen.findByRole("tab", { name: "市场" });
+    fireEvent.click(marketTab);
+    await waitFor(() => expect(marketTab).toHaveAttribute("aria-selected", "true"));
+
+    const loading = await screen.findByLabelText("加载中");
+    const typeFilter = screen.getByRole("group", { name: "排行榜类型" });
+    expect(loading.compareDocumentPosition(typeFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    resolveRankings(new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }));
+    expect(await screen.findByText("暂无热度排行")).toBeInTheDocument();
+  });
+
   it("keeps edit groups as the pinned note navigation action", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { mobileApi } from "../api/mobileApi";
+import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
@@ -78,11 +78,42 @@ function TodayDashboard() {
 }
 
 function MarketDashboard() {
-  const overview = useQuery({ queryKey: ["market-overview"], queryFn: mobileApi.marketOverview, staleTime: 300_000 });
-  const rankings = useQuery({ queryKey: ["market-rankings"], queryFn: mobileApi.marketRankings, staleTime: 300_000 });
-  if (overview.isLoading || rankings.isLoading) return <LoadingState />;
-  if (overview.isError || rankings.isError) return <ErrorState onRetry={() => { void overview.refetch(); void rankings.refetch(); }} />;
-  return <div className="page-stack"><div className="metric-grid"><Metric label="信息总量" value={formatNumber(overview.data?.source_items)} /><Metric label="活跃标签" value={formatNumber(overview.data?.active_tags)} /></div><SectionCard title="市场热度排行">{rankings.data?.length ? rankings.data.slice(0, 10).map((item) => <ListRow key={item.tag_id} title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`} meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`} trailing={<strong className="score">{formatNumber(item.heat_score, 1)}</strong>} />) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}</SectionCard></div>;
+  const [rankingType, setRankingType] = useState<MarketRankingType>("all");
+  const [rankingWindow, setRankingWindow] = useState<MarketRankingWindow>("24h");
+  const rankings = useQuery({
+    queryKey: ["market-rankings", rankingType, rankingWindow],
+    queryFn: () => mobileApi.marketRankings(rankingType, rankingWindow),
+    staleTime: 300_000
+  });
+  return (
+    <div className="page-stack">
+      <SectionCard title="热度排行榜" className="market-ranking-card">
+        <div className="market-ranking-content" aria-live="polite">
+          {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
+            <ErrorState message="热度排行加载失败" onRetry={() => void rankings.refetch()} />
+          ) : rankings.data?.length ? (
+            rankings.data.slice(0, 10).map((item) => <ListRow key={item.tag_id} title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`} meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`} trailing={<strong className="score">{formatNumber(item.heat_score, 1)}</strong>} />)
+          ) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}
+        </div>
+        <div className="market-ranking-filters" data-swipe-ignore="true">
+          <div className="segmented" role="group" aria-label="排行榜类型">
+            {([
+              ["all", "市场"],
+              ["track", "赛道"],
+              ["hotword", "标签"]
+            ] as const).map(([value, label]) => (
+              <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
+            ))}
+          </div>
+          <div className="segmented" role="group" aria-label="时间范围">
+            {(["24h", "7d", "30d"] as const).map((value) => (
+              <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
+            ))}
+          </div>
+        </div>
+      </SectionCard>
+    </div>
+  );
 }
 
 function TrackDashboard() {

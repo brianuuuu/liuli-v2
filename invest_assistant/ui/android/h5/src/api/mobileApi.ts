@@ -31,6 +31,9 @@ export type NoteWrite = {
   status?: string;
 };
 
+export type MarketRankingType = "all" | "track" | "hotword";
+export type MarketRankingWindow = "24h" | "7d" | "30d";
+
 export const mobileApi = {
   async login(username: string, password: string) {
     const token = await apiClient.post<{ access_token: string }>("/api/auth/login", { username, password });
@@ -41,7 +44,8 @@ export const mobileApi = {
   changePassword: (oldPassword: string, newPassword: string) =>
     apiClient.post("/api/auth/change-password", { old_password: oldPassword, new_password: newPassword }),
   marketOverview: () => apiClient.get<MarketOverview>("/api/market-radar/overview"),
-  marketRankings: () => apiClient.get<TagHeat[]>("/api/market-radar/rankings", { type: "all", window: "24h" }),
+  marketRankings: (type: MarketRankingType = "all", window: MarketRankingWindow = "24h") =>
+    apiClient.get<TagHeat[]>("/api/market-radar/rankings", { type, window }),
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
