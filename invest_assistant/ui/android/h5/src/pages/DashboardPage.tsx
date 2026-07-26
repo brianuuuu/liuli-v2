@@ -6,6 +6,7 @@ import { mobileApi } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
+import { PORTFOLIO_ALLOCATION_COLORS } from "../components/chartPalette";
 import type { PagerMotionSink } from "../components/pagerMotion";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
@@ -114,12 +115,6 @@ function PortfolioDashboard() {
           {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
         </div></div>
       </SectionCard>
-      <div className="metric-grid">
-        <Metric label="总市值" value={formatMoney(summary?.total_value)} />
-        <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
-        <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
-        <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
-      </div>
       <SectionCard title="今日表现">
         <div className="portfolio-day-row">
           <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
@@ -127,14 +122,29 @@ function PortfolioDashboard() {
         </div>
       </SectionCard>
       {pieItems.length ? (
-        <SectionCard title="标的市值占比" action={<button type="button" className="portfolio-refresh" aria-label="刷新标的市值占比" onClick={() => void overview.refetch()} disabled={overview.isFetching}><RefreshCw className={overview.isFetching ? "is-spinning" : ""} size={17} /></button>}>
+        <SectionCard title="标的组合" action={<button type="button" className="portfolio-refresh" aria-label="刷新标的组合" onClick={() => void overview.refetch()} disabled={overview.isFetching}><RefreshCw className={overview.isFetching ? "is-spinning" : ""} size={17} /></button>}>
           <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
             <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
           </Suspense><div className="portfolio-allocation__list">
-            {pieItems.map((item) => <div className="portfolio-allocation__item" key={item.label}><strong>{item.label}</strong><span className={(item.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(item.day_pct, "%")}</span></div>)}
+            {pieItems.map((item, index) => (
+              <div className="portfolio-allocation__item" key={`${item.label}-${index}`}>
+                <span className="portfolio-allocation__marker" style={{ backgroundColor: PORTFOLIO_ALLOCATION_COLORS[index % PORTFOLIO_ALLOCATION_COLORS.length] }} aria-hidden="true" />
+                <strong title={item.label}>{item.label}</strong>
+                <span className="portfolio-allocation__metrics">
+                  <span>{formatPercent(item.weight)}</span>
+                  <span className={valueTone(item.day_pct)}>{formatSigned(item.day_pct, "%")}</span>
+                </span>
+              </div>
+            ))}
           </div></div>
         </SectionCard>
-      ) : <EmptyState title="暂无持仓标的数据" />}
+      ) : <EmptyState title="暂无标的组合数据" />}
+      <div className="metric-grid">
+        <Metric label="总市值" value={formatMoney(summary?.total_value)} />
+        <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
+        <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
+        <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
+      </div>
     </div>
   );
 }
@@ -149,4 +159,14 @@ function formatSignedMoney(value?: number | null) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${formatMoney(value)}`;
+}
+
+function formatPercent(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return `${new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value))}%`;
+}
+
+function valueTone(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "";
+  return value >= 0 ? "positive" : "negative";
 }

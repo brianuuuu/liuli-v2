@@ -67,4 +67,22 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.composer-backdrop\s*\{[^}]*bottom:\s*auto;/s);
     expect(styles).toMatch(/\.composer-sheet\s*\{[^}]*max-height:\s*100%;[^}]*overflow-y:\s*auto;/s);
   });
+
+  it("keeps the target portfolio ring large and five compact rows visible", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.donut-chart\s*\{[^}]*width:\s*150px;[^}]*height:\s*160px;/s);
+    expect(styles).toMatch(/\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*150px minmax\(0,\s*1fr\);[^}]*gap:\s*12px;/s);
+    expect(styles).toMatch(/\.portfolio-allocation__list\s*\{[^}]*height:\s*160px;[^}]*overflow-y:\s*auto;/s);
+    expect(styles).toMatch(/\.portfolio-allocation__item\s*\{[^}]*min-height:\s*32px;/s);
+    expect(styles).toMatch(/\.portfolio-allocation__marker\s*\{[^}]*border-radius:\s*50%;/s);
+    expect(styles).toMatch(/\.portfolio-allocation__metrics\s*\{[^}]*justify-items:\s*end;/s);
+  });
+
+  it("uses the extra logical width of high-density compact Android screens", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[^}]*\.donut-chart\s*\{[^}]*width:\s*160px;[^}]*height:\s*168px;/s);
+    expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[\s\S]*?\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*160px minmax\(0,\s*1fr\);/s);
+  });
 });

@@ -5,6 +5,12 @@ import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
 import { tokenStorageKey } from "../src/api/client";
 
+vi.mock("../src/components/MiniChart", () => ({
+  DonutChart: ({ items }: { items: Array<{ name: string; value: number }> }) => (
+    <div aria-label="标的组合图">{items.map((item) => item.name).join("、")}</div>
+  )
+}));
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
@@ -624,6 +630,62 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("最近笔记")).not.toBeInTheDocument();
     expect(screen.getByText("+1.23%")).toBeInTheDocument();
     expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
+  });
+
+  it("places the compact target portfolio card directly below today's performance", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/portfolios/overview")) {
+        return new Response(JSON.stringify({
+          portfolio_options: [{ id: 7, name: "成长组合", base_currency: "CNY" }],
+          summary: {
+            total_value: 200000,
+            position_market_value: 180000,
+            cash_amount: 20000,
+            year_pnl: 12000,
+            day_pnl: 1234,
+            day_pct: 0.68
+          },
+          pie_items: [
+            { label: "宁德时代", market_value: 72000, weight: 40, day_pct: 1.2 },
+            { label: "贵州茅台", market_value: 54000, weight: 30, day_pct: -0.8 },
+            { label: "缺失行情", market_value: 18000, weight: null, day_pct: null }
+          ]
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    renderApp();
+    const portfolioTab = await screen.findByRole("tab", { name: "组合" });
+    fireEvent.click(portfolioTab);
+    await waitFor(() => expect(portfolioTab).toHaveAttribute("aria-selected", "true"));
+
+    const selector = await screen.findByText("组合选择");
+    const today = screen.getByRole("heading", { name: "今日表现" });
+    const allocation = screen.getByRole("heading", { name: "标的组合" });
+    const totalValue = screen.getByText("总市值");
+
+    expect(selector.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(allocation.compareDocumentPosition(totalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "标的市值占比" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("刷新标的组合")).toBeInTheDocument();
+    expect(screen.getByLabelText("标的组合图")).toBeInTheDocument();
+    expect(screen.getByText("40.0%")).toBeInTheDocument();
+    expect(screen.getByText("+1.2%")).toBeInTheDocument();
+    expect(screen.getAllByText("--")).toHaveLength(2);
   });
 
   it.each([

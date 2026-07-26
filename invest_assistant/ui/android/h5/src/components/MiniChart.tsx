@@ -3,6 +3,7 @@ import { LineChart, PieChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import { PORTFOLIO_ALLOCATION_COLORS } from "./chartPalette";
 
 echarts.use([LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
@@ -40,10 +41,11 @@ export function DonutChart({ items }: { items: Array<{ name: string; value: numb
     const chart = echarts.init(ref.current);
     chart.setOption({
       animationDuration: 260,
+      color: PORTFOLIO_ALLOCATION_COLORS,
       tooltip: { trigger: "item", formatter: "{b}<br/>¥{c}（{d}%）" },
       series: [{
         type: "pie",
-        radius: ["45%", "68%"],
+        radius: ["52%", "76%"],
         center: ["50%", "50%"],
         label: { show: false },
         data: items
@@ -53,5 +55,5 @@ export function DonutChart({ items }: { items: Array<{ name: string; value: numb
     observer.observe(ref.current);
     return () => { observer.disconnect(); chart.dispose(); };
   }, [items]);
-  return <div className="donut-chart" ref={ref} aria-label="标的市值占比图" data-swipe-ignore="true" />;
+  return <div className="donut-chart" ref={ref} aria-label="标的组合图" data-swipe-ignore="true" />;
 }
