@@ -24,7 +24,7 @@ export function TasksPage() {
         items={taskTabs}
         activeKey={tab}
         onChange={setTab}
-        onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)}
+        motionSink={navigationMotion}
         renderPage={(key) => key === "suggestions" ? <AiSuggestionsPanel /> : <AlertsContent />}
       />
     </MobilePageFrame>

@@ -44,7 +44,7 @@ export function NotesPage() {
 
   return (
     <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑分组", onClick: () => setManageGroups(true) }} />}>
-      <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => <NotesGroupContent groupId={key} />} />
+      <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} motionSink={navigationMotion} renderPage={(key) => <NotesGroupContent groupId={key} />} />
       <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
       {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><TagPicker tags={availableTags.data ?? []} value={tagIds} onChange={setTagIds} /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
       {manageGroups ? <GroupManager groups={groups.data ?? []} onClose={() => setManageGroups(false)} /> : null}

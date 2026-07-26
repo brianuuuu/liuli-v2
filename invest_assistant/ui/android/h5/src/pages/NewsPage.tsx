@@ -22,7 +22,7 @@ export function NewsPage() {
   const [tab, setTab] = useState<NewsTab>("all");
   const pager = useRef<HorizontalTabPagerHandle<NewsTab>>(null);
   const navigationMotion = useRef<PagerMotionSink | null>(null);
-  return <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={tabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}><HorizontalTabPager ref={pager} items={tabs} activeKey={tab} onChange={setTab} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => <NewsTimeline tab={key} />} /></MobilePageFrame>;
+  return <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={tabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}><HorizontalTabPager ref={pager} items={tabs} activeKey={tab} onChange={setTab} motionSink={navigationMotion} renderPage={(key) => <NewsTimeline tab={key} />} /></MobilePageFrame>;
 }
 
 function NewsTimeline({ tab }: { tab: NewsTab }) {

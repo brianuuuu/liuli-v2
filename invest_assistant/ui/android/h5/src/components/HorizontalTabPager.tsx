@@ -9,18 +9,19 @@ import {
   type CSSProperties,
   type ForwardedRef,
   type ReactElement,
-  type ReactNode
+  type ReactNode,
+  type RefObject
 } from "react";
-import type { PagerMotion } from "./pagerMotion";
+import { resolvePagerTarget, type PagerRelease } from "./pagerGesture";
+import type { PagerMotion, PagerMotionSink } from "./pagerMotion";
 
 type TabItem<T extends string> = { key: T; label: string };
-type SwipeDistance = { deltaX: number; deltaY: number };
 
 type Props<T extends string> = {
   items: readonly TabItem<T>[];
   activeKey: T;
   onChange: (key: T) => void;
-  onMotionChange?: (motion: PagerMotion | null) => void;
+  motionSink?: RefObject<PagerMotionSink | null>;
   renderPage: (key: T) => ReactNode;
 };
 
@@ -28,15 +29,31 @@ type PagerStyle = CSSProperties & {
   "--pager-settle-duration": string;
 };
 
+type GestureSample = {
+  x: number;
+  time: number;
+};
+
+type PointerGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  axis: "pending" | "horizontal" | "vertical";
+  samples: GestureSample[];
+};
+
 export type HorizontalTabPagerHandle<T extends string> = {
   requestChange: (key: T) => void;
 };
 
-const SWIPE_THRESHOLD = 60;
-const AXIS_DOMINANCE_RATIO = 1.2;
-const SETTLE_DURATION_MS = 220;
-const MIN_SETTLE_DURATION_MS = 120;
-const NATIVE_SETTLE_FALLBACK_MS = 120;
+const AXIS_DOMINANCE_RATIO = 1.25;
+const AXIS_LOCK_DISTANCE = 8;
+const EDGE_RESISTANCE = 0.18;
+const MIN_SETTLE_DURATION_MS = 140;
+const MAX_SETTLE_DURATION_MS = 240;
+const CLICK_SUPPRESSION_MS = 500;
+const VELOCITY_WINDOW_MS = 100;
+const MIN_VELOCITY_SAMPLE_MS = 8;
 
 function shouldIgnoreSwipeTarget(target: EventTarget | null) {
   const element = target instanceof Element ? target : null;
@@ -51,16 +68,14 @@ function shouldIgnoreSwipeTarget(target: EventTarget | null) {
 export function pagerTargetIndex(
   currentIndex: number,
   itemCount: number,
-  { deltaX, deltaY }: SwipeDistance
+  release: Partial<Pick<PagerRelease, "velocityX" | "viewportWidth">>
+    & Pick<PagerRelease, "deltaX" | "deltaY">
 ) {
-  if (
-    Math.abs(deltaX) <= SWIPE_THRESHOLD ||
-    Math.abs(deltaX) <= Math.abs(deltaY) * AXIS_DOMINANCE_RATIO
-  ) {
-    return currentIndex;
-  }
-  const direction = deltaX < 0 ? 1 : -1;
-  return Math.max(0, Math.min(itemCount - 1, currentIndex + direction));
+  return resolvePagerTarget(currentIndex, itemCount, {
+    ...release,
+    velocityX: release.velocityX ?? 0,
+    viewportWidth: release.viewportWidth ?? 320
+  });
 }
 
 function HorizontalTabPagerInner<T extends string>(
@@ -68,37 +83,24 @@ function HorizontalTabPagerInner<T extends string>(
     items,
     activeKey,
     onChange,
-    onMotionChange,
+    motionSink,
     renderPage
   }: Props<T>,
   forwardedRef: ForwardedRef<HorizontalTabPagerHandle<T>>
 ) {
   const activeIndex = Math.max(0, items.findIndex((item) => item.key === activeKey));
-  const [settleDuration, setSettleDuration] = useState(SETTLE_DURATION_MS);
+  const [settleDuration, setSettleDuration] = useState(MAX_SETTLE_DURATION_MS);
   const [settling, setSettling] = useState(false);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState<number | null>(null);
   const pagerRef = useRef<HTMLDivElement>(null);
   const dragXRef = useRef(0);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const axis = useRef<"pending" | "horizontal" | "vertical">("pending");
-  const nativeGestureEligible = useRef(false);
+  const gestureRef = useRef<PointerGesture | null>(null);
   const transitionLocked = useRef(false);
   const settleTimer = useRef<number | null>(null);
-  const nativeFallbackTimer = useRef<number | null>(null);
-  const motionFrame = useRef<number | null>(null);
-  const pendingMotion = useRef<PagerMotion | null>(null);
+  const dragFrame = useRef<number | null>(null);
+  const pendingDrag = useRef<number | null>(null);
   const suppressClickUntil = useRef(0);
   const scrollPositions = useRef(new Map<T, number>());
-
-  useEffect(() => {
-    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-  }, []);
-
-  useEffect(() => () => {
-    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
-    if (nativeFallbackTimer.current !== null) window.clearTimeout(nativeFallbackTimer.current);
-    if (motionFrame.current !== null) window.cancelAnimationFrame(motionFrame.current);
-  }, []);
 
   const visiblePages = useMemo(() => {
     const indices = [activeIndex - 1, activeIndex, activeIndex + 1, transitionTargetIndex]
@@ -107,104 +109,118 @@ function HorizontalTabPagerInner<T extends string>(
     return [...new Set(indices)].map((index) => ({ index, key: items[index].key }));
   }, [activeIndex, items, transitionTargetIndex]);
 
-  const publishMotion = useCallback((motion: PagerMotion | null, immediate = false) => {
-    if (!onMotionChange) return;
-    pendingMotion.current = motion;
-    if (immediate) {
-      if (motionFrame.current !== null) window.cancelAnimationFrame(motionFrame.current);
-      motionFrame.current = null;
-      onMotionChange(motion);
-      return;
-    }
-    if (motionFrame.current !== null) return;
-    motionFrame.current = window.requestAnimationFrame(() => {
-      motionFrame.current = null;
-      onMotionChange(pendingMotion.current);
-    });
-  }, [onMotionChange]);
+  const publishMotion = useCallback((motion: PagerMotion | null) => {
+    motionSink?.current?.setMotion(motion);
+  }, [motionSink]);
 
-  const publishDrag = useCallback((nextDragX: number, explicitTargetIndex?: number, immediateMotion = false) => {
+  const writeDrag = useCallback((nextDragX: number, explicitTargetIndex?: number) => {
     dragXRef.current = nextDragX;
     pagerRef.current?.style.setProperty("--pager-drag-x", `${nextDragX}px`);
-    if (!onMotionChange) return;
     const width = pagerRef.current?.clientWidth || window.innerWidth;
-    const inferredTarget = nextDragX < 0 ? activeIndex + 1 : nextDragX > 0 ? activeIndex - 1 : activeIndex;
+    const inferredTarget = nextDragX < 0
+      ? activeIndex + 1
+      : nextDragX > 0
+        ? activeIndex - 1
+        : activeIndex;
     const targetIndex = explicitTargetIndex ?? inferredTarget;
     if (targetIndex < 0 || targetIndex >= items.length || targetIndex === activeIndex) {
-      publishMotion(nextDragX === 0 ? null : {
-        fromIndex: activeIndex,
-        toIndex: activeIndex,
-        progress: 0
-      }, immediateMotion);
+      publishMotion(null);
       return;
     }
     publishMotion({
       fromIndex: activeIndex,
       toIndex: targetIndex,
       progress: Math.min(1, Math.abs(nextDragX) / width)
-    }, immediateMotion);
-  }, [activeIndex, items.length, onMotionChange, publishMotion]);
+    });
+  }, [activeIndex, items.length, publishMotion]);
 
-  const settleDurationForDistance = useCallback((distance: number) => {
+  const flushPendingDrag = useCallback(() => {
+    if (dragFrame.current !== null) {
+      window.cancelAnimationFrame(dragFrame.current);
+      dragFrame.current = null;
+    }
+    if (pendingDrag.current === null) return;
+    const nextDrag = pendingDrag.current;
+    pendingDrag.current = null;
+    writeDrag(nextDrag);
+  }, [writeDrag]);
+
+  const queueDrag = useCallback((nextDragX: number) => {
+    pendingDrag.current = nextDragX;
+    if (dragFrame.current !== null) return;
+    dragFrame.current = window.requestAnimationFrame(() => {
+      dragFrame.current = null;
+      if (pendingDrag.current === null) return;
+      const nextDrag = pendingDrag.current;
+      pendingDrag.current = null;
+      writeDrag(nextDrag);
+    });
+  }, [writeDrag]);
+
+  const durationForDistance = useCallback((distance: number) => {
     const width = pagerRef.current?.clientWidth || window.innerWidth;
-    return Math.round(Math.max(
-      MIN_SETTLE_DURATION_MS,
-      Math.min(SETTLE_DURATION_MS, SETTLE_DURATION_MS * distance / width)
-    ));
+    const fraction = Math.min(1, Math.max(0, distance / Math.max(1, width)));
+    return Math.round(
+      MIN_SETTLE_DURATION_MS
+      + (MAX_SETTLE_DURATION_MS - MIN_SETTLE_DURATION_MS) * fraction
+    );
   }, []);
 
+  const finishSettle = useCallback((targetIndex: number | null) => {
+    if (targetIndex !== null) {
+      const targetKey = items[targetIndex].key;
+      onChange(targetKey);
+      window.requestAnimationFrame(() => {
+        const scrollTop = scrollPositions.current.get(targetKey) ?? 0;
+        document.documentElement.scrollTop = scrollTop;
+        document.body.scrollTop = scrollTop;
+      });
+    }
+    dragXRef.current = 0;
+    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
+    pagerRef.current?.classList.remove("is-dragging");
+    setSettling(false);
+    setTransitionTargetIndex(null);
+    transitionLocked.current = false;
+    publishMotion(null);
+  }, [items, onChange, publishMotion]);
+
   const springBack = useCallback(() => {
-    if (transitionLocked.current || settling || dragXRef.current === 0) {
-      if (dragXRef.current === 0) onMotionChange?.(null);
+    flushPendingDrag();
+    if (transitionLocked.current || dragXRef.current === 0) {
+      publishMotion(null);
       return;
     }
     transitionLocked.current = true;
-    const previousDragX = dragXRef.current;
-    const duration = settleDurationForDistance(Math.abs(previousDragX));
+    pagerRef.current?.classList.remove("is-dragging");
+    const duration = durationForDistance(Math.abs(dragXRef.current));
     setSettleDuration(duration);
     setSettling(true);
-    dragXRef.current = 0;
-    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-    const targetIndex = previousDragX < 0 ? activeIndex + 1 : activeIndex - 1;
-    publishMotion(
-      targetIndex >= 0 && targetIndex < items.length
-        ? { fromIndex: activeIndex, toIndex: targetIndex, progress: 0 }
-        : null,
-      true
-    );
-    settleTimer.current = window.setTimeout(() => {
-      setSettling(false);
-      transitionLocked.current = false;
-      publishMotion(null, true);
-    }, duration);
-  }, [activeIndex, items.length, publishMotion, settleDurationForDistance, settling]);
+    writeDrag(0);
+    settleTimer.current = window.setTimeout(() => finishSettle(null), duration);
+  }, [durationForDistance, finishSettle, flushPendingDrag, publishMotion, writeDrag]);
 
   const settleToIndex = useCallback((targetIndex: number) => {
-    if (transitionLocked.current || settling || targetIndex === activeIndex || targetIndex < 0 || targetIndex >= items.length) return;
+    if (
+      transitionLocked.current
+      || targetIndex === activeIndex
+      || targetIndex < 0
+      || targetIndex >= items.length
+    ) {
+      return;
+    }
     transitionLocked.current = true;
+    flushPendingDrag();
+    pagerRef.current?.classList.remove("is-dragging");
     scrollPositions.current.set(activeKey, window.scrollY);
     const startSettle = () => {
       const width = pagerRef.current?.clientWidth || window.innerWidth;
       const targetDragX = targetIndex > activeIndex ? -width : width;
-      const duration = settleDurationForDistance(Math.abs(targetDragX - dragXRef.current));
+      const duration = durationForDistance(Math.abs(targetDragX - dragXRef.current));
       setSettleDuration(duration);
       setSettling(true);
-      publishDrag(targetDragX, targetIndex, true);
-      settleTimer.current = window.setTimeout(() => {
-        const targetKey = items[targetIndex].key;
-        onChange(targetKey);
-        window.requestAnimationFrame(() => {
-          const scrollTop = scrollPositions.current.get(targetKey) ?? 0;
-          document.documentElement.scrollTop = scrollTop;
-          document.body.scrollTop = scrollTop;
-        });
-        dragXRef.current = 0;
-        pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-        setSettling(false);
-        setTransitionTargetIndex(null);
-        transitionLocked.current = false;
-        publishMotion(null, true);
-      }, duration);
+      writeDrag(targetDragX, targetIndex);
+      settleTimer.current = window.setTimeout(() => finishSettle(targetIndex), duration);
     };
     if (Math.abs(targetIndex - activeIndex) > 1) {
       setTransitionTargetIndex(targetIndex);
@@ -212,173 +228,134 @@ function HorizontalTabPagerInner<T extends string>(
     } else {
       startSettle();
     }
-  }, [activeIndex, activeKey, items, onChange, publishDrag, publishMotion, settleDurationForDistance, settling]);
+  }, [
+    activeIndex,
+    activeKey,
+    durationForDistance,
+    finishSettle,
+    flushPendingDrag,
+    items.length,
+    writeDrag
+  ]);
 
   useImperativeHandle(forwardedRef, () => ({
     requestChange: (key: T) => settleToIndex(items.findIndex((item) => item.key === key))
   }), [items, settleToIndex]);
 
-  const onTouchStart = useCallback((event: TouchEvent) => {
-    const pager = pagerRef.current;
-    const surface = pager?.parentElement;
-    const target = event.target;
-    if (!pager || !surface || (target !== surface && (!(target instanceof Node) || !pager.contains(target)))) return;
-    if (transitionLocked.current || settling || shouldIgnoreSwipeTarget(event.target)) return;
-    const touch = event.touches[0];
-    if (!touch) return;
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-    axis.current = "pending";
-  }, [settling]);
-
-  const onTouchMove = useCallback((event: TouchEvent) => {
-    const start = touchStart.current;
-    const touch = event.touches[0];
-    if (!start || !touch || settling) return;
-    const deltaX = touch.clientX - start.x;
-    const deltaY = touch.clientY - start.y;
-    if (axis.current === "pending" && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
-      if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
-        axis.current = "horizontal";
-      } else if (Math.abs(deltaY) > Math.abs(deltaX) * AXIS_DOMINANCE_RATIO) {
-        axis.current = "vertical";
-      }
-    }
-    if (axis.current !== "horizontal") return;
-    suppressClickUntil.current = Date.now() + 500;
-    event.preventDefault();
-    const atFirst = activeIndex === 0 && deltaX > 0;
-    const atLast = activeIndex === items.length - 1 && deltaX < 0;
-    publishDrag(atFirst || atLast ? deltaX * 0.2 : deltaX);
-  }, [activeIndex, items.length, publishDrag, settling]);
-
-  const onTouchEnd = useCallback((event: TouchEvent) => {
-    const start = touchStart.current;
-    const touch = event.changedTouches[0];
-    touchStart.current = null;
-    if (!start || !touch || settling || axis.current !== "horizontal") {
-      dragXRef.current = 0;
-      pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-      publishMotion(null, true);
-      return;
-    }
-    const distance = {
-      deltaX: touch.clientX - start.x,
-      deltaY: touch.clientY - start.y
-    };
-    const targetIndex = pagerTargetIndex(activeIndex, items.length, distance);
-    if (targetIndex === activeIndex) {
-      springBack();
-      return;
-    }
-    settleToIndex(targetIndex);
-  }, [activeIndex, items.length, publishMotion, settleToIndex, settling, springBack]);
-
-  const onTouchCancel = useCallback(() => {
-    touchStart.current = null;
-    axis.current = "pending";
-    dragXRef.current = 0;
-    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-    setSettling(false);
-    transitionLocked.current = false;
-    publishMotion(null, true);
-  }, [publishMotion]);
-
-  const onNativeTouchStart = useCallback((event: TouchEvent) => {
-    nativeGestureEligible.current = false;
-    if (transitionLocked.current || settling) return;
-    const pager = pagerRef.current;
-    const touch = event.touches[0];
-    if (!pager || !touch) return;
-    const hitTarget = document.elementFromPoint?.(touch.clientX, touch.clientY) ?? event.target;
-    if (shouldIgnoreSwipeTarget(hitTarget)) return;
-    nativeGestureEligible.current = true;
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-    axis.current = "pending";
-  }, [settling]);
-
-  const onNativeTouchMove = useCallback((event: TouchEvent) => {
-    const start = touchStart.current;
-    const touch = event.touches[0];
-    if (!start || !touch || transitionLocked.current || settling) return;
-    const deltaX = touch.clientX - start.x;
-    const deltaY = touch.clientY - start.y;
-    if (axis.current === "pending" && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
-      if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
-        axis.current = "horizontal";
-      } else if (Math.abs(deltaY) > Math.abs(deltaX) * AXIS_DOMINANCE_RATIO) {
-        axis.current = "vertical";
-      }
-    }
-    if (axis.current !== "horizontal") return;
-    suppressClickUntil.current = Date.now() + 500;
-    const atFirst = activeIndex === 0 && deltaX > 0;
-    const atLast = activeIndex === items.length - 1 && deltaX < 0;
-    publishDrag(atFirst || atLast ? deltaX * 0.2 : deltaX);
-  }, [activeIndex, items.length, publishDrag, settling]);
-
-  const onNativeTouchEnd = useCallback(() => {
-    touchStart.current = null;
-    axis.current = "pending";
-    if (transitionLocked.current || dragXRef.current === 0) return;
-    nativeFallbackTimer.current = window.setTimeout(springBack, NATIVE_SETTLE_FALLBACK_MS);
-  }, [springBack]);
-
-  useEffect(() => {
-    const onNativeSwipe = (event: Event) => {
-      if (nativeFallbackTimer.current !== null) {
-        window.clearTimeout(nativeFallbackTimer.current);
-        nativeFallbackTimer.current = null;
-      }
-      if (!nativeGestureEligible.current) return;
-      nativeGestureEligible.current = false;
-      const outcome = (event as CustomEvent<{ outcome?: string }>).detail?.outcome;
-      if (outcome === "next" && activeIndex < items.length - 1) {
-        settleToIndex(activeIndex + 1);
-        return;
-      }
-      if (outcome === "previous" && activeIndex > 0) {
-        settleToIndex(activeIndex - 1);
-        return;
-      }
-      springBack();
-    };
-    window.addEventListener("liuli:native-swipe", onNativeSwipe);
-    return () => window.removeEventListener("liuli:native-swipe", onNativeSwipe);
-  }, [activeIndex, items.length, settleToIndex, springBack]);
-
   useEffect(() => {
     const pager = pagerRef.current;
     const surface = pager?.parentElement;
     if (!pager || !surface) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        transitionLocked.current
+        || gestureRef.current
+        || event.isPrimary === false
+        || shouldIgnoreSwipeTarget(event.target)
+      ) {
+        return;
+      }
+      gestureRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        axis: "pending",
+        samples: [{ x: event.clientX, time: event.timeStamp }]
+      };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId || transitionLocked.current) return;
+      const deltaX = event.clientX - gesture.startX;
+      const deltaY = event.clientY - gesture.startY;
+      if (
+        gesture.axis === "pending"
+        && (Math.abs(deltaX) > AXIS_LOCK_DISTANCE || Math.abs(deltaY) > AXIS_LOCK_DISTANCE)
+      ) {
+        if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
+          gesture.axis = "horizontal";
+          pager.classList.add("is-dragging");
+        } else if (Math.abs(deltaY) > Math.abs(deltaX) * AXIS_DOMINANCE_RATIO) {
+          gesture.axis = "vertical";
+        }
+      }
+      if (gesture.axis !== "horizontal") return;
+      event.preventDefault();
+      suppressClickUntil.current = Date.now() + CLICK_SUPPRESSION_MS;
+      gesture.samples.push({ x: event.clientX, time: event.timeStamp });
+      const sampleCutoff = event.timeStamp - VELOCITY_WINDOW_MS;
+      gesture.samples = gesture.samples.filter((sample) => sample.time >= sampleCutoff);
+      const atFirst = activeIndex === 0 && deltaX > 0;
+      const atLast = activeIndex === items.length - 1 && deltaX < 0;
+      queueDrag(atFirst || atLast ? deltaX * EDGE_RESISTANCE : deltaX);
+    };
+
+    const endGesture = (event: PointerEvent, cancelled: boolean) => {
+      const gesture = gestureRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      gestureRef.current = null;
+      flushPendingDrag();
+      if (cancelled || gesture.axis !== "horizontal") {
+        if (gesture.axis === "horizontal") springBack();
+        return;
+      }
+      const deltaX = event.clientX - gesture.startX;
+      const deltaY = event.clientY - gesture.startY;
+      const finalSample = { x: event.clientX, time: event.timeStamp };
+      const samples = [...gesture.samples, finalSample];
+      const oldest = samples.find(
+        (sample) => finalSample.time - sample.time <= VELOCITY_WINDOW_MS
+      ) ?? finalSample;
+      const elapsed = finalSample.time - oldest.time;
+      const velocityX = elapsed >= MIN_VELOCITY_SAMPLE_MS
+        ? (finalSample.x - oldest.x) / elapsed * 1000
+        : 0;
+      const targetIndex = resolvePagerTarget(activeIndex, items.length, {
+        deltaX,
+        deltaY,
+        velocityX,
+        viewportWidth: pager.clientWidth || window.innerWidth
+      });
+      if (targetIndex === activeIndex) {
+        springBack();
+      } else {
+        settleToIndex(targetIndex);
+      }
+    };
+
+    const onPointerUp = (event: PointerEvent) => endGesture(event, false);
+    const onPointerCancel = (event: PointerEvent) => endGesture(event, true);
+
+    pager.style.setProperty("--pager-drag-x", "0px");
     document.documentElement.classList.add("horizontal-tab-pager-document");
     surface.classList.add("horizontal-tab-pager-surface");
-    const nativeMode = Boolean(window.LiuliNative);
-    const touchTarget: EventTarget = nativeMode ? document : surface;
-    touchTarget.addEventListener("touchstart", nativeMode ? onNativeTouchStart as EventListener : onTouchStart as EventListener, nativeMode);
-    touchTarget.addEventListener(
-      "touchmove",
-      nativeMode ? onNativeTouchMove as EventListener : onTouchMove as EventListener,
-      nativeMode ? { passive: true, capture: true } : { passive: false }
-    );
-    touchTarget.addEventListener("touchend", nativeMode ? onNativeTouchEnd as EventListener : onTouchEnd as EventListener, nativeMode);
-    touchTarget.addEventListener("touchcancel", nativeMode ? onNativeTouchEnd as EventListener : onTouchCancel as EventListener, nativeMode);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointermove", onPointerMove, { passive: false, capture: true });
+    document.addEventListener("pointerup", onPointerUp, true);
+    document.addEventListener("pointercancel", onPointerCancel, true);
     return () => {
       document.documentElement.classList.remove("horizontal-tab-pager-document");
       surface.classList.remove("horizontal-tab-pager-surface");
-      touchTarget.removeEventListener("touchstart", nativeMode ? onNativeTouchStart as EventListener : onTouchStart as EventListener, nativeMode);
-      touchTarget.removeEventListener("touchmove", nativeMode ? onNativeTouchMove as EventListener : onTouchMove as EventListener, nativeMode);
-      touchTarget.removeEventListener("touchend", nativeMode ? onNativeTouchEnd as EventListener : onTouchEnd as EventListener, nativeMode);
-      touchTarget.removeEventListener("touchcancel", nativeMode ? onNativeTouchEnd as EventListener : onTouchCancel as EventListener, nativeMode);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointermove", onPointerMove, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      document.removeEventListener("pointercancel", onPointerCancel, true);
     };
   }, [
-    onNativeTouchEnd,
-    onNativeTouchMove,
-    onNativeTouchStart,
-    onTouchCancel,
-    onTouchEnd,
-    onTouchMove,
-    onTouchStart
+    activeIndex,
+    flushPendingDrag,
+    items.length,
+    queueDrag,
+    settleToIndex,
+    springBack
   ]);
+
+  useEffect(() => () => {
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    if (dragFrame.current !== null) window.cancelAnimationFrame(dragFrame.current);
+  }, []);
 
   return (
     <div

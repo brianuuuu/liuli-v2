@@ -20,7 +20,7 @@ export function DashboardPage() {
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   return (
     <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={dashboardTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
-      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} onMotionChange={(motion) => navigationMotion.current?.setMotion(motion)} renderPage={(key) => {
+      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} motionSink={navigationMotion} renderPage={(key) => {
         if (key === "today") return <TodayDashboard />;
         if (key === "market") return <MarketDashboard />;
         if (key === "track") return <TrackDashboard />;

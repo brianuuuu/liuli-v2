@@ -13,15 +13,49 @@ const items = [
   { key: "track", label: "赛道" }
 ] as const;
 
+function pointerSwipe(
+  target: Element,
+  {
+    fromX = 300,
+    toX = 180,
+    fromY = 500,
+    toY = 508,
+    pointerId = 7,
+    cancel = false
+  } = {}
+) {
+  fireEvent.pointerDown(target, {
+    pointerId,
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: fromX,
+    clientY: fromY
+  });
+  act(() => vi.advanceTimersByTime(120));
+  fireEvent.pointerMove(target, {
+    pointerId,
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: toX,
+    clientY: toY
+  });
+  act(() => vi.advanceTimersByTime(20));
+  fireEvent[ cancel ? "pointerCancel" : "pointerUp" ](target, {
+    pointerId,
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: toX,
+    clientY: toY
+  });
+}
+
 describe("horizontal tab pager", () => {
   afterEach(() => {
-    delete window.LiuliNative;
-    Reflect.deleteProperty(document, "elementFromPoint");
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
-  it("follows a horizontal drag and selects one adjacent page after release", () => {
+  it("follows one document pointer gesture and selects one adjacent page", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
     render(
@@ -35,18 +69,34 @@ describe("horizontal tab pager", () => {
 
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    fireEvent.touchStart(pager, { touches: [{ clientX: 300, clientY: 100 }] });
-    fireEvent.touchMove(pager, { touches: [{ clientX: 180, clientY: 108 }] });
+    fireEvent.pointerDown(pager, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 300,
+      clientY: 100
+    });
+    fireEvent.pointerMove(pager, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 180,
+      clientY: 108
+    });
+    act(() => vi.advanceTimersByTime(20));
     expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
-    fireEvent.touchEnd(pager, { changedTouches: [{ clientX: 180, clientY: 108 }] });
+    fireEvent.pointerUp(pager, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 180,
+      clientY: 108
+    });
 
     expect(onChange).not.toHaveBeenCalled();
     expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
-    vi.advanceTimersByTime(220);
+    act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledWith("track");
   });
 
-  it("handles a horizontal drag that starts on the surrounding content surface", () => {
+  it("keeps body whitespace swipe working and ignores the retired native event", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
     render(
@@ -60,18 +110,91 @@ describe("horizontal tab pager", () => {
       </div>
     );
 
-    const surface = screen.getByTestId("content-surface");
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    fireEvent.touchStart(surface, { touches: [{ clientX: 300, clientY: 600 }] });
-    fireEvent.touchMove(surface, { touches: [{ clientX: 180, clientY: 608 }] });
-    fireEvent.touchEnd(surface, { changedTouches: [{ clientX: 180, clientY: 608 }] });
-    vi.advanceTimersByTime(220);
-
+    pointerSwipe(document.body);
+    act(() => vi.advanceTimersByTime(300));
+    expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("track");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
+        detail: { outcome: "next" }
+      }));
+      vi.advanceTimersByTime(300);
+    });
+    expect(onChange).toHaveBeenCalledOnce();
   });
 
-  it("marks the surrounding content surface for horizontal gesture handling and cleans it up", () => {
+  it("publishes pointer motion without rendering page content on each frame", () => {
+    vi.useFakeTimers();
+    const renderPage = vi.fn((key: string) => <div>{key}</div>);
+    const setMotion = vi.fn();
+    const motionSink = { current: { setMotion } };
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={vi.fn()}
+        motionSink={motionSink}
+        renderPage={renderPage}
+      />
+    );
+
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    const rendersAfterMount = renderPage.mock.calls.length;
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    fireEvent.pointerDown(pager, {
+      pointerId: 8,
+      pointerType: "touch",
+      clientX: 300,
+      clientY: 500
+    });
+    fireEvent.pointerMove(pager, {
+      pointerId: 8,
+      pointerType: "touch",
+      clientX: 240,
+      clientY: 504
+    });
+    fireEvent.pointerMove(pager, {
+      pointerId: 8,
+      pointerType: "touch",
+      clientX: 180,
+      clientY: 508
+    });
+    act(() => vi.advanceTimersByTime(20));
+
+    expect(setMotion).toHaveBeenCalled();
+    expect(renderPage).toHaveBeenCalledTimes(rendersAfterMount);
+  });
+
+  it("springs an incomplete or cancelled drag back", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => <div>{key}</div>}
+      />
+    );
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 400 });
+
+    pointerSwipe(pager, { toX: 225 });
+    expect(pager).toHaveClass("is-settling");
+    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    act(() => vi.advanceTimersByTime(300));
+    expect(onChange).not.toHaveBeenCalled();
+
+    pointerSwipe(pager, { toX: 180, cancel: true, pointerId: 9 });
+    expect(pager).toHaveClass("is-settling");
+    act(() => vi.advanceTimersByTime(300));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("marks document and content surface for vertical browser scrolling and cleans up", () => {
     const { unmount } = render(
       <div data-testid="content-surface">
         <HorizontalTabPager
@@ -85,293 +208,56 @@ describe("horizontal tab pager", () => {
 
     const surface = screen.getByTestId("content-surface");
     expect(surface).toHaveClass("horizontal-tab-pager-surface");
-
+    expect(document.documentElement).toHaveClass("horizontal-tab-pager-document");
     unmount();
     expect(surface).not.toHaveClass("horizontal-tab-pager-surface");
-  });
-
-  it("marks the root document while a pager is mounted and cleans it up", () => {
-    const { unmount } = render(
-      <div>
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={vi.fn()}
-          renderPage={(key) => <div>{key}</div>}
-        />
-      </div>
-    );
-
-    expect(document.documentElement).toHaveClass("horizontal-tab-pager-document");
-
-    unmount();
     expect(document.documentElement).not.toHaveClass("horizontal-tab-pager-document");
   });
 
-  it("does not take gestures from a sibling action outside the pager", () => {
+  it("does not take gestures from an action or an editor", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
     render(
-      <div>
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          renderPage={(key) => <div>{key}</div>}
-        />
-        <button type="button" aria-label="新增笔记">+</button>
-      </div>
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => (
+          <>
+            <button type="button">{key}</button>
+            <textarea aria-label={`编辑-${key}`} />
+          </>
+        )}
+      />
     );
 
-    const action = screen.getByRole("button", { name: "新增笔记" });
-    fireEvent.touchStart(action, { touches: [{ clientX: 300, clientY: 600 }] });
-    fireEvent.touchMove(action, { touches: [{ clientX: 180, clientY: 608 }] });
-    fireEvent.touchEnd(action, { changedTouches: [{ clientX: 180, clientY: 608 }] });
-    vi.advanceTimersByTime(220);
-
+    pointerSwipe(screen.getByRole("button", { name: "market" }));
+    pointerSwipe(screen.getByRole("textbox", { name: "编辑-market" }), { pointerId: 8 });
+    act(() => vi.advanceTimersByTime(300));
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("uses native swipe events without intercepting WebView touch scrolling", () => {
+  it("allows an explicitly swipeable card and suppresses its accidental click", () => {
     vi.useFakeTimers();
-    window.LiuliNative = {};
-    const onChange = vi.fn();
-    const onMotionChange = vi.fn();
-    render(
-      <div data-testid="content-surface">
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          onMotionChange={onMotionChange}
-          renderPage={(key) => <div>{key}</div>}
-        />
-      </div>
-    );
-
-    const surface = screen.getByTestId("content-surface");
-    const pager = screen.getByTestId("horizontal-tab-pager");
-    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
-      top: 40,
-      right: 360,
-      bottom: 760,
-      left: 0,
-      width: 360,
-      height: 720,
-      x: 0,
-      y: 40,
-      toJSON: () => undefined
-    });
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn(() => pager)
-    });
-
-    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
-    let horizontalMovePrevented: boolean | null = null;
-    document.body.addEventListener("touchmove", (event) => {
-      horizontalMovePrevented = event.defaultPrevented;
-    }, { once: true });
-    fireEvent.touchMove(document.body, { touches: [{ clientX: 180, clientY: 508 }] });
-    act(() => vi.advanceTimersByTime(16));
-
-    expect(horizontalMovePrevented).toBe(false);
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
-    expect(onMotionChange).toHaveBeenLastCalledWith({
-      fromIndex: 1,
-      toIndex: 2,
-      progress: 120 / 312
-    });
-
-    act(() => {
-      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
-        detail: { outcome: "next" }
-      }));
-    });
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
-    expect(pager.style.getPropertyValue("--pager-settle-duration")).toBe("135ms");
-    act(() => vi.advanceTimersByTime(135));
-
-    expect(onChange).toHaveBeenCalledWith("track");
-  });
-
-  it("follows and completes a native swipe from body whitespace outside the measured content surface", () => {
-    vi.useFakeTimers();
-    window.LiuliNative = {};
-    const onChange = vi.fn();
-    render(
-      <div data-testid="content-surface">
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          renderPage={(key) => <div>{key}</div>}
-        />
-      </div>
-    );
-
-    const surface = screen.getByTestId("content-surface");
-    const pager = screen.getByTestId("horizontal-tab-pager");
-    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
-      top: 40,
-      right: 360,
-      bottom: 180,
-      left: 0,
-      width: 360,
-      height: 140,
-      x: 0,
-      y: 40,
-      toJSON: () => undefined
-    });
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn(() => document.body)
-    });
-
-    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
-    fireEvent.touchMove(document.body, { touches: [{ clientX: 180, clientY: 508 }] });
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
-
-    act(() => {
-      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
-        detail: { outcome: "next" }
-      }));
-      vi.advanceTimersByTime(135);
-    });
-
-    expect(onChange).toHaveBeenCalledWith("track");
-  });
-
-  it("springs a native drag back when the shell cancels it", () => {
-    vi.useFakeTimers();
-    window.LiuliNative = {};
-    render(
-      <div data-testid="content-surface">
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={vi.fn()}
-          renderPage={(key) => <div>{key}</div>}
-        />
-      </div>
-    );
-
-    const surface = screen.getByTestId("content-surface");
-    const pager = screen.getByTestId("horizontal-tab-pager");
-    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
-      top: 40,
-      right: 360,
-      bottom: 760,
-      left: 0,
-      width: 360,
-      height: 720,
-      x: 0,
-      y: 40,
-      toJSON: () => undefined
-    });
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn(() => pager)
-    });
-
-    fireEvent.touchStart(document.body, { touches: [{ clientX: 300, clientY: 500 }] });
-    fireEvent.touchMove(document.body, { touches: [{ clientX: 220, clientY: 506 }] });
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-80px" });
-
-    act(() => {
-      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
-        detail: { outcome: "cancel" }
-      }));
-    });
-
-    expect(pager).toHaveClass("is-settling");
-    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
-    expect(pager.style.getPropertyValue("--pager-settle-duration")).toBe("120ms");
-  });
-
-  it("ignores a native swipe that starts on an action button", () => {
-    vi.useFakeTimers();
-    window.LiuliNative = {};
-    const onChange = vi.fn();
-    render(
-      <div data-testid="content-surface">
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          renderPage={(key) => <button type="button">{key}</button>}
-        />
-      </div>
-    );
-
-    const surface = screen.getByTestId("content-surface");
-    const pager = screen.getByTestId("horizontal-tab-pager");
-    const action = screen.getByRole("button", { name: "market" });
-    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
-      top: 40,
-      right: 360,
-      bottom: 760,
-      left: 0,
-      width: 360,
-      height: 720,
-      x: 0,
-      y: 40,
-      toJSON: () => undefined
-    });
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn(() => action)
-    });
-
-    fireEvent.touchStart(action, { touches: [{ clientX: 300, clientY: 500 }] });
-    fireEvent.touchMove(action, { touches: [{ clientX: 160, clientY: 506 }] });
-    act(() => {
-      window.dispatchEvent(new CustomEvent("liuli:native-swipe", {
-        detail: { outcome: "next" }
-      }));
-      vi.advanceTimersByTime(220);
-    });
-
-    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("allows a native swipe from a card-like button and suppresses its click", () => {
-    vi.useFakeTimers();
-    window.LiuliNative = {};
     const onChange = vi.fn();
     const onCardClick = vi.fn();
     render(
-      <div>
-        <HorizontalTabPager
-          items={items}
-          activeKey="market"
-          onChange={onChange}
-          renderPage={(key) => <button type="button" data-swipe-allow="true" onClick={onCardClick}>{key}</button>}
-        />
-      </div>
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => (
+          <button type="button" data-swipe-allow="true" onClick={onCardClick}>{key}</button>
+        )}
+      />
     );
 
     const pager = screen.getByTestId("horizontal-tab-pager");
-    const card = screen.getByRole("button", { name: "market" });
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn(() => card)
-    });
-
-    fireEvent.touchStart(card, { touches: [{ clientX: 300, clientY: 500 }] });
-    fireEvent.touchMove(card, { touches: [{ clientX: 160, clientY: 506 }] });
+    const card = screen.getByRole("button", { name: "market" });
+    pointerSwipe(card, { toX: 160 });
     fireEvent.click(card);
-    act(() => {
-      window.dispatchEvent(new CustomEvent("liuli:native-swipe", { detail: { outcome: "next" } }));
-      vi.advanceTimersByTime(220);
-    });
-
+    act(() => vi.advanceTimersByTime(300));
     expect(onCardClick).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith("track");
   });
@@ -393,11 +279,10 @@ describe("horizontal tab pager", () => {
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 320 });
     act(() => ref.current?.requestChange("market"));
-
     expect(onChange).not.toHaveBeenCalled();
     expect(pager).toHaveClass("is-settling");
     expect(pager).toHaveStyle({ "--pager-drag-x": "-320px" });
-    vi.advanceTimersByTime(220);
+    act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledWith("market");
   });
 
@@ -423,19 +308,40 @@ describe("horizontal tab pager", () => {
       ref.current?.requestChange("track");
       ref.current?.requestChange("market");
     });
-    act(() => vi.advanceTimersByTime(220));
-
+    act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("track");
   });
 
-  it("springs back for short or primarily vertical movement", () => {
-    expect(pagerTargetIndex(1, 3, { deltaX: -40, deltaY: 2 })).toBe(1);
-    expect(pagerTargetIndex(1, 3, { deltaX: -100, deltaY: 130 })).toBe(1);
-    expect(pagerTargetIndex(1, 3, { deltaX: -100, deltaY: 20 })).toBe(2);
+  it("uses viewport distance and release velocity to choose one adjacent page", () => {
+    expect(pagerTargetIndex(1, 3, {
+      deltaX: -80,
+      deltaY: 4,
+      velocityX: 0,
+      viewportWidth: 400
+    })).toBe(1);
+    expect(pagerTargetIndex(1, 3, {
+      deltaX: -90,
+      deltaY: 4,
+      velocityX: 0,
+      viewportWidth: 400
+    })).toBe(2);
+    expect(pagerTargetIndex(1, 3, {
+      deltaX: -30,
+      deltaY: 3,
+      velocityX: -800,
+      viewportWidth: 400
+    })).toBe(2);
+    expect(pagerTargetIndex(1, 3, {
+      deltaX: -30,
+      deltaY: 80,
+      velocityX: -900,
+      viewportWidth: 400
+    })).toBe(1);
   });
 
-  it("does not lock a near-diagonal upward gesture to the horizontal axis", () => {
+  it("does not lock a near-diagonal gesture to the horizontal axis", () => {
+    vi.useFakeTimers();
     const onChange = vi.fn();
     render(
       <HorizontalTabPager
@@ -445,40 +351,23 @@ describe("horizontal tab pager", () => {
         renderPage={(key) => <div>{key}</div>}
       />
     );
-
     const pager = screen.getByTestId("horizontal-tab-pager");
-    fireEvent.touchStart(pager, { touches: [{ clientX: 300, clientY: 300 }] });
-    fireEvent.touchMove(pager, { touches: [{ clientX: 291, clientY: 292 }] });
+    pointerSwipe(pager, { toX: 280, fromY: 300, toY: 260 });
+    act(() => vi.advanceTimersByTime(300));
     expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
-
-    fireEvent.touchMove(pager, { touches: [{ clientX: 280, clientY: 260 }] });
-    fireEvent.touchEnd(pager, { changedTouches: [{ clientX: 280, clientY: 260 }] });
     expect(onChange).not.toHaveBeenCalled();
   });
 
   it("stops at the first and last page", () => {
-    expect(pagerTargetIndex(0, 3, { deltaX: 100, deltaY: 0 })).toBe(0);
-    expect(pagerTargetIndex(2, 3, { deltaX: -100, deltaY: 0 })).toBe(2);
-  });
-
-  it("does not take horizontal gestures from an editor", () => {
-    vi.useFakeTimers();
-    const onChange = vi.fn();
-    render(
-      <HorizontalTabPager
-        items={items}
-        activeKey="market"
-        onChange={onChange}
-        renderPage={(key) => <textarea aria-label={`编辑-${key}`} />}
-      />
-    );
-
-    const editor = screen.getByRole("textbox", { name: "编辑-market" });
-    fireEvent.touchStart(editor, { touches: [{ clientX: 300, clientY: 100 }] });
-    fireEvent.touchMove(editor, { touches: [{ clientX: 150, clientY: 105 }] });
-    fireEvent.touchEnd(editor, { changedTouches: [{ clientX: 150, clientY: 105 }] });
-    vi.advanceTimersByTime(220);
-
-    expect(onChange).not.toHaveBeenCalled();
+    expect(pagerTargetIndex(0, 3, {
+      deltaX: 100,
+      deltaY: 0,
+      viewportWidth: 320
+    })).toBe(0);
+    expect(pagerTargetIndex(2, 3, {
+      deltaX: -100,
+      deltaY: 0,
+      viewportWidth: 320
+    })).toBe(2);
   });
 });
