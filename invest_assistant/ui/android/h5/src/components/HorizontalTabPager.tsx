@@ -24,7 +24,6 @@ type Props<T extends string> = {
 };
 
 type PagerStyle = CSSProperties & {
-  "--pager-drag-x": string;
   "--pager-settle-duration": string;
 };
 
@@ -47,7 +46,9 @@ const NATIVE_SETTLE_FALLBACK_MS = 120;
 function shouldIgnoreSwipeTarget(target: EventTarget | null) {
   const element = target instanceof Element ? target : null;
   if (!element) return false;
-  if (element.closest("button, a, input, textarea, select, [data-swipe-ignore='true']")) return true;
+  if (element.closest("input, textarea, select, [data-swipe-ignore='true']")) return true;
+  const action = element.closest("button, a");
+  if (action && !action.matches("[data-swipe-allow='true']")) return true;
   const horizontalScroller = element.closest<HTMLElement>("[data-horizontal-scroll='true']");
   return Boolean(horizontalScroller && horizontalScroller.scrollWidth > horizontalScroller.clientWidth);
 }
@@ -78,7 +79,6 @@ function HorizontalTabPagerInner<T extends string>(
   forwardedRef: ForwardedRef<HorizontalTabPagerHandle<T>>
 ) {
   const activeIndex = Math.max(0, items.findIndex((item) => item.key === activeKey));
-  const [dragX, setDragX] = useState(0);
   const [settleDuration, setSettleDuration] = useState(SETTLE_DURATION_MS);
   const [settling, setSettling] = useState(false);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState<number | null>(null);
@@ -90,11 +90,19 @@ function HorizontalTabPagerInner<T extends string>(
   const transitionLocked = useRef(false);
   const settleTimer = useRef<number | null>(null);
   const nativeFallbackTimer = useRef<number | null>(null);
+  const motionFrame = useRef<number | null>(null);
+  const pendingMotion = useRef<PagerMotion | null>(null);
+  const suppressClickUntil = useRef(0);
   const scrollPositions = useRef(new Map<T, number>());
+
+  useEffect(() => {
+    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
+  }, []);
 
   useEffect(() => () => {
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
     if (nativeFallbackTimer.current !== null) window.clearTimeout(nativeFallbackTimer.current);
+    if (motionFrame.current !== null) window.cancelAnimationFrame(motionFrame.current);
   }, []);
 
   const visiblePages = useMemo(() => {
@@ -104,27 +112,43 @@ function HorizontalTabPagerInner<T extends string>(
     return [...new Set(indices)].map((index) => ({ index, key: items[index].key }));
   }, [activeIndex, items, transitionTargetIndex]);
 
-  const publishDrag = useCallback((nextDragX: number, explicitTargetIndex?: number) => {
+  const publishMotion = useCallback((motion: PagerMotion | null, immediate = false) => {
+    if (!onMotionChange) return;
+    pendingMotion.current = motion;
+    if (immediate) {
+      if (motionFrame.current !== null) window.cancelAnimationFrame(motionFrame.current);
+      motionFrame.current = null;
+      onMotionChange(motion);
+      return;
+    }
+    if (motionFrame.current !== null) return;
+    motionFrame.current = window.requestAnimationFrame(() => {
+      motionFrame.current = null;
+      onMotionChange(pendingMotion.current);
+    });
+  }, [onMotionChange]);
+
+  const publishDrag = useCallback((nextDragX: number, explicitTargetIndex?: number, immediateMotion = false) => {
     dragXRef.current = nextDragX;
-    setDragX(nextDragX);
+    pagerRef.current?.style.setProperty("--pager-drag-x", `${nextDragX}px`);
     if (!onMotionChange) return;
     const width = pagerRef.current?.clientWidth || window.innerWidth;
     const inferredTarget = nextDragX < 0 ? activeIndex + 1 : nextDragX > 0 ? activeIndex - 1 : activeIndex;
     const targetIndex = explicitTargetIndex ?? inferredTarget;
     if (targetIndex < 0 || targetIndex >= items.length || targetIndex === activeIndex) {
-      onMotionChange(nextDragX === 0 ? null : {
+      publishMotion(nextDragX === 0 ? null : {
         fromIndex: activeIndex,
         toIndex: activeIndex,
         progress: 0
-      });
+      }, immediateMotion);
       return;
     }
-    onMotionChange({
+    publishMotion({
       fromIndex: activeIndex,
       toIndex: targetIndex,
       progress: Math.min(1, Math.abs(nextDragX) / width)
-    });
-  }, [activeIndex, items.length, onMotionChange]);
+    }, immediateMotion);
+  }, [activeIndex, items.length, onMotionChange, publishMotion]);
 
   const settleDurationForDistance = useCallback((distance: number) => {
     const width = pagerRef.current?.clientWidth || window.innerWidth;
@@ -145,19 +169,20 @@ function HorizontalTabPagerInner<T extends string>(
     setSettleDuration(duration);
     setSettling(true);
     dragXRef.current = 0;
-    setDragX(0);
+    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
     const targetIndex = previousDragX < 0 ? activeIndex + 1 : activeIndex - 1;
-    onMotionChange?.(
+    publishMotion(
       targetIndex >= 0 && targetIndex < items.length
         ? { fromIndex: activeIndex, toIndex: targetIndex, progress: 0 }
-        : null
+        : null,
+      true
     );
     settleTimer.current = window.setTimeout(() => {
       setSettling(false);
       transitionLocked.current = false;
-      onMotionChange?.(null);
+      publishMotion(null, true);
     }, duration);
-  }, [activeIndex, items.length, onMotionChange, settleDurationForDistance, settling]);
+  }, [activeIndex, items.length, publishMotion, settleDurationForDistance, settling]);
 
   const settleToIndex = useCallback((targetIndex: number) => {
     if (transitionLocked.current || settling || targetIndex === activeIndex || targetIndex < 0 || targetIndex >= items.length) return;
@@ -169,7 +194,7 @@ function HorizontalTabPagerInner<T extends string>(
       const duration = settleDurationForDistance(Math.abs(targetDragX - dragXRef.current));
       setSettleDuration(duration);
       setSettling(true);
-      publishDrag(targetDragX, targetIndex);
+      publishDrag(targetDragX, targetIndex, true);
       settleTimer.current = window.setTimeout(() => {
         const targetKey = items[targetIndex].key;
         onChange(targetKey);
@@ -179,11 +204,11 @@ function HorizontalTabPagerInner<T extends string>(
           document.body.scrollTop = scrollTop;
         });
         dragXRef.current = 0;
-        setDragX(0);
+        pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
         setSettling(false);
         setTransitionTargetIndex(null);
         transitionLocked.current = false;
-        onMotionChange?.(null);
+        publishMotion(null, true);
       }, duration);
     };
     if (Math.abs(targetIndex - activeIndex) > 1) {
@@ -192,7 +217,7 @@ function HorizontalTabPagerInner<T extends string>(
     } else {
       startSettle();
     }
-  }, [activeIndex, activeKey, items, onChange, onMotionChange, publishDrag, settleDurationForDistance, settling]);
+  }, [activeIndex, activeKey, items, onChange, publishDrag, publishMotion, settleDurationForDistance, settling]);
 
   useImperativeHandle(forwardedRef, () => ({
     requestChange: (key: T) => settleToIndex(items.findIndex((item) => item.key === key))
@@ -224,6 +249,7 @@ function HorizontalTabPagerInner<T extends string>(
       }
     }
     if (axis.current !== "horizontal") return;
+    suppressClickUntil.current = Date.now() + 500;
     event.preventDefault();
     const atFirst = activeIndex === 0 && deltaX > 0;
     const atLast = activeIndex === items.length - 1 && deltaX < 0;
@@ -236,8 +262,8 @@ function HorizontalTabPagerInner<T extends string>(
     touchStart.current = null;
     if (!start || !touch || settling || axis.current !== "horizontal") {
       dragXRef.current = 0;
-      setDragX(0);
-      onMotionChange?.(null);
+      pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
+      publishMotion(null, true);
       return;
     }
     const distance = {
@@ -250,17 +276,17 @@ function HorizontalTabPagerInner<T extends string>(
       return;
     }
     settleToIndex(targetIndex);
-  }, [activeIndex, items.length, onMotionChange, settleToIndex, settling, springBack]);
+  }, [activeIndex, items.length, publishMotion, settleToIndex, settling, springBack]);
 
   const onTouchCancel = useCallback(() => {
     touchStart.current = null;
     axis.current = "pending";
     dragXRef.current = 0;
-    setDragX(0);
+    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
     setSettling(false);
     transitionLocked.current = false;
-    onMotionChange?.(null);
-  }, [onMotionChange]);
+    publishMotion(null, true);
+  }, [publishMotion]);
 
   const onNativeTouchStart = useCallback((event: TouchEvent) => {
     nativeGestureEligible.current = false;
@@ -289,6 +315,7 @@ function HorizontalTabPagerInner<T extends string>(
       }
     }
     if (axis.current !== "horizontal") return;
+    suppressClickUntil.current = Date.now() + 500;
     const atFirst = activeIndex === 0 && deltaX > 0;
     const atLast = activeIndex === items.length - 1 && deltaX < 0;
     publishDrag(atFirst || atLast ? deltaX * 0.2 : deltaX);
@@ -325,8 +352,9 @@ function HorizontalTabPagerInner<T extends string>(
   }, [activeIndex, items.length, settleToIndex, springBack]);
 
   useEffect(() => {
-    const surface = pagerRef.current?.parentElement;
-    if (!surface) return;
+    const pager = pagerRef.current;
+    const surface = pager?.parentElement;
+    if (!pager || !surface) return;
     document.documentElement.classList.add("horizontal-tab-pager-document");
     surface.classList.add("horizontal-tab-pager-surface");
     const nativeMode = Boolean(window.LiuliNative);
@@ -362,8 +390,14 @@ function HorizontalTabPagerInner<T extends string>(
       ref={pagerRef}
       className={`horizontal-tab-pager${settling ? " is-settling" : ""}`}
       data-testid="horizontal-tab-pager"
+      onClickCapture={(event) => {
+        if (Date.now() < suppressClickUntil.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          suppressClickUntil.current = 0;
+        }
+      }}
       style={{
-        "--pager-drag-x": `${dragX}px`,
         "--pager-settle-duration": `${settleDuration}ms`
       } as PagerStyle}
     >

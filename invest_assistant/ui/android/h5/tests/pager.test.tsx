@@ -174,6 +174,7 @@ describe("horizontal tab pager", () => {
       horizontalMovePrevented = event.defaultPrevented;
     }, { once: true });
     fireEvent.touchMove(document.body, { touches: [{ clientX: 180, clientY: 508 }] });
+    act(() => vi.advanceTimersByTime(16));
 
     expect(horizontalMovePrevented).toBe(false);
     expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
@@ -337,6 +338,42 @@ describe("horizontal tab pager", () => {
 
     expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("allows a native swipe from a card-like button and suppresses its click", () => {
+    vi.useFakeTimers();
+    window.LiuliNative = {};
+    const onChange = vi.fn();
+    const onCardClick = vi.fn();
+    render(
+      <div>
+        <HorizontalTabPager
+          items={items}
+          activeKey="market"
+          onChange={onChange}
+          renderPage={(key) => <button type="button" data-swipe-allow="true" onClick={onCardClick}>{key}</button>}
+        />
+      </div>
+    );
+
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    const card = screen.getByRole("button", { name: "market" });
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 312 });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => card)
+    });
+
+    fireEvent.touchStart(card, { touches: [{ clientX: 300, clientY: 500 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 160, clientY: 506 }] });
+    fireEvent.click(card);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("liuli:native-swipe", { detail: { outcome: "next" } }));
+      vi.advanceTimersByTime(220);
+    });
+
+    expect(onCardClick).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith("track");
   });
 
   it("routes navigation clicks through the same settling transition", () => {
