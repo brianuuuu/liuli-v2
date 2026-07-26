@@ -5,8 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.MotionEvent
-import android.view.VelocityTracker
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -65,7 +63,6 @@ import com.liuli.app.core.common.AppPreferences
 import com.liuli.app.core.design.LiuliTheme
 import com.liuli.app.core.design.ThemeMode
 import com.liuli.app.hybrid.HybridSection
-import com.liuli.app.hybrid.HorizontalSwipeDetector
 import com.liuli.app.hybrid.mobileAppUrl
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -208,8 +205,6 @@ private fun HybridApp(
                         AndroidView(
                             factory = { context ->
                                 WebView(context).apply {
-                                val horizontalSwipeDetector = HorizontalSwipeDetector()
-                                var horizontalVelocityTracker: VelocityTracker? = null
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 settings.allowFileAccess = false
@@ -217,54 +212,6 @@ private fun HybridApp(
                                 settings.setSupportZoom(false)
                                 isVerticalScrollBarEnabled = false
                                 overScrollMode = WebView.OVER_SCROLL_NEVER
-                                setOnTouchListener { _, event ->
-                                    val outcome = when (event.actionMasked) {
-                                        MotionEvent.ACTION_DOWN -> {
-                                            horizontalVelocityTracker?.recycle()
-                                            horizontalVelocityTracker = VelocityTracker.obtain().also {
-                                                it.addMovement(event)
-                                            }
-                                            horizontalSwipeDetector.start(event.x, event.y)
-                                            null
-                                        }
-                                        MotionEvent.ACTION_MOVE -> {
-                                            horizontalVelocityTracker?.addMovement(event)
-                                            null
-                                        }
-                                        MotionEvent.ACTION_UP -> {
-                                            val velocityX = horizontalVelocityTracker?.run {
-                                                addMovement(event)
-                                                computeCurrentVelocity(1_000)
-                                                xVelocity
-                                            } ?: 0f
-                                            horizontalVelocityTracker?.recycle()
-                                            horizontalVelocityTracker = null
-                                            horizontalSwipeDetector.finish(
-                                                x = event.x,
-                                                y = event.y,
-                                                viewportWidthPx = width.toFloat(),
-                                                density = resources.displayMetrics.density,
-                                                velocityXPxPerSecond = velocityX,
-                                            )
-                                        }
-                                        MotionEvent.ACTION_CANCEL -> {
-                                            horizontalVelocityTracker?.recycle()
-                                            horizontalVelocityTracker = null
-                                            horizontalSwipeDetector.cancel()
-                                        }
-                                        else -> {
-                                            horizontalVelocityTracker?.addMovement(event)
-                                            null
-                                        }
-                                    }
-                                    outcome?.let {
-                                        evaluateJavascript(
-                                            "window.dispatchEvent(new CustomEvent('liuli:native-swipe',{detail:{outcome:'${it.wireValue}'}}))",
-                                            null,
-                                        )
-                                    }
-                                    false
-                                }
                                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                 addJavascriptInterface(
                                     LiuliJavascriptBridge(
