@@ -60,7 +60,7 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
   });
   if (notes.isLoading) return <LoadingState />;
   if (notes.isError) return <ErrorState onRetry={() => void notes.refetch()} />;
-  if (!notes.data?.items.length) return <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />;
+  if (!notes.data?.items?.length) return <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />;
   return (
     <div className="note-list">
       {notes.data.items.map((note) => (

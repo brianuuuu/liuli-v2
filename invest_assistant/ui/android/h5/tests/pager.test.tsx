@@ -1,4 +1,4 @@
-import { createRef } from "react";
+import React, { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -6,6 +6,7 @@ import {
   type HorizontalTabPagerHandle,
   pagerTargetIndex
 } from "../src/components/HorizontalTabPager";
+import { touchPagerCache } from "../src/components/pagerCache";
 
 const items = [
   { key: "today", label: "今日" },
@@ -89,11 +90,53 @@ describe("horizontal tab pager", () => {
       clientX: 180,
       clientY: 108
     });
+    act(() => vi.advanceTimersByTime(20));
 
     expect(onChange).not.toHaveBeenCalled();
     expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
     act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledWith("track");
+  });
+
+  it("mounts only the active page initially and keeps at most three recent pages", () => {
+    vi.useFakeTimers();
+    const fourItems = [
+      ...items,
+      { key: "portfolio", label: "组合" }
+    ] as const;
+    const ref = createRef<HorizontalTabPagerHandle<(typeof fourItems)[number]["key"]>>();
+
+    function PagerHarness() {
+      const [activeKey, setActiveKey] = React.useState<(typeof fourItems)[number]["key"]>("today");
+      return (
+        <HorizontalTabPager
+          ref={ref}
+          items={fourItems}
+          activeKey={activeKey}
+          onChange={setActiveKey}
+          renderPage={(key) => <input aria-label={key} defaultValue={key} />}
+        />
+      );
+    }
+
+    const { container } = render(<PagerHarness />);
+    expect(container.querySelectorAll("input")).toHaveLength(1);
+    fireEvent.change(screen.getByRole("textbox", { name: "today" }), {
+      target: { value: "preserved" }
+    });
+
+    for (const key of ["market", "track"] as const) {
+      act(() => ref.current?.requestChange(key));
+      act(() => vi.advanceTimersByTime(300));
+    }
+    act(() => ref.current?.requestChange("market"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByLabelText("market")).toBeInTheDocument();
+
+    act(() => ref.current?.requestChange("portfolio"));
+    act(() => vi.advanceTimersByTime(300));
+    expect(container.querySelectorAll("input")).toHaveLength(3);
+    expect(screen.queryByLabelText("today")).not.toBeInTheDocument();
   });
 
   it("keeps body whitespace swipe working and ignores the retired native event", () => {
@@ -156,6 +199,8 @@ describe("horizontal tab pager", () => {
       clientX: 240,
       clientY: 504
     });
+    act(() => vi.advanceTimersByTime(20));
+    const rendersAfterAxisLock = renderPage.mock.calls.length;
     fireEvent.pointerMove(pager, {
       pointerId: 8,
       pointerType: "touch",
@@ -165,7 +210,8 @@ describe("horizontal tab pager", () => {
     act(() => vi.advanceTimersByTime(20));
 
     expect(setMotion).toHaveBeenCalled();
-    expect(renderPage).toHaveBeenCalledTimes(rendersAfterMount);
+    expect(rendersAfterAxisLock).toBeGreaterThan(rendersAfterMount);
+    expect(renderPage).toHaveBeenCalledTimes(rendersAfterAxisLock);
   });
 
   it("springs an incomplete or cancelled drag back", () => {
@@ -279,6 +325,7 @@ describe("horizontal tab pager", () => {
     const pager = screen.getByTestId("horizontal-tab-pager");
     Object.defineProperty(pager, "clientWidth", { configurable: true, value: 320 });
     act(() => ref.current?.requestChange("market"));
+    act(() => vi.advanceTimersByTime(20));
     expect(onChange).not.toHaveBeenCalled();
     expect(pager).toHaveClass("is-settling");
     expect(pager).toHaveStyle({ "--pager-drag-x": "-320px" });
@@ -369,5 +416,15 @@ describe("horizontal tab pager", () => {
       deltaY: 0,
       viewportWidth: 320
     })).toBe(2);
+  });
+});
+
+describe("pager cache", () => {
+  it("evicts the oldest unprotected key and never exceeds three entries", () => {
+    expect(touchPagerCache(["today"], "market")).toEqual(["today", "market"]);
+    expect(touchPagerCache(["today", "market", "track"], "stock"))
+      .toEqual(["market", "track", "stock"]);
+    expect(touchPagerCache(["today", "market", "track"], "stock", ["today"]))
+      .toEqual(["today", "track", "stock"]);
   });
 });

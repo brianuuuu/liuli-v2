@@ -13,6 +13,7 @@ import {
   type RefObject
 } from "react";
 import { resolvePagerTarget, type PagerRelease } from "./pagerGesture";
+import { touchPagerCache } from "./pagerCache";
 import type { PagerMotion, PagerMotionSink } from "./pagerMotion";
 
 type TabItem<T extends string> = { key: T; label: string };
@@ -92,6 +93,7 @@ function HorizontalTabPagerInner<T extends string>(
   const [settleDuration, setSettleDuration] = useState(MAX_SETTLE_DURATION_MS);
   const [settling, setSettling] = useState(false);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState<number | null>(null);
+  const [mountedKeys, setMountedKeys] = useState<T[]>([activeKey]);
   const pagerRef = useRef<HTMLDivElement>(null);
   const dragXRef = useRef(0);
   const gestureRef = useRef<PointerGesture | null>(null);
@@ -103,11 +105,14 @@ function HorizontalTabPagerInner<T extends string>(
   const scrollPositions = useRef(new Map<T, number>());
 
   const visiblePages = useMemo(() => {
-    const indices = [activeIndex - 1, activeIndex, activeIndex + 1, transitionTargetIndex]
-      .filter((index): index is number => index !== null)
-      .filter((index) => index >= 0 && index < items.length);
-    return [...new Set(indices)].map((index) => ({ index, key: items[index].key }));
-  }, [activeIndex, items, transitionTargetIndex]);
+    return mountedKeys
+      .map((key) => ({ index: items.findIndex((item) => item.key === key), key }))
+      .filter(({ index }) => index >= 0);
+  }, [items, mountedKeys]);
+
+  useEffect(() => {
+    setMountedKeys((keys) => touchPagerCache(keys, activeKey, [activeKey]));
+  }, [activeKey]);
 
   const publishMotion = useCallback((motion: PagerMotion | null) => {
     motionSink?.current?.setMotion(motion);
@@ -169,6 +174,7 @@ function HorizontalTabPagerInner<T extends string>(
   const finishSettle = useCallback((targetIndex: number | null) => {
     if (targetIndex !== null) {
       const targetKey = items[targetIndex].key;
+      setMountedKeys((keys) => touchPagerCache(keys, targetKey, [targetKey]));
       onChange(targetKey);
       window.requestAnimationFrame(() => {
         const scrollTop = scrollPositions.current.get(targetKey) ?? 0;
@@ -213,6 +219,8 @@ function HorizontalTabPagerInner<T extends string>(
     flushPendingDrag();
     pagerRef.current?.classList.remove("is-dragging");
     scrollPositions.current.set(activeKey, window.scrollY);
+    const targetKey = items[targetIndex].key;
+    setMountedKeys((keys) => touchPagerCache(keys, targetKey, [activeKey, targetKey]));
     const startSettle = () => {
       const width = pagerRef.current?.clientWidth || window.innerWidth;
       const targetDragX = targetIndex > activeIndex ? -width : width;
@@ -224,17 +232,15 @@ function HorizontalTabPagerInner<T extends string>(
     };
     if (Math.abs(targetIndex - activeIndex) > 1) {
       setTransitionTargetIndex(targetIndex);
-      window.requestAnimationFrame(startSettle);
-    } else {
-      startSettle();
     }
+    window.requestAnimationFrame(startSettle);
   }, [
     activeIndex,
     activeKey,
     durationForDistance,
     finishSettle,
     flushPendingDrag,
-    items.length,
+    items,
     writeDrag
   ]);
 
@@ -277,6 +283,15 @@ function HorizontalTabPagerInner<T extends string>(
         if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
           gesture.axis = "horizontal";
           pager.classList.add("is-dragging");
+          const targetIndex = deltaX < 0 ? activeIndex + 1 : activeIndex - 1;
+          if (targetIndex >= 0 && targetIndex < items.length) {
+            const targetKey = items[targetIndex].key;
+            setMountedKeys((keys) => touchPagerCache(
+              keys,
+              targetKey,
+              [activeKey, targetKey]
+            ));
+          }
         } else if (Math.abs(deltaY) > Math.abs(deltaX) * AXIS_DOMINANCE_RATIO) {
           gesture.axis = "vertical";
         }
@@ -344,9 +359,10 @@ function HorizontalTabPagerInner<T extends string>(
       document.removeEventListener("pointercancel", onPointerCancel, true);
     };
   }, [
+    activeKey,
     activeIndex,
     flushPendingDrag,
-    items.length,
+    items,
     queueDrag,
     settleToIndex,
     springBack

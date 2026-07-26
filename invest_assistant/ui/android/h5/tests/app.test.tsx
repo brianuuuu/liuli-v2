@@ -102,7 +102,7 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("brian")).not.toBeInTheDocument();
   });
 
-  it("renders every cached major index on the today dashboard", async () => {
+  it("loads a dashboard index only after it becomes the pager target", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -134,6 +134,8 @@ describe("mobile H5 app", () => {
 
     expect(await screen.findByText("上证指数")).toBeInTheDocument();
     expect(screen.getByText("深证成指")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/rankings"))).toBe(false);
+    fireEvent.click(screen.getByRole("tab", { name: "市场" }));
     await waitFor(() => {
       const rankingUrl = fetchMock.mock.calls.map(([input]) => String(input)).find((url) => url.includes("/rankings"));
       expect(rankingUrl).toContain("type=all");
