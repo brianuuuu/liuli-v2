@@ -164,6 +164,32 @@ H5 单元和组件测试至少覆盖：
 
 使用小米 17 和 Debug APK 采集改造前、改造后的同路径数据。真机必须连接生产 H5 资源，不能用 Vite dev server 结果冒充最终性能。
 
+### 当前实现基线
+
+2026-07-26 已在型号 `25113PN0EC` 的小米 17 上完成改造前采样。设备为 Android 16 / API 36，屏幕工作在 120Hz，系统 WebView 为 `150.0.7871.124`。当前 Debug APK 更新时间晚于原生 pager 手势提交，H5 连接公网 5174 Vite dev server。
+
+看板“市场”和“赛道”热缓存往返 20 次：
+
+- 主文档导航 `0` 次，API 请求 `0` 次。
+- 收到 `liuli:native-swipe` 事件 `20` 次。
+- CDP 记录布局 `20` 次、样式重算 `757` 次。
+- ScriptDuration 增量约 `2.45s`，TaskDuration 增量约 `3.45s`。
+- JS heap 增量约 `6.0MB`。
+- `gfxinfo` p90 `10ms`、p95 `17ms`、p99 `21ms`。
+- legacy janky frames `11.93%`，High input latency `3261` 次。
+
+冷启动稳定后从“今日”依次滑到“组合”再返回，共 8 次：
+
+- 主文档导航 `0` 次。
+- 新增业务 API 请求 `3` 次，分别为赛道看板、标的看板和组合概览。
+- CDP 记录布局 `383` 次、样式重算 `703` 次。
+- ScriptDuration 增量约 `1.11s`，TaskDuration 增量约 `1.59s`。
+- JS heap 增量约 `18.2MB`。
+- `gfxinfo` p90 `12ms`、p95 `18ms`、p99 `18ms`。
+- legacy janky frames `15.43%`，High input latency `1289` 次。
+
+基线表明热缓存横滑的主要问题不是网络 reload，而是逐帧 React/样式工作；首次进入后续 tab 时，相邻页面挂载继续叠加业务请求、大量布局和内存增长。改造后的同动作采样必须同时降低这两类开销，不能只优化其中一项。
+
 统一动作：
 
 1. 冷启动后进入看板，等待首屏稳定。
