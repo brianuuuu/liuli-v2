@@ -105,7 +105,8 @@ popd >/dev/null
 # 8. Start Android H5
 echo "[INFO] Starting Android H5 on port 5174..."
 pushd "$H5_DIR" >/dev/null
-nohup npm run dev -- --host 0.0.0.0 --port 5174 > "$LOG_DIR/h5.log" 2>&1 &
+npm run build
+nohup npm run serve -- --host 0.0.0.0 --port 5174 > "$LOG_DIR/h5.log" 2>&1 &
 echo $! > "$PID_DIR/h5.pid"
 popd >/dev/null
 

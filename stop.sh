@@ -84,7 +84,7 @@ stop_by_port() {
 stop_by_pid_file "api" "invest_assistant.main:app"
 stop_by_pid_file "worker" "invest_assistant.worker"
 stop_by_pid_file "web" "npm run dev -- --host 0.0.0.0 --port 5173"
-stop_by_pid_file "h5" "npm run dev -- --host 0.0.0.0 --port 5174"
+stop_by_pid_file "h5" "npm run serve -- --host 0.0.0.0 --port 5174"
 
 # 2. Fallback scan using pgrep / ps to ensure no orphaned processes remain
 echo "[INFO] Scanning for any orphaned Liuli processes..."
@@ -98,6 +98,8 @@ PATTERNS=(
   "vite.*--port 5173"
   "npm run dev -- --host 0.0.0.0 --port 5174"
   "vite --host 0.0.0.0 --port 5174"
+  "npm run serve -- --host 0.0.0.0 --port 5174"
+  "vite preview --host 0.0.0.0 --port 5174"
   "vite.*--port 5174"
 )
 
