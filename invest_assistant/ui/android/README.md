@@ -35,8 +35,9 @@ npm.cmd test
 npm.cmd run build
 ```
 
-Linux 生产服务器由根目录 `start.sh` 先构建 H5 的 `dist`，再通过 `vite preview`
-在 5174 常驻提供生产包；同源 `/api` 仍代理到 8000。生产页面不得包含
+Linux 生产服务器由根目录 `start.sh` 先构建 H5 的 `dist`，再通过内置 Node
+静态服务在 5174 常驻提供 Brotli/Gzip 压缩的生产包；带哈希的 `/assets/`
+使用长期不可变缓存，同源 `/api` 仍代理到 8000。生产页面不得包含
 `/@vite/client` 或 React Refresh。Windows 本地开发继续使用 `npm.cmd run dev`，
 也不向桌面 Web 复制产物。
 
@@ -58,7 +59,7 @@ cd /home/liuli-v2
 ./stop.sh
 ```
 
-`start.sh` 记录 `var/run/h5.pid`，日志写入 `var/logs/h5.log`。`start_ubuntu_pg.sh` 继续设置 PostgreSQL 环境后调用 `start.sh`，自动获得相同的 5174 生产构建与启停逻辑。首次运行若 H5 没有 `node_modules`，启动脚本会自动安装依赖。
+`start.sh` 记录 `var/run/h5.pid`，日志写入 `var/logs/h5.log`。`start_ubuntu_pg.sh` 继续设置 PostgreSQL 环境后调用 `start.sh`，自动获得相同的 5174 压缩生产服务与启停逻辑。首次运行若 H5 没有 `node_modules`，启动脚本会自动安装依赖。
 
 服务器部署需开放 TCP 5174，并一次性删除旧目录 `invest_assistant/ui/web/public/mobile`。
 

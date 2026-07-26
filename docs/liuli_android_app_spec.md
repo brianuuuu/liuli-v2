@@ -324,6 +324,8 @@ npm.cmd run dev
 
 本地开发与服务器常驻端口均为 `5174`。本地开发使用 `npm run dev`；Linux
 服务器先执行 `npm run build`，再使用 `npm run serve` 从 `dist` 提供生产包。
+生产服务对文本资源启用 Brotli/Gzip，并给带哈希的 `/assets/` 设置一年
+`immutable` 缓存；`index.html` 保持可重新验证。
 H5 的 `/api` 默认代理到本机
 `http://127.0.0.1:8000`；需要临时改用其他 API 时，可在启动前设置
 `VITE_API_PROXY_TARGET`。开发和生产预览使用同一代理配置。
@@ -341,7 +343,7 @@ npm.cmd run build
 
 根目录 `start.bat` 和 `start.sh` 分别启动 API 8000、桌面 Web 5173 和手机
 H5 5174。Windows 使用独立 H5 开发窗口；Linux 构建 `dist` 后使用
-`vite preview`，并通过 `var/run/h5.pid` 与
+内置 Node 压缩静态服务，并通过 `var/run/h5.pid` 与
 `var/logs/h5.log` 管理 H5 进程。`stop.bat` 和 `stop.sh` 同时停止三个端口，
 Linux 停止脚本还通过 PID、命令模式和端口执行兜底清理。
 

@@ -99,6 +99,7 @@ PATTERNS=(
   "npm run dev -- --host 0.0.0.0 --port 5174"
   "vite --host 0.0.0.0 --port 5174"
   "npm run serve -- --host 0.0.0.0 --port 5174"
+  "node server.mjs --host 0.0.0.0 --port 5174"
   "vite preview --host 0.0.0.0 --port 5174"
   "vite.*--port 5174"
 )

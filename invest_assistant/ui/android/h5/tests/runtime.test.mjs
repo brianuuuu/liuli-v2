@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
@@ -88,9 +88,24 @@ describe("production H5 runtime", () => {
     assert.doesNotMatch(readFileSync("dist/index.html", "utf8"), /\/@vite\/client|react-refresh/i);
   });
 
-  it("keeps the API proxy active in preview mode", async () => {
+  it("keeps the API proxy active in production mode", async () => {
     const response = await fetch(`http://127.0.0.1:${previewPort}/api/auth/me`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { proxied: true });
+  });
+
+  it("compresses hashed assets and gives them immutable cache headers", async () => {
+    const html = await fetch(`http://127.0.0.1:${previewPort}/`).then((response) => response.text());
+    const assetPath = html.match(/\/(assets\/[^"']+\.js)/)?.[1];
+    assert.ok(assetPath);
+
+    const response = await fetch(`http://127.0.0.1:${previewPort}/${assetPath}`, {
+      headers: { "Accept-Encoding": "br, gzip" }
+    });
+    assert.equal(response.headers.get("content-encoding"), "br");
+    assert.match(response.headers.get("cache-control") ?? "", /public.*max-age=31536000.*immutable/);
+    const encodedSize = Number(response.headers.get("content-length"));
+    assert.ok(encodedSize > 0);
+    assert.ok(encodedSize < statSync(`dist/${assetPath}`).size / 2);
   });
 });
