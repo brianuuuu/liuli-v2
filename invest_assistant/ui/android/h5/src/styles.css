@@ -104,6 +104,7 @@ a { color: var(--blue); text-decoration: none; }
   white-space: nowrap;
 }
 .horizontal-tab-pager {
+  --pager-drag-x: 0px;
   position: relative;
   width: 100%;
   min-width: 0;
@@ -111,6 +112,8 @@ a { color: var(--blue); text-decoration: none; }
   overflow-x: clip;
   overflow-y: visible;
   touch-action: pan-y;
+  isolation: isolate;
+  contain: layout paint;
 }
 .horizontal-tab-pager-surface { display: flex; flex-direction: column; touch-action: pan-y; }
 .horizontal-tab-pager-surface > .horizontal-tab-pager { flex: 1 0 auto; }
@@ -120,8 +123,11 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  background: var(--bg);
 }
+.horizontal-tab-pager.is-settling .horizontal-tab-pager__page { will-change: transform; }
 .horizontal-tab-pager__page--current {
   position: relative;
   transform: translate3d(var(--pager-drag-x), 0, 0);

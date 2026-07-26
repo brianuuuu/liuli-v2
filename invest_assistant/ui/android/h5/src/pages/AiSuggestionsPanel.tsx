@@ -75,7 +75,7 @@ export function AiSuggestionsPanel() {
       ) : rows.length ? (
         <div className="suggestion-list">
           {rows.map((item) => (
-            <button type="button" className="suggestion-card" key={item.id} onClick={() => openReview(item)}>
+            <button type="button" className="suggestion-card" data-swipe-allow="true" key={item.id} onClick={() => openReview(item)}>
               <span className="suggestion-card__content">
                 <strong>{item.suggested_text}</strong>
                 {item.reason ? <span>{item.reason}</span> : null}
