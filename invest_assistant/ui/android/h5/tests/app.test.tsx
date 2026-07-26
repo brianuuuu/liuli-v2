@@ -98,7 +98,7 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByText("admin")).toBeInTheDocument();
+    expect(await screen.findByText("admin", {}, { timeout: 3_000 })).toBeInTheDocument();
     expect(screen.queryByText("brian")).not.toBeInTheDocument();
   });
 

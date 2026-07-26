@@ -108,4 +108,14 @@ describe("production H5 runtime", () => {
     assert.ok(encodedSize > 0);
     assert.ok(encodedSize < statSync(`dist/${assetPath}`).size / 2);
   });
+
+  it("keeps the initial route shell below the mobile transfer budget", () => {
+    const html = readFileSync("dist/index.html", "utf8");
+    const entryPath = html.match(/\/(assets\/[^"']+\.js)/)?.[1];
+    assert.ok(entryPath);
+    assert.ok(
+      statSync(`dist/${entryPath}`).size < 300_000,
+      "initial route shell must stay below 300KB before compression"
+    );
+  });
 });

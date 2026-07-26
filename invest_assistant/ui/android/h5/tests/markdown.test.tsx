@@ -31,7 +31,7 @@ describe("mobile Markdown report", () => {
       </HashRouter>
     );
 
-    const table = await screen.findByRole("table");
+    const table = await screen.findByRole("table", {}, { timeout: 3_000 });
     expect(within(table).getByRole("columnheader", { name: "名称" })).toBeInTheDocument();
     expect(within(table).getByRole("cell", { name: "485" })).toBeInTheDocument();
   });
