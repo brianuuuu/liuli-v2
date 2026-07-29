@@ -1347,10 +1347,12 @@ def _track_dict(track: Track) -> dict:
     }
 
 
-def _stock_material_dict(db: Session, item: "StockMaterial") -> dict:
+def _stock_material_dict(db: Session, item: "StockMaterial", stock: Stock | None = None) -> dict:
     material = {
         "id": item.id,
         "stock_id": item.stock_id,
+        "stock_name": stock.stock_name if stock is not None else None,
+        "stock_code": stock.stock_code if stock is not None else None,
         "material_type": item.material_type,
         "material_id": item.material_id,
         "impact_direction": item.impact_direction,
@@ -1454,7 +1456,16 @@ def _stock_materials_page(
         count_stmt = count_stmt.where(StockMaterial.status.in_(statuses))
     total = int(db.scalar(count_stmt) or 0)
     items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
-    return make_page([_stock_material_dict(db, item) for item in items], total, safe_limit, safe_offset)
+    stock_ids = {item.stock_id for item in items}
+    stocks_by_id = (
+        {stock.id: stock for stock in db.scalars(select(Stock).where(Stock.id.in_(stock_ids)))} if stock_ids else {}
+    )
+    return make_page(
+        [_stock_material_dict(db, item, stocks_by_id.get(item.stock_id)) for item in items],
+        total,
+        safe_limit,
+        safe_offset,
+    )
 
 
 def list_stock_materials_page(

@@ -228,6 +228,8 @@ class StockMaterialUpdate(BaseModel):
 class StockMaterialRead(StockMaterialCreate):
     id: int
     stock_id: int
+    stock_name: str | None = None
+    stock_code: str | None = None
     material_title: str | None = None
     material_summary: str | None = None
     material_source_name: str | None = None

@@ -111,6 +111,8 @@ def test_material_lists_return_filtered_total_and_max_page_size():
     assert stock_page.total == 130
     assert stock_page.limit == 100
     assert stock_page.has_more is True
+    assert stock_page.items[0]["stock_name"] == "重点科技"
+    assert stock_page.items[0]["stock_code"] == "300001"
     assert stock_next_page.total == 130
     assert len(stock_next_page.items) == 30
     assert stock_next_page.has_more is False
