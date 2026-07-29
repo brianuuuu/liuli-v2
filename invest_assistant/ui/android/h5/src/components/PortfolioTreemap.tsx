@@ -3,7 +3,7 @@ import { TreemapChart } from "echarts/charts";
 import { TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
-import { buildPortfolioTreemapOption, type PortfolioTreemapItem } from "./portfolioTreemap";
+import { buildPortfolioTreemapOption, type PortfolioTreemapItem } from "./portfolioTreemapOption";
 
 echarts.use([TreemapChart, TooltipComponent, CanvasRenderer]);
 
@@ -25,4 +25,3 @@ export function PortfolioTreemap({ items }: { items: PortfolioTreemapItem[] }) {
 
   return <div className="portfolio-treemap" ref={ref} aria-label="标的热力图" data-swipe-ignore="true" />;
 }
-

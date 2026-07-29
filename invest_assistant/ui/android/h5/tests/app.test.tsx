@@ -11,6 +11,12 @@ vi.mock("../src/components/MiniChart", () => ({
   )
 }));
 
+vi.mock("../src/components/PortfolioTreemap", () => ({
+  PortfolioTreemap: ({ items }: { items: Array<{ name: string; currentPrice?: number | null; dayPct?: number | null }> }) => (
+    <div aria-label="标的热力图">{items.map((item) => `${item.name}:${item.currentPrice ?? "--"}:${item.dayPct ?? "--"}`).join("、")}</div>
+  )
+}));
+
 function renderApp() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
@@ -741,8 +747,8 @@ describe("mobile H5 app", () => {
             day_pct: 0.68
           },
           pie_items: [
-            { label: "宁德时代", market_value: 72000, weight: 40, day_pct: 1.2 },
-            { label: "贵州茅台", market_value: 54000, weight: 30, day_pct: -0.8 },
+            { label: "宁德时代", market_value: 72000, weight: 40, current_price: 286.5, day_pct: 1.2, quote_time: "2026-07-29T10:30:00" },
+            { label: "贵州茅台", market_value: 54000, weight: 30, current_price: 1420, day_pct: -0.8, quote_time: "2026-07-29T10:30:00" },
             { label: "缺失行情", market_value: 18000, weight: null, day_pct: null }
           ]
         }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -767,17 +773,58 @@ describe("mobile H5 app", () => {
     const selector = await screen.findByText("组合选择");
     const today = screen.getByRole("heading", { name: "今日表现" });
     const allocation = screen.getByRole("heading", { name: "标的组合" });
+    const treemap = screen.getByRole("heading", { name: "标的热力图" });
     const totalValue = screen.getByText("总市值");
 
     expect(selector.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(allocation.compareDocumentPosition(totalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(allocation.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(treemap.compareDocumentPosition(totalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "标的市值占比" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("刷新标的组合")).toBeInTheDocument();
     expect(screen.getByLabelText("标的组合图")).toBeInTheDocument();
+    expect(screen.getByLabelText("标的热力图")).toHaveTextContent("宁德时代:286.5:1.2");
     expect(screen.getByText("40.0%")).toBeInTheDocument();
     expect(screen.getByText("+1.2%")).toBeInTheDocument();
     expect(screen.getAllByText("--")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "成长组合" }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/portfolios/overview?portfolio_id=7"))).toBe(true));
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/api/portfolios/overview"))).toHaveLength(2);
+  });
+
+  it("shows a dedicated treemap empty state when the portfolio has no target data", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/portfolios/overview")) {
+        return new Response(JSON.stringify({
+          portfolio_options: [],
+          summary: { total_value: 0, position_market_value: 0, cash_amount: 0, year_pnl: 0, day_pnl: 0, day_pct: null },
+          pie_items: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    renderApp();
+    const portfolioTab = await screen.findByRole("tab", { name: "组合" });
+    fireEvent.click(portfolioTab);
+    await waitFor(() => expect(portfolioTab).toHaveAttribute("aria-selected", "true"));
+
+    expect(await screen.findByRole("heading", { name: "标的热力图" })).toBeInTheDocument();
+    expect(screen.getByText("暂无标的热力图数据")).toBeInTheDocument();
+    expect(screen.queryByLabelText("标的热力图")).not.toBeInTheDocument();
   });
 
   it.each([

@@ -239,6 +239,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .hero-number { display: block; margin: 8px 0 4px; font-size: 27px; }
 .mini-chart { height: 148px; }
 .donut-chart { width: 150px; height: 160px; }
+.portfolio-treemap { width: 100%; min-width: 0; height: 240px; }
 .today-portfolio-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .today-portfolio-total span { color: var(--muted); font-size: 12px; }
 .today-portfolio-total strong { font-size: 22px; }

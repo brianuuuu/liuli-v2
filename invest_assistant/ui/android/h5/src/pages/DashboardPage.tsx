@@ -14,6 +14,7 @@ import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
 const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
+const PortfolioTreemap = lazy(() => import("../components/PortfolioTreemap").then((module) => ({ default: module.PortfolioTreemap })));
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
@@ -170,6 +171,19 @@ function PortfolioDashboard() {
           </div></div>
         </SectionCard>
       ) : <EmptyState title="暂无标的组合数据" />}
+      <SectionCard title="标的热力图">
+        {pieItems.length ? (
+          <Suspense fallback={<LoadingState />}>
+            <PortfolioTreemap items={pieItems.map((item) => ({
+              name: item.label,
+              marketValue: item.market_value,
+              weight: item.weight,
+              currentPrice: item.current_price,
+              dayPct: item.day_pct
+            }))} />
+          </Suspense>
+        ) : <EmptyState title="暂无标的热力图数据" />}
+      </SectionCard>
       <div className="metric-grid">
         <Metric label="总市值" value={formatMoney(summary?.total_value)} />
         <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />

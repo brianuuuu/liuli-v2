@@ -8,7 +8,7 @@ export type PortfolioTreemapItem = {
   dayPct?: number | null;
 };
 
-type PortfolioTreemapTheme = "light" | "dark";
+export type PortfolioTreemapTheme = "light" | "dark";
 
 type TreemapDatum = {
   name: string;
@@ -119,4 +119,3 @@ export function buildPortfolioTreemapOption(
     }]
   } as EChartsCoreOption;
 }
-

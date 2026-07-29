@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPortfolioTreemapOption } from "../src/components/portfolioTreemap";
+import { buildPortfolioTreemapOption } from "../src/components/portfolioTreemapOption";
 
 type TreemapSeries = {
   type: string;

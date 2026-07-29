@@ -86,6 +86,16 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[\s\S]*?\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*160px minmax\(0,\s*1fr\);/s);
   });
 
+  it("keeps the portfolio treemap full-width and in normal document flow", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+    const treemapRule = styles.match(/\.portfolio-treemap\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(treemapRule).toMatch(/width:\s*100%;/);
+    expect(treemapRule).toMatch(/min-width:\s*0;/);
+    expect(treemapRule).toMatch(/height:\s*240px;/);
+    expect(treemapRule).not.toMatch(/position:\s*(fixed|sticky|absolute)/);
+  });
+
   it("keeps both market ranking filters side by side below the list", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
