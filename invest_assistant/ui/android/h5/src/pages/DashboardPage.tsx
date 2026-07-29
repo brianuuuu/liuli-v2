@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
+import { DashboardMaterialFeed, type DashboardMaterialItem } from "../components/DashboardMaterialFeed";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { PORTFOLIO_ALLOCATION_COLORS } from "../components/chartPalette";
@@ -127,18 +128,78 @@ function MarketDashboard() {
 }
 
 function TrackDashboard() {
-  const query = useQuery({ queryKey: ["track-dashboard"], queryFn: mobileApi.trackDashboard, staleTime: 300_000 });
-  if (query.isLoading) return <LoadingState />;
-  if (query.isError) return <ErrorState onRetry={() => void query.refetch()} />;
-  const data = query.data;
-  return <div className="page-stack"><div className="metric-grid"><Metric label="升温赛道" value={data?.summary?.warming_tracks_count ?? 0} /><Metric label="重点赛道" value={data?.summary?.focus_tracks_count ?? 0} /></div><SectionCard title="赛道热度">{data?.heat_rankings?.slice(0, 10).map((item) => <ListRow key={item.track_id} title={`${item.rank}. ${item.track_name}`} meta={`今日 ${item.today_material_count} 条材料`} trailing={<strong className="score">{formatNumber(item.current_heat, 1)}</strong>} />)}</SectionCard><SectionCard title="最新材料">{data?.latest_materials?.slice(0, 5).map((item) => <ListRow key={item.id} title={item.material_title || "未命名材料"} meta={`${item.track_name ?? "赛道"} · ${formatDateTime(item.material_time)}`} />)}</SectionCard></div>;
+  const query = useInfiniteQuery({
+    queryKey: ["track-materials"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => mobileApi.trackMaterials(pageParam, 10),
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined,
+    staleTime: 300_000
+  });
+  const items: DashboardMaterialItem[] = query.data?.pages.flatMap((page) => page.items.map((item) => ({
+    id: item.id,
+    entityName: item.track_name ?? "赛道",
+    direction: item.direction,
+    title: item.material_title,
+    summary: item.material_summary,
+    sourceName: item.material_source_name,
+    materialTime: item.material_time
+  }))) ?? [];
+  return (
+    <div className="page-stack">
+      <SectionCard title="最新材料">
+        {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
+          <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
+        ) : (
+          <DashboardMaterialFeed
+            items={items}
+            hasNextPage={query.hasNextPage}
+            isFetchingNextPage={query.isFetchingNextPage}
+            isFetchNextPageError={query.isFetchNextPageError}
+            onLoadMore={() => void query.fetchNextPage()}
+          />
+        )}
+      </SectionCard>
+    </div>
+  );
 }
 
 function StockDashboard() {
-  const query = useQuery({ queryKey: ["stock-dashboard"], queryFn: mobileApi.stockDashboard, staleTime: 300_000 });
-  if (query.isLoading) return <LoadingState />;
-  if (query.isError) return <ErrorState onRetry={() => void query.refetch()} />;
-  return <div className="page-stack"><div className="metric-grid"><Metric label="标的池" value={query.data?.summary?.pool_count ?? 0} /><Metric label="重点标的" value={query.data?.summary?.focused_count ?? 0} /></div><SectionCard title="评分排行">{query.data?.score_rankings?.slice(0, 10).map((item) => <ListRow key={item.stock_id} title={`${item.rank}. ${item.stock_name ?? item.stock_code ?? "未命名标的"}`} meta={[item.stock_code, item.investment_level].filter(Boolean).join(" · ")} trailing={<strong className="score">{formatNumber(item.total_score, 1)}</strong>} />)}</SectionCard></div>;
+  const query = useInfiniteQuery({
+    queryKey: ["stock-materials"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => mobileApi.stockMaterials(pageParam, 10),
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more ? lastPage.offset + lastPage.items.length : undefined,
+    staleTime: 300_000
+  });
+  const items: DashboardMaterialItem[] = query.data?.pages.flatMap((page) => page.items.map((item) => ({
+    id: item.id,
+    entityName: item.stock_name ?? "标的",
+    entityCode: item.stock_code,
+    direction: item.impact_direction,
+    title: item.material_title,
+    summary: item.material_summary,
+    sourceName: item.material_source_name,
+    materialTime: item.material_time
+  }))) ?? [];
+  return (
+    <div className="page-stack">
+      <SectionCard title="最新材料">
+        {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
+          <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
+        ) : (
+          <DashboardMaterialFeed
+            items={items}
+            hasNextPage={query.hasNextPage}
+            isFetchingNextPage={query.isFetchingNextPage}
+            isFetchNextPageError={query.isFetchNextPageError}
+            onLoadMore={() => void query.fetchNextPage()}
+          />
+        )}
+      </SectionCard>
+    </div>
+  );
 }
 
 function PortfolioDashboard() {

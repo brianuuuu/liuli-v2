@@ -30,11 +30,28 @@ function renderApp() {
   );
 }
 
+class DashboardObserverFake {
+  static instances: DashboardObserverFake[] = [];
+  readonly callback: IntersectionObserverCallback;
+  disconnect = vi.fn();
+  observe = vi.fn();
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    DashboardObserverFake.instances.push(this);
+  }
+
+  intersect() {
+    this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+  }
+}
+
 describe("mobile H5 app", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.location.hash = "";
+    DashboardObserverFake.instances = [];
     vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   });
 
@@ -303,6 +320,139 @@ describe("mobile H5 app", () => {
     expect(fetchMock.mock.calls.some(([input]) => (
       /\/api\/(?:market-radar\/rankings|track-discovery\/materials|stock-analysis\/materials|portfolios\/overview)/.test(String(input))
     ))).toBe(false);
+  });
+
+  it("shows the track material feed and appends the next page", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const firstItems = Array.from({ length: 10 }, (_, index) => ({
+      id: index + 1,
+      track_id: 8,
+      track_name: index === 0 ? "半导体" : `赛道 ${index + 1}`,
+      direction: index === 0 ? "support" : "noise",
+      material_title: index === 0 ? "先进制程取得进展" : `材料 ${index + 1}`,
+      material_summary: index === 0 ? "产业链验证进度加快" : null,
+      material_source_name: "来源 A",
+      material_time: "2026-07-29T10:00:00+08:00"
+    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/track-discovery/materials")) {
+        const secondPage = url.includes("offset=10");
+        return new Response(JSON.stringify({
+          items: secondPage ? [{
+            id: 11,
+            track_id: 9,
+            track_name: "机器人",
+            direction: "neutral",
+            material_title: "第二页材料",
+            material_source_name: "来源 B"
+          }] : firstItems,
+          total: 11,
+          limit: 10,
+          offset: secondPage ? 10 : 0,
+          has_more: !secondPage
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    const trackTab = await screen.findByRole("tab", { name: "赛道" });
+    fireEvent.click(trackTab);
+    expect(await screen.findByText("先进制程取得进展")).toBeInTheDocument();
+    expect(screen.getByText("半导体")).toBeInTheDocument();
+    expect(screen.getByText("产业链验证进度加快")).toBeInTheDocument();
+    expect(screen.getByText("利好")).toBeInTheDocument();
+    expect(screen.queryByText("升温赛道")).not.toBeInTheDocument();
+    expect(screen.queryByText("重点赛道")).not.toBeInTheDocument();
+    expect(screen.queryByText("赛道热度")).not.toBeInTheDocument();
+
+    DashboardObserverFake.instances.at(-1)?.intersect();
+    expect(await screen.findByText("第二页材料")).toBeInTheDocument();
+    expect(screen.getByText("先进制程取得进展")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => (
+      String(input).includes("/api/track-discovery/materials?offset=10&limit=10")
+    ))).toBe(true);
+  });
+
+  it("shows the stock material feed and appends the next page", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const firstItems = Array.from({ length: 10 }, (_, index) => ({
+      id: index + 1,
+      stock_id: 18,
+      stock_name: index === 0 ? "宁德时代" : `标的 ${index + 1}`,
+      stock_code: index === 0 ? "300750" : `${300750 + index}`,
+      impact_direction: index === 0 ? "weaken" : "noise",
+      material_title: index === 0 ? "海外订单增速放缓" : `标的材料 ${index + 1}`,
+      material_summary: index === 0 ? "短期需求承压" : null,
+      material_source_name: "来源 C",
+      material_time: "2026-07-29T11:00:00+08:00"
+    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/stock-analysis/materials")) {
+        const secondPage = url.includes("offset=10");
+        return new Response(JSON.stringify({
+          items: secondPage ? [{
+            id: 11,
+            stock_id: 19,
+            stock_name: "贵州茅台",
+            stock_code: "600519",
+            impact_direction: "support",
+            material_title: "第二页标的材料",
+            material_source_name: "来源 D"
+          }] : firstItems,
+          total: 11,
+          limit: 10,
+          offset: secondPage ? 10 : 0,
+          has_more: !secondPage
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    const stockTab = await screen.findByRole("tab", { name: "标的" });
+    fireEvent.click(stockTab);
+    expect(await screen.findByText("海外订单增速放缓")).toBeInTheDocument();
+    expect(screen.getByText("宁德时代")).toBeInTheDocument();
+    expect(screen.getByText("300750")).toBeInTheDocument();
+    expect(screen.getByText("短期需求承压")).toBeInTheDocument();
+    expect(screen.getByText("利空")).toBeInTheDocument();
+    expect(screen.queryByText("标的池")).not.toBeInTheDocument();
+    expect(screen.queryByText("重点标的")).not.toBeInTheDocument();
+    expect(screen.queryByText("评分排行")).not.toBeInTheDocument();
+
+    DashboardObserverFake.instances.at(-1)?.intersect();
+    expect(await screen.findByText("第二页标的材料")).toBeInTheDocument();
+    expect(screen.getByText("海外订单增速放缓")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => (
+      String(input).includes("/api/stock-analysis/materials?offset=10&limit=10")
+    ))).toBe(true);
   });
 
   it("keeps edit groups as the pinned note navigation action", async () => {
