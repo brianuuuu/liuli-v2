@@ -1,10 +1,16 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import type { AiTagSuggestion } from "../types/api";
+
+export type AiSuggestionReturnState = {
+  scrollY: number;
+  anchorId?: number;
+  anchorOffset?: number;
+};
 
 export function aiSuggestionSessionKey(id: number) {
   return `liuli.mobile.ai-suggestion.${id}`;
@@ -12,6 +18,7 @@ export function aiSuggestionSessionKey(id: number) {
 
 export function AiSuggestionsPanel() {
   const client = useQueryClient();
+  const location = useLocation();
   const navigate = useNavigate();
   const [removedIds, setRemovedIds] = useState<Set<number>>(() => new Set());
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -31,6 +38,26 @@ export function AiSuggestionsPanel() {
     () => (query.data?.pages.flatMap((page) => page.items) ?? []).filter((item) => !removedIds.has(item.id)),
     [query.data, removedIds]
   );
+  const returnState = (
+    location.state as { aiSuggestionReturn?: AiSuggestionReturnState } | null
+  )?.aiSuggestionReturn;
+
+  useEffect(() => {
+    if (!returnState || query.isLoading) return;
+    const frame = window.requestAnimationFrame(() => {
+      const anchor = returnState.anchorId === undefined
+        ? null
+        : document.querySelector<HTMLElement>(`[data-suggestion-id="${returnState.anchorId}"]`);
+      if (anchor && returnState.anchorOffset !== undefined) {
+        const top = window.scrollY + anchor.getBoundingClientRect().top - returnState.anchorOffset;
+        window.scrollTo({ top, behavior: "auto" });
+      } else {
+        window.scrollTo({ top: returnState.scrollY, behavior: "auto" });
+      }
+      navigate("/tasks", { replace: true, state: null });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [navigate, query.isLoading, returnState, rows.length]);
 
   const rejectLoaded = async () => {
     if (batchRunning.current || !rows.length) return;
@@ -60,8 +87,18 @@ export function AiSuggestionsPanel() {
   };
 
   const openReview = (item: AiTagSuggestion) => {
+    const index = rows.findIndex((row) => row.id === item.id);
+    const nextItem = index >= 0 ? rows[index + 1] : undefined;
+    const nextCard = nextItem
+      ? document.querySelector<HTMLElement>(`[data-suggestion-id="${nextItem.id}"]`)
+      : null;
+    const returnState: AiSuggestionReturnState = {
+      scrollY: window.scrollY,
+      anchorId: nextItem?.id,
+      anchorOffset: nextCard?.getBoundingClientRect().top
+    };
     window.sessionStorage.setItem(aiSuggestionSessionKey(item.id), JSON.stringify(item));
-    navigate(`/tasks/suggestions/${item.id}`, { state: { suggestion: item } });
+    navigate(`/tasks/suggestions/${item.id}`, { state: { suggestion: item, returnState } });
   };
 
   return (
@@ -75,7 +112,14 @@ export function AiSuggestionsPanel() {
       ) : rows.length ? (
         <div className="suggestion-list">
           {rows.map((item) => (
-            <button type="button" className="suggestion-card" data-swipe-allow="true" key={item.id} onClick={() => openReview(item)}>
+            <button
+              type="button"
+              className="suggestion-card"
+              data-suggestion-id={item.id}
+              data-swipe-allow="true"
+              key={item.id}
+              onClick={() => openReview(item)}
+            >
               <span className="suggestion-card__content">
                 <strong>{item.suggested_text}</strong>
                 {item.reason ? <span>{item.reason}</span> : null}

@@ -5,7 +5,10 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import type { AiTagSuggestion, AiTagSuggestionApprove, PageDto } from "../types/api";
 import { DetailFrame } from "./DetailPages";
-import { aiSuggestionSessionKey } from "./AiSuggestionsPanel";
+import {
+  aiSuggestionSessionKey,
+  type AiSuggestionReturnState
+} from "./AiSuggestionsPanel";
 
 type TargetType = AiTagSuggestionApprove["target_type"];
 
@@ -23,6 +26,9 @@ export function AiSuggestionReviewPage() {
   const [targetId, setTargetId] = useState("");
   const [targetName, setTargetName] = useState("");
   const [stockKeyword, setStockKeyword] = useState("");
+  const returnState = (
+    location.state as { returnState?: AiSuggestionReturnState } | null
+  )?.returnState;
   const hotwords = useQuery({ queryKey: ["hotword-options"], queryFn: mobileApi.hotwordOptions, enabled: Boolean(item) && targetType === "hotword" });
   const tracks = useQuery({ queryKey: ["track-options"], queryFn: mobileApi.trackOptions, enabled: Boolean(item) && targetType === "track" });
   const stocks = useQuery({
@@ -43,6 +49,21 @@ export function AiSuggestionReviewPage() {
     await client.invalidateQueries({ queryKey: ["ai-tag-suggestions"] });
     navigate("/tasks", { replace: true });
   };
+  const finishApproval = async () => {
+    client.setQueriesData<InfiniteData<PageDto<AiTagSuggestion>>>(
+      { queryKey: ["ai-tag-suggestions"] },
+      (data) => removeApprovedSuggestion(data, id)
+    );
+    window.sessionStorage.removeItem(aiSuggestionSessionKey(id));
+    await client.invalidateQueries({
+      queryKey: ["ai-tag-suggestions"],
+      refetchType: "none"
+    });
+    navigate("/tasks", {
+      replace: true,
+      state: returnState ? { aiSuggestionReturn: returnState } : null
+    });
+  };
   const approve = useMutation({
     mutationFn: () => mobileApi.approveAiTagSuggestion(id, {
       final_tag_name: finalName.trim() || null,
@@ -50,7 +71,7 @@ export function AiSuggestionReviewPage() {
       target_id: targetId ? Number(targetId) : null,
       target_name: targetType === "stock" ? null : targetName.trim() || finalName.trim() || item?.suggested_text
     }),
-    onSuccess: finish
+    onSuccess: finishApproval
   });
   const reject = useMutation({
     mutationFn: () => mobileApi.rejectAiTagSuggestion(id),
@@ -118,6 +139,23 @@ export function AiSuggestionReviewPage() {
       </div>
     </DetailFrame>
   );
+}
+
+function removeApprovedSuggestion(
+  data: InfiniteData<PageDto<AiTagSuggestion>> | undefined,
+  id: number
+) {
+  if (!data || !data.pages.some((page) => page.items.some((item) => item.id === id))) {
+    return data;
+  }
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.filter((item) => item.id !== id),
+      total: Math.max(0, page.total - 1)
+    }))
+  };
 }
 
 function resolveSuggestion(id: number, state: unknown, client: ReturnType<typeof useQueryClient>) {

@@ -740,6 +740,141 @@ describe("mobile H5 app", () => {
     });
   });
 
+  it("restores the AI recommendation list around the next card after approval", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(640);
+    let approved = false;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const top = this.dataset.suggestionId === "42" ? (approved ? 100 : 180) : 40;
+      return {
+        x: 0,
+        y: top,
+        top,
+        right: 320,
+        bottom: top + 72,
+        left: 0,
+        width: 320,
+        height: 72,
+        toJSON: () => ({})
+      };
+    });
+    let pendingListGetCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.includes("/ai-tag-suggestions/41/approve")) {
+        approved = true;
+        return new Response(JSON.stringify({
+          id: 41,
+          suggested_text: "第一条推荐词",
+          status: "approved",
+          rejected_count: 0
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/ai-tag-suggestions")) {
+        pendingListGetCount += 1;
+        return new Response(JSON.stringify({
+          items: approved ? [{
+            id: 42,
+            suggested_text: "第二条推荐词",
+            reason: "保留当前位置的锚点",
+            status: "pending",
+            rejected_count: 0
+          }] : [{
+            id: 41,
+            suggested_text: "第一条推荐词",
+            reason: "审核后从列表移除",
+            status: "pending",
+            rejected_count: 0
+          }, {
+            id: 42,
+            suggested_text: "第二条推荐词",
+            reason: "保留当前位置的锚点",
+            status: "pending",
+            rejected_count: 0
+          }],
+          total: approved ? 1 : 2,
+          limit: 20,
+          offset: 0,
+          has_more: false
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        items: [],
+        total: 0,
+        limit: 100,
+        offset: 0,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click((await screen.findByText("第一条推荐词")).closest("button")!);
+    fireEvent.click(await screen.findByRole("button", { name: "通过" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks"));
+    expect(screen.queryByText("第一条推荐词")).not.toBeInTheDocument();
+    expect(await screen.findByText("第二条推荐词")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 560, behavior: "auto" });
+    });
+    expect(pendingListGetCount).toBeGreaterThan(1);
+    expect(screen.getByText("待审核 1")).toBeInTheDocument();
+    rectSpy.mockRestore();
+  });
+
+  it("restores the AI recommendation list scroll position when no next card remains", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(640);
+    let approved = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.includes("/ai-tag-suggestions/51/approve")) {
+        approved = true;
+        return new Response(JSON.stringify({
+          id: 51,
+          suggested_text: "最后一条推荐词",
+          status: "approved",
+          rejected_count: 0
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/ai-tag-suggestions")) {
+        return new Response(JSON.stringify({
+          items: approved ? [] : [{
+            id: 51,
+            suggested_text: "最后一条推荐词",
+            reason: "没有可用的下一条锚点",
+            status: "pending",
+            rejected_count: 0
+          }],
+          total: approved ? 0 : 1,
+          limit: 20,
+          offset: 0,
+          has_more: false
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        items: [],
+        total: 0,
+        limit: 100,
+        offset: 0,
+        has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click((await screen.findByText("最后一条推荐词")).closest("button")!);
+    fireEvent.click(await screen.findByRole("button", { name: "通过" }));
+
+    expect(await screen.findByText("暂无待审核推荐词")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 640, behavior: "auto" });
+    });
+  });
+
   it("rejects one recommendation without confirmation and returns to tasks", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.sessionStorage.setItem("liuli.mobile.ai-suggestion.32", JSON.stringify({
