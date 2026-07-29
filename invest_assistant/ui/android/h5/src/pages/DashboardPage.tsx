@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
@@ -8,6 +7,7 @@ import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { PORTFOLIO_ALLOCATION_COLORS } from "../components/chartPalette";
 import type { PagerMotionSink } from "../components/pagerMotion";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
@@ -140,57 +140,65 @@ function PortfolioDashboard() {
   const summary = overview.data?.summary;
   const pieItems = overview.data?.pie_items ?? [];
   return (
-    <div className="page-stack portfolio-dashboard-mobile">
-      <SectionCard>
-        <div className="portfolio-selector"><span>组合选择</span><div className="portfolio-segments" role="group" aria-label="组合选择">
-          <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>全部</button>
-          {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
-        </div></div>
-      </SectionCard>
-      <SectionCard title="今日表现">
-        <div className="portfolio-day-row">
-          <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
-          <span className={(summary?.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(summary?.day_pct, "%")}</span>
+    <PullToRefresh
+      ariaLabel="组合页下拉刷新"
+      onRefresh={async () => {
+        const result = await overview.refetch();
+        if (result.isError) throw result.error;
+      }}
+    >
+      <div className="page-stack portfolio-dashboard-mobile">
+        <div className="metric-grid">
+          <Metric label="总市值" value={formatMoney(summary?.total_value)} />
+          <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
+          <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
+          <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
         </div>
-      </SectionCard>
-      {pieItems.length ? (
-        <SectionCard title="标的组合" action={<button type="button" className="portfolio-refresh" aria-label="刷新标的组合" onClick={() => void overview.refetch()} disabled={overview.isFetching}><RefreshCw className={overview.isFetching ? "is-spinning" : ""} size={17} /></button>}>
-          <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
-            <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
-          </Suspense><div className="portfolio-allocation__list">
-            {pieItems.map((item, index) => (
-              <div className="portfolio-allocation__item" key={`${item.label}-${index}`}>
-                <span className="portfolio-allocation__marker" style={{ backgroundColor: PORTFOLIO_ALLOCATION_COLORS[index % PORTFOLIO_ALLOCATION_COLORS.length] }} aria-hidden="true" />
-                <strong title={item.label}>{item.label}</strong>
-                <span className="portfolio-allocation__metrics">
-                  <span>{formatPercent(item.weight)}</span>
-                  <span className={valueTone(item.day_pct)}>{formatSigned(item.day_pct, "%")}</span>
-                </span>
-              </div>
-            ))}
+        <SectionCard title="今日表现">
+          <div className="portfolio-day-row">
+            <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
+            <span className={(summary?.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(summary?.day_pct, "%")}</span>
+          </div>
+        </SectionCard>
+        {pieItems.length ? (
+          <SectionCard title="标的组合">
+            <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
+              <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
+            </Suspense><div className="portfolio-allocation__list" data-swipe-ignore="true">
+              {pieItems.map((item, index) => (
+                <div className="portfolio-allocation__item" key={`${item.label}-${index}`}>
+                  <span className="portfolio-allocation__marker" style={{ backgroundColor: PORTFOLIO_ALLOCATION_COLORS[index % PORTFOLIO_ALLOCATION_COLORS.length] }} aria-hidden="true" />
+                  <strong title={item.label}>{item.label}</strong>
+                  <span className="portfolio-allocation__metrics">
+                    <span>{formatPercent(item.weight)}</span>
+                    <span className={valueTone(item.day_pct)}>{formatSigned(item.day_pct, "%")}</span>
+                  </span>
+                </div>
+              ))}
+            </div></div>
+          </SectionCard>
+        ) : <EmptyState title="暂无标的组合数据" />}
+        <SectionCard title="标的热力图">
+          {pieItems.length ? (
+            <Suspense fallback={<LoadingState />}>
+              <PortfolioTreemap items={pieItems.map((item) => ({
+                name: item.label,
+                marketValue: item.market_value,
+                weight: item.weight,
+                currentPrice: item.current_price,
+                dayPct: item.day_pct
+              }))} />
+            </Suspense>
+          ) : <EmptyState title="暂无标的热力图数据" />}
+        </SectionCard>
+        <SectionCard>
+          <div className="portfolio-selector"><span>组合选择</span><div className="portfolio-segments" role="group" aria-label="组合选择">
+            <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>全部</button>
+            {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
           </div></div>
         </SectionCard>
-      ) : <EmptyState title="暂无标的组合数据" />}
-      <SectionCard title="标的热力图">
-        {pieItems.length ? (
-          <Suspense fallback={<LoadingState />}>
-            <PortfolioTreemap items={pieItems.map((item) => ({
-              name: item.label,
-              marketValue: item.market_value,
-              weight: item.weight,
-              currentPrice: item.current_price,
-              dayPct: item.day_pct
-            }))} />
-          </Suspense>
-        ) : <EmptyState title="暂无标的热力图数据" />}
-      </SectionCard>
-      <div className="metric-grid">
-        <Metric label="总市值" value={formatMoney(summary?.total_value)} />
-        <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
-        <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
-        <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
       </div>
-    </div>
+    </PullToRefresh>
   );
 }
 

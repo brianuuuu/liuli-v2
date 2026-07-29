@@ -71,6 +71,7 @@ describe("mobile card elevation", () => {
   it("keeps the target portfolio ring large and five compact rows visible", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
+    expect(styles).not.toMatch(/\.portfolio-refresh/);
     expect(styles).toMatch(/\.donut-chart\s*\{[^}]*width:\s*150px;[^}]*height:\s*160px;/s);
     expect(styles).toMatch(/\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*150px minmax\(0,\s*1fr\);[^}]*gap:\s*12px;/s);
     expect(styles).toMatch(/\.portfolio-allocation__list\s*\{[^}]*height:\s*160px;[^}]*overflow-y:\s*auto;/s);

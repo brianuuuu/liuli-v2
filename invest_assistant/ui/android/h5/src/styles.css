@@ -290,10 +290,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .portfolio-day-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .portfolio-day-row span { padding: 10px; border-radius: 8px; background: var(--panel-soft); font-size: 17px; font-weight: 680; text-align: center; }
-.portfolio-refresh { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; color: var(--muted); }
-.portfolio-refresh:active { background: var(--panel-soft); }
-.portfolio-refresh .is-spinning { animation: portfolio-refresh-spin .8s linear infinite; }
-@keyframes portfolio-refresh-spin { to { transform: rotate(360deg); } }
 .portfolio-allocation { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 12px; }
 .portfolio-allocation__list { min-width: 0; height: 160px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .portfolio-allocation__item { display: grid; min-height: 32px; align-items: center; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 6px; border-bottom: 1px solid var(--border); }

@@ -776,12 +776,12 @@ describe("mobile H5 app", () => {
     const treemap = screen.getByRole("heading", { name: "标的热力图" });
     const totalValue = screen.getByText("总市值");
 
-    expect(selector.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(totalValue.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(allocation.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(treemap.compareDocumentPosition(totalValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(treemap.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "标的市值占比" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("刷新标的组合")).toBeInTheDocument();
+    expect(screen.queryByLabelText("刷新标的组合")).not.toBeInTheDocument();
     expect(screen.getByLabelText("标的组合图")).toBeInTheDocument();
     expect(screen.getByLabelText("标的热力图")).toHaveTextContent("宁德时代:286.5:1.2");
     expect(screen.getByText("40.0%")).toBeInTheDocument();
@@ -791,6 +791,27 @@ describe("mobile H5 app", () => {
     fireEvent.click(screen.getByRole("button", { name: "成长组合" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/portfolios/overview?portfolio_id=7"))).toBe(true));
     expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/api/portfolios/overview"))).toHaveLength(2);
+
+    const siblingRequestCount = vi.mocked(fetch).mock.calls.filter(([input]) => (
+      /\/api\/(?:console\/workbench-today|market-radar\/rankings|track-discovery\/dashboard|stock-analysis\/dashboard)/.test(String(input))
+    )).length;
+    const pullRegion = await screen.findByLabelText("组合页下拉刷新");
+    fireEvent.touchStart(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }]
+    });
+    fireEvent.touchMove(pullRegion, {
+      touches: [{ identifier: 1, clientX: 122, clientY: 230, target: pullRegion }]
+    });
+    fireEvent.touchEnd(pullRegion, {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientX: 122, clientY: 230, target: pullRegion }]
+    });
+
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/api/portfolios/overview?portfolio_id=7"))).toHaveLength(2));
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/api/portfolios/overview"))).toHaveLength(3);
+    expect(vi.mocked(fetch).mock.calls.filter(([input]) => (
+      /\/api\/(?:console\/workbench-today|market-radar\/rankings|track-discovery\/dashboard|stock-analysis\/dashboard)/.test(String(input))
+    ))).toHaveLength(siblingRequestCount);
   });
 
   it("shows a dedicated treemap empty state when the portfolio has no target data", async () => {
