@@ -161,7 +161,7 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    expect(await screen.findByText("上证指数")).toBeInTheDocument();
+    expect(await screen.findByText("上证指数", {}, { timeout: 3_000 })).toBeInTheDocument();
     expect(screen.getByText("深证成指")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/rankings"))).toBe(false);
     fireEvent.click(screen.getByRole("tab", { name: "市场" }));

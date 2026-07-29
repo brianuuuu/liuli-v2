@@ -57,7 +57,7 @@ describe("mobile API client", () => {
     expect(init.signal).toBe(controller.signal);
   });
 
-  it("loads market heat rankings with the default market and 24 hour filters", async () => {
+  it("loads market heat rankings with the default market and 7 day filters", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("[]", {
         status: 200,
@@ -71,7 +71,7 @@ describe("mobile API client", () => {
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toContain("/api/market-radar/rankings");
     expect(url).toContain("type=all");
-    expect(url).toContain("window=24h");
+    expect(url).toContain("window=7d");
   });
 
   it("forwards the selected market heat type and time window", async () => {
