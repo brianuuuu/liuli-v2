@@ -240,6 +240,34 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .mini-chart { height: 148px; }
 .donut-chart { width: 150px; height: 160px; }
 .portfolio-treemap { width: 100%; min-width: 0; height: 240px; }
+.pull-to-refresh { --pull-distance: 0px; position: relative; min-width: 0; }
+.pull-to-refresh__indicator {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transform: translate3d(0, calc(var(--pull-distance) - 40px), 0);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.pull-to-refresh__content {
+  min-width: 0;
+  transform: translate3d(0, var(--pull-distance), 0);
+}
+.pull-to-refresh--refreshing .pull-to-refresh__content,
+.pull-to-refresh--error .pull-to-refresh__content,
+.pull-to-refresh--idle .pull-to-refresh__content {
+  transition: transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+.pull-to-refresh__spinner { animation: pull-to-refresh-spin .8s linear infinite; }
+@keyframes pull-to-refresh-spin { to { transform: rotate(360deg); } }
 .today-portfolio-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .today-portfolio-total span { color: var(--muted); font-size: 12px; }
 .today-portfolio-total strong { font-size: 22px; }

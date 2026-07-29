@@ -96,6 +96,20 @@ describe("mobile card elevation", () => {
     expect(treemapRule).not.toMatch(/position:\s*(fixed|sticky|absolute)/);
   });
 
+  it("keeps page pull refresh scoped and out of permanent layout flow", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+    const rootRule = styles.match(/\.pull-to-refresh\s*\{([^}]*)\}/)?.[1] ?? "";
+    const indicatorRule = styles.match(/\.pull-to-refresh__indicator\s*\{([^}]*)\}/)?.[1] ?? "";
+    const contentRule = styles.match(/\.pull-to-refresh__content\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(rootRule).toMatch(/position:\s*relative;/);
+    expect(indicatorRule).toMatch(/position:\s*absolute;/);
+    expect(indicatorRule).toMatch(/height:\s*40px;/);
+    expect(indicatorRule).not.toMatch(/position:\s*(fixed|sticky)/);
+    expect(contentRule).toMatch(/transform:\s*translate3d\(0,\s*var\(--pull-distance\),\s*0\);/);
+    expect(styles).toMatch(/\.pull-to-refresh__spinner\s*\{[^}]*animation:\s*pull-to-refresh-spin \.8s linear infinite;/s);
+  });
+
   it("keeps both market ranking filters side by side below the list", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
