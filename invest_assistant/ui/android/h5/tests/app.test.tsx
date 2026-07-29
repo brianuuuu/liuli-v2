@@ -382,9 +382,13 @@ describe("mobile H5 app", () => {
     DashboardObserverFake.instances.at(-1)?.intersect();
     expect(await screen.findByText("第二页材料")).toBeInTheDocument();
     expect(screen.getByText("先进制程取得进展")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([input]) => (
-      String(input).includes("/api/track-discovery/materials?offset=10&limit=10")
-    ))).toBe(true);
+    const materialUrls = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/track-discovery/materials"));
+    expect(materialUrls).toHaveLength(2);
+    expect(materialUrls.every((url) => url.includes("status=confirmed"))).toBe(true);
+    expect(materialUrls.some((url) => url.includes("offset=0") && url.includes("limit=10"))).toBe(true);
+    expect(materialUrls.some((url) => url.includes("offset=10") && url.includes("limit=10"))).toBe(true);
   });
 
   it("shows the stock material feed and appends the next page", async () => {
@@ -450,9 +454,13 @@ describe("mobile H5 app", () => {
     DashboardObserverFake.instances.at(-1)?.intersect();
     expect(await screen.findByText("第二页标的材料")).toBeInTheDocument();
     expect(screen.getByText("海外订单增速放缓")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([input]) => (
-      String(input).includes("/api/stock-analysis/materials?offset=10&limit=10")
-    ))).toBe(true);
+    const materialUrls = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/stock-analysis/materials"));
+    expect(materialUrls).toHaveLength(2);
+    expect(materialUrls.every((url) => url.includes("status=confirmed"))).toBe(true);
+    expect(materialUrls.some((url) => url.includes("offset=0") && url.includes("limit=10"))).toBe(true);
+    expect(materialUrls.some((url) => url.includes("offset=10") && url.includes("limit=10"))).toBe(true);
   });
 
   it("keeps edit groups as the pinned note navigation action", async () => {

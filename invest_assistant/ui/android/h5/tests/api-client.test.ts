@@ -91,6 +91,29 @@ describe("mobile API client", () => {
     expect(url).toContain("window=30d");
   });
 
+  it("requests only confirmed dashboard materials", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ items: [], total: 0, limit: 10, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.trackMaterials(10, 10);
+    await mobileApi.stockMaterials(20, 10);
+
+    const requests = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(requests[0]).toContain("/api/track-discovery/materials");
+    expect(requests[0]).toContain("status=confirmed");
+    expect(requests[0]).toContain("offset=10");
+    expect(requests[0]).toContain("limit=10");
+    expect(requests[1]).toContain("/api/stock-analysis/materials");
+    expect(requests[1]).toContain("status=confirmed");
+    expect(requests[1]).toContain("offset=20");
+    expect(requests[1]).toContain("limit=10");
+  });
+
   it("loads cached major indices from the existing read-only workbench endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ market_indices: { items: [] } }), {

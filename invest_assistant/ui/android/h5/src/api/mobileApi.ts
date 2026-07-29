@@ -52,9 +52,9 @@ export const mobileApi = {
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
   trackMaterials: (offset = 0, limit = 10) =>
-    apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { offset, limit }),
+    apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { status: "confirmed", offset, limit }),
   stockMaterials: (offset = 0, limit = 10) =>
-    apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { offset, limit }),
+    apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { status: "confirmed", offset, limit }),
   portfolioOverview: (portfolioId?: number | null) =>
     apiClient.get<PortfolioOverview>("/api/portfolios/overview", { portfolio_id: portfolioId }),
   portfolioSnapshots: (portfolioId?: number | null) =>
