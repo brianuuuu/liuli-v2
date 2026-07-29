@@ -166,7 +166,9 @@ describe("mobile H5 app", () => {
         });
       }
       if (url.includes("/api/market-radar/rankings")) {
-        const name = url.includes("type=track") && url.includes("window=30d") ? "三十日赛道" : "市场热词";
+        const name = url.includes("type=track") && url.includes("window=30d")
+          ? "三十日赛道"
+          : url.includes("type=stock") ? "标的热度" : "市场热词";
         return new Response(JSON.stringify([{
           tag_id: name === "三十日赛道" ? 2 : 1,
           trigger_count: 8,
@@ -200,6 +202,20 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("信息总量")).not.toBeInTheDocument();
     expect(screen.queryByText("活跃标签")).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/market-radar/overview"))).toBe(false);
+    const initialRankingUrl = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .find((url) => url.includes("/api/market-radar/rankings"));
+    expect(initialRankingUrl).toContain("type=all");
+    expect(initialRankingUrl).toContain("window=7d");
+    expect(screen.getByRole("button", { name: "标的" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "标签" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "标的" }));
+    expect(await screen.findByText("1. 标的热度")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => {
+      const url = String(input);
+      return url.includes("/api/market-radar/rankings") && url.includes("type=stock") && url.includes("window=7d");
+    })).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "赛道" }));
     fireEvent.click(screen.getByRole("button", { name: "30d" }));
@@ -244,6 +260,49 @@ describe("mobile H5 app", () => {
 
     resolveRankings(new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }));
     expect(await screen.findByText("暂无热度排行")).toBeInTheDocument();
+  });
+
+  it("refreshes only the today dashboard queries after a top pull", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/reports")) {
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    await screen.findByText("投研工作台");
+    const pullRegion = screen.getByLabelText("今日看板下拉刷新");
+    fireEvent.touchStart(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }]
+    });
+    fireEvent.touchMove(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 230, target: pullRegion }]
+    });
+    fireEvent.touchEnd(pullRegion, {
+      changedTouches: [{ identifier: 1, clientX: 120, clientY: 230, target: pullRegion }]
+    });
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/console/workbench-today"))).toHaveLength(2);
+      expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/reports?offset=0&limit=4"))).toHaveLength(2);
+    });
+    expect(fetchMock.mock.calls.some(([input]) => (
+      /\/api\/(?:market-radar\/rankings|track-discovery\/materials|stock-analysis\/materials|portfolios\/overview)/.test(String(input))
+    ))).toBe(false);
   });
 
   it("keeps edit groups as the pinned note navigation action", async () => {

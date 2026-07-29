@@ -40,7 +40,15 @@ function TodayDashboard() {
   if (reports.isLoading) return <LoadingState />;
   const portfolio = market.data?.portfolio_today;
   return (
-    <div className="page-stack">
+    <PullToRefresh
+      ariaLabel="今日看板下拉刷新"
+      onRefresh={async () => {
+        const [marketResult, reportsResult] = await Promise.all([market.refetch(), reports.refetch()]);
+        if (marketResult.isError) throw marketResult.error;
+        if (reportsResult.isError) throw reportsResult.error;
+      }}
+    >
+      <div className="page-stack">
       <section className="welcome-card">
         <span>投研工作台</span>
         <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
@@ -74,13 +82,14 @@ function TodayDashboard() {
       <SectionCard title="最新报告" action={<button className="text-button" onClick={() => navigate("/reports")}>全部</button>}>
         {reports.data?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
       </SectionCard>
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }
 
 function MarketDashboard() {
   const [rankingType, setRankingType] = useState<MarketRankingType>("all");
-  const [rankingWindow, setRankingWindow] = useState<MarketRankingWindow>("24h");
+  const [rankingWindow, setRankingWindow] = useState<MarketRankingWindow>("7d");
   const rankings = useQuery({
     queryKey: ["market-rankings", rankingType, rankingWindow],
     queryFn: () => mobileApi.marketRankings(rankingType, rankingWindow),
@@ -101,7 +110,7 @@ function MarketDashboard() {
             {([
               ["all", "市场"],
               ["track", "赛道"],
-              ["hotword", "标签"]
+              ["stock", "标的"]
             ] as const).map(([value, label]) => (
               <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
             ))}
