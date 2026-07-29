@@ -15,10 +15,12 @@ import type {
   Report,
   SourceItem,
   StockDashboard,
+  StockMaterial,
   StockOption,
   Tag,
   TagHeat,
   TrackDashboard,
+  TrackMaterial,
   TrackOption,
   UserMe,
   WorkbenchToday
@@ -49,6 +51,10 @@ export const mobileApi = {
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
+  trackMaterials: (offset = 0, limit = 10) =>
+    apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { offset, limit }),
+  stockMaterials: (offset = 0, limit = 10) =>
+    apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { offset, limit }),
   portfolioOverview: (portfolioId?: number | null) =>
     apiClient.get<PortfolioOverview>("/api/portfolios/overview", { portfolio_id: portfolioId }),
   portfolioSnapshots: (portfolioId?: number | null) =>

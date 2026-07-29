@@ -217,6 +217,20 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .list-row__body strong { display: block; overflow: hidden; font-size: 14px; font-weight: 560; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .list-row__body span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
 .score { color: var(--blue); font-size: 14px; }
+.dashboard-material-list { display: grid; min-width: 0; gap: 0; }
+.dashboard-material-item { min-width: 0; padding: 12px 0; }
+.dashboard-material-item + .dashboard-material-item { border-top: 1px solid var(--border); }
+.dashboard-material-item__entity { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.dashboard-material-item__entity strong { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-material-item__entity > span { flex: 0 0 auto; color: var(--subtle); font-size: 11px; }
+.material-direction { flex: 0 0 auto; margin-left: auto; padding: 2px 6px; border-radius: 5px; font-size: 10px; font-style: normal; font-weight: 650; }
+.material-direction--positive { background: rgba(220, 38, 38, .08); color: #dc2626; }
+.material-direction--negative { background: rgba(22, 163, 74, .08); color: #16a34a; }
+.material-direction--neutral { background: var(--panel-soft); color: var(--muted); }
+.dashboard-material-item h3 { min-width: 0; margin: 7px 0 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
+.dashboard-material-item p { display: -webkit-box; overflow: hidden; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.dashboard-material-item footer { margin-top: 7px; color: var(--subtle); font-size: 11px; }
+.dashboard-material-load { display: flex; min-height: 42px; align-items: center; justify-content: center; border-top: 1px solid var(--border); color: var(--subtle); font-size: 11px; }
 .text-button { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); font-size: 12px; }
 .primary-button {
   display: inline-flex;

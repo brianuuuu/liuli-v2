@@ -119,4 +119,17 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters\s*\{[^}]*gap:\s*6px;/s);
     expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters \.segmented button\s*\{[^}]*font-size:\s*11px;/s);
   });
+
+  it("renders dashboard materials as a compact continuous list", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.dashboard-material-list\s*\{[^}]*display:\s*grid;[^}]*gap:\s*0;/s);
+    expect(styles).toMatch(/\.dashboard-material-item \+ \.dashboard-material-item\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.dashboard-material-item__entity\s*\{[^}]*min-width:\s*0;/s);
+    expect(styles).toMatch(/\.dashboard-material-item__entity strong\s*\{[^}]*min-width:\s*0;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+    expect(styles).toMatch(/\.dashboard-material-item p\s*\{[^}]*-webkit-line-clamp:\s*2;/s);
+    expect(styles).toMatch(/\.material-direction--positive\s*\{[^}]*color:\s*#dc2626;/s);
+    expect(styles).toMatch(/\.material-direction--negative\s*\{[^}]*color:\s*#16a34a;/s);
+    expect(styles).toMatch(/\.material-direction--neutral\s*\{[^}]*color:\s*var\(--muted\);/s);
+  });
 });

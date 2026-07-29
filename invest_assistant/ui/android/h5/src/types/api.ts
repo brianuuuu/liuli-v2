@@ -114,6 +114,27 @@ export type TrackDashboard = {
     material_time?: string;
   }>;
 };
+export type TrackMaterial = {
+  id: number;
+  track_id: number;
+  track_name?: string | null;
+  direction?: string | null;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_time?: string | null;
+};
+export type StockMaterial = {
+  id: number;
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  impact_direction?: string | null;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_time?: string | null;
+};
 export type StockDashboard = {
   summary?: {
     pool_count?: number;
