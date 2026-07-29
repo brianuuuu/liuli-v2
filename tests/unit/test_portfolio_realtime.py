@@ -246,6 +246,7 @@ def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
         )
         position.current_price = 10
         position.previous_close = 9
+        position.quote_time = datetime(2026, 7, 29, 10, 30)
         db.commit()
 
         service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="deposit", amount=1000, flow_date=date(2026, 1, 2)))
@@ -263,9 +264,46 @@ def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
         assert overview["allocation_rows"][0]["market_value"] == 1000
         assert overview["allocation_rows"][0]["weight"] == 100
         assert any(row["type"] == "stock" and row["label"] == "平安银行" and row["market_value"] == 1000 for row in overview["allocation_rows"])
+        assert overview["pie_items"][0]["current_price"] == 10
+        assert overview["pie_items"][0]["quote_time"] == datetime(2026, 7, 29, 10, 30)
         assert overview["pie_items"][0]["day_pct"] == pytest.approx(100 / 900 * 100)
         assert all(row["type"] != "cash" for row in overview["allocation_rows"])
         assert overview["pie_items"] == [row for row in overview["allocation_rows"] if row["type"] == "stock"]
+    finally:
+        db.close()
+
+
+def test_overview_uses_latest_quote_for_merged_stock(tmp_path):
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        first_portfolio = service.create_portfolio(db, PortfolioCreate(name="组合一"), user_id=1)
+        second_portfolio = service.create_portfolio(db, PortfolioCreate(name="组合二"), user_id=1)
+        first_position = service.create_or_update_position(
+            db,
+            first_portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        second_position = service.create_or_update_position(
+            db,
+            second_portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        first_position.current_price = 10
+        first_position.previous_close = 9
+        first_position.quote_time = datetime(2026, 7, 29, 9, 30)
+        second_position.current_price = 10.5
+        second_position.previous_close = 9
+        second_position.quote_time = datetime(2026, 7, 29, 10, 30)
+        db.commit()
+
+        overview = service.get_overview(db)
+
+        assert len(overview["pie_items"]) == 1
+        assert overview["pie_items"][0]["market_value"] == 2050
+        assert overview["pie_items"][0]["current_price"] == 10.5
+        assert overview["pie_items"][0]["quote_time"] == datetime(2026, 7, 29, 10, 30)
     finally:
         db.close()
 

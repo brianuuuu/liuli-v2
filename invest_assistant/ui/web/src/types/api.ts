@@ -905,6 +905,9 @@ export type PortfolioOverviewAllocationRow = {
   label: string;
   market_value: number;
   weight: number;
+  current_price?: number | null;
+  quote_time?: string | null;
+  day_pct?: number | null;
 };
 
 export type PortfolioOverview = {

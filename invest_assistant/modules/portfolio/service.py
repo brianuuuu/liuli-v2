@@ -275,11 +275,24 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
                     "market_value": 0.0,
                     "previous_market_value": 0.0,
                     "day_pnl": 0.0,
+                    "current_price": None,
+                    "quote_time": None,
                 },
             )
             item["market_value"] += value
             item["previous_market_value"] += float(position["previous_market_value"] or 0)
             item["day_pnl"] += float(position["day_pnl"] or 0)
+            candidate_price = position.get("current_price")
+            candidate_quote_time = position.get("quote_time")
+            if candidate_price is not None and (
+                item["current_price"] is None
+                or (
+                    candidate_quote_time is not None
+                    and (item["quote_time"] is None or candidate_quote_time > item["quote_time"])
+                )
+            ):
+                item["current_price"] = float(candidate_price)
+                item["quote_time"] = candidate_quote_time
         summary = _summary(positions)
         total_position_value += float(summary["market_value"] or 0)
         total_previous_value += float(summary["previous_market_value"] or 0)
@@ -872,6 +885,8 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
                 "label": item["label"],
                 "market_value": value,
                 "weight": value / total_value * 100 if total_value else 0.0,
+                "current_price": item.get("current_price"),
+                "quote_time": item.get("quote_time"),
                 "day_pct": (
                     float(item["day_pnl"] or 0) / float(item["previous_market_value"]) * 100
                     if item.get("previous_market_value")
