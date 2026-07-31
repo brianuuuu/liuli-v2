@@ -11,6 +11,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeNoteCreate,
     KnowledgeNoteGroupCreate,
     KnowledgeNoteGroupRead,
+    KnowledgeNoteGroupReorder,
     KnowledgeNotePage,
     KnowledgeNoteRead,
     KnowledgePromptCreate,
@@ -96,6 +97,16 @@ def list_note_groups(status: str | None = "active", db: Session = Depends(get_db
 @router.post("/note-groups", response_model=KnowledgeNoteGroupRead)
 def create_note_group(payload: KnowledgeNoteGroupCreate, db: Session = Depends(get_db)):
     return service.create_note_group(db, payload)
+
+
+@router.put("/note-groups/reorder", response_model=list[KnowledgeNoteGroupRead])
+def reorder_note_groups(payload: KnowledgeNoteGroupReorder, db: Session = Depends(get_db)):
+    try:
+        return service.reorder_note_groups(db, payload.ordered_ids)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/note-groups/{group_id}", response_model=KnowledgeNoteGroupRead)

@@ -477,6 +477,34 @@ def list_note_groups(db: Session, status: str | None = "active") -> list[Knowled
     return list(db.scalars(stmt))
 
 
+def reorder_note_groups(db: Session, ordered_ids: list[int]) -> list[KnowledgeNoteGroup]:
+    if len(ordered_ids) != len(set(ordered_ids)):
+        raise ValueError("ordered_ids must not contain duplicates")
+
+    active_groups = list(db.scalars(
+        select(KnowledgeNoteGroup)
+        .where(KnowledgeNoteGroup.status == "active")
+        .order_by(KnowledgeNoteGroup.sort_order.asc(), KnowledgeNoteGroup.id.asc())
+    ))
+    active_by_id = {item.id: item for item in active_groups}
+    requested_ids = set(ordered_ids)
+    active_ids = set(active_by_id)
+    if requested_ids != active_ids:
+        existing_ids = set(db.scalars(
+            select(KnowledgeNoteGroup.id).where(KnowledgeNoteGroup.id.in_(requested_ids))
+        )) if requested_ids else set()
+        unknown_ids = requested_ids - existing_ids
+        if unknown_ids:
+            raise LookupError(f"note group not found: {min(unknown_ids)}")
+        raise ValueError("ordered_ids must contain every active note group exactly once")
+
+    reordered = [active_by_id[group_id] for group_id in ordered_ids]
+    for sort_order, item in enumerate(reordered):
+        item.sort_order = sort_order
+    db.commit()
+    return reordered
+
+
 def get_note_group(db: Session, group_id: int) -> KnowledgeNoteGroup | None:
     return db.get(KnowledgeNoteGroup, group_id)
 
