@@ -273,6 +273,211 @@ def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
         db.close()
 
 
+def test_overview_uses_net_asset_daily_pnl_and_only_excludes_external_flows(monkeypatch, tmp_path):
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="净资产组合"), user_id=1)
+        portfolio.created_at = datetime(2026, 7, 1, 0, 0)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 9
+        position.previous_close = 5
+        db.add(
+            PortfolioValueSnapshot(
+                portfolio_id=portfolio.id,
+                snapshot_date=date(2026, 7, 30),
+                total_value=1000,
+                position_market_value=900,
+                cash_amount=100,
+                position_count=1,
+                source="test",
+            )
+        )
+        db.commit()
+
+        service.update_cash_balance(db, portfolio.id, PortfolioCashUpdate(amount=100))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="deposit", amount=100, flow_date=target_date))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="withdraw", amount=20, flow_date=target_date))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="dividend", amount=30, flow_date=target_date))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="interest", amount=10, flow_date=target_date))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="adjustment", amount=250, flow_date=target_date))
+
+        overview = service.get_overview(db, portfolio.id)
+        dashboard = service.get_dashboard(db, portfolio.id)
+        snapshot = service.upsert_value_snapshot(db, portfolio.id, snapshot_date=target_date, source="test")
+
+        assert overview["summary"]["total_value"] == 1150
+        assert overview["summary"]["day_pnl"] == pytest.approx(70)
+        assert overview["summary"]["day_pct"] == pytest.approx(70 / 1080 * 100)
+        assert dashboard["summary"]["day_pnl"] == pytest.approx(70)
+        assert dashboard["summary"]["day_pct"] == pytest.approx(70 / 1080 * 100)
+        assert dashboard["positions"][0]["day_pnl"] == 400
+        assert dashboard["positions"][0]["day_pct"] == 80
+        assert snapshot.day_pnl == pytest.approx(70)
+        assert snapshot.day_pct == pytest.approx(70 / 1080 * 100)
+    finally:
+        db.close()
+
+
+def test_new_portfolio_inception_day_uses_zero_daily_pnl(monkeypatch, tmp_path):
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="首日组合"), user_id=1)
+        portfolio.created_at = datetime(2026, 7, 31, 1, 0)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 10
+        position.previous_close = 9
+        db.commit()
+
+        overview = service.get_overview(db, portfolio.id)
+
+        assert overview["summary"]["total_value"] == 1000
+        assert overview["summary"]["day_pnl"] == 0.0
+        assert overview["summary"]["day_pct"] is None
+    finally:
+        db.close()
+
+
+def test_older_portfolio_without_previous_snapshot_has_missing_daily_pnl(monkeypatch, tmp_path):
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="缺基准组合"), user_id=1)
+        portfolio.created_at = datetime(2026, 7, 1, 0, 0)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 10
+        position.previous_close = 9
+        db.commit()
+
+        overview = service.get_overview(db, portfolio.id)
+
+        assert overview["summary"]["day_pnl"] is None
+        assert overview["summary"]["day_pct"] is None
+    finally:
+        db.close()
+
+
+def test_daily_pnl_uses_latest_previous_snapshot_across_non_trading_days(monkeypatch, tmp_path):
+    target_date = date(2026, 7, 27)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="跨周末组合"), user_id=1)
+        portfolio.created_at = datetime(2026, 7, 1, 0, 0)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 11
+        position.previous_close = 10.5
+        db.add(
+            PortfolioValueSnapshot(
+                portfolio_id=portfolio.id,
+                snapshot_date=date(2026, 7, 24),
+                total_value=1000,
+                position_market_value=1000,
+                cash_amount=0,
+                position_count=1,
+                source="test",
+            )
+        )
+        db.commit()
+
+        overview = service.get_overview(db, portfolio.id)
+
+        assert overview["summary"]["day_pnl"] == 100
+        assert overview["summary"]["day_pct"] == 10
+    finally:
+        db.close()
+
+
+def test_all_portfolios_require_complete_daily_pnl_baselines(monkeypatch, tmp_path):
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        established = service.create_portfolio(db, PortfolioCreate(name="已有组合"), user_id=1)
+        established.created_at = datetime(2026, 7, 1, 0, 0)
+        established_position = service.create_or_update_position(
+            db,
+            established.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        established_position.current_price = 11
+        established_position.previous_close = 10
+        db.add(
+            PortfolioValueSnapshot(
+                portfolio_id=established.id,
+                snapshot_date=date(2026, 7, 30),
+                total_value=1000,
+                position_market_value=1000,
+                cash_amount=0,
+                position_count=1,
+                source="test",
+            )
+        )
+        inception = service.create_portfolio(db, PortfolioCreate(name="今日新组合"), user_id=1)
+        inception.created_at = datetime(2026, 7, 31, 1, 0)
+        inception_position = service.create_or_update_position(
+            db,
+            inception.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=50),
+        )
+        inception_position.current_price = 10
+        inception_position.previous_close = 9
+        db.commit()
+
+        with_inception = service.get_overview(db)
+
+        assert with_inception["summary"]["day_pnl"] == 100
+        assert with_inception["summary"]["day_pct"] is None
+
+        missing = service.create_portfolio(db, PortfolioCreate(name="历史缺基准"), user_id=1)
+        missing.created_at = datetime(2026, 7, 1, 0, 0)
+        missing_position = service.create_or_update_position(
+            db,
+            missing.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=20),
+        )
+        missing_position.current_price = 10
+        missing_position.previous_close = 9
+        db.commit()
+
+        incomplete = service.get_overview(db)
+
+        assert incomplete["summary"]["day_pnl"] is None
+        assert incomplete["summary"]["day_pct"] is None
+    finally:
+        db.close()
+
+
 def test_overview_uses_latest_quote_for_merged_stock(tmp_path):
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()

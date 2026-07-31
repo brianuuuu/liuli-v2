@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
@@ -159,15 +159,27 @@ def delete_position(db: Session, portfolio_id: int, position_id: int) -> bool:
     return True
 
 
-def get_dashboard(db: Session, portfolio_id: int) -> dict | None:
+def get_dashboard(db: Session, portfolio_id: int, performance_date: date | None = None) -> dict | None:
     portfolio = db.get(Portfolio, portfolio_id)
     if portfolio is None:
         return None
     rows = _position_rows(db, portfolio_id)
     positions = [_position_dict(position, stock) for position, stock in rows]
+    position_summary = _summary(positions)
+    cash_amount = float(get_cash_balance(db, portfolio_id)["amount"] or 0)
+    performance = _portfolio_daily_performance(
+        db,
+        portfolio,
+        float(position_summary["market_value"] or 0) + cash_amount,
+        performance_date,
+    )
     return {
         "portfolio": _portfolio_dict(portfolio),
-        "summary": _summary(positions),
+        "summary": {
+            **position_summary,
+            "day_pnl": performance["day_pnl"],
+            "day_pct": performance["day_pct"],
+        },
         "positions": positions,
         "warnings": [],
     }
@@ -255,8 +267,10 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
     portfolio_options = [_portfolio_dict(item) for item in list_portfolios(db)]
     allocation: dict[int, dict] = {}
     total_position_value = 0.0
-    total_previous_value = 0.0
     total_day_pnl = 0.0
+    total_adjusted_base = 0.0
+    day_pnl_available = True
+    day_pct_available = True
     total_position_count = 0
     total_cash = 0.0
     for portfolio in portfolios:
@@ -294,13 +308,32 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
                 item["current_price"] = float(candidate_price)
                 item["quote_time"] = candidate_quote_time
         summary = _summary(positions)
-        total_position_value += float(summary["market_value"] or 0)
-        total_previous_value += float(summary["previous_market_value"] or 0)
-        total_day_pnl += float(summary["day_pnl"] or 0)
+        position_value = float(summary["market_value"] or 0)
+        cash_amount = float(get_cash_balance(db, portfolio.id)["amount"] or 0)
+        performance = _portfolio_daily_performance(db, portfolio, position_value + cash_amount)
+        total_position_value += position_value
+        if performance["day_pnl"] is None:
+            day_pnl_available = False
+            day_pct_available = False
+        else:
+            total_day_pnl += float(performance["day_pnl"])
+        if performance["status"] != "available":
+            day_pct_available = False
+        elif performance["adjusted_base"] is not None:
+            total_adjusted_base += float(performance["adjusted_base"])
         total_position_count += int(summary["position_count"] or 0)
-        total_cash += float(get_cash_balance(db, portfolio.id)["amount"] or 0)
+        total_cash += cash_amount
     total_value = total_position_value + total_cash
-    previous_total = total_previous_value + total_cash
+    summary_day_pnl = (
+        0.0
+        if not portfolios
+        else total_day_pnl if day_pnl_available else None
+    )
+    summary_day_pct = (
+        total_day_pnl / total_adjusted_base * 100
+        if portfolios and day_pnl_available and day_pct_available and total_adjusted_base > 0
+        else None
+    )
     allocation_rows = _allocation_rows(allocation, total_position_value)
     return {
         "scope": "single" if portfolio_id else "all",
@@ -312,8 +345,8 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
             "position_market_value": total_position_value,
             "cash_amount": total_cash,
             "total_value": total_value,
-            "day_pnl": total_day_pnl,
-            "day_pct": total_day_pnl / previous_total * 100 if previous_total else None,
+            "day_pnl": summary_day_pnl,
+            "day_pct": summary_day_pct,
             "year_pnl": _year_pnl(db, [item.id for item in portfolios], total_value),
         },
         "allocation_rows": allocation_rows,
@@ -328,7 +361,7 @@ def upsert_value_snapshot(
     source: str = "scheduled",
 ) -> PortfolioValueSnapshot:
     snapshot_date = snapshot_date or _today_shanghai()
-    dashboard = get_dashboard(db, portfolio_id)
+    dashboard = get_dashboard(db, portfolio_id, snapshot_date)
     if dashboard is None:
         raise ValueError("portfolio not found")
     summary = dashboard["summary"]
@@ -899,6 +932,73 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
 
 def _portfolio_has_positions(db: Session, portfolio_id: int) -> bool:
     return bool(db.scalar(select(func.count(PortfolioPosition.id)).where(PortfolioPosition.portfolio_id == portfolio_id)) or 0)
+
+
+def _portfolio_daily_performance(
+    db: Session,
+    portfolio: Portfolio,
+    current_total: float,
+    target_date: date | None = None,
+) -> dict:
+    target_date = target_date or _today_shanghai()
+    previous = db.scalar(
+        select(PortfolioValueSnapshot)
+        .where(
+            PortfolioValueSnapshot.portfolio_id == portfolio.id,
+            PortfolioValueSnapshot.snapshot_date < target_date,
+        )
+        .order_by(
+            PortfolioValueSnapshot.snapshot_date.desc(),
+            PortfolioValueSnapshot.id.desc(),
+        )
+    )
+    if previous is None:
+        created_at = portfolio.created_at
+        if isinstance(created_at, datetime):
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            created_date = created_at.astimezone(ZoneInfo("Asia/Shanghai")).date()
+            if created_date == target_date:
+                return {
+                    "day_pnl": 0.0,
+                    "day_pct": None,
+                    "adjusted_base": None,
+                    "status": "inception",
+                }
+        return {
+            "day_pnl": None,
+            "day_pct": None,
+            "adjusted_base": None,
+            "status": "missing_baseline",
+        }
+
+    flow_rows = db.execute(
+        select(PortfolioCashFlow.flow_type, PortfolioCashFlow.amount).where(
+            PortfolioCashFlow.portfolio_id == portfolio.id,
+            PortfolioCashFlow.flow_date == target_date,
+            PortfolioCashFlow.flow_type.in_(("deposit", "withdraw")),
+        )
+    ).all()
+    net_external_flow = sum(
+        float(amount or 0) if flow_type == "deposit" else -float(amount or 0)
+        for flow_type, amount in flow_rows
+    )
+    previous_total = float(previous.total_value or 0)
+    day_pnl = float(current_total) - previous_total - net_external_flow
+    adjusted_base = previous_total + net_external_flow
+    if adjusted_base <= 0:
+        return {
+            "day_pnl": day_pnl,
+            "day_pct": None,
+            "adjusted_base": adjusted_base,
+            "status": "invalid_base",
+        }
+    return {
+        "day_pnl": day_pnl,
+        "day_pct": day_pnl / adjusted_base * 100,
+        "adjusted_base": adjusted_base,
+        "status": "available",
+    }
 
 
 def _today_shanghai() -> date:
