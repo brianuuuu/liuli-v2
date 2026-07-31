@@ -64,6 +64,27 @@ describe("DashboardMaterialFeed", () => {
     expect(screen.getByText("没有更多材料")).toBeInTheDocument();
   });
 
+  it("maps stock directions to colored benefit labels and hides unknown directions", () => {
+    vi.stubGlobal("IntersectionObserver", ObserverFake);
+    render(
+      <DashboardMaterialFeed
+        items={[
+          { id: 11, entityName: "标的一", direction: "positive", title: "正向材料" },
+          { id: 12, entityName: "标的二", direction: "negative", title: "负向材料" },
+          { id: 13, entityName: "标的三", direction: "noise", title: "噪声材料" }
+        ]}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        isFetchNextPageError={false}
+        onLoadMore={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("利好")).toHaveClass("material-direction--positive");
+    expect(screen.getByText("利空")).toHaveClass("material-direction--negative");
+    expect(screen.queryByText("噪声")).not.toBeInTheDocument();
+  });
+
   it("guards repeated intersections until the current page request settles", () => {
     vi.stubGlobal("IntersectionObserver", ObserverFake);
     const onLoadMore = vi.fn();

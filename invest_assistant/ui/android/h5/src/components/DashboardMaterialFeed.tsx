@@ -23,7 +23,9 @@ type Props = {
 
 const directionPresentation: Record<string, { label: string; tone: string }> = {
   support: { label: "利好", tone: "positive" },
+  positive: { label: "利好", tone: "positive" },
   weaken: { label: "利空", tone: "negative" },
+  negative: { label: "利空", tone: "negative" },
   neutral: { label: "中性", tone: "neutral" }
 };
 
