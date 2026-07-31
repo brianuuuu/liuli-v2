@@ -146,6 +146,26 @@ describe("mobile API client", () => {
     expect(init.method).toBe("DELETE");
   });
 
+  it("sends the complete custom note-group order and appends new groups", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mobileApi.reorderNoteGroups([8, 3, 5]);
+    await mobileApi.createNoteGroup("新分组", 7);
+
+    const [reorderUrl, reorderInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(reorderUrl).toMatch(/\/api\/knowledge\/note-groups\/reorder$/);
+    expect(reorderInit.method).toBe("PUT");
+    expect(JSON.parse(String(reorderInit.body))).toEqual({ ordered_ids: [8, 3, 5] });
+
+    const [createUrl, createInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(createUrl).toMatch(/\/api\/knowledge\/note-groups$/);
+    expect(createInit.method).toBe("POST");
+    expect(JSON.parse(String(createInit.body))).toEqual({ name: "新分组", sort_order: 7, status: "active" });
+  });
+
   it("loads a selected portfolio overview and 180 day snapshots", async () => {
     const fetchMock = vi.fn().mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify({ summary: {}, portfolio_options: [] }), {

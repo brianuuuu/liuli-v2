@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
@@ -537,6 +537,101 @@ describe("mobile H5 app", () => {
     const editGroups = await screen.findByRole("button", { name: "编辑分组" });
     expect(editGroups).toHaveClass("secondary-navigation__end-action");
     expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
+  });
+
+  it("persists all custom note groups after long-press reorder without sending the fixed all tab", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    const reorderBodies: unknown[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/knowledge/note-groups/reorder")) {
+        reorderBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify([
+          { id: 2, name: "原则", sort_order: 0, status: "active" },
+          { id: 1, name: "复盘", sort_order: 1, status: "active" }
+        ]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/knowledge/note-groups")) {
+        return new Response(JSON.stringify([
+          { id: 1, name: "复盘", sort_order: 0, status: "active" },
+          { id: 2, name: "原则", sort_order: 1, status: "active" }
+        ]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/market-radar/tags")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    const first = await screen.findByTestId("note-group-1");
+    const second = screen.getByTestId("note-group-2");
+    vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
+    vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 44, bottom: 88, height: 44 } as DOMRect);
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(first, { pointerId: 10, clientX: 20, clientY: 20 });
+    act(() => vi.advanceTimersByTime(350));
+    fireEvent.pointerMove(first, { pointerId: 10, clientX: 20, clientY: 75 });
+    fireEvent.pointerUp(first, { pointerId: 10, clientX: 20, clientY: 75 });
+    vi.useRealTimers();
+
+    await waitFor(() => expect(reorderBodies).toEqual([{ ordered_ids: [2, 1] }]));
+    const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
+    expect(tabs).toEqual(["全部", "原则", "复盘"]);
+  });
+
+  it("rolls note groups back and reports an atomic reorder failure", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/knowledge/note-groups/reorder")) {
+        return new Response(JSON.stringify({ detail: "order mismatch" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/knowledge/note-groups")) {
+        return new Response(JSON.stringify([
+          { id: 1, name: "复盘", sort_order: 0, status: "active" },
+          { id: 2, name: "原则", sort_order: 1, status: "active" }
+        ]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/market-radar/tags")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    const first = await screen.findByTestId("note-group-1");
+    const second = screen.getByTestId("note-group-2");
+    vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
+    vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 44, bottom: 88, height: 44 } as DOMRect);
+
+    vi.useFakeTimers();
+    fireEvent.pointerDown(first, { pointerId: 11, clientX: 20, clientY: 20 });
+    act(() => vi.advanceTimersByTime(350));
+    fireEvent.pointerMove(first, { pointerId: 11, clientX: 20, clientY: 75 });
+    fireEvent.pointerUp(first, { pointerId: 11, clientX: 20, clientY: 75 });
+    vi.useRealTimers();
+
+    expect(await screen.findByText("分组排序保存失败，请重试")).toBeInTheDocument();
+    await waitFor(() => {
+      const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
+      expect(tabs).toEqual(["全部", "复盘", "原则"]);
+    });
   });
 
   it("orders note metadata as date, group, body, and tags", async () => {

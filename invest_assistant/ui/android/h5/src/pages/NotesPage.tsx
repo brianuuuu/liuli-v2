@@ -6,6 +6,7 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
+import { ReorderableNoteGroups } from "../components/ReorderableNoteGroups";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { TagPicker } from "../components/TagPicker";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
@@ -83,6 +84,65 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
 function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof mobileApi.noteGroups>>; onClose: () => void }) {
   const client = useQueryClient();
   const [name, setName] = useState("");
-  const create = useMutation({ mutationFn: () => mobileApi.createNoteGroup(name.trim()), onSuccess: async () => { setName(""); await client.invalidateQueries({ queryKey: ["note-groups"] }); } });
-  return <div className="sheet-backdrop"><section className="composer-sheet group-manager"><header><strong>笔记分组</strong><button type="button" onClick={onClose}><X /></button></header>{groups.filter((item) => item.status === "active").map((group) => <div className="group-row" key={group.id}><span>{group.name}</span><button type="button" onClick={async () => { await mobileApi.updateNoteGroup({ ...group, status: "archived" }); await client.invalidateQueries({ queryKey: ["note-groups"] }); }}>移除</button></div>)}<div className="group-create"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="新分组名称" /><button type="button" disabled={!name.trim()} onClick={() => create.mutate()}>添加</button></div></section></div>;
+  const [archivePending, setArchivePending] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  const activeGroups = useMemo(
+    () => groups
+      .filter((item) => item.status === "active")
+      .sort((left, right) => left.sort_order - right.sort_order || left.id - right.id),
+    [groups]
+  );
+  const create = useMutation({
+    mutationFn: () => mobileApi.createNoteGroup(
+      name.trim(),
+      activeGroups.reduce((maximum, group) => Math.max(maximum, group.sort_order), -1) + 1
+    ),
+    onSuccess: async () => {
+      setName("");
+      await client.invalidateQueries({ queryKey: ["note-groups"] });
+    }
+  });
+  const reorder = useMutation({
+    mutationFn: (orderedIds: number[]) => mobileApi.reorderNoteGroups(orderedIds),
+    onMutate: async (orderedIds) => {
+      setReorderError(null);
+      await client.cancelQueries({ queryKey: ["note-groups"] });
+      const previous = client.getQueryData<typeof groups>(["note-groups"]);
+      const byId = new Map((previous ?? []).map((group) => [group.id, group]));
+      const reordered = orderedIds.map((id, sortOrder) => ({ ...byId.get(id)!, sort_order: sortOrder }));
+      const inactive = (previous ?? []).filter((group) => group.status !== "active");
+      client.setQueryData(["note-groups"], [...reordered, ...inactive]);
+      return { previous };
+    },
+    onError: (_error, _orderedIds, context) => {
+      if (context?.previous) client.setQueryData(["note-groups"], context.previous);
+      setReorderError("分组排序保存失败，请重试");
+    },
+    onSuccess: (saved) => client.setQueryData(["note-groups"], saved)
+  });
+  const archive = async (group: typeof activeGroups[number]) => {
+    setArchivePending(true);
+    try {
+      await mobileApi.updateNoteGroup({ ...group, status: "archived" });
+      await client.invalidateQueries({ queryKey: ["note-groups"] });
+    } finally {
+      setArchivePending(false);
+    }
+  };
+  const disabled = reorder.isPending || archivePending;
+  return (
+    <div className="sheet-backdrop">
+      <section className="composer-sheet group-manager" data-swipe-ignore="true">
+        <header><strong>笔记分组</strong><button type="button" aria-label="关闭分组编辑" onClick={onClose}><X /></button></header>
+        <ReorderableNoteGroups
+          groups={activeGroups}
+          disabled={disabled}
+          onReorder={(orderedIds) => reorder.mutateAsync(orderedIds).then(() => undefined)}
+          onArchive={archive}
+        />
+        {reorderError ? <p className="group-manager__error" role="alert">{reorderError}</p> : null}
+        <div className="group-create"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="新分组名称" /><button type="button" disabled={!name.trim() || create.isPending || disabled} onClick={() => create.mutate()}>添加</button></div>
+      </section>
+    </div>
+  );
 }

@@ -89,8 +89,10 @@ export const mobileApi = {
     }),
   archiveNote: (id: number) => apiClient.post<KnowledgeNote>(`/api/knowledge/notes/${id}/archive`),
   deleteNote: (id: number) => apiClient.delete<KnowledgeNote>(`/api/knowledge/notes/${id}`),
-  createNoteGroup: (name: string) =>
-    apiClient.post<NoteGroup>("/api/knowledge/note-groups", { name, sort_order: 0, status: "active" }),
+  createNoteGroup: (name: string, sortOrder: number) =>
+    apiClient.post<NoteGroup>("/api/knowledge/note-groups", { name, sort_order: sortOrder, status: "active" }),
+  reorderNoteGroups: (orderedIds: number[]) =>
+    apiClient.put<NoteGroup[]>("/api/knowledge/note-groups/reorder", { ordered_ids: orderedIds }),
   updateNoteGroup: (group: NoteGroup) =>
     apiClient.put<NoteGroup>(`/api/knowledge/note-groups/${group.id}`, group),
   alerts: (offset = 0, limit = 50, signal?: AbortSignal) =>
