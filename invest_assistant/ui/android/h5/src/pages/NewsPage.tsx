@@ -1,5 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { newsQueryForTab, type NewsTab } from "../api/filters";
@@ -7,6 +6,7 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime, formatDay } from "../utils/format";
@@ -27,6 +27,7 @@ export function NewsPage() {
 
 function NewsTimeline({ tab }: { tab: NewsTab }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const query = useInfiniteQuery({
     queryKey: ["news", tab],
     initialPageParam: 0,
@@ -38,6 +39,14 @@ function NewsTimeline({ tab }: { tab: NewsTab }) {
     query.data?.pages.flatMap((page) => page.items).forEach((item) => map.set(item.id, item));
     return [...map.values()];
   }, [query.data]);
+  const refresh = async () => {
+    queryClient.setQueryData(["news", tab], (current: typeof query.data) => current ? {
+      ...current,
+      pages: current.pages.slice(0, 1),
+      pageParams: current.pageParams.slice(0, 1)
+    } : current);
+    await query.refetch();
+  };
   let lastDay = "";
-  return <section><div className="timeline-toolbar"><span>{query.data?.pages[0]?.total ?? 0} 条</span><button type="button" onClick={() => void query.refetch()} aria-label="刷新资讯"><RefreshCw size={17} /></button></div>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{items.map((item) => { const day = formatDay(item.publish_time ?? item.created_at); const showDay = day !== lastDay; lastDay = day; return <div key={item.id}>{showDay ? <div className="timeline-day">{day}</div> : null}<article className="timeline-item" onClick={() => navigate(`/news/${item.id}`)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article></div>; })}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</section>;
+  return <section><PullToRefresh ariaLabel="资讯下拉刷新" onRefresh={refresh}>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{items.map((item) => { const day = formatDay(item.publish_time ?? item.created_at); const showDay = day !== lastDay; lastDay = day; return <div key={item.id}>{showDay ? <div className="timeline-day">{day}</div> : null}<article className="timeline-item" onClick={() => navigate(`/news/${item.id}`)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article></div>; })}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</PullToRefresh></section>;
 }

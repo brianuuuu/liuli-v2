@@ -92,6 +92,62 @@ describe("mobile H5 app", () => {
     expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "36");
   });
 
+  it("replaces the news toolbar with current-tab pull-to-refresh and resets pagination", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/news";
+    const newsRequests: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.includes("/api/market-radar/source-items")) {
+        return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      newsRequests.push(url);
+      const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") ?? 0);
+      return new Response(JSON.stringify({
+        items: [{
+          id: offset + newsRequests.length,
+          title: `资讯-${offset}-${newsRequests.length}`,
+          content: "内容",
+          created_at: "2026-07-31T10:00:00+08:00",
+          source_tags: []
+        }],
+        total: 90,
+        limit: 30,
+        offset,
+        has_more: true
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByText("资讯-0-1")).toBeInTheDocument();
+    expect(screen.queryByText("90 条")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "刷新资讯" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    await screen.findByText("资讯-30-2");
+
+    const pullRegion = screen.getByLabelText("资讯下拉刷新");
+    fireEvent.touchStart(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }]
+    });
+    fireEvent.touchMove(pullRegion, {
+      touches: [{ identifier: 1, clientX: 122, clientY: 230, target: pullRegion }]
+    });
+    fireEvent.touchEnd(pullRegion, {
+      changedTouches: [{ identifier: 1, clientX: 122, clientY: 230, target: pullRegion }]
+    });
+
+    await waitFor(() => expect(newsRequests).toHaveLength(3));
+    expect(new URL(newsRequests[2], "http://localhost").searchParams.get("offset")).toBe("0");
+    expect(newsRequests.every((url) => !url.includes("important=true"))).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "加载更多" }));
+    await waitFor(() => expect(newsRequests).toHaveLength(4));
+    expect(new URL(newsRequests[3], "http://localhost").searchParams.get("offset")).toBe("30");
+  });
+
   it("hides the native bottom bar only while reading a report", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/reports/7";
