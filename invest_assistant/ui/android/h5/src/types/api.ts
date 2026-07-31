@@ -88,7 +88,7 @@ export type WorkbenchToday = {
     total_value: number;
     position_market_value: number;
     cash_amount: number;
-    day_pnl: number;
+    day_pnl: number | null;
     day_pct?: number | null;
     latest_quote_time?: string | null;
   };
@@ -161,7 +161,7 @@ export type PortfolioOverview = {
     position_market_value?: number;
     cash_amount?: number;
     total_value?: number;
-    day_pnl?: number;
+    day_pnl?: number | null;
     day_pct?: number | null;
     year_pnl?: number | null;
   };

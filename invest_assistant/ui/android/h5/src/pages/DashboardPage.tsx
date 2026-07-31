@@ -73,8 +73,8 @@ function TodayDashboard() {
             <strong>{formatMoney(portfolio.total_value)}</strong>
           </div>
           <div className="today-portfolio-stats">
-            <span>今日盈亏 <b className={portfolio.day_pnl >= 0 ? "positive" : "negative"}>{formatSignedMoney(portfolio.day_pnl)}</b></span>
-            <span>今日涨跌幅 <b className={(portfolio.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(portfolio.day_pct, "%")}</b></span>
+            <span>今日盈亏 <b className={valueTone(portfolio.day_pnl)}>{formatSignedMoney(portfolio.day_pnl)}</b></span>
+            <span>今日涨跌幅 <b className={valueTone(portfolio.day_pct)}>{formatSigned(portfolio.day_pct, "%")}</b></span>
             <span>{portfolio.portfolio_count} 个组合 · {portfolio.position_count} 个持仓</span>
             <time>报价 {formatDateTime(portfolio.latest_quote_time)}</time>
           </div>

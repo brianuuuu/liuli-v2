@@ -12,6 +12,7 @@ from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.console.router import refresh_market_today, workbench_today
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
 from invest_assistant.modules.portfolio import service as portfolio_service
+from invest_assistant.modules.portfolio.models import PortfolioValueSnapshot
 from invest_assistant.modules.portfolio.schemas import PortfolioCreate, PortfolioPositionCreate
 from invest_assistant.modules.stock_analysis.models import MarketIndexRealtimeQuote
 from invest_assistant.modules.stock_analysis.models import StockMaterial, StockPoolItem
@@ -123,6 +124,17 @@ def test_workbench_today_returns_cached_market_and_portfolio_today_data():
     position.market_value = 1100
     position.quote_time = now
     position.price_source = "tushare.realtime_quote"
+    db.add(
+        PortfolioValueSnapshot(
+            portfolio_id=portfolio.id,
+            snapshot_date=portfolio_service._today_shanghai() - timedelta(days=1),
+            total_value=1000,
+            position_market_value=1000,
+            cash_amount=0,
+            position_count=1,
+            source="test",
+        )
+    )
     db.add(
         MarketIndexRealtimeQuote(
             code="000001.SH",

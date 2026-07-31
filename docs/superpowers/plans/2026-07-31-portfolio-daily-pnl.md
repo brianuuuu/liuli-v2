@@ -228,9 +228,13 @@
   npm.cmd run typecheck
   ```
 
-  Run the first command and Android typecheck from `invest_assistant/ui/android/h5`, then run `npm.cmd run typecheck` from `invest_assistant/ui/web`.
+  Run the first command and Android typecheck from `invest_assistant/ui/android/h5`, then run the Web production build from `invest_assistant/ui/web`:
 
-  Expected: the Android test passes and both TypeScript builds exit `0`.
+  ```powershell
+  npm.cmd run build
+  ```
+
+  Expected: the Android test, Android TypeScript check, and Web production build pass. The Web package has no standalone `typecheck` script.
 
 - [ ] **Step 5: Run the approved workbench test and verify GREEN**
 
@@ -289,11 +293,10 @@
   From `invest_assistant/ui/web` run:
 
   ```powershell
-  npm.cmd run typecheck
   npm.cmd run build
   ```
 
-  Expected: both commands exit `0`; the standing Vite chunk-size warning is acceptable.
+  Expected: the command exits `0`; the standing Vite chunk-size warning is acceptable. The Web package has no standalone `typecheck` script.
 
 - [ ] **Step 4: Check repository hygiene**
 

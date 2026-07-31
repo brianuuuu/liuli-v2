@@ -1082,6 +1082,48 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("+123.00%")).not.toBeInTheDocument();
   });
 
+  it("shows missing portfolio daily performance without a gain or loss tone", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/console/workbench-today")) {
+          return new Response(JSON.stringify({
+            market_indices: { items: [] },
+            portfolio_today: {
+              portfolio_count: 1,
+              position_count: 1,
+              total_value: 1000,
+              position_market_value: 900,
+              cash_amount: 100,
+              day_pnl: null,
+              day_pct: null,
+              latest_quote_time: null
+            }
+          }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      })
+    );
+
+    renderApp();
+
+    expect(await screen.findByText("今日组合")).toBeInTheDocument();
+    const pnlRow = screen.getByText("今日盈亏", { selector: "span" });
+    const pctRow = screen.getByText("今日涨跌幅", { selector: "span" });
+    expect(pnlRow).toHaveTextContent("今日盈亏 --");
+    expect(pctRow).toHaveTextContent("今日涨跌幅 --");
+    expect(pnlRow.querySelector("b")).not.toHaveClass("positive");
+    expect(pnlRow.querySelector("b")).not.toHaveClass("negative");
+    expect(pctRow.querySelector("b")).not.toHaveClass("positive");
+    expect(pctRow.querySelector("b")).not.toHaveClass("negative");
+  });
+
   it("places the compact target portfolio card directly below today's performance", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";

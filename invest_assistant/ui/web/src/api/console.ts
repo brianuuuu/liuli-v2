@@ -77,7 +77,7 @@ export type WorkbenchPortfolioToday = {
   total_value: number;
   position_market_value: number;
   cash_amount: number;
-  day_pnl: number;
+  day_pnl: number | null;
   day_pct?: number | null;
   latest_quote_time?: string | null;
 };
