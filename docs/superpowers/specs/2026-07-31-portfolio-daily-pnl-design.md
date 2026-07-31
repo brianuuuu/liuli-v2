@@ -88,7 +88,7 @@ day_pct = day_pnl / adjusted_base * 100
 
 在 `invest_assistant/modules/portfolio/service.py` 内新增聚焦的组合当日表现计算单元，输入组合 ID、当前总资产和目标日期，输出可空的 `day_pnl`、`day_pct` 及计算状态。
 
-`get_overview()` 负责逐组合调用该单元并聚合结果。`upsert_value_snapshot()` 使用同一计算单元写入快照，避免组合概览和历史快照继续采用两套口径。
+`get_dashboard()` 使用该单元替换组合级汇总中的 `day_pnl` 和 `day_pct`，保证 Web 单组合页面使用新口径；持仓行仍保留价格涨跌口径。`get_overview()` 负责逐组合调用该单元并聚合结果。`upsert_value_snapshot()` 复用 `get_dashboard()` 的结果写入快照，避免单组合页面、组合概览和历史快照继续采用不同口径。
 
 现有 `_position_dict()`、`_summary()` 和 `_allocation_rows()` 继续计算个股价格表现，供持仓表格、标的组合和热力图使用；它们的个股 `day_pnl`、`day_pct` 不再作为组合层汇总来源。
 
