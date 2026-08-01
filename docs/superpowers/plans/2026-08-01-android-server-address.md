@@ -28,7 +28,7 @@
 
 - [ ] **Step 1: Write failing tests**
 
-Add assertions that the ranking renders `位次变化` and no longer renders `升降位次`. Add a Me-page test that sees `http://localhost`, clicks the server row, edits the input, and saves a trimmed URL through `setServer`. Add stylesheet assertions for ellipsis and `white-space: nowrap` on the save button.
+Add assertions that the ranking renders `位次变化` and no longer renders `升降位次`. Add a Me-page test that sees a single-line `服务地址` and `http://localhost` row without an icon or bold text, clicks the row, edits the input, and saves a trimmed URL through `setServer`. Add stylesheet assertions for right-aligned ellipsis and `white-space: nowrap` on the save button.
 
 - [ ] **Step 2: Verify the tests fail for the missing behavior**
 
@@ -49,7 +49,7 @@ Expected: FAIL because the old label and always-visible empty input are still re
 
 - [ ] **Step 1: Implement minimal behavior**
 
-Rename the label, initialize the server draft from `window.location.origin`, add an `editingServer` boolean, render a button-like display row when false, and render the input plus save button when true. Trim the value before calling the bridge.
+Rename the label, initialize the server draft from `window.location.origin`, add an `editingServer` boolean, render a one-line label and address row when false, and render the label, input, and save button when true. Trim the value before calling the bridge.
 
 - [ ] **Step 2: Add compact styling**
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronRight, LogOut, Moon, Server, Sun, UserRound } from "lucide-react";
+import { ChevronRight, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -65,18 +65,14 @@ export function MePage() {
             <button type="button" className="settings-row" onClick={() => setPasswordOpen(true)}><span>修改密码</span><ChevronRight /></button>
             {editingServer ? (
               <div className="settings-row settings-row--form settings-server-edit">
-                <Server size={18} />
-                <input aria-label="服务器地址" value={server} onChange={(event) => setServer(event.target.value)} autoFocus />
+                <span className="settings-server-label">服务地址</span>
+                <input aria-label="服务地址" value={server} onChange={(event) => setServer(event.target.value)} autoFocus />
                 <button type="button" className="settings-server-save" disabled={!canSaveServer} onClick={saveServer}>保存</button>
               </div>
             ) : (
-              <button type="button" className="settings-row settings-server-display" aria-label={`编辑服务器地址 ${currentServer}`} onClick={startEditingServer}>
-                <Server size={18} />
-                <span className="settings-server-copy">
-                  <strong>服务器地址</strong>
-                  <span title={currentServer}>{currentServer}</span>
-                </span>
-                <ChevronRight size={18} />
+              <button type="button" className="settings-row settings-server-display" aria-label={`编辑服务地址 ${currentServer}`} onClick={startEditingServer}>
+                <span className="settings-server-label">服务地址</span>
+                <span className="settings-server-address" title={currentServer}>{currentServer}</span>
               </button>
             )}
           </SectionCard>

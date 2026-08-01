@@ -459,11 +459,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .settings-row--form { gap: 8px; }
 .settings-row--form input { height: 38px; margin: 0; }
 .settings-row--form button { color: var(--blue); font-size: 12px; }
-.settings-server-display { gap: 10px; }
-.settings-server-display > svg, .settings-server-edit > svg { flex: 0 0 auto; color: var(--muted); }
-.settings-server-copy { display: grid; min-width: 0; flex: 1; gap: 2px; }
-.settings-server-copy strong { font-size: 13px; font-weight: 560; }
-.settings-server-copy > span { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-server-display { gap: 12px; }
+.settings-server-label { flex: 0 0 auto; }
+.settings-server-address { min-width: 0; flex: 1; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 .settings-server-edit input { min-width: 0; flex: 1; }
 .settings-server-save { display: inline-flex; height: 38px; flex: 0 0 auto; min-width: 44px; align-items: center; justify-content: flex-end; white-space: nowrap; }
 .logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }

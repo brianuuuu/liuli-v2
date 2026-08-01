@@ -132,8 +132,8 @@ describe("mobile card elevation", () => {
   it("keeps the server address readable and the save action horizontal", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.settings-server-copy\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;/s);
-    expect(styles).toMatch(/\.settings-server-copy > span\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+    expect(styles).toMatch(/\.settings-server-display\s*\{[^}]*gap:\s*12px;/s);
+    expect(styles).toMatch(/\.settings-server-address\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;[^}]*text-align:\s*right;/s);
     expect(styles).toMatch(/\.settings-server-save\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*44px;[^}]*white-space:\s*nowrap;/s);
   });
 
