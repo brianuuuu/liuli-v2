@@ -2,8 +2,6 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { NoteGroup } from "../types/api";
 
-const HOLD_DELAY_MS = 350;
-const MOVE_TOLERANCE_PX = 8;
 const EDGE_ZONE_PX = 36;
 const EDGE_SCROLL_PX = 6;
 
@@ -11,26 +9,27 @@ type Props = {
   groups: NoteGroup[];
   disabled: boolean;
   onReorder: (orderedIds: number[]) => Promise<void>;
+  onRename: (group: NoteGroup, name: string) => Promise<void>;
   onArchive: (group: NoteGroup) => Promise<void>;
 };
 
 type DragGesture = {
   pointerId: number;
   groupId: number;
-  target: HTMLDivElement;
-  startX: number;
   startY: number;
-  active: boolean;
   changed: boolean;
 };
 
-export function ReorderableNoteGroups({ groups, disabled, onReorder, onArchive }: Props) {
+export function ReorderableNoteGroups({ groups, disabled, onReorder, onRename, onArchive }: Props) {
   const [orderedGroups, setOrderedGroups] = useState(groups);
   const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [renamePending, setRenamePending] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const orderRef = useRef(groups);
   const gestureRef = useRef<DragGesture | null>(null);
-  const holdTimerRef = useRef<number | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const pointerYRef = useRef(0);
 
@@ -41,15 +40,8 @@ export function ReorderableNoteGroups({ groups, disabled, onReorder, onArchive }
   }, [draggingId, groups]);
 
   useEffect(() => () => {
-    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
     if (scrollFrameRef.current !== null) window.cancelAnimationFrame(scrollFrameRef.current);
   }, []);
-
-  const clearHoldTimer = () => {
-    if (holdTimerRef.current === null) return;
-    window.clearTimeout(holdTimerRef.current);
-    holdTimerRef.current = null;
-  };
 
   const stopAutoScroll = () => {
     if (scrollFrameRef.current === null) return;
@@ -58,11 +50,10 @@ export function ReorderableNoteGroups({ groups, disabled, onReorder, onArchive }
   };
 
   const runAutoScroll = () => {
-    if (scrollFrameRef.current !== null || !gestureRef.current?.active) return;
+    if (scrollFrameRef.current !== null || !gestureRef.current) return;
     const step = () => {
       const list = listRef.current;
-      const gesture = gestureRef.current;
-      if (!list || !gesture?.active) {
+      if (!list || !gestureRef.current) {
         scrollFrameRef.current = null;
         return;
       }
@@ -79,44 +70,25 @@ export function ReorderableNoteGroups({ groups, disabled, onReorder, onArchive }
     scrollFrameRef.current = window.requestAnimationFrame(step);
   };
 
-  const beginPress = (event: ReactPointerEvent<HTMLDivElement>, groupId: number) => {
-    if (disabled || event.isPrimary === false || event.target instanceof Element && event.target.closest("button")) return;
-    clearHoldTimer();
+  const beginDrag = (event: ReactPointerEvent<HTMLButtonElement>, groupId: number) => {
+    if (disabled || renamePending || event.isPrimary === false) return;
+    event.preventDefault();
     gestureRef.current = {
       pointerId: event.pointerId,
       groupId,
-      target: event.currentTarget,
-      startX: event.clientX,
       startY: event.clientY,
-      active: false,
       changed: false
     };
-    holdTimerRef.current = window.setTimeout(() => {
-      const gesture = gestureRef.current;
-      if (!gesture || gesture.pointerId !== event.pointerId) return;
-      gesture.active = true;
-      setDraggingId(groupId);
-      gesture.target.setPointerCapture?.(event.pointerId);
-      holdTimerRef.current = null;
-    }, HOLD_DELAY_MS);
+    pointerYRef.current = event.clientY;
+    setDraggingId(groupId);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
-  const movePress = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    pointerYRef.current = event.clientY;
-    if (!gesture.active) {
-      if (
-        Math.abs(event.clientX - gesture.startX) > MOVE_TOLERANCE_PX
-        || Math.abs(event.clientY - gesture.startY) > MOVE_TOLERANCE_PX
-      ) {
-        clearHoldTimer();
-        gestureRef.current = null;
-      }
-      return;
-    }
-
     event.preventDefault();
+    pointerYRef.current = event.clientY;
     const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-note-group-row]") ?? [])];
     const currentIndex = orderRef.current.findIndex((group) => group.id === gesture.groupId);
     let targetIndex = currentIndex;
@@ -142,37 +114,105 @@ export function ReorderableNoteGroups({ groups, disabled, onReorder, onArchive }
     runAutoScroll();
   };
 
-  const finishPress = (event: ReactPointerEvent<HTMLDivElement>, cancelled = false) => {
+  const finishDrag = (event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) => {
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    clearHoldTimer();
     stopAutoScroll();
     gestureRef.current = null;
     setDraggingId(null);
-    if (gesture.active && gesture.changed && !cancelled) {
+    if (gesture.changed && !cancelled) {
       void onReorder(orderRef.current.map((group) => group.id)).catch(() => undefined);
     }
   };
 
+  const startRename = (group: NoteGroup) => {
+    setEditingId(group.id);
+    setDraftName(group.name);
+    setRenameError(null);
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+    setDraftName("");
+    setRenameError(null);
+  };
+
+  const saveRename = async (group: NoteGroup) => {
+    const name = draftName.trim();
+    if (!name || name === group.name) {
+      cancelRename();
+      return;
+    }
+    setRenamePending(true);
+    setRenameError(null);
+    try {
+      await onRename(group, name);
+      cancelRename();
+    } catch {
+      setRenameError("分组名称保存失败");
+    } finally {
+      setRenamePending(false);
+    }
+  };
+
   return (
-    <div className="group-manager__list" ref={listRef} data-swipe-ignore="true">
-      {orderedGroups.map((group) => (
-        <div
-          className={`group-row group-row--reorderable${draggingId === group.id ? " group-row--dragging" : ""}`}
-          data-note-group-row="true"
-          data-swipe-ignore="true"
-          data-testid={`note-group-${group.id}`}
-          key={group.id}
-          onPointerDown={(event) => beginPress(event, group.id)}
-          onPointerMove={movePress}
-          onPointerUp={finishPress}
-          onPointerCancel={(event) => finishPress(event, true)}
-        >
-          <GripVertical className="group-row__grip" aria-hidden="true" size={17} />
-          <span>{group.name}</span>
-          <button type="button" disabled={disabled} aria-label={`移除${group.name}`} onClick={() => void onArchive(group)}>移除</button>
-        </div>
-      ))}
+    <div
+      className="group-manager__list"
+      ref={listRef}
+      data-swipe-ignore="true"
+      style={{ height: `${Math.min(orderedGroups.length * 43, 308)}px` }}
+    >
+      {orderedGroups.map((group) => {
+        const editing = editingId === group.id;
+        return (
+          <div
+            className={`group-row group-row--reorderable${draggingId === group.id ? " group-row--dragging" : ""}${editing ? " group-row--editing" : ""}`}
+            data-note-group-row="true"
+            data-swipe-ignore="true"
+            data-testid={`note-group-${group.id}`}
+            key={group.id}
+          >
+            <button
+              type="button"
+              className="group-row__grip"
+              aria-label={`调整${group.name}顺序`}
+              disabled={disabled || renamePending || editing}
+              onPointerDown={(event) => beginDrag(event, group.id)}
+              onPointerMove={moveDrag}
+              onPointerUp={finishDrag}
+              onPointerCancel={(event) => finishDrag(event, true)}
+            >
+              <GripVertical aria-hidden="true" size={18} />
+            </button>
+            {editing ? (
+              <div className="group-row__editor">
+                <input
+                  aria-label="分组名称"
+                  autoFocus
+                  disabled={renamePending}
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveRename(group);
+                    if (event.key === "Escape") cancelRename();
+                  }}
+                />
+                <button type="button" aria-label="保存分组名称" disabled={!draftName.trim() || renamePending} onClick={() => void saveRename(group)}>保存</button>
+                <button type="button" aria-label="取消编辑分组" disabled={renamePending} onClick={cancelRename}>取消</button>
+              </div>
+            ) : (
+              <>
+                <span>{group.name}</span>
+                <div className="group-row__actions">
+                  <button type="button" disabled={disabled} aria-label={`编辑${group.name}`} onClick={() => startRename(group)}>编辑</button>
+                  <button type="button" disabled={disabled} aria-label={`移除${group.name}`} onClick={() => void onArchive(group)}>移除</button>
+                </div>
+              </>
+            )}
+            {editing && renameError ? <p className="group-row__error" role="alert">{renameError}</p> : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

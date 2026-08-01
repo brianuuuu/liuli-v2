@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -180,6 +181,7 @@ private fun HybridApp(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .windowInsetsPadding(WindowInsets.ime)
                     .background(systemChromeBackground),
             ) {
                 if (loadFailed) {

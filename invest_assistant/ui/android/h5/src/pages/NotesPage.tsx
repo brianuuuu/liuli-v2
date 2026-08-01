@@ -86,6 +86,7 @@ function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof m
   const [name, setName] = useState("");
   const [archivePending, setArchivePending] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
+  const [managerViewport, setManagerViewport] = useState<{ height: number; offsetTop: number } | null>(null);
   const activeGroups = useMemo(
     () => groups
       .filter((item) => item.status === "active")
@@ -102,6 +103,18 @@ function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof m
       await client.invalidateQueries({ queryKey: ["note-groups"] });
     }
   });
+  useEffect(() => {
+    if (!window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const syncViewport = () => setManagerViewport({ height: viewport.height, offsetTop: viewport.offsetTop });
+    syncViewport();
+    viewport.addEventListener("resize", syncViewport);
+    viewport.addEventListener("scroll", syncViewport);
+    return () => {
+      viewport.removeEventListener("resize", syncViewport);
+      viewport.removeEventListener("scroll", syncViewport);
+    };
+  }, []);
   const reorder = useMutation({
     mutationFn: (orderedIds: number[]) => mobileApi.reorderNoteGroups(orderedIds),
     onMutate: async (orderedIds) => {
@@ -129,15 +142,22 @@ function GroupManager({ groups, onClose }: { groups: Awaited<ReturnType<typeof m
       setArchivePending(false);
     }
   };
+  const rename = async (group: typeof activeGroups[number], name: string) => {
+    const saved = await mobileApi.updateNoteGroup({ ...group, name });
+    client.setQueryData<typeof groups>(["note-groups"], (current) => (
+      current?.map((item) => item.id === saved.id ? saved : item) ?? [saved]
+    ));
+  };
   const disabled = reorder.isPending || archivePending;
   return (
-    <div className="sheet-backdrop">
+    <div className="sheet-backdrop composer-backdrop" style={managerViewport ? { height: `${managerViewport.height}px`, top: `${managerViewport.offsetTop}px` } : undefined}>
       <section className="composer-sheet group-manager" data-swipe-ignore="true">
         <header><strong>笔记分组</strong><button type="button" aria-label="关闭分组编辑" onClick={onClose}><X /></button></header>
         <ReorderableNoteGroups
           groups={activeGroups}
           disabled={disabled}
           onReorder={(orderedIds) => reorder.mutateAsync(orderedIds).then(() => undefined)}
+          onRename={rename}
           onArchive={archive}
         />
         {reorderError ? <p className="group-manager__error" role="alert">{reorderError}</p> : null}

@@ -356,10 +356,17 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .group-row, .group-create { display: flex; align-items: center; gap: 8px; }
 .group-row { min-height: 42px; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .group-row button { color: var(--muted); font-size: 12px; }
-.group-manager__list { min-width: 0; max-height: min(44vh, 308px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-.group-row--reorderable { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; min-width: 0; padding: 0 2px; user-select: none; }
+.group-manager__list { min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.group-row--reorderable { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; min-width: 0; padding: 0 2px; user-select: none; }
 .group-row--reorderable > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group-row__grip { color: var(--muted); cursor: grab; touch-action: none; }
+.group-row__grip { display: grid; width: 32px; height: 42px; place-items: center; color: var(--muted); cursor: grab; touch-action: none; }
+.group-row__actions { display: flex; align-items: center; gap: 10px; }
+.group-row__actions button:first-child { color: var(--blue); }
+.group-row__editor { display: grid; grid-column: 2 / -1; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px; }
+.group-row__editor input { width: 100%; min-width: 0; height: 34px; margin: 0; padding: 0 8px; }
+.group-row__editor button { color: var(--blue); }
+.group-row__editor button:last-child { color: var(--muted); }
+.group-row__error { grid-column: 2 / -1; margin: -2px 0 6px; color: #dc2626; font-size: 11px; }
 .group-row--dragging { position: relative; z-index: 1; border-radius: 8px; background: var(--panel-soft); opacity: .86; }
 .group-row--dragging .group-row__grip { cursor: grabbing; color: var(--blue); }
 .group-manager__error { margin: -4px 0 0; color: #dc2626; font-size: 12px; }

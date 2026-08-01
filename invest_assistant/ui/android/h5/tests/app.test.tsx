@@ -539,7 +539,7 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 
-  it("persists all custom note groups after long-press reorder without sending the fixed all tab", async () => {
+  it("persists all custom note groups after direct handle reorder without sending the fixed all tab", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";
     const reorderBodies: unknown[] = [];
@@ -575,16 +575,63 @@ describe("mobile H5 app", () => {
     vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
     vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 44, bottom: 88, height: 44 } as DOMRect);
 
-    vi.useFakeTimers();
-    fireEvent.pointerDown(first, { pointerId: 10, clientX: 20, clientY: 20 });
-    act(() => vi.advanceTimersByTime(350));
-    fireEvent.pointerMove(first, { pointerId: 10, clientX: 20, clientY: 75 });
-    fireEvent.pointerUp(first, { pointerId: 10, clientX: 20, clientY: 75 });
-    vi.useRealTimers();
+    const handle = screen.getByRole("button", { name: "调整复盘顺序" });
+    fireEvent.pointerDown(handle, { pointerId: 10, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 10, clientX: 20, clientY: 75 });
+    fireEvent.pointerUp(handle, { pointerId: 10, clientX: 20, clientY: 75 });
 
     await waitFor(() => expect(reorderBodies).toEqual([{ ordered_ids: [2, 1] }]));
     const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
     expect(tabs).toEqual(["全部", "原则", "复盘"]);
+  });
+
+  it("edits a note group name inline and updates the note tabs", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    vi.stubGlobal("visualViewport", {
+      height: 480,
+      offsetTop: 12,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    });
+    const updateBodies: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/knowledge/note-groups/1")) {
+        updateBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ id: 1, name: "每周复盘", sort_order: 0, status: "active" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/knowledge/note-groups")) {
+        return new Response(JSON.stringify([
+          { id: 1, name: "复盘", sort_order: 0, status: "active" }
+        ]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/market-radar/tags")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    expect(screen.getByText("笔记分组").closest(".sheet-backdrop")).toHaveStyle({ height: "480px", top: "12px" });
+    fireEvent.click(await screen.findByRole("button", { name: "编辑复盘" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "分组名称" }), { target: { value: "每周复盘" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存分组名称" }));
+
+    await waitFor(() => expect(updateBodies).toEqual([{
+      id: 1,
+      name: "每周复盘",
+      sort_order: 0,
+      status: "active"
+    }]));
+    expect(await screen.findByRole("tab", { name: "每周复盘" })).toBeInTheDocument();
   });
 
   it("rolls note groups back and reports an atomic reorder failure", async () => {
@@ -620,12 +667,10 @@ describe("mobile H5 app", () => {
     vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
     vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 44, bottom: 88, height: 44 } as DOMRect);
 
-    vi.useFakeTimers();
-    fireEvent.pointerDown(first, { pointerId: 11, clientX: 20, clientY: 20 });
-    act(() => vi.advanceTimersByTime(350));
-    fireEvent.pointerMove(first, { pointerId: 11, clientX: 20, clientY: 75 });
-    fireEvent.pointerUp(first, { pointerId: 11, clientX: 20, clientY: 75 });
-    vi.useRealTimers();
+    const handle = screen.getByRole("button", { name: "调整复盘顺序" });
+    fireEvent.pointerDown(handle, { pointerId: 11, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 11, clientX: 20, clientY: 75 });
+    fireEvent.pointerUp(handle, { pointerId: 11, clientX: 20, clientY: 75 });
 
     expect(await screen.findByText("分组排序保存失败，请重试")).toBeInTheDocument();
     await waitFor(() => {
