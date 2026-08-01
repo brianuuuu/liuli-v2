@@ -317,7 +317,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .login-brand { margin-bottom: 40px; text-align: center; }
 .login-brand img { width: 58px; height: 58px; }
 .login-brand h1 { margin: 13px 0 3px; font-size: 28px; }
-.login-brand p, .login-server { color: var(--muted); font-size: 12px; }
+.login-brand p { color: var(--muted); font-size: 12px; }
 .login-form { display: grid; gap: 16px; }
 .login-form label { color: var(--muted); font-size: 12px; }
 .login-form input, .composer-sheet input, .suggestion-review-form input, .note-editor select, .note-editor input, .settings-row--form input {
@@ -333,7 +333,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .login-form input:focus, .composer-sheet textarea:focus, .composer-sheet input:focus, .suggestion-review-form input:focus, .suggestion-review-form select:focus, .note-editor input:focus, .note-editor select:focus { border-color: var(--blue); }
 .form-error { margin: -4px 0; color: #dc2626; font-size: 12px; }
-.login-server { margin-top: 24px; text-align: center; }
 
 .note-toolbar { display: flex; height: 32px; align-items: center; justify-content: flex-end; margin: -4px 0 4px; }
 .note-list { display: grid; min-width: 0; max-width: 100%; gap: 0; background: transparent; }

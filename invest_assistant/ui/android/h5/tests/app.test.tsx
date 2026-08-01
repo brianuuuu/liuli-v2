@@ -70,6 +70,7 @@ describe("mobile H5 app", () => {
 
     expect(await screen.findByRole("heading", { name: "琉璃" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.queryByText("服务器由 App 外壳统一管理")).not.toBeInTheDocument();
     expect(setNavigationState).toHaveBeenCalledWith("dashboard", false, false);
   });
 

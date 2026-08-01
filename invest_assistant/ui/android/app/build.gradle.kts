@@ -22,7 +22,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            resValue("string", "app_name", "琉璃 Dev")
+            resValue("string", "app_name", "琉璃")
         }
         release {
             isMinifyEnabled = true

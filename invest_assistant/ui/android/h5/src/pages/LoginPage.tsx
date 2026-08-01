@@ -38,7 +38,6 @@ export function LoginPage() {
           {loading ? "登录中…" : "登录"}
         </button>
       </form>
-      <p className="login-server">服务器由 App 外壳统一管理</p>
     </main>
   );
 }
