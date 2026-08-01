@@ -64,6 +64,8 @@ export type TagHeat = {
   source_count: number;
   heat_score: number;
   rank_no: number;
+  rank_change?: number | null;
+  rank_movement?: "up" | "down" | "flat" | "new" | string | null;
   tag?: Tag | null;
 };
 export type WorkbenchMarketIndex = {

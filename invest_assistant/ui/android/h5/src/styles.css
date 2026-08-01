@@ -217,6 +217,12 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .list-row__body strong { display: block; overflow: hidden; font-size: 14px; font-weight: 560; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .list-row__body span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
 .score { color: var(--blue); font-size: 14px; }
+.market-ranking-metrics { display: grid; flex: 0 0 auto; min-width: 78px; justify-items: end; gap: 3px; }
+.market-ranking-movement { display: flex; align-items: baseline; gap: 4px; color: var(--muted); font-size: 10px; line-height: 1.2; white-space: nowrap; }
+.market-ranking-movement strong { font-size: 11px; font-weight: 680; }
+.market-ranking-movement--up { color: #dc2626; }
+.market-ranking-movement--down { color: #16a34a; }
+.market-ranking-movement--neutral { color: var(--muted); }
 .dashboard-material-list { display: grid; min-width: 0; gap: 0; }
 .dashboard-material-item { min-width: 0; padding: 12px 0; }
 .dashboard-material-item + .dashboard-material-item { border-top: 1px solid var(--border); }

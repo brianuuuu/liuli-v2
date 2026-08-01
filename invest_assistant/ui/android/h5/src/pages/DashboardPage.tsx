@@ -11,11 +11,21 @@ import type { PagerMotionSink } from "../components/pagerMotion";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
+import type { TagHeat } from "../types/api";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
 const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
 const PortfolioTreemap = lazy(() => import("../components/PortfolioTreemap").then((module) => ({ default: module.PortfolioTreemap })));
+
+function rankMovementDisplay(item: Pick<TagHeat, "rank_change" | "rank_movement">) {
+  if (item.rank_movement === "new") return { value: "new", tone: "neutral" } as const;
+  const change = Number(item.rank_change);
+  if (!Number.isFinite(change) || change === 0) return { value: "--", tone: "neutral" } as const;
+  return change > 0
+    ? { value: `+${change}`, tone: "up" } as const
+    : { value: String(change), tone: "down" } as const;
+}
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>("today");
@@ -103,7 +113,23 @@ function MarketDashboard() {
           {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
             <ErrorState message="热度排行加载失败" onRetry={() => void rankings.refetch()} />
           ) : rankings.data?.length ? (
-            rankings.data.slice(0, 10).map((item) => <ListRow key={item.tag_id} title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`} meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`} trailing={<strong className="score">{formatNumber(item.heat_score, 1)}</strong>} />)
+            rankings.data.slice(0, 10).map((item) => {
+              const movement = rankMovementDisplay(item);
+              return <ListRow
+                key={item.tag_id}
+                title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`}
+                meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`}
+                trailing={(
+                  <div className="market-ranking-metrics">
+                    <strong className="score">{formatNumber(item.heat_score, 1)}</strong>
+                    <span className="market-ranking-movement">
+                      <span>升降位次</span>
+                      <strong className={`market-ranking-movement--${movement.tone}`}>{movement.value}</strong>
+                    </span>
+                  </div>
+                )}
+              />;
+            })
           ) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}
         </div>
         <div className="market-ranking-filters" data-swipe-ignore="true">

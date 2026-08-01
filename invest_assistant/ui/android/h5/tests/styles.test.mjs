@@ -120,6 +120,15 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters \.segmented button\s*\{[^}]*font-size:\s*11px;/s);
   });
 
+  it("keeps ranking movement compact and right aligned", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.market-ranking-metrics\s*\{[^}]*display:\s*grid;[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*78px;[^}]*justify-items:\s*end;/s);
+    expect(styles).toMatch(/\.market-ranking-movement\s*\{[^}]*display:\s*flex;[^}]*font-size:\s*10px;[^}]*white-space:\s*nowrap;/s);
+    expect(styles).toMatch(/\.market-ranking-movement--up\s*\{[^}]*color:\s*#dc2626;/s);
+    expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
+  });
+
   it("renders dashboard materials as a compact continuous list", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

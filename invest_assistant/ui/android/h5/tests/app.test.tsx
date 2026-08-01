@@ -243,14 +243,24 @@ describe("mobile H5 app", () => {
         const name = url.includes("type=track") && url.includes("window=30d")
           ? "三十日赛道"
           : url.includes("type=stock") ? "标的热度" : "市场热词";
-        return new Response(JSON.stringify([{
+        const items = [{
           tag_id: name === "三十日赛道" ? 2 : 1,
           trigger_count: 8,
           source_count: 3,
           heat_score: 12.5,
           rank_no: 1,
+          rank_change: 3 as number | null,
+          rank_movement: "up" as string,
           tag: { id: name === "三十日赛道" ? 2 : 1, name }
-        }]), { status: 200, headers: { "Content-Type": "application/json" } });
+        }];
+        if (name === "市场热词") {
+          items.push(
+            { ...items[0], tag_id: 3, rank_no: 2, rank_change: -2, rank_movement: "down", tag: { id: 3, name: "下行热词" } },
+            { ...items[0], tag_id: 4, rank_no: 3, rank_change: 0, rank_movement: "flat", tag: { id: 4, name: "持平热词" } },
+            { ...items[0], tag_id: 5, rank_no: 4, rank_change: null, rank_movement: "new", tag: { id: 5, name: "新热词" } }
+          );
+        }
+        return new Response(JSON.stringify(items), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
         status: 200,
@@ -283,6 +293,13 @@ describe("mobile H5 app", () => {
     expect(initialRankingUrl).toContain("window=7d");
     expect(screen.getByRole("button", { name: "标的" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "标签" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("升降位次")).toHaveLength(4);
+    expect(screen.getAllByText("+3")).toHaveLength(1);
+    expect(screen.getByText("-2")).toBeInTheDocument();
+    expect(screen.getByText("--")).toBeInTheDocument();
+    expect(screen.getByText("new")).toBeInTheDocument();
+    expect(screen.getAllByText("12.5")).toHaveLength(4);
+    expect(screen.getAllByText("8 次触发 · 3 来源")).toHaveLength(4);
 
     fireEvent.click(screen.getByRole("button", { name: "标的" }));
     expect(await screen.findByText("1. 标的热度")).toBeInTheDocument();
