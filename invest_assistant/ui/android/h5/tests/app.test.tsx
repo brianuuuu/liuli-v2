@@ -188,6 +188,37 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("brian")).not.toBeInTheDocument();
   });
 
+  it("shows the active server and edits it only after the address is clicked", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/me";
+    const setServer = vi.fn();
+    window.LiuliNative = { setServer };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 1, username: "admin", display_name: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+    );
+
+    renderApp();
+
+    const serverRow = await screen.findByRole("button", { name: `编辑服务器地址 ${window.location.origin}` });
+    expect(screen.getByText(window.location.origin)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "服务器地址" })).not.toBeInTheDocument();
+
+    fireEvent.click(serverRow);
+    const input = screen.getByRole("textbox", { name: "服务器地址" });
+    expect(input).toHaveValue(window.location.origin);
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "  https://liuli.example.com/  " } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(setServer).toHaveBeenCalledWith("https://liuli.example.com/");
+  });
+
   it("loads a dashboard index only after it becomes the pager target", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
@@ -293,7 +324,8 @@ describe("mobile H5 app", () => {
     expect(initialRankingUrl).toContain("window=7d");
     expect(screen.getByRole("button", { name: "标的" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "标签" })).not.toBeInTheDocument();
-    expect(screen.getAllByText("升降位次")).toHaveLength(4);
+    expect(screen.getAllByText("位次变化")).toHaveLength(4);
+    expect(screen.queryByText("升降位次")).not.toBeInTheDocument();
     expect(screen.getAllByText("+3")).toHaveLength(1);
     expect(screen.getByText("-2")).toBeInTheDocument();
     expect(screen.getByText("--")).toBeInTheDocument();

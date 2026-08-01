@@ -123,7 +123,7 @@ function MarketDashboard() {
                   <div className="market-ranking-metrics">
                     <strong className="score">{formatNumber(item.heat_score, 1)}</strong>
                     <span className="market-ranking-movement">
-                      <span>升降位次</span>
+                      <span>位次变化</span>
                       <strong className={`market-ranking-movement--${movement.tone}`}>{movement.value}</strong>
                     </span>
                   </div>

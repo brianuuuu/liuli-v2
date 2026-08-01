@@ -15,7 +15,9 @@ export function MePage() {
   const navigate = useNavigate();
   const me = useQuery({ queryKey: ["me"], queryFn: mobileApi.me });
   const [theme, setTheme] = useState<ThemeMode>(() => (window.localStorage.getItem("liuli.mobile.theme") as ThemeMode) || "system");
-  const [server, setServer] = useState("");
+  const currentServer = window.location.origin;
+  const [server, setServer] = useState(currentServer);
+  const [editingServer, setEditingServer] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   function changeTheme(next: ThemeMode) {
     setTheme(next);
@@ -28,7 +30,63 @@ export function MePage() {
     nativeBridge.logout();
     navigate("/login", { replace: true });
   }
-  return <MobilePageFrame navigation={<SecondaryNavigation items={tabs} activeKey="settings" onChange={() => undefined} />}>{me.isLoading ? <LoadingState /> : me.isError ? <ErrorState onRetry={() => void me.refetch()} /> : <div className="page-stack settings-list"><SectionCard><div className="profile-row"><div className="profile-avatar"><UserRound /></div><div><strong>{me.data?.username}</strong><span>个人投资账户</span></div></div></SectionCard><SectionCard title="外观"><div className="segmented">{(["light", "dark", "system"] as ThemeMode[]).map((mode) => <button className={theme === mode ? "is-active" : ""} key={mode} onClick={() => changeTheme(mode)}>{mode === "light" ? <Sun size={16} /> : mode === "dark" ? <Moon size={16} /> : null}{mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统"}</button>)}</div></SectionCard><SectionCard title="应用"><button className="settings-row" onClick={() => navigate("/reports")}><span>报告中心</span><ChevronRight /></button><button className="settings-row" onClick={() => setPasswordOpen(true)}><span>修改密码</span><ChevronRight /></button><div className="settings-row settings-row--form"><Server size={18} /><input value={server} onChange={(event) => setServer(event.target.value)} placeholder="修改服务器地址" /><button disabled={!server.trim()} onClick={() => nativeBridge.setServer(server.trim())}>保存</button></div></SectionCard><button type="button" className="logout-button" onClick={logout}><LogOut size={18} />退出登录</button><p className="version-text">琉璃 Android H5 · 0.1.0</p></div>}{passwordOpen ? <PasswordSheet onClose={() => setPasswordOpen(false)} /> : null}</MobilePageFrame>;
+  const normalizedServer = server.trim();
+  const canSaveServer = Boolean(normalizedServer) && normalizedServer !== currentServer;
+  function startEditingServer() {
+    setServer(currentServer);
+    setEditingServer(true);
+  }
+  function saveServer() {
+    if (!canSaveServer) return;
+    nativeBridge.setServer(normalizedServer);
+  }
+  return (
+    <MobilePageFrame navigation={<SecondaryNavigation items={tabs} activeKey="settings" onChange={() => undefined} />}>
+      {me.isLoading ? <LoadingState /> : me.isError ? <ErrorState onRetry={() => void me.refetch()} /> : (
+        <div className="page-stack settings-list">
+          <SectionCard>
+            <div className="profile-row">
+              <div className="profile-avatar"><UserRound /></div>
+              <div><strong>{me.data?.username}</strong><span>个人投资账户</span></div>
+            </div>
+          </SectionCard>
+          <SectionCard title="外观">
+            <div className="segmented">
+              {(["light", "dark", "system"] as ThemeMode[]).map((mode) => (
+                <button type="button" className={theme === mode ? "is-active" : ""} key={mode} onClick={() => changeTheme(mode)}>
+                  {mode === "light" ? <Sun size={16} /> : mode === "dark" ? <Moon size={16} /> : null}
+                  {mode === "light" ? "浅色" : mode === "dark" ? "深色" : "跟随系统"}
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+          <SectionCard title="应用">
+            <button type="button" className="settings-row" onClick={() => navigate("/reports")}><span>报告中心</span><ChevronRight /></button>
+            <button type="button" className="settings-row" onClick={() => setPasswordOpen(true)}><span>修改密码</span><ChevronRight /></button>
+            {editingServer ? (
+              <div className="settings-row settings-row--form settings-server-edit">
+                <Server size={18} />
+                <input aria-label="服务器地址" value={server} onChange={(event) => setServer(event.target.value)} autoFocus />
+                <button type="button" className="settings-server-save" disabled={!canSaveServer} onClick={saveServer}>保存</button>
+              </div>
+            ) : (
+              <button type="button" className="settings-row settings-server-display" aria-label={`编辑服务器地址 ${currentServer}`} onClick={startEditingServer}>
+                <Server size={18} />
+                <span className="settings-server-copy">
+                  <strong>服务器地址</strong>
+                  <span title={currentServer}>{currentServer}</span>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+            )}
+          </SectionCard>
+          <button type="button" className="logout-button" onClick={logout}><LogOut size={18} />退出登录</button>
+          <p className="version-text">琉璃 Android H5 · 0.1.0</p>
+        </div>
+      )}
+      {passwordOpen ? <PasswordSheet onClose={() => setPasswordOpen(false)} /> : null}
+    </MobilePageFrame>
+  );
 }
 
 function PasswordSheet({ onClose }: { onClose: () => void }) {
