@@ -68,6 +68,43 @@ def test_mcp_client_config_authenticates_enabled_client_and_allowed_tools():
     assert authenticate_token(db, "unknown-token") is None
 
 
+def test_mcp_client_config_supports_oauth_profile_without_breaking_legacy_bearer():
+    from invest_assistant.modules.basic.mcp.auth import (
+        authenticate_token,
+        get_client_config,
+        supports_auth_mode,
+    )
+
+    SessionLocal = make_session()
+    db = SessionLocal()
+    add_config(
+        db,
+        "mcp.clients",
+        json.dumps(
+            {
+                "codex": {
+                    "enabled": True,
+                    "token": "legacy",
+                    "allowed_tools": ["portfolio.get_overview"],
+                },
+                "chatgpt": {
+                    "enabled": True,
+                    "auth_modes": ["oauth"],
+                    "allowed_tools": ["portfolio.get_overview"],
+                },
+            }
+        ),
+    )
+
+    codex = authenticate_token(db, "legacy")
+    chatgpt = get_client_config(db, "chatgpt")
+
+    assert codex is not None and supports_auth_mode(codex, "static_bearer")
+    assert chatgpt is not None and chatgpt.token is None
+    assert supports_auth_mode(chatgpt, "oauth")
+    assert authenticate_token(db, "") is None
+
+
 def test_mcp_debug_logger_rotates_five_archives_and_masks_token(tmp_path):
     from invest_assistant.modules.basic.mcp import debug_logger
 
