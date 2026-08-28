@@ -140,6 +140,16 @@ Codex、opencode 等客户端可继续用本机环境变量保存自己的 beare
 默认只监听本机或受控网络入口。
 ```
 
+### 线上访问地址
+
+```text
+HTTPS（ChatGPT 等外部客户端）：https://115-29-176-240.sslip.io/mcp/
+HTTP（现有 Codex 兼容地址）：http://115.29.176.240:8000/mcp/
+```
+
+两个地址使用同一套 MCP Bearer Token 鉴权。文档只记录访问地址，不记录 Token 值。
+线上 HTTPS 入口由 Caddy 反向代理到本机 `127.0.0.1:8000`，证书由 Caddy 自动申请和续期。
+
 Codex 配置示例：
 
 ```toml
