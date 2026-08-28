@@ -51,7 +51,7 @@ invest_assistant/modules/basic/mcp/oauth/
 ├── provider.py               # MCP SDK OAuthAuthorizationServerProvider 实现
 ├── service.py                # 授权码、PKCE、token、refresh、撤销业务逻辑
 ├── routes.py                 # 登录/同意页和标准根级元数据路由
-├── security.py               # 随机凭据、哈希、PKCE、CSRF、常量时间比较
+├── security.py               # 随机凭据、加密/哈希、PKCE、CSRF、常量时间比较
 ├── cli.py                    # 固定 ChatGPT 客户端的创建/轮换/禁用命令
 └── templates/
     └── authorize.html        # 登录与授权确认页
@@ -113,9 +113,10 @@ MCP_OAUTH_ISSUER_URL=https://115-29-176-240.sslip.io/mcp
 MCP_OAUTH_RESOURCE_URL=https://115-29-176-240.sslip.io/mcp
 MCP_OAUTH_ACCESS_TOKEN_MINUTES=15
 MCP_OAUTH_REFRESH_TOKEN_DAYS=30
+MCP_OAUTH_MASTER_KEY_FILE=/var/lib/liuli-mcp-oauth/master.key
 ```
 
-服务器没有 `.env`，因此非敏感 URL 和开关继续由现有启动脚本导出。OAuth client secret 不进入环境变量；数据库仅保存其哈希。现有 `MCP_PUBLIC_BASE_URL=http://115.29.176.240:8000` 保留，用于旧 HTTP 地址和传输安全兼容。
+服务器没有 `.env`，因此非敏感 URL、开关和主密钥文件路径继续由现有启动脚本导出。OAuth client secret 不进入环境变量；数据库仅保存密文。主密钥由 provision 命令首次生成到仓库外的 `/var/lib/liuli-mcp-oauth/master.key`，权限固定为 `0600`，不写入仓库、数据库或日志。现有 `MCP_PUBLIC_BASE_URL=http://115.29.176.240:8000` 保留，用于旧 HTTP 地址和传输安全兼容。
 
 `mcp.clients` 的兼容扩展：
 
@@ -144,13 +145,15 @@ MCP_OAUTH_REFRESH_TOKEN_DAYS=30
 
 ## 7. 数据模型
 
-所有时间使用 UTC，所有短期凭据只保存 SHA-256 哈希。原始值使用至少 256 bit 的安全随机数，只在协议响应中返回一次。
+所有时间使用 UTC。授权事务 ID、CSRF、授权码和 access/refresh token 只保存 SHA-256 哈希；原始值使用至少 256 bit 的安全随机数，只在协议响应中返回一次。
+
+MCP SDK 的内置 token endpoint 会从 Provider 读取原始 client secret 后执行常量时间比较，因此 client secret 不能使用不可逆哈希。它使用服务端主密钥加密后保存；Provider 的 `get_client()` 仅在请求内存中短暂解密并交给 SDK，响应结束后不缓存原文。这样保留 SDK 内置协议处理，同时避免数据库泄露直接暴露 client secret。
 
 ### `mcp_oauth_client`
 
 - `id`：内部主键。
 - `client_id`：公开客户端标识，唯一。
-- `client_secret_hash`：client secret 哈希。
+- `client_secret_ciphertext`：使用服务端主密钥加密的 client secret 密文。
 - `client_name`：授权页展示名称。
 - `mcp_profile_name`：映射到 `mcp.clients` 权限配置。
 - `redirect_uris_json`：精确允许的回调 URI 列表。
@@ -207,7 +210,7 @@ python -m invest_assistant.modules.basic.mcp.oauth.cli rotate-secret --client-id
 python -m invest_assistant.modules.basic.mcp.oauth.cli disable-client --client-id <id>
 ```
 
-`provision-client` 交互读取 ChatGPT 表单显示的回调 URI和 MCP profile，生成 client ID/secret；原始 secret 只输出一次，随后手工填入 ChatGPT 高级 OAuth 设置。回调 URI属于 ChatGPT 草稿实例数据，不硬编码或提交到仓库。
+`provision-client` 交互读取 ChatGPT 表单显示的回调 URI和 MCP profile，确保仓库外主密钥文件存在并具有 `0600` 权限，再生成 client ID/secret；原始 secret 只输出一次，随后手工填入 ChatGPT 高级 OAuth 设置。回调 URI属于 ChatGPT 草稿实例数据，不硬编码或提交到仓库。
 
 ## 9. Provider 认证策略
 
@@ -227,7 +230,7 @@ FastMCP 在启用 OAuth 时只能传入 `auth_server_provider`，不能同时传
 - `redirect_uri` 必须和预注册值逐字匹配；禁止通配符和前缀匹配。
 - `resource` 必须精确等于外部 HTTPS MCP resource，token 不能用于其他 API。
 - `state` 原样回传；授权事务使用一次性 request ID 和 CSRF 值，表单只允许 POST。
-- client secret、授权码和 token 的比较使用常量时间比较；日志只记录 client ID、profile、结果和内部记录 ID，不记录凭据。
+- client secret 由 SDK 在内存中做常量时间比较；授权码和 token 按哈希查询，其他敏感比较使用常量时间比较。日志只记录 client ID、profile、结果和内部记录 ID，不记录凭据或密文。
 - 登录错误统一显示“用户名或密码错误”；单个授权事务最多失败 5 次且 10 分钟过期。
 - 授权页设置 `Cache-Control: no-store`、`Content-Security-Policy`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`。
 - OAuth client 被禁用、profile 被禁用或用户状态不再 active 时，已有 access/refresh token立即失效。
@@ -247,7 +250,7 @@ FastMCP 在启用 OAuth 时只能传入 `auth_server_provider`，不能同时传
 
 ### 单元测试
 
-- 安全随机值、哈希、PKCE S256、CSRF 和常量时间校验。
+- 安全随机值、主密钥文件权限、client secret 加密解密、哈希、PKCE S256、CSRF 和常量时间校验。
 - 客户端禁用、回调 URI 精确匹配、scope/resource 校验。
 - 授权码 5 分钟过期、一次性消费和并发二次消费。
 - access token 到期/撤销、refresh rotation、旧 refresh 重放导致 family 撤销。
@@ -269,7 +272,7 @@ FastMCP 在启用 OAuth 时只能传入 `auth_server_provider`，不能同时传
 
 1. 先备份线上数据库和 Caddyfile。
 2. 部署代码但保持 `MCP_OAUTH_ENABLED=false`，验证旧 HTTP/HTTPS Bearer。
-3. 创建 `chatgpt` profile 和固定 OAuth client，记录一次性 client ID/secret。
+3. 生成仓库外 `0600` 主密钥文件，创建 `chatgpt` profile 和固定 OAuth client，记录一次性 client ID/secret。
 4. 更新 Caddy和启动配置，启用 OAuth并重启服务。
 5. 用 `curl` 验证两个 well-known 地址、TLS、401 challenge 和旧 Bearer initialize。
 6. 在 ChatGPT 表单填写 client ID/secret、`mcp offline_access`，完成网页登录和工具扫描。
