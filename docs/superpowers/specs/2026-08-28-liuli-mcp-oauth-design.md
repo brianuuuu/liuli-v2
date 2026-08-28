@@ -154,6 +154,7 @@ MCP SDK 的内置 token endpoint 会从 Provider 读取原始 client secret 后�
 - `id`：内部主键。
 - `client_id`：公开客户端标识，唯一。
 - `client_secret_ciphertext`：使用服务端主密钥加密的 client secret 密文。
+- `token_endpoint_auth_method`：`client_secret_basic` 或 `client_secret_post`，默认前者。
 - `client_name`：授权页展示名称。
 - `mcp_profile_name`：映射到 `mcp.clients` 权限配置。
 - `redirect_uris_json`：精确允许的回调 URI 列表。
@@ -210,7 +211,7 @@ python -m invest_assistant.modules.basic.mcp.oauth.cli rotate-secret --client-id
 python -m invest_assistant.modules.basic.mcp.oauth.cli disable-client --client-id <id>
 ```
 
-`provision-client` 交互读取 ChatGPT 表单显示的回调 URI和 MCP profile，确保仓库外主密钥文件存在并具有 `0600` 权限，再生成 client ID/secret；原始 secret 只输出一次，随后手工填入 ChatGPT 高级 OAuth 设置。回调 URI属于 ChatGPT 草稿实例数据，不硬编码或提交到仓库。
+`provision-client` 交互读取 ChatGPT 表单显示的回调 URI、MCP profile 和 token endpoint auth method，确保仓库外主密钥文件存在并具有 `0600` 权限，再生成 client ID/secret；method 仅允许 `client_secret_basic` 或 `client_secret_post`，默认前者。原始 secret 只输出一次，随后手工填入 ChatGPT 高级 OAuth 设置。回调 URI属于 ChatGPT 草稿实例数据，不硬编码或提交到仓库。
 
 ## 9. Provider 认证策略
 
