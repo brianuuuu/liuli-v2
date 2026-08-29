@@ -33,6 +33,12 @@ def verify_pkce_s256(verifier: str, challenge: str) -> bool:
     return hmac.compare_digest(actual, challenge)
 
 
+def derive_csrf_token(key: bytes, request_id: str) -> str:
+    signing_key = base64.urlsafe_b64decode(key)
+    digest = hmac.new(signing_key, request_id.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 def load_or_create_master_key(path: Path, *, create: bool) -> bytes:
     key_path = Path(path)
     if not key_path.exists():

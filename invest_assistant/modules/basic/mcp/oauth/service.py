@@ -62,6 +62,8 @@ def create_authorization_request(
     params: AuthorizationParams,
     *,
     resource_url: str,
+    csrf_token: str | None = None,
+    request_id: str | None = None,
     now: datetime | None = None,
 ) -> PendingAuthorization:
     current_time = now or utc_now()
@@ -86,12 +88,12 @@ def create_authorization_request(
     if not PKCE_S256_PATTERN.fullmatch(params.code_challenge):
         raise OAuthRequestError("code_challenge must be a PKCE S256 challenge")
 
-    request_id = generate_credential()
-    csrf_token = generate_credential()
+    resolved_request_id = request_id or generate_credential()
+    resolved_csrf_token = csrf_token or generate_credential()
     expires_at = current_time + AUTHORIZATION_REQUEST_TTL
     db.add(
         McpOAuthAuthorizationRequest(
-            request_id_hash=hash_credential(request_id),
+            request_id_hash=hash_credential(resolved_request_id),
             client_id=client.id,
             redirect_uri=redirect_uri,
             state=params.state,
@@ -99,12 +101,12 @@ def create_authorization_request(
             resource=resource_url,
             code_challenge=params.code_challenge,
             code_challenge_method="S256",
-            csrf_hash=hash_credential(csrf_token),
+            csrf_hash=hash_credential(resolved_csrf_token),
             expires_at=expires_at,
         )
     )
     db.commit()
-    return PendingAuthorization(request_id=request_id, csrf_token=csrf_token, expires_at=expires_at)
+    return PendingAuthorization(request_id=resolved_request_id, csrf_token=resolved_csrf_token, expires_at=expires_at)
 
 
 def complete_authorization(

@@ -49,3 +49,15 @@ def test_pkce_accepts_only_matching_s256_verifier():
 
     assert verify_pkce_s256(verifier, challenge)
     assert not verify_pkce_s256("b" * 43, challenge)
+
+
+def test_csrf_token_is_deterministic_for_request_and_key():
+    from cryptography.fernet import Fernet
+
+    from invest_assistant.modules.basic.mcp.oauth.security import derive_csrf_token
+
+    key = Fernet.generate_key()
+
+    assert derive_csrf_token(key, "request-one") == derive_csrf_token(key, "request-one")
+    assert derive_csrf_token(key, "request-one") != derive_csrf_token(key, "request-two")
+    assert key.decode("ascii") not in derive_csrf_token(key, "request-one")
