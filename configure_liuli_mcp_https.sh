@@ -165,13 +165,7 @@ write_candidate() {
 }
 
 https://$PUBLIC_HOST {
-	@liuli_mcp_metadata path /.well-known/oauth-protected-resource/mcp /mcp/.well-known/oauth-protected-resource/mcp
-	handle @liuli_mcp_metadata {
-		header Content-Type application/json
-		respond "{\"resource\":\"https://$PUBLIC_HOST/mcp\",\"authorization_servers\":[\"https://$PUBLIC_HOST/\"],\"scopes_supported\":[\"mcp\"],\"bearer_methods_supported\":[\"header\"]}" 200
-	}
-
-	@liuli_mcp path /mcp /mcp/*
+	@liuli_mcp path /mcp /mcp/* /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server/mcp
 
 	handle @liuli_mcp {
 		reverse_proxy 127.0.0.1:8000 {
@@ -223,31 +217,53 @@ check_https_without_token() {
 }
 
 check_https_metadata() {
-  local response_file="$TEMP_DIR/mcp-protected-resource-metadata.json"
-  local http_code
+  local protected_response_file="$TEMP_DIR/mcp-protected-resource-metadata.json"
+  local authorization_response_file="$TEMP_DIR/mcp-authorization-server-metadata.json"
+  local protected_http_code authorization_http_code
 
-  http_code="$(
-    curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+  protected_http_code="$(
+    curl --silent --show-error --output "$protected_response_file" --write-out '%{http_code}' \
       --resolve "$PUBLIC_HOST:443:127.0.0.1" \
       "https://$PUBLIC_HOST/.well-known/oauth-protected-resource/mcp"
   )"
-  [[ "$http_code" == "200" ]] || die "Public MCP metadata returned HTTP $http_code"
+  [[ "$protected_http_code" == "200" ]] || die "Public MCP protected-resource metadata returned HTTP $protected_http_code"
 
-  python3 - "$response_file" "https://$PUBLIC_HOST/mcp" "https://$PUBLIC_HOST/" <<'PY'
+  authorization_http_code="$(
+    curl --silent --show-error --output "$authorization_response_file" --write-out '%{http_code}' \
+      --resolve "$PUBLIC_HOST:443:127.0.0.1" \
+      "https://$PUBLIC_HOST/.well-known/oauth-authorization-server/mcp"
+  )"
+  [[ "$authorization_http_code" == "200" ]] || die "Public MCP authorization-server metadata returned HTTP $authorization_http_code"
+
+  python3 - "$protected_response_file" "$authorization_response_file" "https://$PUBLIC_HOST/mcp" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
+    protected = json.load(handle)
+with open(sys.argv[2], "r", encoding="utf-8") as handle:
+    authorization = json.load(handle)
 
-if payload.get("resource") != sys.argv[2]:
-    raise SystemExit(f"unexpected metadata resource: {payload.get('resource')!r}")
-if payload.get("authorization_servers") != [sys.argv[3]]:
-    raise SystemExit(f"unexpected authorization_servers: {payload.get('authorization_servers')!r}")
-if "header" not in payload.get("bearer_methods_supported", []):
+if protected.get("resource") != sys.argv[3]:
+    raise SystemExit(f"unexpected metadata resource: {protected.get('resource')!r}")
+if protected.get("authorization_servers") != [sys.argv[3]]:
+    raise SystemExit(f"unexpected authorization_servers: {protected.get('authorization_servers')!r}")
+if "header" not in protected.get("bearer_methods_supported", []):
     raise SystemExit("metadata does not advertise Bearer header authentication")
+if authorization.get("issuer") != sys.argv[3]:
+    raise SystemExit(f"unexpected issuer: {authorization.get('issuer')!r}")
+expected_endpoints = {
+    "authorization_endpoint": f"{sys.argv[3]}/authorize",
+    "token_endpoint": f"{sys.argv[3]}/token",
+    "revocation_endpoint": f"{sys.argv[3]}/revoke",
+}
+for field, expected in expected_endpoints.items():
+    if authorization.get(field) != expected:
+        raise SystemExit(f"unexpected {field}: {authorization.get(field)!r}")
+if "registration_endpoint" in authorization:
+    raise SystemExit("dynamic client registration must remain disabled")
 PY
-  log "LOCAL verification passed: protected-resource metadata uses the public HTTPS MCP URL."
+  log "LOCAL verification passed: protected-resource and authorization-server metadata use public HTTPS URLs."
 }
 
 read_verification_token() {
@@ -315,7 +331,7 @@ main() {
   printf 'Existing Codex HTTP URL remains unchanged: http://%s/mcp/\n' "$UPSTREAM_HOST"
   printf '\nExternal verification required after opening Alibaba Cloud TCP 443:\n'
   printf "  curl -i -X POST -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}' %s\n" "$HTTPS_MCP_URL"
-  printf 'Expected without a token: HTTP 401 or 403. Then run ChatGPT Scan Tools with the existing Authorization header.\n'
+  printf 'Expected without a token: HTTP 401 or 403. Configure ChatGPT OAuth, complete login, and then run Scan Tools.\n'
   printf 'Rollback command: %s/restore_liuli_mcp_https.sh\n' "$PROJECT_ROOT"
 }
 
