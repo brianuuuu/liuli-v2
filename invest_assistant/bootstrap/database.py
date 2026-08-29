@@ -61,6 +61,7 @@ def create_all_tables() -> None:
     import invest_assistant.modules.basic.ai_audit.models  # noqa: F401
     import invest_assistant.modules.basic.disclosure_library.models  # noqa: F401
     import invest_assistant.modules.basic.job_center.models  # noqa: F401
+    import invest_assistant.modules.basic.mcp.oauth.models  # noqa: F401
     import invest_assistant.modules.basic.report_library.models  # noqa: F401
     import invest_assistant.modules.basic.stock_master.models  # noqa: F401
     import invest_assistant.modules.basic.system_config.models  # noqa: F401
