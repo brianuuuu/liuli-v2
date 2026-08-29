@@ -44,3 +44,34 @@ def test_mcp_documentation_explains_chatgpt_oauth_and_legacy_codex():
     assert "disable-client" in document
     assert "client secret 只显示一次" in document
     assert "/var/lib/liuli-mcp-oauth/master.key" in document
+
+
+def test_oauth_postgres_sql_creates_expected_tables_and_profile_transactionally():
+    script = read("tools/db/pgsql/20260829_mcp_oauth.sql")
+
+    assert script.lstrip().startswith("BEGIN;")
+    assert "COMMIT;" in script
+    for table_name in (
+        "mcp_oauth_client",
+        "mcp_oauth_authorization_request",
+        "mcp_oauth_authorization_code",
+        "mcp_oauth_token",
+    ):
+        assert f"CREATE TABLE IF NOT EXISTS {table_name}" in script
+    assert "jsonb_set" in script
+    assert "mcp.clients.chatgpt already exists with different settings" in script
+    assert '"auth_modes": ["oauth"]' in script
+    assert "market_radar.search_source_items" in script
+    assert "knowledge_base.upload_research_feedback" in script
+
+
+def test_oauth_postgres_sql_is_non_destructive_and_does_not_embed_credentials():
+    script = read("tools/db/pgsql/20260829_mcp_oauth.sql")
+    upper_script = script.upper()
+
+    assert "DELETE FROM" not in upper_script
+    assert "DROP TABLE" not in upper_script
+    assert "TRUNCATE" not in upper_script
+    assert "CLIENT_SECRET_CIPHERTEXT) VALUES" not in upper_script
+    assert "DG9tZM6" not in script
+    assert "142857Vps" not in script
