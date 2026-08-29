@@ -5,6 +5,7 @@ from sqlalchemy.pool import StaticPool
 
 import invest_assistant.modules.basic.auth.models  # noqa: F401
 import invest_assistant.modules.basic.mcp.oauth.models  # noqa: F401
+import invest_assistant.modules.basic.system_config.models  # noqa: F401
 from invest_assistant.bootstrap.database import Base
 
 
