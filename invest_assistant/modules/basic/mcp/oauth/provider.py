@@ -27,6 +27,9 @@ from invest_assistant.modules.basic.mcp.oauth.security import (
 from invest_assistant.modules.basic.mcp.oauth.service import (
     OAuthGrantError,
     OAuthRequestError,
+    AuthorizationContext,
+    AuthorizationRedirect,
+    complete_authorization,
     create_authorization_request,
     exchange_code,
     exchange_refresh,
@@ -34,6 +37,7 @@ from invest_assistant.modules.basic.mcp.oauth.service import (
     load_code_record,
     load_refresh_record,
     load_token_record,
+    get_authorization_context,
     revoke_token_family,
 )
 from invest_assistant.shared.time_utils import BEIJING_TZ
@@ -246,6 +250,35 @@ class LiuliOAuthProvider:
 
     def csrf_token_for_request(self, request_id: str) -> str:
         return derive_csrf_token(self._master_key, request_id)
+
+    async def get_browser_authorization_context(self, request_id: str) -> AuthorizationContext:
+        db = self._session_factory()
+        try:
+            return get_authorization_context(db, request_id)
+        finally:
+            db.close()
+
+    async def complete_browser_authorization(
+        self,
+        *,
+        request_id: str,
+        csrf_token: str,
+        username: str,
+        password: str,
+        approved: bool,
+    ) -> AuthorizationRedirect:
+        db = self._session_factory()
+        try:
+            return complete_authorization(
+                db,
+                request_id=request_id,
+                csrf_token=csrf_token,
+                username=username,
+                password=password,
+                approved=approved,
+            )
+        finally:
+            db.close()
 
 
 def build_oauth_provider(

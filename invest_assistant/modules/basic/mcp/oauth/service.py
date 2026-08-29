@@ -56,6 +56,15 @@ class AuthorizationRedirect:
     authorization_code: str | None
 
 
+@dataclass(frozen=True)
+class AuthorizationContext:
+    request_id: str
+    client_name: str
+    redirect_uri: str
+    scopes: tuple[str, ...]
+    allowed_tools: tuple[str, ...]
+
+
 def create_authorization_request(
     db: Session,
     client: McpOAuthClient,
@@ -170,6 +179,40 @@ def complete_authorization(
             {"code": raw_code, "state": request_record.state},
         ),
         authorization_code=raw_code,
+    )
+
+
+def get_authorization_context(
+    db: Session,
+    request_id: str,
+    *,
+    now: datetime | None = None,
+) -> AuthorizationContext:
+    current_time = now or utc_now()
+    request_record = db.scalar(
+        select(McpOAuthAuthorizationRequest).where(
+            McpOAuthAuthorizationRequest.request_id_hash == hash_credential(request_id)
+        )
+    )
+    if not _authorization_request_is_active(request_record, current_time):
+        raise OAuthRequestError("authorization request is invalid or expired")
+    assert request_record is not None
+    client = db.get(McpOAuthClient, request_record.client_id)
+    profile = get_client_config(db, client.mcp_profile_name if client else None)
+    if (
+        client is None
+        or not client.enabled
+        or profile is None
+        or not profile.enabled
+        or not supports_auth_mode(profile, "oauth")
+    ):
+        raise OAuthRequestError("authorization client or profile is disabled")
+    return AuthorizationContext(
+        request_id=request_id,
+        client_name=client.client_name,
+        redirect_uri=request_record.redirect_uri,
+        scopes=tuple(request_record.scope.split()),
+        allowed_tools=tuple(profile.allowed_tools),
     )
 
 
