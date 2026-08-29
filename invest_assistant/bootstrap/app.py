@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from invest_assistant.bootstrap.database import create_all_tables
 from invest_assistant.modules.basic.mcp.server import create_mcp_asgi_app
+from invest_assistant.modules.basic.mcp.oauth.routes import oauth_metadata_router
 from invest_assistant.modules.basic.auth.router import router as auth_router
 from invest_assistant.modules.basic.disclosure_library.router import router as disclosure_library_router
 from invest_assistant.modules.basic.job_center.router import router as job_center_router
@@ -51,5 +52,6 @@ def create_app() -> FastAPI:
     app.include_router(alert_center_router)
     app.include_router(portfolio_router)
     app.include_router(knowledge_base_router)
+    app.include_router(oauth_metadata_router)
     mount_mcp_app(app, mcp_asgi_app)
     return app

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from mcp.server.auth.provider import (
     AccessToken,
@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.config import Settings
-from invest_assistant.modules.basic.mcp.auth import authenticate_token
+from invest_assistant.modules.basic.mcp.auth import authenticate_token, get_client_config, supports_auth_mode
 from invest_assistant.modules.basic.mcp.oauth.models import McpOAuthClient
 from invest_assistant.modules.basic.mcp.oauth.security import (
     decrypt_client_secret,
@@ -290,7 +290,25 @@ def build_oauth_provider(
         from invest_assistant.bootstrap.database import SessionLocal
 
         session_factory = SessionLocal
+    _validate_oauth_urls(settings)
     master_key = load_or_create_master_key(Path(settings.mcp_oauth_master_key_file), create=False)
+    db = session_factory()
+    try:
+        clients = db.scalars(select(McpOAuthClient).where(McpOAuthClient.enabled.is_(True))).all()
+        has_enabled_mapping = any(
+            (
+                (profile := get_client_config(db, client.mcp_profile_name)) is not None
+                and profile.enabled
+                and supports_auth_mode(profile, "oauth")
+            )
+            for client in clients
+        )
+    finally:
+        db.close()
+    if not has_enabled_mapping:
+        from invest_assistant.modules.basic.mcp.oauth.security import OAuthConfigurationError
+
+        raise OAuthConfigurationError("OAuth requires at least one enabled OAuth client and MCP profile")
     return LiuliOAuthProvider(
         session_factory=session_factory,
         issuer_url=settings.mcp_oauth_issuer_url,
@@ -314,3 +332,18 @@ def _json_string_list(value: str) -> list[str]:
 def _as_timestamp(value) -> float:
     resolved = value if value.tzinfo is not None else value.replace(tzinfo=BEIJING_TZ)
     return resolved.timestamp()
+
+
+def _validate_oauth_urls(settings: Settings) -> None:
+    from invest_assistant.modules.basic.mcp.oauth.security import OAuthConfigurationError
+
+    for name, value in (
+        ("issuer", settings.mcp_oauth_issuer_url),
+        ("resource", settings.mcp_oauth_resource_url),
+    ):
+        parsed = urlparse(value)
+        is_local_http = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}
+        if not parsed.hostname or (parsed.scheme != "https" and not is_local_http) or parsed.query or parsed.fragment:
+            raise OAuthConfigurationError(f"OAuth {name} URL must be HTTPS without query or fragment")
+    if settings.mcp_oauth_issuer_url.rstrip("/") != settings.mcp_oauth_resource_url.rstrip("/"):
+        raise OAuthConfigurationError("OAuth issuer and resource URL must match for the co-hosted MCP server")
