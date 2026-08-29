@@ -99,6 +99,7 @@ def test_authorization_page_shows_safe_context_and_security_headers(
     assert "chatgpt.com" in response.text
     assert "portfolio.get_overview" in response.text
     assert 'name="csrf_token"' in response.text
+    assert f'action="{ISSUER_URL}/oauth/authorize"' in response.text
     assert "chatgpt-secret" not in response.text
     assert "state-value" not in response.text
     assert "a" * 43 not in response.text

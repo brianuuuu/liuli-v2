@@ -124,7 +124,7 @@ def _render_authorization_page(
     template = _templates.get_template("authorize.html")
     content = template.render(
         request=request,
-        form_action=request.url_for("oauth_authorize_form"),
+        form_action=f"{provider.issuer_url}/oauth/authorize",
         request_id=context.request_id,
         csrf_token=provider.csrf_token_for_request(context.request_id),
         client_name=context.client_name,

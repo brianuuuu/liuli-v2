@@ -24,7 +24,7 @@ def test_caddy_proxies_mcp_and_standard_oauth_metadata_without_static_json():
 def test_start_script_enables_oauth_without_embedding_oauth_secrets():
     script = read("start_ubuntu_pg.sh")
 
-    assert 'export MCP_OAUTH_ENABLED="true"' in script
+    assert 'export MCP_OAUTH_ENABLED="${MCP_OAUTH_ENABLED:-true}"' in script
     assert 'export MCP_OAUTH_ISSUER_URL="https://115-29-176-240.sslip.io/mcp"' in script
     assert 'export MCP_OAUTH_RESOURCE_URL="https://115-29-176-240.sslip.io/mcp"' in script
     assert 'export MCP_OAUTH_ACCESS_TOKEN_MINUTES="15"' in script
