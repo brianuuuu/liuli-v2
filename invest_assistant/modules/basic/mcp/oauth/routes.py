@@ -21,7 +21,11 @@ _templates = Environment(
 _security_headers = {
     "Cache-Control": "no-store",
     "Pragma": "no-cache",
-    "Content-Security-Policy": "default-src 'none'; form-action 'self'; base-uri 'none'",
+    "Content-Security-Policy": (
+        "default-src 'none'; "
+        "form-action 'self' https://chatgpt.com; "
+        "base-uri 'none'"
+    ),
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",

@@ -107,6 +107,9 @@ def test_authorization_page_shows_safe_context_and_security_headers(
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'none'" in response.headers["content-security-policy"]
+    assert "form-action 'self' https://chatgpt.com" in response.headers[
+        "content-security-policy"
+    ]
 
 
 def test_authorization_page_uses_generic_login_error(oauth_session_factory, tmp_path: Path):
