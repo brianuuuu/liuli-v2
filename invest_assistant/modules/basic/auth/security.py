@@ -10,6 +10,7 @@ from invest_assistant.bootstrap.config import get_settings
 
 
 ALGORITHM = "HS256"
+ACCESS_TOKEN_RESPONSE_HEADER = "X-Access-Token"
 
 
 def hash_password(password: str) -> str:

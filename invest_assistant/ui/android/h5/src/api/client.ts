@@ -42,6 +42,11 @@ async function request<T>(
     signal
   });
 
+  const renewedToken = response.headers.get("X-Access-Token");
+  if (renewedToken) {
+    window.localStorage.setItem(tokenStorageKey, renewedToken);
+  }
+
   if (response.status === 401) {
     window.localStorage.removeItem(tokenStorageKey);
     window.dispatchEvent(new CustomEvent("liuli:unauthorized"));

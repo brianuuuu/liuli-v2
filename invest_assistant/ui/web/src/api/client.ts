@@ -1,6 +1,8 @@
 import axios from "axios";
 
-export const tokenStorageKey = "liuli.auth.token";
+import { saveRenewedAccessToken, tokenStorageKey } from "./token-renewal";
+
+export { tokenStorageKey } from "./token-renewal";
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "",
@@ -16,7 +18,10 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    saveRenewedAccessToken(response.headers["x-access-token"], window.localStorage);
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401 && window.location.pathname !== "/login") {
       window.localStorage.removeItem(tokenStorageKey);

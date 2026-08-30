@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./var/db/liuli.sqlite3"
     secret_key: str = "change-me"
-    access_token_expire_minutes: int = 1440
+    access_token_expire_minutes: int = 4320
     tushare_token: str = ""
     openai_api_key: str = ""
     qwen_api_key: str = ""

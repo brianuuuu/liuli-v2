@@ -41,6 +41,23 @@ describe("mobile API client", () => {
     expect(window.localStorage.getItem(tokenStorageKey)).toBeNull();
   });
 
+  it("saves the renewed token returned by an authenticated API request", async () => {
+    window.localStorage.setItem(tokenStorageKey, "old-mobile-token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1, username: "admin" }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Access-Token": "renewed-mobile-token"
+        }
+      })
+    ));
+
+    await createApiClient().get("/api/auth/me");
+
+    expect(window.localStorage.getItem(tokenStorageKey)).toBe("renewed-mobile-token");
+  });
+
   it("forwards the query cancellation signal to fetch", async () => {
     const controller = new AbortController();
     const fetchMock = vi.fn().mockResolvedValue(
