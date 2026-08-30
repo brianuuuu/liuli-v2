@@ -68,12 +68,8 @@ def test_mcp_client_config_authenticates_enabled_client_and_allowed_tools():
     assert authenticate_token(db, "unknown-token") is None
 
 
-def test_mcp_client_config_supports_oauth_profile_without_breaking_legacy_bearer():
-    from invest_assistant.modules.basic.mcp.auth import (
-        authenticate_token,
-        get_client_config,
-        supports_auth_mode,
-    )
+def test_mcp_client_config_ignores_entries_without_static_bearer_token():
+    from invest_assistant.modules.basic.mcp.auth import authenticate_token, get_client_config
 
     SessionLocal = make_session()
     db = SessionLocal()
@@ -99,9 +95,8 @@ def test_mcp_client_config_supports_oauth_profile_without_breaking_legacy_bearer
     codex = authenticate_token(db, "legacy")
     chatgpt = get_client_config(db, "chatgpt")
 
-    assert codex is not None and supports_auth_mode(codex, "static_bearer")
-    assert chatgpt is not None and chatgpt.token is None
-    assert supports_auth_mode(chatgpt, "oauth")
+    assert codex is not None
+    assert chatgpt is None
     assert authenticate_token(db, "") is None
 
 

@@ -5,7 +5,7 @@ from time import perf_counter
 from urllib.parse import urlparse
 
 from mcp.server.auth.provider import AccessToken
-from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -13,8 +13,6 @@ from mcp.server.transport_security import TransportSecuritySettings
 from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.bootstrap.config import get_settings
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig, authenticate_token, get_client_config
-from invest_assistant.modules.basic.mcp.oauth.provider import build_oauth_provider
-from invest_assistant.modules.basic.mcp.oauth.routes import register_oauth_ui_routes
 from invest_assistant.modules.basic.mcp.debug_logger import stack_trace_from_exception, write_mcp_call_log
 from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
 from invest_assistant.modules.basic.mcp.tools import knowledge_base, market_radar, portfolio, report_library, stock_analysis, track_discovery
@@ -99,50 +97,25 @@ class SystemConfigTokenVerifier:
 
 
 def create_liuli_mcp_server(*, session_factory=None) -> FastMCP:
-    settings = get_settings()
-    public_base_url = settings.mcp_public_base_url.rstrip("/")
+    public_base_url = _normalized_public_base_url()
     resolved_session_factory = session_factory or SessionLocal
-    oauth_provider = None
-    if settings.mcp_oauth_enabled:
-        oauth_provider = build_oauth_provider(settings, session_factory=resolved_session_factory)
-        issuer_url = settings.mcp_oauth_issuer_url.rstrip("/")
-        resource_url = settings.mcp_oauth_resource_url.rstrip("/")
-        auth_provider_kwargs = {"auth_server_provider": oauth_provider}
-        client_registration_options = ClientRegistrationOptions(
-            enabled=False,
-            valid_scopes=["mcp", "offline_access"],
-            default_scopes=["mcp"],
-        )
-        revocation_options = RevocationOptions(enabled=True)
-        transport_urls = [public_base_url, issuer_url, resource_url]
-    else:
-        issuer_url = public_base_url
-        resource_url = f"{public_base_url}/mcp"
-        auth_provider_kwargs = {"token_verifier": SystemConfigTokenVerifier(resolved_session_factory)}
-        client_registration_options = None
-        revocation_options = None
-        transport_urls = [public_base_url]
     server = FastMCP(
         name="liuli",
         instructions=MCP_INSTRUCTIONS,
-        **auth_provider_kwargs,
+        token_verifier=SystemConfigTokenVerifier(resolved_session_factory),
         auth=AuthSettings(
-            issuer_url=issuer_url,
-            resource_server_url=resource_url,
+            issuer_url=public_base_url,
+            resource_server_url=f"{public_base_url}/mcp",
             required_scopes=[MCP_SCOPE],
-            client_registration_options=client_registration_options,
-            revocation_options=revocation_options,
         ),
         streamable_http_path="/",
         stateless_http=False,
         json_response=True,
         transport_security=TransportSecuritySettings(
-            allowed_hosts=_allowed_hosts_for_urls(transport_urls),
-            allowed_origins=_allowed_origins_for_urls(transport_urls),
+            allowed_hosts=_allowed_hosts_for_public_base_url(public_base_url),
+            allowed_origins=_allowed_origins_for_public_base_url(public_base_url),
         ),
     )
-    if oauth_provider is not None:
-        register_oauth_ui_routes(server, oauth_provider)
     _register_tools(server)
     return server
 
@@ -173,18 +146,6 @@ def _allowed_origins_for_public_base_url(public_base_url: str) -> list[str]:
     if parsed.scheme and parsed.netloc:
         origins.append(f"{parsed.scheme}://{parsed.netloc}")
     return list(dict.fromkeys(origins))
-
-
-def _allowed_hosts_for_urls(urls: list[str]) -> list[str]:
-    return list(
-        dict.fromkeys(host for url in urls for host in _allowed_hosts_for_public_base_url(url))
-    )
-
-
-def _allowed_origins_for_urls(urls: list[str]) -> list[str]:
-    return list(
-        dict.fromkeys(origin for url in urls for origin in _allowed_origins_for_public_base_url(url))
-    )
 
 
 def _register_tools(server: FastMCP) -> None:

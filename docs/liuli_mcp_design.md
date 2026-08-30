@@ -55,7 +55,6 @@ modules/basic/mcp/
 ├── __init__.py
 ├── server.py              # 创建 MCP server，设置 instructions，注册 tools
 ├── auth.py                # MCP Bearer Token 校验
-├── oauth/                 # OAuth Provider、授权页面、持久化模型和运维 CLI
 ├── registry.py            # MCP 工具清单、风险等级、只读标记、allowlist
 ├── debug_logger.py        # MCP 开发期详细调试日志，写入 var/logs/mcp_debug.log
 ├── service.py             # DB session 包装、工具调用分发、统一异常边界
@@ -111,7 +110,7 @@ enabled = true
 }
 ```
 
-`basic/mcp/auth.py` 读取 `system_config.mcp.clients` 并解析启用的 client；Bearer Token 或 OAuth profile 命中某个启用 client 后，再按该 client 的 `allowed_tools` 和全局工具 registry 做交集校验。现有 Codex 静态 token 继续保存在原配置中；OAuth 授权码和 token 使用独立表且只保存哈希，OAuth client secret 只保存加密密文。
+`basic/mcp/auth.py` 读取 `system_config.mcp.clients` 并解析启用且配置了静态 Bearer Token 的 client；Token 命中某个 client 后，再按该 client 的 `allowed_tools` 和全局工具 registry 做交集校验。
 
 后续只有出现以下需求时，才考虑增加 MCP 表：
 
@@ -148,41 +147,19 @@ HTTPS（ChatGPT 等外部客户端）：https://115-29-176-240.sslip.io/mcp/
 HTTP（现有 Codex 兼容地址）：http://115.29.176.240:8000/mcp/
 ```
 
-两个地址都保留静态 MCP Bearer Token 鉴权；HTTPS 地址额外支持 ChatGPT OAuth。文档只记录访问地址和配置方式，不记录 Token 或 client secret 值。
-线上 HTTPS 入口由 Caddy 反向代理到本机 `127.0.0.1:8000`，证书由 Caddy 自动申请和续期。
+项目 MCP 服务本身继续使用静态 Bearer Token 鉴权。线上 HTTPS 入口由 Caddy 反向代理到本机 `127.0.0.1:8000`，并向上游注入现有 Bearer Token；证书由 Caddy 自动申请和续期。该 HTTPS 地址是公开 Demo 入口，ChatGPT 侧不再保存 Token。
 
-### ChatGPT OAuth
+### ChatGPT
 
 ChatGPT 自定义 MCP 使用以下配置：
 
 ```text
 名称：琉璃 MCP
 服务器 URL：https://115-29-176-240.sslip.io/mcp/
-身份验证：OAuth
-OAuth 客户端类型：用户定义的客户端
-基础 scope：mcp offline_access
+身份验证：无
 ```
 
-授权 URL、Token URL 和撤销 URL 由标准 well-known 元数据自动发现。动态客户端注册关闭，需先把 ChatGPT 表单显示的精确 callback URI 注册为固定客户端：
-
-```bash
-python -m invest_assistant.modules.basic.mcp.oauth.cli provision-client \
-  --name "ChatGPT" \
-  --redirect-uri "$CHATGPT_CALLBACK_URI" \
-  --profile chatgpt \
-  --token-auth-method client_secret_basic
-```
-
-命令生成的 client ID 和 client secret 填入 ChatGPT 高级 OAuth 设置。client secret 只显示一次；数据库只保存使用 `/var/lib/liuli-mcp-oauth/master.key` 加密后的密文，主密钥文件权限必须为 `0600`。
-
-凭据需要轮换或停用时：
-
-```bash
-python -m invest_assistant.modules.basic.mcp.oauth.cli rotate-secret --client-id "$MCP_OAUTH_CLIENT_ID"
-python -m invest_assistant.modules.basic.mcp.oauth.cli disable-client --client-id "$MCP_OAUTH_CLIENT_ID"
-```
-
-轮换和停用都会撤销该 OAuth client 已签发的 access/refresh token，但不会影响 `mcp.clients.codex` 的静态 Bearer Token。OAuth access token 有效期 15 分钟，refresh token 有效期 30 天并在每次刷新时轮换。
+ChatGPT 直接访问 HTTPS 地址，Caddy 在服务器内部补充静态 Bearer Token。现有 Codex HTTP 配置及其 Bearer Token 保持不变。
 
 Codex 配置示例：
 

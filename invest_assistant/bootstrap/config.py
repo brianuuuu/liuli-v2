@@ -13,12 +13,6 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     log_level: str = "INFO"
     mcp_public_base_url: str = "http://127.0.0.1:8000"
-    mcp_oauth_enabled: bool = False
-    mcp_oauth_issuer_url: str = ""
-    mcp_oauth_resource_url: str = ""
-    mcp_oauth_access_token_minutes: int = 15
-    mcp_oauth_refresh_token_days: int = 30
-    mcp_oauth_master_key_file: str = "/var/lib/liuli-mcp-oauth/master.key"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

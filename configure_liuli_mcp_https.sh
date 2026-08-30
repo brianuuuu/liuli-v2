@@ -19,7 +19,7 @@ readonly END_MARKER="# END LIULI MCP HTTPS - MANAGED"
 TEMP_DIR=""
 PRE_RUN_CADDYFILE=""
 CONFIG_INSTALLED=0
-MCP_VERIFY_TOKEN=""
+MCP_BEARER_TOKEN=""
 
 log() {
   printf '[INFO] %s\n' "$*"
@@ -38,7 +38,7 @@ die() {
 }
 
 cleanup() {
-  MCP_VERIFY_TOKEN=""
+  MCP_BEARER_TOKEN=""
   if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
     rm -rf -- "$TEMP_DIR"
   fi
@@ -165,13 +165,13 @@ write_candidate() {
 }
 
 https://$PUBLIC_HOST {
-	@liuli_mcp path /mcp /mcp/* /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server/mcp
+	@liuli_mcp path /mcp /mcp/*
 
 	handle @liuli_mcp {
 		reverse_proxy 127.0.0.1:8000 {
 			header_up Host $UPSTREAM_HOST
 			header_up Origin $UPSTREAM_ORIGIN
-			header_down WWW-Authenticate "resource_metadata=\\"http://[^\\"]+/\\.well-known/oauth-protected-resource/mcp\\"" "resource_metadata=\\"https://$PUBLIC_HOST/.well-known/oauth-protected-resource/mcp\\""
+			header_up Authorization "Bearer $MCP_BEARER_TOKEN"
 		}
 	}
 
@@ -192,114 +192,36 @@ CADDY_CONFIG
   log "Caddy accepted and reloaded the managed MCP HTTPS configuration."
 }
 
-check_https_without_token() {
-  local attempt http_code=""
-  local response_headers="$TEMP_DIR/mcp-unauthenticated.headers"
-  for attempt in $(seq 1 20); do
-    http_code="$(
-      curl --silent --show-error --dump-header "$response_headers" --output /dev/null --write-out '%{http_code}' \
-        --resolve "$PUBLIC_HOST:443:127.0.0.1" \
-        --request POST \
-        --header 'Accept: application/json, text/event-stream' \
-        --header 'Content-Type: application/json' \
-        --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-        "$HTTPS_MCP_URL" 2>/dev/null || true
-    )"
-    if [[ "$http_code" == "401" || "$http_code" == "403" ]]; then
-      grep -Fiq "resource_metadata=\"https://$PUBLIC_HOST/.well-known/oauth-protected-resource/mcp\"" "$response_headers" \
-        || die "The MCP authentication response does not advertise the public HTTPS metadata URL."
-      log "LOCAL verification passed: Caddy presents a trusted certificate and rejects unauthenticated MCP access ($http_code)."
-      return 0
-    fi
-    sleep 2
-  done
-  die "HTTPS verification did not reach the expected 401/403 response; last HTTP code: ${http_code:-none}"
-}
-
-check_https_metadata() {
-  local protected_response_file="$TEMP_DIR/mcp-protected-resource-metadata.json"
-  local authorization_response_file="$TEMP_DIR/mcp-authorization-server-metadata.json"
-  local protected_http_code authorization_http_code
-
-  protected_http_code="$(
-    curl --silent --show-error --output "$protected_response_file" --write-out '%{http_code}' \
-      --resolve "$PUBLIC_HOST:443:127.0.0.1" \
-      "https://$PUBLIC_HOST/.well-known/oauth-protected-resource/mcp"
-  )"
-  [[ "$protected_http_code" == "200" ]] || die "Public MCP protected-resource metadata returned HTTP $protected_http_code"
-
-  authorization_http_code="$(
-    curl --silent --show-error --output "$authorization_response_file" --write-out '%{http_code}' \
-      --resolve "$PUBLIC_HOST:443:127.0.0.1" \
-      "https://$PUBLIC_HOST/.well-known/oauth-authorization-server/mcp"
-  )"
-  [[ "$authorization_http_code" == "200" ]] || die "Public MCP authorization-server metadata returned HTTP $authorization_http_code"
-
-  python3 - "$protected_response_file" "$authorization_response_file" "https://$PUBLIC_HOST/mcp" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    protected = json.load(handle)
-with open(sys.argv[2], "r", encoding="utf-8") as handle:
-    authorization = json.load(handle)
-
-if protected.get("resource") != sys.argv[3]:
-    raise SystemExit(f"unexpected metadata resource: {protected.get('resource')!r}")
-if protected.get("authorization_servers") != [sys.argv[3]]:
-    raise SystemExit(f"unexpected authorization_servers: {protected.get('authorization_servers')!r}")
-if "header" not in protected.get("bearer_methods_supported", []):
-    raise SystemExit("metadata does not advertise Bearer header authentication")
-if authorization.get("issuer") != sys.argv[3]:
-    raise SystemExit(f"unexpected issuer: {authorization.get('issuer')!r}")
-expected_endpoints = {
-    "authorization_endpoint": f"{sys.argv[3]}/authorize",
-    "token_endpoint": f"{sys.argv[3]}/token",
-    "revocation_endpoint": f"{sys.argv[3]}/revoke",
-}
-for field, expected in expected_endpoints.items():
-    if authorization.get(field) != expected:
-        raise SystemExit(f"unexpected {field}: {authorization.get(field)!r}")
-if "registration_endpoint" in authorization:
-    raise SystemExit("dynamic client registration must remain disabled")
-PY
-  log "LOCAL verification passed: protected-resource and authorization-server metadata use public HTTPS URLs."
-}
-
-read_verification_token() {
+read_bearer_token() {
   if [[ -n "${LIULI_MCP_VERIFY_TOKEN:-}" ]]; then
-    MCP_VERIFY_TOKEN="$LIULI_MCP_VERIFY_TOKEN"
+    MCP_BEARER_TOKEN="$LIULI_MCP_VERIFY_TOKEN"
   elif [[ -t 0 ]]; then
-    printf 'Enter the existing MCP Bearer Token for a one-time verification: ' >&2
-    IFS= read -r -s MCP_VERIFY_TOKEN
+    printf 'Enter the existing MCP Bearer Token for the public HTTPS gateway: ' >&2
+    IFS= read -r -s MCP_BEARER_TOKEN
     printf '\n' >&2
   else
-    die "No interactive terminal is available. Set LIULI_MCP_VERIFY_TOKEN for one-time verification."
+    die "No interactive terminal is available. Set LIULI_MCP_VERIFY_TOKEN before running this script."
   fi
-  [[ -n "$MCP_VERIFY_TOKEN" ]] || die "The verification token cannot be empty."
+  [[ -n "$MCP_BEARER_TOKEN" ]] || die "The MCP Bearer Token cannot be empty."
 }
 
-check_https_with_token() {
+check_public_https() {
   local response_file="$TEMP_DIR/mcp-initialize.json"
-  local http_code
-  local auth_header_fd
-
-  read_verification_token
-  exec {auth_header_fd}< <(printf 'Authorization: Bearer %s\n' "$MCP_VERIFY_TOKEN")
+  local attempt http_code=""
+  for attempt in $(seq 1 20); do
   http_code="$(
     curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
       --resolve "$PUBLIC_HOST:443:127.0.0.1" \
       --request POST \
-      --header "@/dev/fd/$auth_header_fd" \
       --header 'Accept: application/json, text/event-stream' \
       --header 'Content-Type: application/json' \
       --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"caddy-verifier","version":"1"}}}' \
-      "$HTTPS_MCP_URL"
+      "$HTTPS_MCP_URL" 2>/dev/null || true
   )"
-  exec {auth_header_fd}<&-
-  MCP_VERIFY_TOKEN=""
-
-  [[ "$http_code" == "200" ]] || die "Authenticated MCP initialization failed with HTTP $http_code"
+    [[ "$http_code" == "200" ]] && break
+    sleep 2
+  done
+  [[ "$http_code" == "200" ]] || die "Public HTTPS MCP initialization failed; last HTTP code: ${http_code:-none}"
   python3 - "$response_file" <<'PY'
 import json
 import sys
@@ -311,7 +233,7 @@ name = payload.get("result", {}).get("serverInfo", {}).get("name")
 if name != "liuli":
     raise SystemExit(f"unexpected MCP serverInfo.name: {name!r}")
 PY
-  log "Authenticated MCP initialization succeeded and identified serverInfo.name=liuli."
+  log "Public HTTPS MCP initialization succeeded and identified serverInfo.name=liuli."
 }
 
 main() {
@@ -319,19 +241,19 @@ main() {
   TEMP_DIR="$(mktemp -d)"
   check_dns
   check_upstream
+  read_bearer_token
   prepare_state
   write_candidate
-  check_https_without_token
-  check_https_metadata
-  check_https_with_token
+  check_public_https
   CONFIG_INSTALLED=0
 
   printf '\n[LOCAL SUCCESS] The server-side Caddy and MCP checks passed.\n'
   printf 'ChatGPT URL: %s\n' "$HTTPS_MCP_URL"
+  printf 'ChatGPT authentication: None (Caddy supplies the existing Bearer Token upstream).\n'
   printf 'Existing Codex HTTP URL remains unchanged: http://%s/mcp/\n' "$UPSTREAM_HOST"
-  printf '\nExternal verification required after opening Alibaba Cloud TCP 443:\n'
+  printf '\nExternal verification command:\n'
   printf "  curl -i -X POST -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}' %s\n" "$HTTPS_MCP_URL"
-  printf 'Expected without a token: HTTP 401 or 403. Configure ChatGPT OAuth, complete login, and then run Scan Tools.\n'
+  printf 'Expected result: HTTP 200. Configure ChatGPT with authentication set to None, then run Scan Tools.\n'
   printf 'Rollback command: %s/restore_liuli_mcp_https.sh\n' "$PROJECT_ROOT"
 }
 
