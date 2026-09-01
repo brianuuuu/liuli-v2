@@ -93,7 +93,7 @@ describe("mobile card elevation", () => {
 
     expect(treemapRule).toMatch(/width:\s*100%;/);
     expect(treemapRule).toMatch(/min-width:\s*0;/);
-    expect(treemapRule).toMatch(/height:\s*240px;/);
+    expect(treemapRule).toMatch(/height:\s*280px;/);
     expect(treemapRule).not.toMatch(/position:\s*(fixed|sticky|absolute)/);
   });
 
@@ -129,11 +129,10 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
   });
 
-  it("keeps the server address readable and the save action horizontal", () => {
+  it("keeps the server address editor and save action horizontal", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.settings-server-display\s*\{[^}]*gap:\s*12px;/s);
-    expect(styles).toMatch(/\.settings-server-address\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;[^}]*text-align:\s*right;/s);
+    expect(styles).toMatch(/\.settings-server-edit input\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;/s);
     expect(styles).toMatch(/\.settings-server-save\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*44px;[^}]*white-space:\s*nowrap;/s);
   });
 

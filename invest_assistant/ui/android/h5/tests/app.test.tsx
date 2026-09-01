@@ -205,11 +205,12 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    const serverRow = await screen.findByRole("button", { name: `编辑服务地址 ${window.location.origin}` });
-    expect(serverRow).toHaveTextContent(`服务地址${window.location.origin}`);
-    expect(serverRow.querySelector("svg")).toBeNull();
+    const serverRow = await screen.findByRole("button", { name: "编辑服务地址" });
+    expect(serverRow).toHaveTextContent("服务地址");
+    expect(serverRow).not.toHaveTextContent(window.location.origin);
+    expect(serverRow.querySelector(".lucide-chevron-right")).toBeInTheDocument();
     expect(serverRow.querySelector("strong")).toBeNull();
-    expect(screen.getByText(window.location.origin)).toBeInTheDocument();
+    expect(screen.queryByText(window.location.origin)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "服务地址" })).not.toBeInTheDocument();
 
     fireEvent.click(serverRow);

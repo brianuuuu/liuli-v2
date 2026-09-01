@@ -70,9 +70,9 @@ export function MePage() {
                 <button type="button" className="settings-server-save" disabled={!canSaveServer} onClick={saveServer}>保存</button>
               </div>
             ) : (
-              <button type="button" className="settings-row settings-server-display" aria-label={`编辑服务地址 ${currentServer}`} onClick={startEditingServer}>
-                <span className="settings-server-label">服务地址</span>
-                <span className="settings-server-address" title={currentServer}>{currentServer}</span>
+              <button type="button" className="settings-row" aria-label="编辑服务地址" onClick={startEditingServer}>
+                <span>服务地址</span>
+                <ChevronRight />
               </button>
             )}
           </SectionCard>
