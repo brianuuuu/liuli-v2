@@ -51,4 +51,22 @@ class HybridShellModelTest {
         assertTrue(shouldShowBottomNavigation("/reports"))
         assertTrue(shouldShowBottomNavigation("/tasks/alerts/42"))
     }
+
+    @Test
+    fun `ime hides the native bottom navigation without changing the requested state`() {
+        assertFalse(
+            shouldDisplayBottomNavigation(
+                requestedVisible = true,
+                loadFailed = false,
+                imeVisible = true,
+            ),
+        )
+        assertTrue(
+            shouldDisplayBottomNavigation(
+                requestedVisible = true,
+                loadFailed = false,
+                imeVisible = false,
+            ),
+        )
+    }
 }

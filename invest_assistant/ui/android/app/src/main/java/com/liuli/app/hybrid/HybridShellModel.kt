@@ -20,3 +20,9 @@ fun effectiveMobileServer(stored: String?, default: String): String {
 
 fun shouldShowBottomNavigation(path: String): Boolean =
     path != "/login" && !Regex("^/reports/\\d+$").matches(path)
+
+fun shouldDisplayBottomNavigation(
+    requestedVisible: Boolean,
+    loadFailed: Boolean,
+    imeVisible: Boolean,
+): Boolean = requestedVisible && !loadFailed && !imeVisible

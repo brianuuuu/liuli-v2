@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
@@ -65,6 +66,7 @@ import com.liuli.app.core.design.LiuliTheme
 import com.liuli.app.core.design.ThemeMode
 import com.liuli.app.hybrid.HybridSection
 import com.liuli.app.hybrid.mobileAppUrl
+import com.liuli.app.hybrid.shouldDisplayBottomNavigation
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -156,13 +158,19 @@ private fun HybridApp(
 
     LiuliTheme(themeMode) {
         val systemChromeBackground = if (MaterialTheme.colorScheme.surface == Color.White) Color.White else Color.Black
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        val displayBottomNavigation = shouldDisplayBottomNavigation(
+            requestedVisible = showBottomNavigation,
+            loadFailed = loadFailed,
+            imeVisible = imeVisible,
+        )
         Scaffold(
             containerColor = systemChromeBackground,
             contentWindowInsets = WindowInsets.systemBars.only(
                 WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
             ),
             bottomBar = {
-                if (showBottomNavigation && !loadFailed) {
+                if (displayBottomNavigation) {
                     HybridBottomBar(
                         selected = selectedSection,
                         background = systemChromeBackground,
