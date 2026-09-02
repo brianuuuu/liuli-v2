@@ -642,6 +642,7 @@ def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(mo
     assert "report_id" in tools["report_library.read_report_content"]
     assert "Markdown" in tools["report_library.upload_markdown_report"]
     assert "组合总览" in tools["portfolio.get_overview"]
+    assert "持股数量" in tools["portfolio.get_overview"]
 
 
 def test_mount_mcp_app_uses_top_level_mcp_path():

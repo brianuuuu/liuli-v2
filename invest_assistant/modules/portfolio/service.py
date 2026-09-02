@@ -286,6 +286,7 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
                     "stock_id": stock_id,
                     "stock_code": position.get("stock_code"),
                     "label": position.get("stock_name") or position.get("stock_code") or position.get("symbol") or str(stock_id),
+                    "quantity": 0.0,
                     "market_value": 0.0,
                     "previous_market_value": 0.0,
                     "day_pnl": 0.0,
@@ -293,6 +294,7 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
                     "quote_time": None,
                 },
             )
+            item["quantity"] += float(position["quantity"] or 0)
             item["market_value"] += value
             item["previous_market_value"] += float(position["previous_market_value"] or 0)
             item["day_pnl"] += float(position["day_pnl"] or 0)
@@ -916,6 +918,7 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
                 "stock_id": item["stock_id"],
                 "stock_code": item.get("stock_code"),
                 "label": item["label"],
+                "quantity": item["quantity"],
                 "market_value": value,
                 "weight": value / total_value * 100 if total_value else 0.0,
                 "current_price": item.get("current_price"),
