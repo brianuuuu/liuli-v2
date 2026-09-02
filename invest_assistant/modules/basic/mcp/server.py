@@ -75,7 +75,7 @@ MCP_TOOL_DESCRIPTIONS = {
         "保存到 var/reports/{source_module}/YYYY-MM/，仅用于显式 allowlist 放开的受控报告入库。"
     ),
     "portfolio.get_overview": (
-        "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持仓市值、总资产、当日盈亏和持仓分布。"
+        "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持股数量、持仓市值、总资产、当日盈亏和持仓分布。"
         "portfolio_id 为空时返回全组合汇总。"
     ),
 }
