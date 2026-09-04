@@ -29,16 +29,36 @@ type ScoreTrendRow = Pick<
 
 export function buildScoreTrendBarOption(
   rows: ScoreTrendRow[],
-  metric: ScoreTrendMetric = DEFAULT_SCORE_TREND_METRIC
+  metric: ScoreTrendMetric = DEFAULT_SCORE_TREND_METRIC,
+  mode: "light" | "dark" = "light"
 ): EChartsOption {
+  const dark = mode === "dark";
   const selected = SCORE_TREND_METRICS.find((item) => item.value === metric) ?? SCORE_TREND_METRICS[0];
   const ordered = [...rows].sort((a, b) => a.report_time.localeCompare(b.report_time));
+  const textColor = dark ? "#8b95a5" : "#94a3b8";
+  const splitLineColor = dark ? "rgba(148,163,184,0.14)" : "rgba(15,23,42,0.07)";
+  const axisLineColor = dark ? "rgba(148,163,184,0.24)" : "rgba(15,23,42,0.12)";
 
   return {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
     grid: { left: 42, right: 18, top: 18, bottom: 28 },
-    xAxis: { type: "category", data: ordered.map((item) => item.report_time) },
-    yAxis: { type: "value", min: 0, max: 10, interval: 2 },
+    xAxis: {
+      type: "category",
+      data: ordered.map((item) => item.report_time),
+      axisLabel: { color: textColor, fontSize: 11 },
+      axisLine: { lineStyle: { color: axisLineColor } },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: 10,
+      interval: 2,
+      axisLabel: { color: textColor, fontSize: 11 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: splitLineColor, type: "dashed", width: 1 } }
+    },
     series: [
       {
         name: selected.label,

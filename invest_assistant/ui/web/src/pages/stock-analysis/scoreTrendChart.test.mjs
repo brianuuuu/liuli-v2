@@ -56,3 +56,11 @@ test("score trend switches the single bar series to another dimension", () => {
   assert.equal(option.series[0].name, "成长");
   assert.deepEqual(option.series[0].data, [8.3, 9.1]);
 });
+
+test("score trend uses muted dashed split lines in dark mode", () => {
+  const option = buildScoreTrendBarOption(rows, DEFAULT_SCORE_TREND_METRIC, "dark");
+  assert.equal(option.yAxis.splitLine.lineStyle.type, "dashed");
+  assert.equal(option.yAxis.splitLine.lineStyle.color, "rgba(148,163,184,0.14)");
+  assert.equal(option.yAxis.axisLine.show, false);
+  assert.equal(option.xAxis.axisTick.show, false);
+});

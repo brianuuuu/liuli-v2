@@ -698,6 +698,7 @@ function InlineChart({ option, height = 240 }: { option: EChartsOption; height?:
 }
 
 function ScoresTab({ data }: { data: StockDetail }) {
+  const { resolvedMode } = useLiuliTheme();
   const [trendMetric, setTrendMetric] = useState<ScoreTrendMetric>(DEFAULT_SCORE_TREND_METRIC);
   const scoreColumns: ColumnsType<StockScoreSnapshot> = [
     { title: "报告时间", dataIndex: "report_time", width: 110 },
@@ -726,7 +727,7 @@ function ScoresTab({ data }: { data: StockDetail }) {
               popupMatchSelectWidth={120}
             />
           </div>
-          {data.score_history.length ? <InlineChart option={buildScoreTrendBarOption(data.score_history, trendMetric)} /> : <EmptyAction description="暂无评分趋势" />}
+          {data.score_history.length ? <InlineChart option={buildScoreTrendBarOption(data.score_history, trendMetric, resolvedMode)} /> : <EmptyAction description="暂无评分趋势" />}
           <Table rowKey="id" size="small" dataSource={data.score_history} columns={scoreColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>
