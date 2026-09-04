@@ -2417,6 +2417,89 @@ body {
   width: 120px;
 }
 
+.stock-valuation-latest {
+  margin-bottom: 20px;
+}
+
+.stock-valuation-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stock-valuation-section-head .stock-detail-subtitle {
+  margin-bottom: 0;
+}
+
+.stock-valuation-section-head > span {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-valuation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stock-valuation-summary-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel-subtle);
+}
+
+.stock-valuation-summary-item.featured {
+  border-top: 2px solid var(--ll-accent);
+}
+
+.stock-valuation-summary-item > span,
+.stock-valuation-summary-item > em {
+  display: block;
+  overflow: hidden;
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-valuation-summary-item > strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--ll-text);
+  font-size: 20px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-valuation-summary-item > em {
+  margin-top: 3px;
+}
+
+.stock-valuation-gap.positive {
+  color: #10b981;
+}
+
+.stock-valuation-gap.negative {
+  color: #f97316;
+}
+
+.stock-valuation-gap.flat {
+  color: var(--ll-text);
+}
+
+.stock-valuation-chart-section {
+  margin-bottom: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ll-border);
+}
+
 .stock-detail-keyfacts {
   margin: 0;
 }
@@ -2941,6 +3024,10 @@ body {
 
   .stock-rating-overview-body {
     grid-template-columns: 1fr;
+  }
+
+  .stock-valuation-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .stock-detail-list-item,

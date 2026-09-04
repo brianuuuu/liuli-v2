@@ -39,6 +39,13 @@ import {
 } from "./scoreTrendChart";
 import type { ScoreTrendMetric } from "./scoreTrendChart";
 import { buildLatestRatingOverview, buildLatestRatingRadarOption } from "./stockRatingOverview";
+import {
+  buildLatestValuationSummary,
+  buildValuationComparisonOption,
+  formatValuationGap,
+  valuationGapTone,
+  valuationModelLabel
+} from "./valuationPresentation";
 
 type NoteFormValues = {
   note_type: string;
@@ -95,25 +102,6 @@ function stockKlinePctText(value?: number | null) {
 
 function statusText(status?: string | null) {
   return poolStatusOptions.find((item) => item.value === status)?.label || status || "-";
-}
-
-function valuationTrendOption(rows: StockDetailValuationSnapshot[]): EChartsOption {
-  const ordered = [...rows].filter((item) => item.analysis_date).sort((a, b) => String(a.analysis_date).localeCompare(String(b.analysis_date)));
-  return {
-    tooltip: { trigger: "axis" },
-    legend: { top: 0 },
-    grid: { left: 48, right: 18, top: 34, bottom: 28 },
-    xAxis: { type: "category", data: ordered.map((item) => item.analysis_date || "-") },
-    yAxis: [
-      { type: "value", name: "市值" },
-      { type: "value", name: "缺口" }
-    ],
-    series: [
-      { name: "当前市值", type: "line", smooth: true, data: ordered.map((item) => item.current_market_value ?? null) },
-      { name: "三年预期市值", type: "line", smooth: true, data: ordered.map((item) => item.expected_market_value_3y ?? null) },
-      { name: "预期缺口", type: "bar", yAxisIndex: 1, data: ordered.map((item) => item.expectation_gap_rate ?? null) }
-    ]
-  };
 }
 
 export function StockDetailPage() {
@@ -747,24 +735,57 @@ function ScoresTab({ data }: { data: StockDetail }) {
 }
 
 function ValuationTab({ data }: { data: StockDetail }) {
+  const { resolvedMode } = useLiuliTheme();
+  const latest = data.latest_valuation ? buildLatestValuationSummary(data.latest_valuation) : null;
   const valuationColumns: ColumnsType<StockDetailValuationSnapshot> = [
     { title: "分析日", dataIndex: "analysis_date", width: 110, render: (value) => value || "-" },
     { title: "报告期", dataIndex: "report_period", width: 110, render: (value) => value || "-" },
     { title: "当前市值", dataIndex: "current_market_value", width: 120, render: (value) => numberText(value) },
-    { title: "三年预期市值", dataIndex: "expected_market_value_3y", width: 130, render: (value) => numberText(value) },
-    { title: "预期缺口", dataIndex: "expectation_gap_rate", width: 110, render: (value) => numberText(value, "%") },
-    { title: "模型", dataIndex: "primary_model", width: 100, render: (value) => value || "-" },
+    { title: "三年合理市值", dataIndex: "expected_market_value_3y", width: 130, render: (value) => numberText(value) },
+    {
+      title: "三年估值空间",
+      dataIndex: "expectation_gap_rate",
+      width: 120,
+      render: (value) => <span className={`stock-valuation-gap ${valuationGapTone(value)}`}>{formatValuationGap(value)}</span>
+    },
+    { title: "模型", dataIndex: "primary_model", width: 110, render: valuationModelLabel },
     { title: "研究员", dataIndex: "researcher", width: 100, render: (value) => value || "-" }
   ];
   return (
     <WorkbenchCard>
       <div className="stock-detail-panel">
-        <div className="stock-detail-panel-toolbar">
-          <span>估值记录</span>
-        </div>
         <div className="stock-detail-panel-section first">
-          <div className="stock-detail-subtitle">估值趋势</div>
-          {data.valuation_history.length ? <InlineChart option={valuationTrendOption(data.valuation_history)} /> : <EmptyAction description="暂无估值趋势" />}
+          {latest ? (
+            <div className="stock-valuation-latest">
+              <div className="stock-valuation-section-head">
+                <div className="stock-detail-subtitle">最新估值</div>
+                <span>{latest.analysisDate || "-"} · {latest.researcher || "未标注研究员"}</span>
+              </div>
+              <div className="stock-valuation-summary-grid">
+                <div className="stock-valuation-summary-item">
+                  <span>当前市值</span>
+                  <strong>{numberText(latest.currentMarketValue)}</strong>
+                </div>
+                <div className="stock-valuation-summary-item featured">
+                  <span>三年合理市值</span>
+                  <strong>{numberText(latest.expectedMarketValue3y)}</strong>
+                </div>
+                <div className="stock-valuation-summary-item">
+                  <span>三年估值空间</span>
+                  <strong className={`stock-valuation-gap ${latest.gapTone}`}>{latest.gapText}</strong>
+                </div>
+                <div className="stock-valuation-summary-item">
+                  <span>估值依据</span>
+                  <strong>{latest.modelLabel}</strong>
+                  <em>{latest.reportPeriod || "未标注报告期"}</em>
+                </div>
+              </div>
+            </div>
+          ) : <EmptyAction description="暂无最新估值" />}
+          <div className="stock-valuation-chart-section">
+            <div className="stock-detail-subtitle">市值对比趋势</div>
+            {data.valuation_history.length ? <InlineChart option={buildValuationComparisonOption(data.valuation_history, resolvedMode)} /> : <EmptyAction description="暂无估值趋势" />}
+          </div>
           <Table rowKey="id" size="small" dataSource={data.valuation_history} columns={valuationColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 860 }} />
         </div>
       </div>
