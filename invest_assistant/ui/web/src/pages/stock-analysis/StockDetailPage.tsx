@@ -11,7 +11,6 @@ import { listTracks } from "../../api/trackDiscovery";
 import {
   bindStockTrackRelation,
   createStockNote,
-  createStockScore,
   disableStockTrackRelation,
   getStockDailyBars,
   getStockDetail,
@@ -32,28 +31,20 @@ import type {
   StockScoreSnapshot,
   StockTrackRelation
 } from "../../types/api";
-import { formatTime, poolStatusOptions, scoreTrendOption } from "./sections/shared";
+import { formatTime, poolStatusOptions } from "./sections/shared";
+import {
+  DEFAULT_SCORE_TREND_METRIC,
+  SCORE_TREND_METRICS,
+  buildScoreTrendBarOption
+} from "./scoreTrendChart";
+import type { ScoreTrendMetric } from "./scoreTrendChart";
+import { buildLatestRatingOverview, buildLatestRatingRadarOption } from "./stockRatingOverview";
 
 type NoteFormValues = {
   note_type: string;
   title: string;
   content: string;
   related_track_id?: number;
-};
-
-type ScoreFormValues = {
-  report_time: string;
-  researcher_code?: string;
-  business_moat_score?: number;
-  management_score?: number;
-  governance_score?: number;
-  strategy_score?: number;
-  certainty_score?: number;
-  growth_score?: number;
-  total_score?: number;
-  investment_level?: string;
-  core_logic?: string;
-  primary_risk?: string;
 };
 
 type TrackBindingFormValues = {
@@ -133,10 +124,8 @@ export function StockDetailPage() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const stockPool = useAsyncData(useCallback(() => listStockPool(), []), []);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [scoreOpen, setScoreOpen] = useState(false);
   const [bindingOpen, setBindingOpen] = useState(false);
   const [noteForm] = Form.useForm<NoteFormValues>();
-  const [scoreForm] = Form.useForm<ScoreFormValues>();
   const [bindingForm] = Form.useForm<TrackBindingFormValues>();
 
   const trackOptions = useMemo(() => tracks.data.map((track) => ({ value: track.id, label: track.name })), [tracks.data]);
@@ -167,28 +156,6 @@ export function StockDetailPage() {
     message.success("研究笔记已新增");
     noteForm.resetFields();
     setNoteOpen(false);
-    await detail.refresh();
-  }
-
-  async function submitScore() {
-    const values = await scoreForm.validateFields();
-    await createStockScore(stockId, {
-      report_time: values.report_time,
-      researcher_code: values.researcher_code || null,
-      business_moat_score: values.business_moat_score || 0,
-      management_score: values.management_score || 0,
-      governance_score: values.governance_score || 0,
-      strategy_score: values.strategy_score || 0,
-      certainty_score: values.certainty_score || 0,
-      growth_score: values.growth_score || 0,
-      total_score: values.total_score || 0,
-      investment_level: values.investment_level || null,
-      core_logic: values.core_logic || null,
-      primary_risk: values.primary_risk || null
-    });
-    message.success("评分快照已新增");
-    scoreForm.resetFields();
-    setScoreOpen(false);
     await detail.refresh();
   }
 
@@ -257,12 +224,7 @@ export function StockDetailPage() {
                 {
                   key: "scores",
                   label: "评分",
-                  children: (
-                    <ScoresTab
-                      data={data}
-                      onAddScore={() => setScoreOpen(true)}
-                    />
-                  )
+                  children: <ScoresTab data={data} />
                 },
                 { key: "valuation", label: "估值", children: <ValuationTab data={data} /> },
                 {
@@ -293,27 +255,6 @@ export function StockDetailPage() {
           </div>
         </>
       )}
-
-      <Modal title="新增评分" open={scoreOpen} onCancel={() => setScoreOpen(false)} onOk={submitScore} destroyOnHidden forceRender width={680}>
-        <Form form={scoreForm} layout="vertical" preserve={false}>
-          <div className="stock-detail-form-grid">
-            <Form.Item name="report_time" label="报告时间" rules={[{ required: true, message: "请输入报告时间" }]}>
-              <input className="ant-input" type="date" />
-            </Form.Item>
-            <Form.Item name="researcher_code" label="研究员"><Input /></Form.Item>
-            <Form.Item name="investment_level" label="等级"><Input /></Form.Item>
-            <Form.Item name="total_score" label="总分"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="business_moat_score" label="壁垒"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="management_score" label="管理"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="governance_score" label="治理"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="strategy_score" label="战略"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="certainty_score" label="确定性"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="growth_score" label="成长"><InputNumber min={0} max={10} style={{ width: "100%" }} /></Form.Item>
-          </div>
-          <Form.Item name="core_logic" label="核心逻辑"><Input.TextArea rows={3} /></Form.Item>
-          <Form.Item name="primary_risk" label="主要风险"><Input.TextArea rows={3} /></Form.Item>
-        </Form>
-      </Modal>
 
       <Modal title="绑定赛道" open={bindingOpen} onCancel={() => setBindingOpen(false)} onOk={submitBinding} destroyOnHidden forceRender width={620}>
         <Form form={bindingForm} layout="vertical" preserve={false}>
@@ -412,19 +353,60 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function OverviewTab({ data }: { data: StockDetail }) {
   const latestNote = data.notes[0];
+  const { resolvedMode } = useLiuliTheme();
+  const ratingOverview = buildLatestRatingOverview(data.latest_score);
   const importantMaterials = data.materials.filter((item) => item.importance_level === "high").slice(0, 5);
   return (
     <WorkbenchCard>
       <div className="stock-detail-overview-panel">
         <div className="stock-detail-overview-main">
-          {latestNote ? (
-            <div className="stock-detail-note-summary">
-              <Typography.Text type="secondary">{latestNote.note_type} / {formatTime(latestNote.updated_at)}</Typography.Text>
-              <Typography.Title level={5}>{latestNote.title}</Typography.Title>
-              <Typography.Paragraph>{latestNote.content}</Typography.Paragraph>
+          {ratingOverview ? (
+            <div className="stock-rating-overview">
+              <div className="stock-detail-subtitle">最新评级画像</div>
+              <div className="stock-rating-overview-body">
+                <div className="stock-rating-radar">
+                  <InlineChart option={buildLatestRatingRadarOption(ratingOverview, resolvedMode)} height={244} />
+                </div>
+                <div className="stock-rating-summary">
+                  <div className="stock-rating-score-row">
+                    <div>
+                      <span>综合评分</span>
+                      <strong>{numberText(ratingOverview.totalScore)}</strong>
+                    </div>
+                    <div>
+                      <span>投资等级</span>
+                      <strong>{ratingOverview.investmentLevel || "-"}</strong>
+                    </div>
+                  </div>
+                  <div className="stock-rating-copy">
+                    <span>核心逻辑</span>
+                    <p>{ratingOverview.coreLogic || "暂无核心逻辑"}</p>
+                  </div>
+                  <div className="stock-rating-copy risk">
+                    <span>主要风险</span>
+                    <p>{ratingOverview.primaryRisk || "暂无主要风险"}</p>
+                  </div>
+                  <div className="stock-rating-meta">
+                    {ratingOverview.researcherCode || "未标注研究员"} · {ratingOverview.reportTime || "-"}
+                  </div>
+                </div>
+              </div>
+              {latestNote ? (
+                <div className="stock-detail-note-summary stock-rating-latest-note">
+                  <Typography.Text type="secondary">最新研究笔记 · {latestNote.note_type} / {formatTime(latestNote.updated_at)}</Typography.Text>
+                  <Typography.Title level={5}>{latestNote.title}</Typography.Title>
+                  <Typography.Paragraph ellipsis={{ rows: 3, expandable: true, symbol: "展开" }}>{latestNote.content}</Typography.Paragraph>
+                </div>
+              ) : null}
             </div>
           ) : (
-            <EmptyAction description="暂无研究判断" />
+            latestNote ? (
+              <div className="stock-detail-note-summary">
+                <Typography.Text type="secondary">{latestNote.note_type} / {formatTime(latestNote.updated_at)}</Typography.Text>
+                <Typography.Title level={5}>{latestNote.title}</Typography.Title>
+                <Typography.Paragraph>{latestNote.content}</Typography.Paragraph>
+              </div>
+            ) : <EmptyAction description="暂无评级画像和研究判断" />
           )}
           <div className="detail-list stock-detail-keyfacts">
             <div className="detail-row"><span>入池状态</span><span>{data.pool?.status || data.stock.status || "-"}</span></div>
@@ -727,7 +709,8 @@ function InlineChart({ option, height = 240 }: { option: EChartsOption; height?:
   );
 }
 
-function ScoresTab({ data, onAddScore }: { data: StockDetail; onAddScore: () => void }) {
+function ScoresTab({ data }: { data: StockDetail }) {
+  const [trendMetric, setTrendMetric] = useState<ScoreTrendMetric>(DEFAULT_SCORE_TREND_METRIC);
   const scoreColumns: ColumnsType<StockScoreSnapshot> = [
     { title: "报告时间", dataIndex: "report_time", width: 110 },
     { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" },
@@ -744,13 +727,18 @@ function ScoresTab({ data, onAddScore }: { data: StockDetail; onAddScore: () => 
   return (
     <WorkbenchCard>
       <div className="stock-detail-panel">
-        <div className="stock-detail-panel-toolbar">
-          <span>评分记录</span>
-          <Button size="small" type="primary" onClick={onAddScore}>新增评分</Button>
-        </div>
         <div className="stock-detail-panel-section first">
-          <div className="stock-detail-subtitle">评分趋势</div>
-          {data.score_history.length ? <InlineChart option={scoreTrendOption(data.score_history)} /> : <EmptyAction description="暂无评分趋势" />}
+          <div className="stock-score-trend-header">
+            <div className="stock-detail-subtitle">评分趋势</div>
+            <Select
+              size="small"
+              value={trendMetric}
+              options={SCORE_TREND_METRICS.map(({ value, label }) => ({ value, label }))}
+              onChange={setTrendMetric}
+              popupMatchSelectWidth={120}
+            />
+          </div>
+          {data.score_history.length ? <InlineChart option={buildScoreTrendBarOption(data.score_history, trendMetric)} /> : <EmptyAction description="暂无评分趋势" />}
           <Table rowKey="id" size="small" dataSource={data.score_history} columns={scoreColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>

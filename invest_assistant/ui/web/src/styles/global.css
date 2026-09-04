@@ -2401,12 +2401,103 @@ body {
   font-weight: 600;
 }
 
+.stock-score-trend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stock-score-trend-header .stock-detail-subtitle {
+  margin-bottom: 0;
+}
+
+.stock-score-trend-header .ant-select {
+  width: 120px;
+}
+
 .stock-detail-keyfacts {
   margin: 0;
 }
 
 .stock-detail-note-summary .ant-typography {
   margin-bottom: 8px;
+}
+
+.stock-rating-overview {
+  min-width: 0;
+}
+
+.stock-rating-overview-body {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.9fr) minmax(260px, 1.1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.stock-rating-radar {
+  min-width: 0;
+}
+
+.stock-rating-summary {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.stock-rating-score-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stock-rating-score-row > div {
+  padding: 10px 12px;
+  border: 1px solid var(--ll-border);
+  border-radius: 6px;
+  background: var(--ll-panel-subtle);
+}
+
+.stock-rating-score-row span,
+.stock-rating-copy span,
+.stock-rating-meta {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.stock-rating-score-row strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ll-text);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.stock-rating-copy {
+  padding-left: 10px;
+  border-left: 3px solid #2563eb;
+}
+
+.stock-rating-copy.risk {
+  border-left-color: #d97706;
+}
+
+.stock-rating-copy p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: var(--ll-text);
+  font-size: 13px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.stock-rating-latest-note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ll-border);
 }
 
 .stock-detail-list {
@@ -2845,6 +2936,10 @@ body {
   .stock-detail-form-grid.compact,
   .track-detail-form-grid,
   .track-detail-form-grid.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-rating-overview-body {
     grid-template-columns: 1fr;
   }
 
