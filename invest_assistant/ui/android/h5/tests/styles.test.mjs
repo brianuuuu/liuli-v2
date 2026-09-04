@@ -129,13 +129,6 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
   });
 
-  it("keeps the server address editor and save action horizontal", () => {
-    const styles = readFileSync("src/styles.css", "utf8");
-
-    expect(styles).toMatch(/\.settings-server-edit input\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1;/s);
-    expect(styles).toMatch(/\.settings-server-save\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*44px;[^}]*white-space:\s*nowrap;/s);
-  });
-
   it("renders dashboard materials as a compact continuous list", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

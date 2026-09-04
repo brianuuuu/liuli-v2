@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import type { AiTagSuggestion } from "../types/api";
 
@@ -38,6 +39,8 @@ export function AiSuggestionsPanel() {
     () => (query.data?.pages.flatMap((page) => page.items) ?? []).filter((item) => !removedIds.has(item.id)),
     [query.data, removedIds]
   );
+  const loadedCount = query.data?.pages.reduce((total, page) => total + page.items.length, 0) ?? 0;
+  const remainingCount = Math.max(0, (query.data?.pages[0]?.total ?? 0) - loadedCount);
   const returnState = (
     location.state as { aiSuggestionReturn?: AiSuggestionReturnState } | null
   )?.aiSuggestionReturn;
@@ -86,6 +89,17 @@ export function AiSuggestionsPanel() {
     await client.invalidateQueries({ queryKey: ["ai-tag-suggestions"] });
   };
 
+  const refresh = async () => {
+    setRemovedIds(new Set());
+    setFeedback("");
+    client.setQueryData(["ai-tag-suggestions", "pending"], (current: typeof query.data) => current ? {
+      ...current,
+      pages: current.pages.slice(0, 1),
+      pageParams: current.pageParams.slice(0, 1)
+    } : current);
+    await query.refetch();
+  };
+
   const openReview = (item: AiTagSuggestion) => {
     const index = rows.findIndex((row) => row.id === item.id);
     const nextItem = index >= 0 ? rows[index + 1] : undefined;
@@ -103,10 +117,7 @@ export function AiSuggestionsPanel() {
 
   return (
     <section className="tasks-panel ai-suggestions-panel">
-      <div className="suggestion-review-hint">
-        <span>待审核 {query.data?.pages[0]?.total ?? 0}</span>
-        <span>点击卡片进入审核</span>
-      </div>
+      <PullToRefresh ariaLabel="AI 推荐词下拉刷新" onRefresh={refresh} disabled={Boolean(batchProgress)}>
       {query.isLoading ? <LoadingState /> : query.isError ? (
         <ErrorState message="AI 推荐词加载失败" onRetry={() => void query.refetch()} />
       ) : rows.length ? (
@@ -130,7 +141,7 @@ export function AiSuggestionsPanel() {
           <div className="suggestion-list-actions" data-swipe-ignore="true">
             {query.hasNextPage ? (
               <button className="load-more" disabled={query.isFetchingNextPage || Boolean(batchProgress)} onClick={() => void query.fetchNextPage()}>
-                {query.isFetchingNextPage ? "加载中…" : "加载更多"}
+                {query.isFetchingNextPage ? "加载中…" : `加载更多（${remainingCount}）`}
               </button>
             ) : <span className="suggestion-list-end">已加载全部</span>}
             <button
@@ -146,6 +157,7 @@ export function AiSuggestionsPanel() {
         </div>
       ) : <EmptyState title="暂无待审核推荐词" detail="新的推荐词会显示在这里" />}
       {feedback ? <div className="batch-feedback" role="status">{feedback}</div> : null}
+      </PullToRefresh>
     </section>
   );
 }

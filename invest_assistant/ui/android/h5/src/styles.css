@@ -326,7 +326,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .login-brand p { color: var(--muted); font-size: 12px; }
 .login-form { display: grid; gap: 16px; }
 .login-form label { color: var(--muted); font-size: 12px; }
-.login-form input, .composer-sheet input, .suggestion-review-form input, .note-editor select, .note-editor input, .settings-row--form input {
+.login-form input, .composer-sheet input, .suggestion-review-form input, .note-editor select, .note-editor input {
   width: 100%;
   height: 44px;
   margin-top: 6px;
@@ -419,8 +419,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .icon-primary-button { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 9px; background: var(--blue); color: #fff; }
 .tasks-status-filter { position: sticky; z-index: 3; top: 36px; }
 .ai-suggestions-panel { gap: 8px; }
-.suggestion-review-hint { display: flex; min-height: 28px; align-items: center; justify-content: space-between; color: var(--subtle); font-size: 11px; }
-.suggestion-review-hint span:first-child { color: var(--muted); font-weight: 600; }
 .suggestion-list { display: grid; gap: 8px; }
 .suggestion-card { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); text-align: left; box-shadow: var(--shadow); }
 .suggestion-card > svg { flex: 0 0 auto; color: var(--subtle); }
@@ -456,12 +454,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .segmented button.is-active { background: var(--panel); color: var(--blue); box-shadow: var(--shadow); }
 .settings-row { display: flex; width: 100%; min-height: 48px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); text-align: left; }
 .settings-row:last-child { border-bottom: 0; }
-.settings-row--form { gap: 8px; }
-.settings-row--form input { height: 38px; margin: 0; }
-.settings-row--form button { color: var(--blue); font-size: 12px; }
-.settings-server-label { flex: 0 0 auto; }
-.settings-server-edit input { min-width: 0; flex: 1; }
-.settings-server-save { display: inline-flex; height: 38px; flex: 0 0 auto; min-width: 44px; align-items: center; justify-content: flex-end; white-space: nowrap; }
 .logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 

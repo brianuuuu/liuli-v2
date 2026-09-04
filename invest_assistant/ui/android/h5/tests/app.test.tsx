@@ -188,7 +188,7 @@ describe("mobile H5 app", () => {
     expect(screen.queryByText("brian")).not.toBeInTheDocument();
   });
 
-  it("shows the active server and edits it only after the address is clicked", async () => {
+  it("opens server editing in the same bottom-sheet style as password editing", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/me";
     const setServer = vi.fn();
@@ -215,6 +215,8 @@ describe("mobile H5 app", () => {
 
     fireEvent.click(serverRow);
     const input = screen.getByRole("textbox", { name: "服务地址" });
+    expect(input.closest("section")).toHaveClass("composer-sheet");
+    expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
     expect(input).toHaveValue(window.location.origin);
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
 
@@ -878,6 +880,81 @@ describe("mobile H5 app", () => {
     expect(screen.queryByRole("button", { name: "已拒绝" })).not.toBeInTheDocument();
   });
 
+  it("moves the pending hint count into the load-more remaining count", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({
+          items: [
+            { id: 1, suggested_text: "推荐词一", status: "pending", rejected_count: 0 },
+            { id: 2, suggested_text: "推荐词二", status: "pending", rejected_count: 0 }
+          ],
+          total: 5,
+          limit: 20,
+          offset: 0,
+          has_more: true
+        }), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+    );
+
+    renderApp();
+
+    expect(await screen.findByRole("button", { name: "加载更多（3）" })).toBeInTheDocument();
+    expect(screen.queryByText(/待审核\s*5/)).not.toBeInTheDocument();
+    expect(screen.queryByText("点击卡片进入审核")).not.toBeInTheDocument();
+  });
+
+  it("resets AI recommendation pagination after a top pull", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const suggestionRequests: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.includes("/ai-tag-suggestions")) {
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      suggestionRequests.push(url);
+      const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") ?? 0);
+      return new Response(JSON.stringify({
+        items: [{ id: offset + suggestionRequests.length, suggested_text: `推荐词-${offset}-${suggestionRequests.length}`, status: "pending", rejected_count: 0 }],
+        total: 50,
+        limit: 20,
+        offset,
+        has_more: true
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByText("推荐词-0-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加载更多（49）" }));
+    await screen.findByText("推荐词-20-2");
+
+    const pullRegion = screen.getByLabelText("AI 推荐词下拉刷新");
+    fireEvent.touchStart(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }]
+    });
+    fireEvent.touchMove(pullRegion, {
+      touches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }]
+    });
+    fireEvent.touchEnd(pullRegion, {
+      changedTouches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }]
+    });
+
+    await waitFor(() => expect(suggestionRequests).toHaveLength(3));
+    expect(new URL(suggestionRequests[2], "http://localhost").searchParams.get("offset")).toBe("0");
+
+    fireEvent.click(screen.getByRole("button", { name: "加载更多（49）" }));
+    await waitFor(() => expect(suggestionRequests).toHaveLength(4));
+    expect(new URL(suggestionRequests[3], "http://localhost").searchParams.get("offset")).toBe("20");
+  });
+
   it("opens a compact review detail page when a recommendation card is clicked", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
@@ -1070,7 +1147,7 @@ describe("mobile H5 app", () => {
       expect(window.scrollTo).toHaveBeenCalledWith({ top: 560, behavior: "auto" });
     });
     expect(pendingListGetCount).toBeGreaterThan(1);
-    expect(screen.getByText("待审核 1")).toBeInTheDocument();
+    expect(screen.queryByText("待审核 1")).not.toBeInTheDocument();
     rectSpy.mockRestore();
   });
 

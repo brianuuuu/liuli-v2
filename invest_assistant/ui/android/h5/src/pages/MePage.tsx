@@ -63,23 +63,24 @@ export function MePage() {
           <SectionCard title="应用">
             <button type="button" className="settings-row" onClick={() => navigate("/reports")}><span>报告中心</span><ChevronRight /></button>
             <button type="button" className="settings-row" onClick={() => setPasswordOpen(true)}><span>修改密码</span><ChevronRight /></button>
-            {editingServer ? (
-              <div className="settings-row settings-row--form settings-server-edit">
-                <span className="settings-server-label">服务地址</span>
-                <input aria-label="服务地址" value={server} onChange={(event) => setServer(event.target.value)} autoFocus />
-                <button type="button" className="settings-server-save" disabled={!canSaveServer} onClick={saveServer}>保存</button>
-              </div>
-            ) : (
-              <button type="button" className="settings-row" aria-label="编辑服务地址" onClick={startEditingServer}>
-                <span>服务地址</span>
-                <ChevronRight />
-              </button>
-            )}
+            <button type="button" className="settings-row" aria-label="编辑服务地址" onClick={startEditingServer}>
+              <span>服务地址</span>
+              <ChevronRight />
+            </button>
           </SectionCard>
           <button type="button" className="logout-button" onClick={logout}><LogOut size={18} />退出登录</button>
           <p className="version-text">琉璃 Android H5 · 0.1.0</p>
         </div>
       )}
+      {editingServer ? (
+        <div className="sheet-backdrop">
+          <section className="composer-sheet">
+            <header><strong>服务地址</strong><button type="button" onClick={() => setEditingServer(false)}>关闭</button></header>
+            <input aria-label="服务地址" value={server} onChange={(event) => setServer(event.target.value)} autoFocus />
+            <button type="button" className="primary-button" disabled={!canSaveServer} onClick={saveServer}>保存</button>
+          </section>
+        </div>
+      ) : null}
       {passwordOpen ? <PasswordSheet onClose={() => setPasswordOpen(false)} /> : null}
     </MobilePageFrame>
   );
