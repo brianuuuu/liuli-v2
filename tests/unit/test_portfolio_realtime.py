@@ -265,6 +265,7 @@ def test_cash_flows_update_cash_balance_and_overview_totals(tmp_path):
         assert overview["allocation_rows"][0]["weight"] == 100
         assert any(row["type"] == "stock" and row["label"] == "平安银行" and row["market_value"] == 1000 for row in overview["allocation_rows"])
         assert overview["pie_items"][0]["current_price"] == 10
+        assert overview["pie_items"][0]["quantity"] == 100
         assert overview["pie_items"][0]["quote_time"] == datetime(2026, 7, 29, 10, 30)
         assert overview["pie_items"][0]["day_pct"] == pytest.approx(100 / 900 * 100)
         assert all(row["type"] != "cash" for row in overview["allocation_rows"])
@@ -506,6 +507,7 @@ def test_overview_uses_latest_quote_for_merged_stock(tmp_path):
         overview = service.get_overview(db)
 
         assert len(overview["pie_items"]) == 1
+        assert overview["pie_items"][0]["quantity"] == 200
         assert overview["pie_items"][0]["market_value"] == 2050
         assert overview["pie_items"][0]["current_price"] == 10.5
         assert overview["pie_items"][0]["quote_time"] == datetime(2026, 7, 29, 10, 30)
