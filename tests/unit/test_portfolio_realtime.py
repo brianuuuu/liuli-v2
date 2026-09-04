@@ -417,7 +417,7 @@ def test_daily_pnl_uses_latest_previous_snapshot_across_non_trading_days(monkeyp
         db.close()
 
 
-def test_all_portfolios_require_complete_daily_pnl_baselines(monkeypatch, tmp_path):
+def test_all_portfolios_ignore_inception_rows_but_require_historical_baselines(monkeypatch, tmp_path):
     target_date = date(2026, 7, 31)
     monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
     SessionLocal = make_session(tmp_path)
@@ -458,7 +458,7 @@ def test_all_portfolios_require_complete_daily_pnl_baselines(monkeypatch, tmp_pa
         with_inception = service.get_overview(db)
 
         assert with_inception["summary"]["day_pnl"] == 100
-        assert with_inception["summary"]["day_pct"] is None
+        assert with_inception["summary"]["day_pct"] == pytest.approx(10)
 
         missing = service.create_portfolio(db, PortfolioCreate(name="历史缺基准"), user_id=1)
         missing.created_at = datetime(2026, 7, 1, 0, 0)

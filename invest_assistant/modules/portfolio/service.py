@@ -319,10 +319,10 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
             day_pct_available = False
         else:
             total_day_pnl += float(performance["day_pnl"])
-        if performance["status"] != "available":
-            day_pct_available = False
-        elif performance["adjusted_base"] is not None:
+        if performance["status"] == "available" and performance["adjusted_base"] is not None:
             total_adjusted_base += float(performance["adjusted_base"])
+        elif performance["status"] != "inception":
+            day_pct_available = False
         total_position_count += int(summary["position_count"] or 0)
         total_cash += cash_amount
     total_value = total_position_value + total_cash
