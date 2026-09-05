@@ -397,11 +397,17 @@ function OverviewTab({ data }: { data: StockDetail }) {
             ) : <EmptyAction description="暂无评级画像和研究判断" />
           )}
           <div className="detail-list stock-detail-keyfacts">
-            <div className="detail-row"><span>最新评分</span><span>{numberText(data.latest_score?.total_score)}</span></div>
-            <div className="detail-row"><span>评分报告时间</span><span>{data.latest_score?.report_time || "-"}</span></div>
-            <div className="detail-row"><span>最新估值时间</span><span>{data.latest_valuation?.analysis_date || "-"}</span></div>
+            <div className="detail-row"><span>最新市值</span><span>{numberText(data.latest_valuation?.current_market_value)}</span></div>
+            <div className="detail-row"><span>三年合理市值</span><span>{numberText(data.latest_valuation?.expected_market_value_3y)}</span></div>
+            <div className="detail-row">
+              <span>三年估值空间</span>
+              <span className={`stock-valuation-gap ${valuationGapTone(data.latest_valuation?.expectation_gap_rate)}`}>
+                {formatValuationGap(data.latest_valuation?.expectation_gap_rate)}
+              </span>
+            </div>
+            <div className="detail-row"><span>最新估值报告时间</span><span>{data.latest_valuation?.analysis_date || "-"}</span></div>
             <div className="detail-row"><span>估值期</span><span>{data.latest_valuation?.report_period || "-"}</span></div>
-            <div className="detail-row"><span>当前市值</span><span>{numberText(data.latest_valuation?.current_market_value)}</span></div>
+            <div className="detail-row"><span>估值依据</span><span>{valuationModelLabel(data.latest_valuation?.primary_model)}</span></div>
           </div>
         </div>
         <div className="stock-detail-overview-main">
