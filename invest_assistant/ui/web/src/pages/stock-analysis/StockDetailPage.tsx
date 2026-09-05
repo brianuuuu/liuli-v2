@@ -397,12 +397,11 @@ function OverviewTab({ data }: { data: StockDetail }) {
             ) : <EmptyAction description="暂无评级画像和研究判断" />
           )}
           <div className="detail-list stock-detail-keyfacts">
-            <div className="detail-row"><span>入池状态</span><span>{data.pool?.status || data.stock.status || "-"}</span></div>
             <div className="detail-row"><span>最新评分</span><span>{numberText(data.latest_score?.total_score)}</span></div>
-            <div className="detail-row"><span>报告时间</span><span>{data.latest_score?.report_time || "-"}</span></div>
+            <div className="detail-row"><span>评分报告时间</span><span>{data.latest_score?.report_time || "-"}</span></div>
+            <div className="detail-row"><span>最新估值时间</span><span>{data.latest_valuation?.analysis_date || "-"}</span></div>
             <div className="detail-row"><span>估值期</span><span>{data.latest_valuation?.report_period || "-"}</span></div>
             <div className="detail-row"><span>当前市值</span><span>{numberText(data.latest_valuation?.current_market_value)}</span></div>
-            <div className="detail-row"><span>高重要材料</span><span>{data.summary.high_importance_material_count}</span></div>
           </div>
         </div>
         <div className="stock-detail-overview-main">
