@@ -11,6 +11,19 @@ import type { PagerMotionSink } from "../components/pagerMotion";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
+import {
+  DEFAULT_POOL_STATUS,
+  DEFAULT_STOCK_TAB_VIEW,
+  POOL_STATUS_OPTIONS,
+  STOCK_TAB_VIEWS,
+  filterPoolByStatus,
+  poolStatusCounts,
+  poolStatusLabel,
+  poolStatusTone,
+  poolTrackSummary,
+  type PoolStatusKey,
+  type StockTabView
+} from "./stockPoolGroups";
 import type { TagHeat } from "../types/api";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
@@ -191,6 +204,75 @@ function TrackDashboard() {
 }
 
 function StockDashboard() {
+  const [view, setView] = useState<StockTabView>(DEFAULT_STOCK_TAB_VIEW);
+  return (
+    <div className="page-stack">
+      <div className="stock-tab-switch" data-swipe-ignore="true">
+        <div className="segmented segmented--pair" role="group" aria-label="标的视图">
+          {STOCK_TAB_VIEWS.map((item) => (
+            <button
+              type="button"
+              key={item.value}
+              className={view === item.value ? "is-active" : ""}
+              aria-pressed={view === item.value}
+              onClick={() => setView(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
+    </div>
+  );
+}
+
+function StockPoolView() {
+  const [status, setStatus] = useState<PoolStatusKey>(DEFAULT_POOL_STATUS);
+  const query = useQuery({ queryKey: ["stock-pool"], queryFn: () => mobileApi.stockPool(), staleTime: 300_000 });
+  const items = query.data ?? [];
+  const counts = poolStatusCounts(items);
+  const visible = filterPoolByStatus(items, status);
+  return (
+    <SectionCard title="标的池">
+      <div className="pool-status-filter" data-swipe-ignore="true" role="group" aria-label="标的池状态">
+        {POOL_STATUS_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className={`pool-status-chip${status === option.value ? " is-active" : ""}`}
+            aria-pressed={status === option.value}
+            onClick={() => setStatus(option.value)}
+          >
+            {option.label} {counts[option.value] ?? 0}
+          </button>
+        ))}
+      </div>
+      {query.isLoading ? <LoadingState /> : query.isError ? (
+        <ErrorState message="标的池加载失败" onRetry={() => void query.refetch()} />
+      ) : visible.length ? (
+        <>
+          {visible.map((item) => (
+            <ListRow
+              key={item.id}
+              title={(
+                <span className="pool-row-title">
+                  {item.stock_name?.trim() || "未命名标的"}
+                  {item.stock_code ? <em>{item.stock_code}</em> : null}
+                </span>
+              )}
+              meta={poolTrackSummary(item)}
+              trailing={<span className={`pool-status-badge pool-status-badge--${poolStatusTone(item.status)}`}>{poolStatusLabel(item.status)}</span>}
+            />
+          ))}
+          {items.length >= 50 ? <p className="pool-limit-hint">仅展示前 50 个标的，更多标的请在 Web 端查看。</p> : null}
+        </>
+      ) : <EmptyState title="该状态下暂无标的" detail="切换上方分组查看其他标的" />}
+    </SectionCard>
+  );
+}
+
+function StockMaterialsView() {
   const query = useInfiniteQuery({
     queryKey: ["stock-materials"],
     initialPageParam: 0,
@@ -210,21 +292,19 @@ function StockDashboard() {
     materialTime: item.material_time
   }))) ?? [];
   return (
-    <div className="page-stack">
-      <SectionCard title="最新材料">
-        {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
-          <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
-        ) : (
-          <DashboardMaterialFeed
-            items={items}
-            hasNextPage={query.hasNextPage}
-            isFetchingNextPage={query.isFetchingNextPage}
-            isFetchNextPageError={query.isFetchNextPageError}
-            onLoadMore={() => void query.fetchNextPage()}
-          />
-        )}
-      </SectionCard>
-    </div>
+    <SectionCard title="最新材料">
+      {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
+        <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
+      ) : (
+        <DashboardMaterialFeed
+          items={items}
+          hasNextPage={query.hasNextPage}
+          isFetchingNextPage={query.isFetchingNextPage}
+          isFetchNextPageError={query.isFetchNextPageError}
+          onLoadMore={() => void query.fetchNextPage()}
+        />
+      )}
+    </SectionCard>
   );
 }
 

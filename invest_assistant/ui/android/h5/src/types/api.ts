@@ -137,6 +137,24 @@ export type StockMaterial = {
   material_source_name?: string | null;
   material_time?: string | null;
 };
+export type StockPoolTrack = {
+  id: number;
+  name?: string | null;
+  status?: string | null;
+};
+
+export type StockPoolItem = {
+  id: number;
+  stock_id: number;
+  symbol?: string | null;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  status: string;
+  tracks?: StockPoolTrack[];
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type StockDashboard = {
   summary?: {
     pool_count?: number;

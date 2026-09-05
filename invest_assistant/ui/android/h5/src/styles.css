@@ -449,6 +449,19 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .profile-avatar { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); }
 .profile-row strong, .profile-row span { display: block; }
 .profile-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.stock-tab-switch { padding: 0 2px; }
+.segmented--pair { grid-template-columns: repeat(2, 1fr); }
+.pool-status-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pool-status-chip { height: 28px; padding: 0 10px; border-radius: 14px; background: var(--panel-soft); color: var(--muted); font-size: 12px; }
+.pool-status-chip.is-active { background: var(--panel); color: var(--blue); box-shadow: var(--shadow); }
+.pool-row-title { display: inline-flex; align-items: baseline; gap: 6px; }
+.pool-row-title em { color: var(--muted); font-size: 12px; font-style: normal; }
+.pool-status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; white-space: nowrap; }
+.pool-status-badge--focused { background: rgba(34, 197, 94, 0.16); color: #4ade80; }
+.pool-status-badge--watching { background: rgba(96, 165, 250, 0.16); color: #60a5fa; }
+.pool-status-badge--candidate { background: rgba(234, 179, 8, 0.16); color: #facc15; }
+.pool-status-badge--archived { background: var(--panel-soft); color: var(--muted); }
+.pool-limit-hint { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; border-radius: 8px; background: var(--panel-soft); }
 .segmented button { display: flex; height: 34px; align-items: center; justify-content: center; gap: 4px; border-radius: 6px; color: var(--muted); font-size: 12px; }
 .segmented button.is-active { background: var(--panel); color: var(--blue); box-shadow: var(--shadow); }
