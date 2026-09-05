@@ -17,6 +17,8 @@ import {
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
   filterPoolByStatus,
+  nextPoolPage,
+  poolPageLayout,
   poolStatusCounts,
   poolTrackSummary,
   type PoolStatusKey,
@@ -213,20 +215,22 @@ function StockDashboard() {
   const [view, setView] = useState<StockTabView>(lastStockView);
   return (
     <div className="page-stack">
-      <div className="pill-segments" role="group" aria-label="标的视图" data-swipe-ignore="true">
-        {STOCK_TAB_VIEWS.map((item) => (
-          <button
-            type="button"
-            key={item.value}
-            className={view === item.value ? "is-active" : ""}
-            aria-pressed={view === item.value}
-            onClick={() => { rememberStockView(item.value); setView(item.value); }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
       {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
+      <div className="stock-view-bar">
+        <div className="pill-segments" role="group" aria-label="标的视图" data-swipe-ignore="true">
+          {STOCK_TAB_VIEWS.map((item) => (
+            <button
+              type="button"
+              key={item.value}
+              className={view === item.value ? "is-active" : ""}
+              aria-pressed={view === item.value}
+              onClick={() => { rememberStockView(item.value); setView(item.value); }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -234,10 +238,12 @@ function StockDashboard() {
 function StockPoolView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<PoolStatusKey>(lastPoolStatus);
+  const [page, setPage] = useState(0);
   const query = useQuery({ queryKey: ["stock-pool"], queryFn: () => mobileApi.stockPool(), staleTime: 300_000 });
   const items = query.data ?? [];
   const counts = poolStatusCounts(items);
   const visible = filterPoolByStatus(items, status);
+  const layout = poolPageLayout(visible, page);
   return (
     <SectionCard title="标的池">
       <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="标的池状态">
@@ -247,9 +253,9 @@ function StockPoolView() {
             key={option.value}
             className={status === option.value ? "is-active" : ""}
             aria-pressed={status === option.value}
-            onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); }}
+            onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); setPage(0); }}
           >
-            {option.label} {counts[option.value] ?? 0}
+            {option.label}<i>{counts[option.value] ?? 0}</i>
           </button>
         ))}
       </div>
@@ -258,7 +264,7 @@ function StockPoolView() {
       ) : visible.length ? (
         <>
           <div className="pool-card-grid">
-            {visible.map((item) => {
+            {layout.cards.map((item) => {
               const track = poolTrackSummary(item);
               return (
                 <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
@@ -268,6 +274,17 @@ function StockPoolView() {
                 </button>
               );
             })}
+            {layout.showPager ? (
+              <button
+                type="button"
+                className="pool-card pool-card--pager"
+                aria-label={`下一页，当前第 ${layout.page + 1} 页，共 ${layout.totalPages} 页`}
+                onClick={() => setPage(nextPoolPage(layout.page, layout.totalPages))}
+              >
+                <strong>下一页</strong>
+                <span>{layout.page + 1}/{layout.totalPages}</span>
+              </button>
+            ) : null}
           </div>
           {items.length >= 50 ? <p className="pool-limit-hint">仅展示前 50 个标的，更多标的请在 Web 端查看。</p> : null}
         </>

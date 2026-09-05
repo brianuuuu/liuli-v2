@@ -129,6 +129,19 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
   });
 
+  it("keeps pool cards compact and the stock view segments in a bordered bar below the content", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.pool-card-grid\s*\{[^}]*gap:\s*6px;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
+    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*62px;[^}]*padding:\s*8px;[^}]*border-radius:\s*8px;/s);
+    expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*font-size:\s*12\.5px;[^}]*font-weight:\s*600;/s);
+    expect(styles).toMatch(/\.pool-card span\s*\{[^}]*font-size:\s*10px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
+    expect(styles).toMatch(/\.pool-card em\s*\{[^}]*background:\s*var\(--panel\);[^}]*font-size:\s*10px;/s);
+    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*border-style:\s*dashed;/s);
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
+  });
+
   it("renders dashboard materials as a compact continuous list", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

@@ -7,7 +7,10 @@ import {
   filterPoolByStatus,
   poolStatusCounts,
   poolStatusLabel,
-  poolTrackSummary
+  poolTrackSummary,
+  POOL_PAGE_CAPACITY,
+  poolPageLayout,
+  nextPoolPage
 } from "../src/pages/stockPoolGroups";
 import {
   lastDashboardTab,
@@ -44,7 +47,8 @@ describe("标的池状态分组", () => {
   });
 
   it("按状态过滤并在端上统计分组数量", () => {
-    expect(filterPoolByStatus(items).map((item) => item.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(filterPoolByStatus(items).map((item) => item.id)).toEqual([2]);
+    expect(filterPoolByStatus(items, "all").map((item) => item.id)).toEqual([1, 2, 3, 4, 5]);
     expect(filterPoolByStatus(items, "candidate").map((item) => item.id)).toEqual([3, 4]);
     expect(poolStatusCounts(items)).toEqual({ all: 5, focused: 1, watching: 1, candidate: 2, archived: 1 });
   });
@@ -76,5 +80,38 @@ describe("看板视图记忆", () => {
     expect(lastStockView()).toBe("pool");
     expect(lastPoolStatus()).toBe("watching");
     resetDashboardViewState();
+  });
+});
+
+describe("标的池卡片分页", () => {
+  const pool = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({ id: index + 1, stock_id: index + 1, status: "focused" })) as StockPoolItem[];
+
+  it("三列四行以内一次铺完，不出现翻页格", () => {
+    expect(POOL_PAGE_CAPACITY).toBe(12);
+    const layout = poolPageLayout(pool(12));
+    expect(layout.showPager).toBe(false);
+    expect(layout.totalPages).toBe(1);
+    expect(layout.cards).toHaveLength(12);
+  });
+
+  it("超出一屏时最后一格让给翻页按钮", () => {
+    const layout = poolPageLayout(pool(13));
+    expect(layout.showPager).toBe(true);
+    expect(layout.totalPages).toBe(2);
+    expect(layout.cards).toHaveLength(11);
+    expect(poolPageLayout(pool(13), 1).cards.map((item) => item.id)).toEqual([12, 13]);
+  });
+
+  it("页码越界时回卷，避免出现空页", () => {
+    expect(poolPageLayout(pool(44), 3).cards.map((item) => item.id)).toEqual([34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44]);
+    expect(poolPageLayout(pool(44), 4).page).toBe(0);
+    expect(poolPageLayout(pool(44), -1).page).toBe(3);
+  });
+
+  it("翻到最后一页后循环回第一页", () => {
+    expect(nextPoolPage(0, 4)).toBe(1);
+    expect(nextPoolPage(3, 4)).toBe(0);
+    expect(nextPoolPage(0, 1)).toBe(0);
   });
 });
