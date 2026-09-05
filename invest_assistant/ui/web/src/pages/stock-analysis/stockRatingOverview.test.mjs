@@ -61,5 +61,9 @@ test("buildLatestRatingRadarOption uses a ten-point scale and the profile values
     { name: "成长", max: 10 }
   ]);
   assert.deepEqual(option.series[0].data[0].value, [8.8, 7.6, 8.1, 9.2, 8.4, 9.1]);
-  assert.equal(option.radar.axisName.color, "#d5d9e0");
+  assert.equal(option.radar.axisName.color, "#aab2bf");
+  assert.equal(option.radar.splitLine.lineStyle.color, "#2b333e");
+  assert.equal(option.radar.axisLine.lineStyle.color, "#2b333e");
+  assert.equal(option.series[0].lineStyle.color, "#60a5fa");
+  assert.equal(option.series[0].itemStyle.color, "#60a5fa");
 });

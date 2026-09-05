@@ -1,5 +1,6 @@
 import type { EChartsOption } from "echarts";
 import type { StockScoreSnapshot } from "../../types/api";
+import { stockChartPalette } from "./stockChartPalette.ts";
 
 export type LatestRatingOverview = {
   totalScore: number;
@@ -38,7 +39,7 @@ export function buildLatestRatingRadarOption(
   overview: LatestRatingOverview,
   mode: "light" | "dark"
 ): EChartsOption {
-  const dark = mode === "dark";
+  const palette = stockChartPalette(mode);
   return {
     tooltip: { trigger: "item" },
     radar: {
@@ -46,14 +47,12 @@ export function buildLatestRatingRadarOption(
       radius: "68%",
       splitNumber: 5,
       indicator: overview.dimensions.map((item) => ({ name: item.name, max: 10 })),
-      axisName: { color: dark ? "#d5d9e0" : "#4b5563", fontSize: 12 },
-      axisLine: { lineStyle: { color: dark ? "#3b4450" : "#d7dde7" } },
-      splitLine: { lineStyle: { color: dark ? "#303946" : "#dfe4ec" } },
+      axisName: { color: palette.text, fontSize: 12 },
+      axisLine: { lineStyle: { color: palette.grid } },
+      splitLine: { lineStyle: { color: palette.grid } },
       splitArea: {
         areaStyle: {
-          color: dark
-            ? ["rgba(255,255,255,0.01)", "rgba(255,255,255,0.025)"]
-            : ["rgba(37,99,235,0.01)", "rgba(37,99,235,0.035)"]
+          color: palette.splitArea
         }
       }
     },
@@ -63,9 +62,9 @@ export function buildLatestRatingRadarOption(
         type: "radar",
         symbol: "circle",
         symbolSize: 5,
-        lineStyle: { width: 2, color: "#4f7cff" },
-        itemStyle: { color: "#4f7cff" },
-        areaStyle: { color: "#4f7cff", opacity: 0.2 },
+        lineStyle: { width: 2, color: palette.accent },
+        itemStyle: { color: palette.accent },
+        areaStyle: { color: palette.accent, opacity: 0.2 },
         data: [{ value: overview.dimensions.map((item) => item.value), name: "最新评分" }]
       }
     ]

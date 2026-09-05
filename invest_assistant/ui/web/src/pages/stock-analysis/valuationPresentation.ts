@@ -1,5 +1,10 @@
 import type { EChartsOption } from "echarts";
 import type { StockDetailValuationSnapshot } from "../../types/api";
+import {
+  STOCK_CHART_BAR_MAX_WIDTH,
+  STOCK_CHART_BAR_RADIUS,
+  stockChartPalette
+} from "./stockChartPalette.ts";
 
 export type ValuationGapTone = "positive" | "negative" | "flat";
 
@@ -46,12 +51,12 @@ export function buildValuationComparisonOption(
   rows: ValuationTrendRow[],
   mode: "light" | "dark"
 ): EChartsOption {
-  const dark = mode === "dark";
+  const palette = stockChartPalette(mode);
   const ordered = [...rows]
     .filter((item) => item.analysis_date)
     .sort((a, b) => String(a.analysis_date).localeCompare(String(b.analysis_date)));
-  const textColor = dark ? "#aab2bf" : "#64748b";
-  const gridColor = dark ? "#2b333e" : "#e5eaf1";
+  const textColor = palette.text;
+  const gridColor = palette.grid;
 
   return {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -75,15 +80,15 @@ export function buildValuationComparisonOption(
       {
         name: "当前市值",
         type: "bar",
-        barMaxWidth: 34,
-        itemStyle: { color: dark ? "#64748b" : "#94a3b8", borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: STOCK_CHART_BAR_MAX_WIDTH,
+        itemStyle: { color: palette.muted, borderRadius: STOCK_CHART_BAR_RADIUS },
         data: ordered.map((item) => item.current_market_value ?? null)
       },
       {
         name: "三年合理市值",
         type: "bar",
-        barMaxWidth: 34,
-        itemStyle: { color: dark ? "#60a5fa" : "#2563eb", borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: STOCK_CHART_BAR_MAX_WIDTH,
+        itemStyle: { color: palette.accent, borderRadius: STOCK_CHART_BAR_RADIUS },
         data: ordered.map((item) => item.expected_market_value_3y ?? null)
       }
     ]

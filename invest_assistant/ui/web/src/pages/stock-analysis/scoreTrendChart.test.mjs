@@ -57,10 +57,16 @@ test("score trend switches the single bar series to another dimension", () => {
   assert.deepEqual(option.series[0].data, [8.3, 9.1]);
 });
 
-test("score trend uses muted dashed split lines in dark mode", () => {
-  const option = buildScoreTrendBarOption(rows, DEFAULT_SCORE_TREND_METRIC, "dark");
-  assert.equal(option.yAxis.splitLine.lineStyle.type, "dashed");
-  assert.equal(option.yAxis.splitLine.lineStyle.color, "rgba(148,163,184,0.14)");
-  assert.equal(option.yAxis.axisLine.show, false);
-  assert.equal(option.xAxis.axisTick.show, false);
+test("score trend shares the valuation chart palette", () => {
+  const dark = buildScoreTrendBarOption(rows, DEFAULT_SCORE_TREND_METRIC, "dark");
+  assert.equal(dark.yAxis.splitLine.lineStyle.color, "#2b333e");
+  assert.equal(dark.yAxis.axisLabel.color, "#aab2bf");
+  assert.equal(dark.xAxis.axisLine.lineStyle.color, "#2b333e");
+  assert.equal(dark.xAxis.axisTick.show, false);
+  assert.equal(dark.series[0].itemStyle.color, "#60a5fa");
+
+  const light = buildScoreTrendBarOption(rows, DEFAULT_SCORE_TREND_METRIC, "light");
+  assert.equal(light.yAxis.splitLine.lineStyle.color, "#e5eaf1");
+  assert.equal(light.yAxis.axisLabel.color, "#64748b");
+  assert.equal(light.series[0].itemStyle.color, "#2563eb");
 });

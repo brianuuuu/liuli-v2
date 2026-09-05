@@ -1,5 +1,10 @@
 import type { EChartsOption } from "echarts";
 import type { StockScoreSnapshot } from "../../types/api";
+import {
+  STOCK_CHART_BAR_MAX_WIDTH,
+  STOCK_CHART_BAR_RADIUS,
+  stockChartPalette
+} from "./stockChartPalette.ts";
 
 export type ScoreTrendMetric =
   | "total_score"
@@ -12,14 +17,14 @@ export type ScoreTrendMetric =
 
 export const DEFAULT_SCORE_TREND_METRIC: ScoreTrendMetric = "total_score";
 
-export const SCORE_TREND_METRICS: { value: ScoreTrendMetric; label: string; color: string }[] = [
-  { value: "total_score", label: "总分", color: "#2563eb" },
-  { value: "business_moat_score", label: "壁垒", color: "#7c3aed" },
-  { value: "management_score", label: "管理", color: "#0891b2" },
-  { value: "governance_score", label: "治理", color: "#0d9488" },
-  { value: "strategy_score", label: "战略", color: "#4f46e5" },
-  { value: "certainty_score", label: "确定性", color: "#d97706" },
-  { value: "growth_score", label: "成长", color: "#16a34a" }
+export const SCORE_TREND_METRICS: { value: ScoreTrendMetric; label: string }[] = [
+  { value: "total_score", label: "总分" },
+  { value: "business_moat_score", label: "壁垒" },
+  { value: "management_score", label: "管理" },
+  { value: "governance_score", label: "治理" },
+  { value: "strategy_score", label: "战略" },
+  { value: "certainty_score", label: "确定性" },
+  { value: "growth_score", label: "成长" }
 ];
 
 type ScoreTrendRow = Pick<
@@ -32,12 +37,9 @@ export function buildScoreTrendBarOption(
   metric: ScoreTrendMetric = DEFAULT_SCORE_TREND_METRIC,
   mode: "light" | "dark" = "light"
 ): EChartsOption {
-  const dark = mode === "dark";
+  const palette = stockChartPalette(mode);
   const selected = SCORE_TREND_METRICS.find((item) => item.value === metric) ?? SCORE_TREND_METRICS[0];
   const ordered = [...rows].sort((a, b) => a.report_time.localeCompare(b.report_time));
-  const textColor = dark ? "#8b95a5" : "#94a3b8";
-  const splitLineColor = dark ? "rgba(148,163,184,0.14)" : "rgba(15,23,42,0.07)";
-  const axisLineColor = dark ? "rgba(148,163,184,0.24)" : "rgba(15,23,42,0.12)";
 
   return {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -45,8 +47,8 @@ export function buildScoreTrendBarOption(
     xAxis: {
       type: "category",
       data: ordered.map((item) => item.report_time),
-      axisLabel: { color: textColor, fontSize: 11 },
-      axisLine: { lineStyle: { color: axisLineColor } },
+      axisLabel: { color: palette.text },
+      axisLine: { lineStyle: { color: palette.grid } },
       axisTick: { show: false }
     },
     yAxis: {
@@ -54,17 +56,15 @@ export function buildScoreTrendBarOption(
       min: 0,
       max: 10,
       interval: 2,
-      axisLabel: { color: textColor, fontSize: 11 },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      splitLine: { lineStyle: { color: splitLineColor, type: "dashed", width: 1 } }
+      axisLabel: { color: palette.text },
+      splitLine: { lineStyle: { color: palette.grid } }
     },
     series: [
       {
         name: selected.label,
         type: "bar",
-        barMaxWidth: 42,
-        itemStyle: { color: selected.color, borderRadius: [4, 4, 0, 0] },
+        barMaxWidth: STOCK_CHART_BAR_MAX_WIDTH,
+        itemStyle: { color: palette.accent, borderRadius: STOCK_CHART_BAR_RADIUS },
         data: ordered.map((item) => item[selected.value])
       }
     ]
