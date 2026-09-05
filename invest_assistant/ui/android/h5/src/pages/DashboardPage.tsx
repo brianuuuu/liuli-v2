@@ -228,6 +228,7 @@ function StockDashboard() {
 }
 
 function StockPoolView() {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<PoolStatusKey>(DEFAULT_POOL_STATUS);
   const query = useQuery({ queryKey: ["stock-pool"], queryFn: () => mobileApi.stockPool(), staleTime: 300_000 });
   const items = query.data ?? [];
@@ -262,6 +263,7 @@ function StockPoolView() {
                 </span>
               )}
               meta={poolTrackSummary(item)}
+              onClick={() => navigate(`/stocks/${item.stock_id}`)}
               trailing={<span className={`pool-status-badge pool-status-badge--${poolStatusTone(item.status)}`}>{poolStatusLabel(item.status)}</span>}
             />
           ))}
@@ -273,6 +275,7 @@ function StockPoolView() {
 }
 
 function StockMaterialsView() {
+  const navigate = useNavigate();
   const query = useInfiniteQuery({
     queryKey: ["stock-materials"],
     initialPageParam: 0,
@@ -283,6 +286,7 @@ function StockMaterialsView() {
   });
   const items: DashboardMaterialItem[] = query.data?.pages.flatMap((page) => page.items.map((item) => ({
     id: item.id,
+    entityId: item.stock_id,
     entityName: item.stock_name ?? "标的",
     entityCode: item.stock_code,
     direction: item.impact_direction,
@@ -302,6 +306,7 @@ function StockMaterialsView() {
           isFetchingNextPage={query.isFetchingNextPage}
           isFetchNextPageError={query.isFetchNextPageError}
           onLoadMore={() => void query.fetchNextPage()}
+          onEntityClick={(item) => { if (item.entityId) navigate(`/stocks/${item.entityId}`); }}
         />
       )}
     </SectionCard>

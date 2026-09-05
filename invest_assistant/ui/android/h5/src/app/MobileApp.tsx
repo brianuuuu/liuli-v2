@@ -32,6 +32,9 @@ const NewsDetailPage = lazy(() => import("../pages/DetailPages").then((module) =
 const AlertDetailPage = lazy(() => import("../pages/DetailPages").then((module) => ({
   default: module.AlertDetailPage
 })));
+const StockDetailPage = lazy(() => import("../pages/StockDetailPage").then((module) => ({
+  default: module.StockDetailPage
+})));
 const ReportsPage = lazy(() => import("../pages/DetailPages").then((module) => ({
   default: module.ReportsPage
 })));
@@ -110,6 +113,7 @@ export function MobileApp() {
           <Route path="/tasks/suggestions/:id" element={<RequireAuth><AiSuggestionReviewPage /></RequireAuth>} />
           <Route path="/tasks/alerts/:id" element={<RequireAuth><AlertDetailPage /></RequireAuth>} />
           <Route path="/me" element={<RequireAuth><MePage /></RequireAuth>} />
+          <Route path="/stocks/:id" element={<RequireAuth><StockDetailPage /></RequireAuth>} />
           <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />
           <Route path="/reports/:id" element={<RequireAuth><ReportReaderPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to={window.localStorage.getItem(tokenStorageKey) ? "/dashboard" : "/login"} replace />} />

@@ -15,6 +15,7 @@ import type {
   Report,
   SourceItem,
   StockDashboard,
+  StockDetail,
   StockMaterial,
   StockOption,
   StockPoolItem,
@@ -56,6 +57,7 @@ export const mobileApi = {
     apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { status: "confirmed", offset, limit }),
   // 后端 /pool 目前只支持 q + limit（上限 50），没有 status 过滤和分页，
   // 状态分组和计数在端上完成；标的池超过 50 条时需要后端补分页。
+  stockDetail: (stockId: number) => apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`),
   stockPool: (limit = 50) => apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit }),
   stockMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { status: "confirmed", offset, limit }),

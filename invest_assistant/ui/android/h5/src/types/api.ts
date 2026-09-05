@@ -137,6 +137,77 @@ export type StockMaterial = {
   material_source_name?: string | null;
   material_time?: string | null;
 };
+export type StockScoreSnapshot = {
+  id: number;
+  report_time: string;
+  researcher_code?: string | null;
+  business_moat_score: number;
+  management_score: number;
+  governance_score: number;
+  strategy_score: number;
+  certainty_score: number;
+  growth_score: number;
+  total_score: number;
+  investment_level?: string | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
+};
+
+export type StockValuationSnapshot = {
+  id: number;
+  report_period?: string | null;
+  current_market_value?: number | null;
+  expected_market_value_3y?: number | null;
+  expectation_gap_rate?: number | null;
+  primary_model?: string | null;
+  analysis_date?: string | null;
+  researcher?: string | null;
+};
+
+export type StockDetailMaterial = {
+  id: number;
+  impact_direction?: string | null;
+  importance_level?: string | null;
+  status: string;
+  material_title?: string | null;
+  material_summary?: string | null;
+  material_source_name?: string | null;
+  material_url?: string | null;
+  material_time?: string | null;
+};
+
+export type StockDetailNote = {
+  id: number;
+  note_type: string;
+  title: string;
+  content: string;
+  updated_at?: string | null;
+};
+
+export type StockDetail = {
+  stock: {
+    id: number;
+    stock_code?: string | null;
+    stock_name?: string | null;
+    market?: string | null;
+    status?: string | null;
+  };
+  pool?: { status?: string | null } | null;
+  latest_score?: StockScoreSnapshot | null;
+  score_history: StockScoreSnapshot[];
+  latest_valuation?: StockValuationSnapshot | null;
+  materials: StockDetailMaterial[];
+  disclosures: Array<{
+    id: number;
+    disclosure_type: string;
+    title: string;
+    publish_time?: string | null;
+    source_url?: string | null;
+  }>;
+  tracks: Array<{ id: number; track?: { id?: number; name?: string | null } | null }>;
+  notes: StockDetailNote[];
+};
+
 export type StockPoolTrack = {
   id: number;
   name?: string | null;

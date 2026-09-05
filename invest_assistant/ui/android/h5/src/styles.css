@@ -470,6 +470,44 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 
+.dashboard-material-item__entity-link { min-width: 0; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 680; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.stock-identity { padding: 2px 2px 0; }
+.stock-identity header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stock-identity header strong { font-size: 18px; font-weight: 700; }
+.stock-identity header > span { color: var(--subtle); font-size: 12px; }
+.stock-identity p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.stock-detail-sections { display: flex; gap: 6px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+.stock-detail-sections::-webkit-scrollbar { display: none; }
+.stock-detail-section-chip { flex: 1 0 auto; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--panel-soft); color: var(--muted); font-size: 13px; }
+.stock-detail-section-chip.is-active { background: var(--blue-soft); color: var(--blue); font-weight: 650; }
+.stock-detail-chart { width: 100%; }
+.stock-detail-chart.is-loading { border-radius: 8px; background: var(--panel-soft); }
+.stock-detail-score-head { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); margin-bottom: 4px; }
+.stock-detail-score-head div { padding: 10px 12px; border-radius: 8px; background: var(--panel-soft); }
+.stock-detail-score-head span { display: block; color: var(--muted); font-size: 12px; }
+.stock-detail-score-head strong { font-size: 20px; font-weight: 700; }
+.stock-detail-copy { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--blue); }
+.stock-detail-copy.is-risk { border-left-color: #f59e0b; }
+.stock-detail-copy span { color: var(--muted); font-size: 12px; }
+.stock-detail-copy p { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
+.stock-detail-meta { margin-top: 12px; color: var(--subtle); font-size: 12px; }
+.stock-detail-score-value { color: var(--blue); font-size: 15px; font-weight: 700; }
+.detail-facts { display: grid; gap: 0; }
+.detail-facts div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; }
+.detail-facts div + div { border-top: 1px solid var(--border); }
+.detail-facts span { color: var(--muted); font-size: 13px; }
+.detail-facts b { font-size: 14px; font-weight: 650; }
+.stock-detail-material { padding: 12px 0; }
+.stock-detail-material + .stock-detail-material { border-top: 1px solid var(--border); }
+.stock-detail-material h3 { margin: 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; overflow-wrap: anywhere; }
+.stock-detail-material p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.stock-detail-material footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--subtle); font-size: 11px; }
+.stock-detail-material footer a { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); }
+.stock-detail-note { padding: 12px 0; }
+.stock-detail-note + .stock-detail-note { border-top: 1px solid var(--border); }
+.stock-detail-note h3 { margin: 0; font-size: var(--content-font-size); font-weight: 650; }
+.stock-detail-note p { margin: 6px 0 0; font-size: 13px; line-height: 1.62; white-space: pre-wrap; overflow-wrap: anywhere; }
+.stock-detail-note footer { margin-top: 8px; color: var(--subtle); font-size: 11px; }
 .detail-page { width: 100%; min-width: 0; max-width: 100%; min-height: 100dvh; overflow-x: clip; background: var(--bg); }
 .detail-header { position: sticky; z-index: 20; top: 0; display: grid; height: 48px; align-items: center; grid-template-columns: 48px 1fr 48px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .detail-header button { display: grid; height: 48px; place-items: center; }

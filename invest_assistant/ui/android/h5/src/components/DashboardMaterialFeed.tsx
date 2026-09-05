@@ -4,6 +4,7 @@ import { formatDateTime } from "../utils/format";
 
 export type DashboardMaterialItem = {
   id: number;
+  entityId?: number | null;
   entityName: string;
   entityCode?: string | null;
   direction?: string | null;
@@ -19,6 +20,8 @@ type Props = {
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
   onLoadMore: () => void;
+  /** 只有标的信息流会传：点击公司名进入标的详情。赛道信息流不传，保持不可点。 */
+  onEntityClick?: (item: DashboardMaterialItem) => void;
 };
 
 const directionPresentation: Record<string, { label: string; tone: string }> = {
@@ -34,7 +37,8 @@ export function DashboardMaterialFeed({
   hasNextPage,
   isFetchingNextPage,
   isFetchNextPageError,
-  onLoadMore
+  onLoadMore,
+  onEntityClick
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const requestPendingRef = useRef(false);
@@ -76,7 +80,11 @@ export function DashboardMaterialFeed({
         return (
           <article className="dashboard-material-item" key={item.id}>
             <header className="dashboard-material-item__entity">
-              <strong>{item.entityName?.trim() || "--"}</strong>
+              {onEntityClick ? (
+                <button type="button" className="dashboard-material-item__entity-link" onClick={() => onEntityClick(item)}>
+                  {item.entityName?.trim() || "--"}
+                </button>
+              ) : <strong>{item.entityName?.trim() || "--"}</strong>}
               {item.entityCode ? <span>{item.entityCode}</span> : null}
               {direction ? (
                 <em className={`material-direction material-direction--${direction.tone}`}>

@@ -26,6 +26,7 @@ export function sectionForPath(pathname: string): SectionKey {
   const direct = rootSections.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`));
   if (direct) return direct.key;
   if (pathname.startsWith("/reports/")) return "dashboard";
+  if (pathname.startsWith("/stocks/")) return "dashboard";
   return "dashboard";
 }
 
@@ -34,6 +35,7 @@ export function parentPathForDetail(pathname: string): string | null {
   if (/^\/notes\/\d+$/.test(pathname)) return "/notes";
   if (/^\/tasks\/alerts\/\d+$/.test(pathname)) return "/tasks";
   if (/^\/tasks\/suggestions\/\d+$/.test(pathname)) return "/tasks";
+  if (/^\/stocks\/\d+$/.test(pathname)) return "/dashboard";
   if (/^\/reports\/\d+$/.test(pathname)) return "/reports";
   if (pathname === "/reports") return "/dashboard";
   return null;
