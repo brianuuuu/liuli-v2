@@ -18,12 +18,18 @@ import {
   STOCK_TAB_VIEWS,
   filterPoolByStatus,
   poolStatusCounts,
-  poolStatusLabel,
-  poolStatusTone,
   poolTrackSummary,
   type PoolStatusKey,
   type StockTabView
 } from "./stockPoolGroups";
+import {
+  lastDashboardTab,
+  lastPoolStatus,
+  lastStockView,
+  rememberDashboardTab,
+  rememberPoolStatus,
+  rememberStockView
+} from "./dashboardViewState";
 import type { TagHeat } from "../types/api";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
 
@@ -41,12 +47,12 @@ function rankMovementDisplay(item: Pick<TagHeat, "rank_change" | "rank_movement"
 }
 
 export function DashboardPage() {
-  const [tab, setTab] = useState<DashboardTab>("today");
+  const [tab, setTab] = useState<DashboardTab>(() => lastDashboardTab() as DashboardTab);
   const pager = useRef<HorizontalTabPagerHandle<DashboardTab>>(null);
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   return (
     <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={dashboardTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
-      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={setTab} motionSink={navigationMotion} renderPage={(key) => {
+      <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={(key) => { rememberDashboardTab(key); setTab(key); }} motionSink={navigationMotion} renderPage={(key) => {
         if (key === "today") return <TodayDashboard />;
         if (key === "market") return <MarketDashboard />;
         if (key === "track") return <TrackDashboard />;
@@ -186,7 +192,7 @@ function TrackDashboard() {
   }))) ?? [];
   return (
     <div className="page-stack">
-      <SectionCard title="最新材料">
+      <SectionCard title="重要材料">
         {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
           <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
         ) : (
@@ -204,23 +210,21 @@ function TrackDashboard() {
 }
 
 function StockDashboard() {
-  const [view, setView] = useState<StockTabView>(DEFAULT_STOCK_TAB_VIEW);
+  const [view, setView] = useState<StockTabView>(lastStockView);
   return (
     <div className="page-stack">
-      <div className="stock-tab-switch" data-swipe-ignore="true">
-        <div className="segmented segmented--pair" role="group" aria-label="标的视图">
-          {STOCK_TAB_VIEWS.map((item) => (
-            <button
-              type="button"
-              key={item.value}
-              className={view === item.value ? "is-active" : ""}
-              aria-pressed={view === item.value}
-              onClick={() => setView(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      <div className="pill-segments" role="group" aria-label="标的视图" data-swipe-ignore="true">
+        {STOCK_TAB_VIEWS.map((item) => (
+          <button
+            type="button"
+            key={item.value}
+            className={view === item.value ? "is-active" : ""}
+            aria-pressed={view === item.value}
+            onClick={() => { rememberStockView(item.value); setView(item.value); }}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
       {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
     </div>
@@ -229,21 +233,21 @@ function StockDashboard() {
 
 function StockPoolView() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState<PoolStatusKey>(DEFAULT_POOL_STATUS);
+  const [status, setStatus] = useState<PoolStatusKey>(lastPoolStatus);
   const query = useQuery({ queryKey: ["stock-pool"], queryFn: () => mobileApi.stockPool(), staleTime: 300_000 });
   const items = query.data ?? [];
   const counts = poolStatusCounts(items);
   const visible = filterPoolByStatus(items, status);
   return (
     <SectionCard title="标的池">
-      <div className="pool-status-filter" data-swipe-ignore="true" role="group" aria-label="标的池状态">
+      <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="标的池状态">
         {POOL_STATUS_OPTIONS.map((option) => (
           <button
             type="button"
             key={option.value}
-            className={`pool-status-chip${status === option.value ? " is-active" : ""}`}
+            className={status === option.value ? "is-active" : ""}
             aria-pressed={status === option.value}
-            onClick={() => setStatus(option.value)}
+            onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); }}
           >
             {option.label} {counts[option.value] ?? 0}
           </button>
@@ -253,20 +257,18 @@ function StockPoolView() {
         <ErrorState message="标的池加载失败" onRetry={() => void query.refetch()} />
       ) : visible.length ? (
         <>
-          {visible.map((item) => (
-            <ListRow
-              key={item.id}
-              title={(
-                <span className="pool-row-title">
-                  {item.stock_name?.trim() || "未命名标的"}
-                  {item.stock_code ? <em>{item.stock_code}</em> : null}
-                </span>
-              )}
-              meta={poolTrackSummary(item)}
-              onClick={() => navigate(`/stocks/${item.stock_id}`)}
-              trailing={<span className={`pool-status-badge pool-status-badge--${poolStatusTone(item.status)}`}>{poolStatusLabel(item.status)}</span>}
-            />
-          ))}
+          <div className="pool-card-grid">
+            {visible.map((item) => {
+              const track = poolTrackSummary(item);
+              return (
+                <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+                  <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+                  <span>{item.stock_code?.trim() || "--"}</span>
+                  {track ? <em>{track}</em> : null}
+                </button>
+              );
+            })}
+          </div>
           {items.length >= 50 ? <p className="pool-limit-hint">仅展示前 50 个标的，更多标的请在 Web 端查看。</p> : null}
         </>
       ) : <EmptyState title="该状态下暂无标的" detail="切换上方分组查看其他标的" />}

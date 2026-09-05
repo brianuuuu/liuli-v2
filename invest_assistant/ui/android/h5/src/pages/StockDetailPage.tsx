@@ -4,7 +4,7 @@ import { lazy, Suspense, useState } from "react";
 import { useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
-import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
+import { poolStatusLabel } from "./stockPoolGroups";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
   STOCK_DETAIL_SECTIONS,
@@ -43,12 +43,12 @@ export function StockDetailPage() {
     <DetailFrame title={title}>
       <div className="page-stack">
         <StockIdentity detail={detail} />
-        <div className="stock-detail-sections" role="group" aria-label="标的详情分区">
+        <div className="pill-segments pill-segments--compact" role="group" aria-label="标的详情分区">
           {STOCK_DETAIL_SECTIONS.map((item) => (
             <button
               type="button"
               key={item.value}
-              className={`stock-detail-section-chip${section === item.value ? " is-active" : ""}`}
+              className={section === item.value ? "is-active" : ""}
               aria-pressed={section === item.value}
               onClick={() => setSection(item.value)}
             >
@@ -66,16 +66,17 @@ export function StockDetailPage() {
 }
 
 function StockIdentity({ detail }: { detail: StockDetail }) {
+  // 公司名已经在顶部标题栏，这里只补充代码、状态和赛道，避免重复也避免代码紧贴名称。
   const status = detail.pool?.status ?? detail.stock.status;
   const tracks = trackNames(detail);
+  const facts = [detail.stock.stock_code?.trim(), status ? poolStatusLabel(status) : null, tracks.length ? tracks.join(" · ") : null]
+    .filter((item): item is string => Boolean(item));
+  if (!facts.length) return null;
   return (
     <section className="stock-identity">
-      <header>
-        <strong>{detail.stock.stock_name?.trim() || "未命名标的"}</strong>
-        {detail.stock.stock_code ? <span>{detail.stock.stock_code}</span> : null}
-        {status ? <em className={`pool-status-badge pool-status-badge--${poolStatusTone(status)}`}>{poolStatusLabel(status)}</em> : null}
-      </header>
-      <p>{tracks.length ? tracks.join(" · ") : "未绑定赛道"}</p>
+      {facts.map((fact, index) => (
+        <span key={fact}>{index > 0 ? <i aria-hidden="true">·</i> : null}{fact}</span>
+      ))}
     </section>
   );
 }
