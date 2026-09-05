@@ -40,6 +40,12 @@ import {
 import type { ScoreTrendMetric } from "./scoreTrendChart";
 import { buildLatestRatingOverview, buildLatestRatingRadarOption } from "./stockRatingOverview";
 import {
+  DEFAULT_MATERIAL_VIEW_MODE,
+  MATERIAL_VIEW_MODES,
+  filterStockMaterials
+} from "./stockMaterialFilter.ts";
+import type { MaterialViewMode } from "./stockMaterialFilter.ts";
+import {
   buildLatestValuationSummary,
   buildValuationComparisonOption,
   formatValuationGap,
@@ -808,6 +814,8 @@ function MaterialsTab({
   onConfirm: (record: StockMaterial) => void;
   onIgnore: (record: StockMaterial) => void;
 }) {
+  const [viewMode, setViewMode] = useState<MaterialViewMode>(DEFAULT_MATERIAL_VIEW_MODE);
+  const visibleMaterials = filterStockMaterials(data.materials, viewMode);
   const columns: ColumnsType<StockMaterial> = [
     { title: "来源", dataIndex: "material_type", width: 100, render: (value) => materialTypeLabels[value] || value },
     {
@@ -836,7 +844,20 @@ function MaterialsTab({
   return (
     <WorkbenchCard>
       <div className="stock-detail-panel">
-        <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 1100 }} />
+        <div className="stock-materials-header">
+          <div className="stock-detail-subtitle">材料公告</div>
+          <Space size={8}>
+            <Typography.Text type="secondary">{visibleMaterials.length} / {data.materials.length}</Typography.Text>
+            <Select
+              size="small"
+              value={viewMode}
+              options={MATERIAL_VIEW_MODES}
+              onChange={setViewMode}
+              popupMatchSelectWidth={120}
+            />
+          </Space>
+        </div>
+        <Table rowKey="id" size="small" dataSource={visibleMaterials} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 1100 }} />
       </div>
     </WorkbenchCard>
   );

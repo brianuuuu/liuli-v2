@@ -2417,6 +2417,22 @@ body {
   width: 120px;
 }
 
+.stock-materials-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stock-materials-header .stock-detail-subtitle {
+  margin-bottom: 0;
+}
+
+.stock-materials-header .ant-select {
+  width: 110px;
+}
+
 .stock-valuation-latest {
   margin-bottom: 20px;
 }
