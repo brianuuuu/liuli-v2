@@ -145,16 +145,16 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*text-align:\s*center;/s);
   });
 
-  it("标的详情吸顶头部三行成组", () => {
+  it("标的详情档案卡与状态徽章", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.stock-head\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*border-bottom:\s*1px solid var\(--border\);[^}]*background:\s*var\(--panel\);/s);
-    expect(styles).toMatch(/\.stock-head__main\s*\{[^}]*display:\s*grid;[^}]*min-height:\s*48px;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) auto;/s);
-    expect(styles).toMatch(/\.stock-head__score b\s*\{[^}]*color:\s*var\(--blue\);[^}]*font-variant-numeric:\s*tabular-nums;/s);
-    expect(styles).toMatch(/\.stock-head__facts\s*\{[^}]*display:\s*flex;[^}]*overflow-x:\s*auto;/s);
-    expect(styles).toMatch(/\.stock-head \.secondary-navigation\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.stock-profile\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-profile__head\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;/s);
+    expect(styles).toMatch(/\.stock-profile__head h2\s*\{[^}]*font-size:\s*19px;[^}]*text-overflow:\s*ellipsis;/s);
+    expect(styles).toMatch(/\.stock-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);[^}]*border-top:\s*1px solid var\(--border\);/s);
     expect(styles).toMatch(/\.stock-status--focused\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
-    expect(styles).not.toMatch(/\.stock-profile\s*\{/s);
+    expect(styles).not.toMatch(/\.stock-head\s*\{/s);
+    expect(styles).not.toMatch(/\.stock-detail-score-head\s*\{/s);
   });
 
   it("renders dashboard materials as a compact continuous list", () => {

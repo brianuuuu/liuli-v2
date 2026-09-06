@@ -7,7 +7,6 @@ import {
   formatValuationGap,
   scoreDimensions,
   scoreTrendRows,
-  stockIdentityLine,
   trackNames,
   valuationGapTone,
   valuationModelLabel
@@ -81,12 +80,6 @@ describe("展示口径", () => {
       report_time
     }));
     expect(scoreTrendRows(rows, 2).map((item) => item.report_time)).toEqual(["2026-03-31", "2026-08-31"]);
-  });
-
-  it("档案头第二行拼代码和交易所，未知交易所原样透出", () => {
-    expect(stockIdentityLine({ stock: { id: 1, stock_code: "600055.SH", market: "SH" } } as StockDetail)).toBe("600055.SH · 上交所");
-    expect(stockIdentityLine({ stock: { id: 1, stock_code: "600055.SH" } } as StockDetail)).toBe("600055.SH");
-    expect(stockIdentityLine({ stock: { id: 1, market: "科创板" } } as StockDetail)).toBe("科创板");
   });
 
   it("赛道名过滤空值", () => {

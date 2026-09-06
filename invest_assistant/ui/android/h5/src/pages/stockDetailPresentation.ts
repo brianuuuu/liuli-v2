@@ -4,11 +4,11 @@ export type StockDetailSection = "overview" | "rating" | "materials" | "notes";
 
 export const DEFAULT_STOCK_DETAIL_SECTION: StockDetailSection = "overview";
 
-export const STOCK_DETAIL_SECTIONS: { key: StockDetailSection; label: string }[] = [
-  { key: "overview", label: "概览" },
-  { key: "rating", label: "评分估值" },
-  { key: "materials", label: "材料" },
-  { key: "notes", label: "笔记" }
+export const STOCK_DETAIL_SECTIONS: { value: StockDetailSection; label: string }[] = [
+  { value: "overview", label: "概览" },
+  { value: "rating", label: "评分估值" },
+  { value: "materials", label: "材料" },
+  { value: "notes", label: "笔记" }
 ];
 
 export const SCORE_DIMENSIONS: { key: keyof StockScoreSnapshot; label: string }[] = [
@@ -48,31 +48,6 @@ export function isActionableMaterial(row: StockDetailMaterial) {
 
 export function actionableMaterials(rows: StockDetailMaterial[]) {
   return rows.filter(isActionableMaterial);
-}
-
-/** 后端存的是交易所代码，档案头要给人看，所以在端上翻成中文简称，未知值原样透出。 */
-const MARKET_LABELS: Record<string, string> = {
-  SH: "上交所",
-  SSE: "上交所",
-  SZ: "深交所",
-  SZSE: "深交所",
-  BJ: "北交所",
-  BSE: "北交所",
-  HK: "港交所",
-  US: "美股"
-};
-
-export function stockMarketLabel(value?: string | null) {
-  const raw = value?.trim();
-  if (!raw) return "";
-  return MARKET_LABELS[raw.toUpperCase()] ?? raw;
-}
-
-/** 档案头第二行：代码 · 交易所，缺哪个就少哪个。 */
-export function stockIdentityLine(detail: StockDetail) {
-  return [detail.stock.stock_code?.trim(), stockMarketLabel(detail.stock.market)]
-    .filter((item): item is string => Boolean(item))
-    .join(" · ");
 }
 
 export function trackNames(detail: StockDetail) {
