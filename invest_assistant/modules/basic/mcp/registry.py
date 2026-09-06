@@ -66,6 +66,13 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "medium",
         "service_name": "report_library.service.create_markdown_report_file_and_index",
     },
+    "portfolio.list_position_changes": {
+        "read_only": True,
+        "risk_level": "low",
+        "service_name": "portfolio.service.list_position_changes",
+        # 复盘常按季度或年度回看，通用 50 条不够。
+        "max_result_limit": 200,
+    },
     "portfolio.get_overview": {
         "read_only": True,
         "risk_level": "low",

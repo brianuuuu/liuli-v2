@@ -105,6 +105,7 @@
 | `report_library.list_reports` | 只读 | low | 分页 | `report_library.service.list_reports_page` |
 | `report_library.read_report_content` | 只读 | medium | 单体 | `report_library.service.resolve_report_path` |
 | `report_library.upload_markdown_report` | 写入 | medium | 单体 | `report_library.service.create_markdown_report_file_and_index` |
+| `portfolio.list_position_changes` | 只读 | low | 列表 | `portfolio.service.list_position_changes` |
 | `portfolio.get_overview` | 只读 | low | 单体 | `portfolio.service.get_overview` |
 
 ## 4 工具明细
@@ -309,7 +310,25 @@
 
 返回单体信封，`data` 字段：`report_id`、`title`、`source_module`、`file_path`（相对 `var/`）、`status`、`content_size`。索引记录固定 `report_type=mcp_upload`、`file_format=md`、`generated_by=mcp`，`summary` 取正文第一段。
 
-### 4.14 portfolio.get_overview
+### 4.14 portfolio.list_position_changes
+
+查询调仓记录，供组合复盘按时间段回看持仓变动。
+
+**本系统不记录买卖成交。** 调仓的定义就是个股持仓数量的变动，所以返回里只有调整前后的数量、增减量和调仓理由，没有成交价、方向和费用；现金变化由现金校准（`portfolio_cash_flow` 的 `adjustment`）单独维护，两者不互相推导，不要拿调仓记录去反推成交金额。
+
+| 参数 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `portfolio_id` | int \| null | `null` | 指定组合，留空为全部组合 |
+| `stock_id` | int \| null | `null` | 只看某个标的的调仓 |
+| `start_date` | string \| null | `null` | `YYYY-MM-DD`，按调仓日期过滤 |
+| `end_date` | string \| null | `null` | `YYYY-MM-DD` |
+| `limit` | int | `100` | 本工具上限放宽到 200 |
+
+返回列表信封，`items[]` 每条：`id`、`portfolio_id`、`portfolio_name`、`stock_id`、`stock_code`、`stock_name`、`quantity_before`、`quantity_after`、`quantity_delta`（正数加仓、负数减仓）、`change_date`、`note`（调仓理由）、`created_at`。按 `change_date` 倒序、`id` 倒序。
+
+新建持仓是 `0 → N`，清仓和删除持仓是 `N → 0`。
+
+### 4.15 portfolio.get_overview
 
 组合总览。`portfolio_id` 为空时返回全组合汇总。
 
@@ -345,6 +364,7 @@
 | `tag_id` | `stock_analysis.get_stock_profile` → `tags[].tag.id` | 标的绑定的标签，需要 `sections` 里带上 `tags` |
 | `report_id` | `report_library.list_reports` → `items[].id` | 主入口，支持标题关键词 |
 | `portfolio_id` | `portfolio.get_overview` → `portfolio_options[].id` | 不传则返回全组合汇总 |
+| `portfolio_id` | `portfolio.list_position_changes` → `items[].portfolio_id` | 顺带拿到，含组合名 |
 
 `tag_id` 只服务 `market_radar.get_tag_trend` 一个工具，暂不单独开列表入口：热词、赛道、标的的返回里都会带出各自绑定的标签，而热度趋势的典型问法本来就是围绕热词，`market_radar.get_hotwords` 支持 `q` 关键词，两步即可拿到。若以后确有“按标签名直接查趋势”的固定场景，更合适的做法是给 `get_tag_trend` 增加 `tag_name` 参数由服务端解析，而不是把语言层的 `tag` 全表暴露给外部 client。
 

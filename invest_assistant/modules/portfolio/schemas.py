@@ -47,6 +47,25 @@ class PortfolioPositionCreate(BaseModel):
     target_weight: float | None = None
     note: str | None = None
     status: str = "active"
+    # 调仓留痕用，不写进 portfolio_position 本身
+    change_date: date | None = None
+    change_note: str | None = None
+
+
+class PortfolioPositionChangeRead(BaseModel):
+    id: int
+    portfolio_id: int
+    portfolio_name: str | None = None
+    stock_id: int
+    stock_code: str | None = None
+    stock_name: str | None = None
+    quantity_before: float
+    quantity_after: float
+    quantity_delta: float
+    change_date: date
+    note: str | None = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PortfolioPositionRead(PortfolioPositionCreate):

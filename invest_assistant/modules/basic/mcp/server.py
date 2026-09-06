@@ -103,6 +103,12 @@ MCP_TOOL_DESCRIPTIONS = {
         "上传 Markdown 报告并写入报告库索引。参数为 title、source_module、markdown；"
         "保存到 var/reports/{source_module}/YYYY-MM/，仅用于显式 allowlist 放开的受控报告入库。"
     ),
+    "portfolio.list_position_changes": (
+        "查询调仓记录，用于组合复盘：按时间段回看某个组合或全部组合的持仓变动。"
+        "本系统不记录买卖成交，调仓只有个股数量的变动，返回的是调整前数量、调整后数量、增减量和调仓理由，"
+        "没有成交价、方向和费用；现金变化由现金校准单独维护，不要用调仓记录去推算成交金额。"
+        "支持 portfolio_id（留空为全部组合）、stock_id、start_date、end_date、limit 过滤，按调仓日期倒序返回。"
+    ),
     "portfolio.get_overview": (
         "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持股数量、持仓市值、总资产、当日盈亏和持仓分布。"
         "portfolio_id 为空时返回全组合汇总。"
@@ -367,6 +373,28 @@ def _register_tools(server: FastMCP) -> None:
             "report_library.upload_markdown_report",
             {"title": title, "source_module": source_module, "markdown": markdown},
             report_library.upload_markdown_report,
+        )
+
+    @server.tool(name="portfolio.list_position_changes", description=MCP_TOOL_DESCRIPTIONS["portfolio.list_position_changes"])
+    def mcp_portfolio_list_position_changes(
+        ctx: Context,
+        portfolio_id: int | None = None,
+        stock_id: int | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        limit: int = 100,
+    ) -> dict:
+        return _run_tool(
+            ctx,
+            "portfolio.list_position_changes",
+            {
+                "portfolio_id": portfolio_id,
+                "stock_id": stock_id,
+                "start_date": _parse_optional_date(start_date),
+                "end_date": _parse_optional_date(end_date),
+                "limit": limit,
+            },
+            portfolio.list_position_changes,
         )
 
     @server.tool(name="portfolio.get_overview", description=MCP_TOOL_DESCRIPTIONS["portfolio.get_overview"])

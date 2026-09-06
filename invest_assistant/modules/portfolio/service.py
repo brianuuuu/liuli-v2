@@ -11,6 +11,7 @@ from invest_assistant.modules.portfolio.models import (
     PortfolioCashFlow,
     PortfolioGroup,
     PortfolioPosition,
+    PortfolioPositionChange,
     PortfolioReview,
     PortfolioValueSnapshot,
 )
@@ -101,6 +102,78 @@ def update_group(db: Session, group_id: int, payload: PortfolioGroupCreate) -> P
     return item
 
 
+def record_position_change(
+    db: Session,
+    portfolio_id: int,
+    stock_id: int,
+    *,
+    quantity_before: float | None,
+    quantity_after: float | None,
+    note: str | None = None,
+    change_date: date | None = None,
+) -> PortfolioPositionChange | None:
+    """数量没变就不留痕；提交交给调用方，保证调仓和持仓在同一个事务里。"""
+    before = float(quantity_before or 0)
+    after = float(quantity_after or 0)
+    if before == after:
+        return None
+    item = PortfolioPositionChange(
+        portfolio_id=portfolio_id,
+        stock_id=stock_id,
+        quantity_before=before,
+        quantity_after=after,
+        quantity_delta=after - before,
+        change_date=change_date or _today_shanghai(),
+        note=str(note or "").strip() or None,
+    )
+    db.add(item)
+    return item
+
+
+def list_position_changes(
+    db: Session,
+    portfolio_id: int | None = None,
+    limit: int = 200,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    stock_id: int | None = None,
+) -> list[dict]:
+    """调仓记录查询。portfolio_id 留空表示跨组合，供复盘按时间段回看。"""
+    stmt = (
+        select(PortfolioPositionChange, Stock, Portfolio)
+        .join(Stock, Stock.id == PortfolioPositionChange.stock_id)
+        .join(Portfolio, Portfolio.id == PortfolioPositionChange.portfolio_id)
+        .order_by(PortfolioPositionChange.change_date.desc(), PortfolioPositionChange.id.desc())
+    )
+    if portfolio_id is not None:
+        stmt = stmt.where(PortfolioPositionChange.portfolio_id == portfolio_id)
+    if stock_id is not None:
+        stmt = stmt.where(PortfolioPositionChange.stock_id == stock_id)
+    if start_date is not None:
+        stmt = stmt.where(PortfolioPositionChange.change_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(PortfolioPositionChange.change_date <= end_date)
+    rows = db.execute(stmt.limit(max(1, int(limit)))).all()
+    return [
+        {
+            "id": change.id,
+            "portfolio_id": change.portfolio_id,
+            "portfolio_name": portfolio.name,
+            "stock_id": change.stock_id,
+            "stock_code": stock.stock_code,
+            "stock_name": stock.stock_name,
+            "quantity_before": change.quantity_before,
+            "quantity_after": change.quantity_after,
+            "quantity_delta": change.quantity_delta,
+            "change_date": change.change_date,
+            "note": change.note,
+            "created_at": change.created_at,
+        }
+        for change, stock, portfolio in rows
+    ]
+
+
 def create_position(db: Session, portfolio_id: int, payload: PortfolioPositionCreate) -> PortfolioPosition:
     return create_or_update_position(db, portfolio_id, payload)
 
@@ -111,6 +184,8 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
     if db.get(Stock, payload.stock_id) is None:
         raise ValueError("stock not found")
     data = payload.model_dump()
+    change_date = data.pop("change_date", None)
+    change_note = data.pop("change_note", None)
     if data.get("market_value") is None and data.get("current_price") is not None:
         data["market_value"] = data["quantity"] * data["current_price"]
     item = db.scalar(
@@ -120,11 +195,22 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
         )
     )
     if item is None:
+        quantity_before = 0.0
         item = PortfolioPosition(portfolio_id=portfolio_id, **data)
         db.add(item)
     else:
+        quantity_before = float(item.quantity or 0)
         for key, value in data.items():
             setattr(item, key, value)
+    record_position_change(
+        db,
+        portfolio_id,
+        payload.stock_id,
+        quantity_before=quantity_before,
+        quantity_after=payload.quantity,
+        note=change_note,
+        change_date=change_date,
+    )
     db.commit()
     db.refresh(item)
     return item
@@ -141,10 +227,44 @@ def update_position(db: Session, portfolio_id: int, position_id: int, payload: P
     if db.get(Stock, payload.stock_id) is None:
         raise ValueError("stock not found")
     data = payload.model_dump()
+    change_date = data.pop("change_date", None)
+    change_note = data.pop("change_note", None)
     if data.get("market_value") is None and data.get("current_price") is not None:
         data["market_value"] = data["quantity"] * data["current_price"]
+    stock_id_before = item.stock_id
+    quantity_before = float(item.quantity or 0)
     for key, value in data.items():
         setattr(item, key, value)
+    if stock_id_before != payload.stock_id:
+        # 换标的等价于旧标的清零、新标的建仓，分成两条留痕
+        record_position_change(
+            db,
+            portfolio_id,
+            stock_id_before,
+            quantity_before=quantity_before,
+            quantity_after=0,
+            note=change_note,
+            change_date=change_date,
+        )
+        record_position_change(
+            db,
+            portfolio_id,
+            payload.stock_id,
+            quantity_before=0,
+            quantity_after=payload.quantity,
+            note=change_note,
+            change_date=change_date,
+        )
+    else:
+        record_position_change(
+            db,
+            portfolio_id,
+            payload.stock_id,
+            quantity_before=quantity_before,
+            quantity_after=payload.quantity,
+            note=change_note,
+            change_date=change_date,
+        )
     db.commit()
     db.refresh(item)
     return item
@@ -154,6 +274,14 @@ def delete_position(db: Session, portfolio_id: int, position_id: int) -> bool:
     item = db.get(PortfolioPosition, position_id)
     if item is None or item.portfolio_id != portfolio_id:
         return False
+    record_position_change(
+        db,
+        portfolio_id,
+        item.stock_id,
+        quantity_before=item.quantity,
+        quantity_after=0,
+        note="删除持仓",
+    )
     db.delete(item)
     db.commit()
     return True

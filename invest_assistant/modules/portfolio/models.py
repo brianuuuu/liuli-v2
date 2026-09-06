@@ -59,6 +59,26 @@ class PortfolioPosition(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class PortfolioPositionChange(Base):
+    """调仓记录：只记个股数量的变动，不记买卖价格和费用，现金由现金校准单独维护。"""
+
+    __tablename__ = "portfolio_position_change"
+    __table_args__ = (
+        Index("ix_portfolio_position_change_portfolio_id", "portfolio_id"),
+        Index("ix_portfolio_position_change_change_date", "change_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    quantity_before: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    quantity_after: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    quantity_delta: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    change_date: Mapped[date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
 class PortfolioReview(Base):
     __tablename__ = "portfolio_review"
 

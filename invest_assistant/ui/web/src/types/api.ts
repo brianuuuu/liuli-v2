@@ -898,6 +898,20 @@ export type PortfolioCashFlow = {
   created_at?: string | null;
 };
 
+export type PortfolioPositionChange = {
+  id: number;
+  portfolio_id: number;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  quantity_before: number;
+  quantity_after: number;
+  quantity_delta: number;
+  change_date: string;
+  note?: string | null;
+  created_at?: string | null;
+};
+
 export type PortfolioOverviewAllocationRow = {
   type: string;
   stock_id?: number;

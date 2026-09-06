@@ -13,6 +13,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioCreate,
     PortfolioGroupCreate,
     PortfolioGroupRead,
+    PortfolioPositionChangeRead,
     PortfolioPositionCreate,
     PortfolioPositionRead,
     PortfolioRead,
@@ -175,6 +176,11 @@ def update_cash_balance(portfolio_id: int, payload: PortfolioCashUpdate, db: Ses
         return service.update_cash_balance(db, portfolio_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{portfolio_id}/position-changes", response_model=list[PortfolioPositionChangeRead])
+def list_position_changes(portfolio_id: int, limit: int = 200, db: Session = Depends(get_db)) -> list:
+    return service.list_position_changes(db, portfolio_id, limit)
 
 
 @router.get("/{portfolio_id}/cash-flows", response_model=list[PortfolioCashFlowRead])

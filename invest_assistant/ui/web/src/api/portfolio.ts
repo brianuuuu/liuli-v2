@@ -7,6 +7,7 @@ import type {
   PortfolioGroup,
   PortfolioOverview,
   PortfolioPosition,
+  PortfolioPositionChange,
   PortfolioReviewPerformance,
   PortfolioValueSnapshot
 } from "../types/api";
@@ -22,6 +23,9 @@ export type PortfolioPositionPayload = {
   group_id?: number | null;
   note?: string | null;
   status?: string;
+  /** 调仓留痕：只写进调仓记录，不落到持仓行上 */
+  change_date?: string | null;
+  change_note?: string | null;
 };
 
 export type PortfolioCashPayload = {
@@ -119,6 +123,13 @@ export async function getPortfolioCash(portfolioId: number): Promise<PortfolioCa
 
 export async function updatePortfolioCash(portfolioId: number, payload: PortfolioCashPayload): Promise<PortfolioCashBalance> {
   const response = await apiClient.put<PortfolioCashBalance>(`/api/portfolios/${portfolioId}/cash`, payload);
+  return response.data;
+}
+
+export async function listPortfolioPositionChanges(portfolioId: number, limit = 200): Promise<PortfolioPositionChange[]> {
+  const response = await apiClient.get<PortfolioPositionChange[]>(`/api/portfolios/${portfolioId}/position-changes`, {
+    params: { limit }
+  });
   return response.data;
 }
 
