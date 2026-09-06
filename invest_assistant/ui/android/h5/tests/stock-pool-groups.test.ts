@@ -7,7 +7,6 @@ import {
   filterPoolByStatus,
   poolStatusCounts,
   poolStatusLabel,
-  poolTrackSummary,
   POOL_PAGE_CAPACITY,
   poolPageLayout,
   nextPoolPage
@@ -54,18 +53,6 @@ describe("标的池状态分组", () => {
   });
 });
 
-describe("绑定赛道摘要", () => {
-  it("只展示一条赛道，其余折叠", () => {
-    expect(poolTrackSummary(items[0])).toBe("智能汽车 +1");
-    expect(poolTrackSummary(items[4])).toBe("AI应用 +2");
-  });
-
-  it("没有绑定赛道时返回空串，由调用方不渲染", () => {
-    expect(poolTrackSummary(items[1])).toBe("");
-    expect(poolTrackSummary(items[2])).toBe("");
-  });
-});
-
 describe("看板视图记忆", () => {
   it("记住看板 tab、标的视图和标的池分组，从详情返回时不回到今日", () => {
     resetDashboardViewState();
@@ -87,26 +74,26 @@ describe("标的池卡片分页", () => {
   const pool = (count: number) =>
     Array.from({ length: count }, (_, index) => ({ id: index + 1, stock_id: index + 1, status: "focused" })) as StockPoolItem[];
 
-  it("三列四行以内一次铺完，不出现翻页格", () => {
-    expect(POOL_PAGE_CAPACITY).toBe(12);
-    const layout = poolPageLayout(pool(12));
+  it("三列六行以内一次铺完，不出现翻页格", () => {
+    expect(POOL_PAGE_CAPACITY).toBe(18);
+    const layout = poolPageLayout(pool(18));
     expect(layout.showPager).toBe(false);
     expect(layout.totalPages).toBe(1);
-    expect(layout.cards).toHaveLength(12);
+    expect(layout.cards).toHaveLength(18);
   });
 
   it("超出一屏时最后一格让给翻页按钮", () => {
-    const layout = poolPageLayout(pool(13));
+    const layout = poolPageLayout(pool(19));
     expect(layout.showPager).toBe(true);
     expect(layout.totalPages).toBe(2);
-    expect(layout.cards).toHaveLength(11);
-    expect(poolPageLayout(pool(13), 1).cards.map((item) => item.id)).toEqual([12, 13]);
+    expect(layout.cards).toHaveLength(17);
+    expect(poolPageLayout(pool(19), 1).cards.map((item) => item.id)).toEqual([18, 19]);
   });
 
   it("页码越界时回卷，避免出现空页", () => {
-    expect(poolPageLayout(pool(44), 3).cards.map((item) => item.id)).toEqual([34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44]);
-    expect(poolPageLayout(pool(44), 4).page).toBe(0);
-    expect(poolPageLayout(pool(44), -1).page).toBe(3);
+    expect(poolPageLayout(pool(44), 2).cards.map((item) => item.id)).toEqual([35, 36, 37, 38, 39, 40, 41, 42, 43, 44]);
+    expect(poolPageLayout(pool(44), 3).page).toBe(0);
+    expect(poolPageLayout(pool(44), -1).page).toBe(2);
   });
 
   it("翻到最后一页后循环回第一页", () => {

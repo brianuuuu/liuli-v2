@@ -20,7 +20,6 @@ import {
   nextPoolPage,
   poolPageLayout,
   poolStatusCounts,
-  poolTrackSummary,
   type PoolStatusKey,
   type StockTabView
 } from "./stockPoolGroups";
@@ -214,7 +213,7 @@ function TrackDashboard() {
 function StockDashboard() {
   const [view, setView] = useState<StockTabView>(lastStockView);
   return (
-    <div className="page-stack">
+    <div className="page-stack stock-view-stack">
       {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
       <div className="stock-view-bar">
         <div className="pill-segments" role="group" aria-label="标的视图" data-swipe-ignore="true">
@@ -264,16 +263,12 @@ function StockPoolView() {
       ) : visible.length ? (
         <>
           <div className="pool-card-grid">
-            {layout.cards.map((item) => {
-              const track = poolTrackSummary(item);
-              return (
-                <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
-                  <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
-                  <span>{item.stock_code?.trim() || "--"}</span>
-                  {track ? <em>{track}</em> : null}
-                </button>
-              );
-            })}
+            {layout.cards.map((item) => (
+              <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+                <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+                <span>{item.stock_code?.trim() || "--"}</span>
+              </button>
+            ))}
             {layout.showPager ? (
               <button
                 type="button"

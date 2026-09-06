@@ -50,9 +50,29 @@ export function actionableMaterials(rows: StockDetailMaterial[]) {
   return rows.filter(isActionableMaterial);
 }
 
-export function stockDetailTitle(detail?: StockDetail | null) {
-  const name = detail?.stock.stock_name?.trim();
-  return name || detail?.stock.stock_code?.trim() || "标的详情";
+/** 后端存的是交易所代码，档案头要给人看，所以在端上翻成中文简称，未知值原样透出。 */
+const MARKET_LABELS: Record<string, string> = {
+  SH: "上交所",
+  SSE: "上交所",
+  SZ: "深交所",
+  SZSE: "深交所",
+  BJ: "北交所",
+  BSE: "北交所",
+  HK: "港交所",
+  US: "美股"
+};
+
+export function stockMarketLabel(value?: string | null) {
+  const raw = value?.trim();
+  if (!raw) return "";
+  return MARKET_LABELS[raw.toUpperCase()] ?? raw;
+}
+
+/** 档案头第二行：代码 · 交易所，缺哪个就少哪个。 */
+export function stockIdentityLine(detail: StockDetail) {
+  return [detail.stock.stock_code?.trim(), stockMarketLabel(detail.stock.market)]
+    .filter((item): item is string => Boolean(item))
+    .join(" · ");
 }
 
 export function trackNames(detail: StockDetail) {

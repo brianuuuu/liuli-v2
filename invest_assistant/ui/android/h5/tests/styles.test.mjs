@@ -136,10 +136,11 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*58px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*8px;/s);
     expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*color:\s*var\(--text\);[^}]*font-size:\s*13px;[^}]*font-weight:\s*600;/s);
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
-    expect(styles).toMatch(/\.pool-card em\s*\{[^}]*color:\s*var\(--subtle\);[^}]*font-size:\s*10px;/s);
-    expect(styles).not.toMatch(/\.pool-card em\s*\{[^}]*background:/s);
+    expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
     expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;[^}]*bottom:\s*8px;[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*calc\(100dvh - 56px\);[^}]*flex-direction:\s*column;[^}]*margin-bottom:\s*-20px;/s);
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*margin-top:\s*auto;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*text-align:\s*center;/s);
   });

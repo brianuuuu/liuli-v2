@@ -4,7 +4,7 @@ import { lazy, Suspense, useState } from "react";
 import { useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
-import { poolStatusLabel } from "./stockPoolGroups";
+import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
   STOCK_DETAIL_SECTIONS,
@@ -12,7 +12,7 @@ import {
   formatValuationGap,
   scoreDimensions,
   scoreTrendRows,
-  stockDetailTitle,
+  stockIdentityLine,
   trackNames,
   valuationGapTone,
   valuationModelLabel,
@@ -33,16 +33,15 @@ export function StockDetailPage() {
   const id = Number(useParams().id);
   const [section, setSection] = useState<StockDetailSection>(DEFAULT_STOCK_DETAIL_SECTION);
   const query = useQuery({ queryKey: ["stock-detail", id], queryFn: () => mobileApi.stockDetail(id), staleTime: 300_000 });
-  const title = stockDetailTitle(query.data);
   if (query.isLoading) return <DetailFrame title="标的详情"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) {
     return <DetailFrame title="标的详情"><ErrorState message="标的详情加载失败" onRetry={() => void query.refetch()} /></DetailFrame>;
   }
   const detail = query.data;
   return (
-    <DetailFrame title={title}>
+    <DetailFrame title="标的详情">
       <div className="page-stack">
-        <StockIdentity detail={detail} />
+        <StockProfile detail={detail} />
         <div className="pill-segments pill-segments--compact" role="group" aria-label="标的详情分区">
           {STOCK_DETAIL_SECTIONS.map((item) => (
             <button
@@ -65,18 +64,32 @@ export function StockDetailPage() {
   );
 }
 
-function StockIdentity({ detail }: { detail: StockDetail }) {
-  // 公司名已经在顶部标题栏，这里只补充代码、状态和赛道，避免重复也避免代码紧贴名称。
+/** 档案头：顶部标题栏只写“标的详情”，这张卡负责公司名、代码、状态、赛道和三项关键指标。 */
+function StockProfile({ detail }: { detail: StockDetail }) {
   const status = detail.pool?.status ?? detail.stock.status;
   const tracks = trackNames(detail);
-  const facts = [detail.stock.stock_code?.trim(), status ? poolStatusLabel(status) : null, tracks.length ? tracks.join(" · ") : null]
-    .filter((item): item is string => Boolean(item));
-  if (!facts.length) return null;
+  const identity = stockIdentityLine(detail);
+  const score = detail.latest_score;
+  const gap = detail.latest_valuation?.expectation_gap_rate;
   return (
-    <section className="stock-identity">
-      {facts.map((fact, index) => (
-        <span key={fact}>{index > 0 ? <i aria-hidden="true">·</i> : null}{fact}</span>
-      ))}
+    <section className="stock-profile">
+      <div className="stock-profile__head">
+        <div>
+          <h2>{detail.stock.stock_name?.trim() || detail.stock.stock_code?.trim() || "未命名标的"}</h2>
+          {identity ? <p>{identity}</p> : null}
+        </div>
+        {status ? <span className={`stock-status stock-status--${poolStatusTone(status)}`}>{poolStatusLabel(status)}</span> : null}
+      </div>
+      {tracks.length ? (
+        <div className="stock-profile__tracks">
+          {tracks.map((name) => <span key={name}>{name}</span>)}
+        </div>
+      ) : null}
+      <div className="stock-profile__metrics">
+        <div><span>综合评分</span><strong>{score ? formatNumber(score.total_score, 2) : "-"}</strong></div>
+        <div><span>投资等级</span><strong>{score?.investment_level || "-"}</strong></div>
+        <div><span>三年空间</span><strong className={valuationGapTone(gap)}>{formatValuationGap(gap)}</strong></div>
+      </div>
     </section>
   );
 }
@@ -89,10 +102,6 @@ function OverviewSection({ detail }: { detail: StockDetail }) {
       <SectionCard title="最新评级">
         {score ? (
           <>
-            <div className="stock-detail-score-head">
-              <div><span>综合评分</span><strong>{formatNumber(score.total_score, 2)}</strong></div>
-              <div><span>投资等级</span><strong>{score.investment_level || "-"}</strong></div>
-            </div>
             <Suspense fallback={<ChartFallback height={220} />}>
               <RatingRadar dimensions={scoreDimensions(score)} />
             </Suspense>

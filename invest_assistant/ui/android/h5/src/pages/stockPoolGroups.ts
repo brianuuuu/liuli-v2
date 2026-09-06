@@ -23,6 +23,13 @@ export const POOL_STATUS_OPTIONS: { value: PoolStatusKey; label: string }[] = [
   { value: "archived", label: "归档" }
 ];
 
+/** 徽章配色只认已知状态；"全部"是筛选项不是标的状态，和未知值一起走中性样式。 */
+export function poolStatusTone(status?: string | null) {
+  return POOL_STATUS_OPTIONS.some((option) => option.value === status && option.value !== "all")
+    ? String(status)
+    : "unknown";
+}
+
 export function poolStatusLabel(status?: string | null) {
   return POOL_STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status ?? "未知";
 }
@@ -39,20 +46,9 @@ export function poolStatusCounts(items: StockPoolItem[]): Record<PoolStatusKey, 
   }, {} as Record<PoolStatusKey, number>);
 }
 
-/** 卡片一行放不下多条赛道，只展示一条，其余折叠成 +N；没有绑定赛道时返回空串，由调用方不渲染。 */
-export function poolTrackSummary(item: StockPoolItem, max = 1) {
-  const names = (item.tracks ?? [])
-    .filter((track) => track.status !== "archived")
-    .map((track) => track.name?.trim())
-    .filter((name): name is string => Boolean(name));
-  if (!names.length) return "";
-  const shown = names.slice(0, max).join(" · ");
-  return names.length > max ? `${shown} +${names.length - max}` : shown;
-}
-
-/** 标的卡片按三列排布，最多四行；超出时最后一格让给翻页按钮。 */
+/** 标的卡片按三列排布，最多六行；超出时最后一格让给翻页按钮。 */
 export const POOL_CARD_COLUMNS = 3;
-export const POOL_CARD_MAX_ROWS = 4;
+export const POOL_CARD_MAX_ROWS = 6;
 export const POOL_PAGE_CAPACITY = POOL_CARD_COLUMNS * POOL_CARD_MAX_ROWS;
 
 export type PoolPageLayout = {
