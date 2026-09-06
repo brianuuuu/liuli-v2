@@ -278,10 +278,10 @@ function StockPoolView() {
               <button
                 type="button"
                 className="pool-card pool-card--pager"
-                aria-label={`下一页，当前第 ${layout.page + 1} 页，共 ${layout.totalPages} 页`}
+                aria-label={`${layout.page + 1 === layout.totalPages ? "回到首页" : "下一页"}，当前第 ${layout.page + 1} 页，共 ${layout.totalPages} 页`}
                 onClick={() => setPage(nextPoolPage(layout.page, layout.totalPages))}
               >
-                <strong>下一页</strong>
+                <strong>{layout.page + 1 === layout.totalPages ? "回到首页" : "下一页"}</strong>
                 <span>{layout.page + 1}/{layout.totalPages}</span>
               </button>
             ) : null}

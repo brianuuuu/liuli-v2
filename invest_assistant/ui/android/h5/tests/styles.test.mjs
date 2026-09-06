@@ -129,17 +129,19 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
   });
 
-  it("keeps pool cards compact and the stock view segments in a bordered bar below the content", () => {
+  it("keeps pool cards compact and pins the stock view segments in a bordered bar at the bottom", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.pool-card-grid\s*\{[^}]*gap:\s*6px;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
-    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*62px;[^}]*padding:\s*8px;[^}]*border-radius:\s*8px;/s);
-    expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*font-size:\s*12\.5px;[^}]*font-weight:\s*600;/s);
-    expect(styles).toMatch(/\.pool-card span\s*\{[^}]*font-size:\s*10px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
-    expect(styles).toMatch(/\.pool-card em\s*\{[^}]*background:\s*var\(--panel\);[^}]*font-size:\s*10px;/s);
-    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*border-style:\s*dashed;/s);
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*58px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*8px;/s);
+    expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*color:\s*var\(--text\);[^}]*font-size:\s*13px;[^}]*font-weight:\s*600;/s);
+    expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
+    expect(styles).toMatch(/\.pool-card em\s*\{[^}]*color:\s*var\(--subtle\);[^}]*font-size:\s*10px;/s);
+    expect(styles).not.toMatch(/\.pool-card em\s*\{[^}]*background:/s);
+    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;[^}]*bottom:\s*8px;[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
+    expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*text-align:\s*center;/s);
   });
 
   it("renders dashboard materials as a compact continuous list", () => {
