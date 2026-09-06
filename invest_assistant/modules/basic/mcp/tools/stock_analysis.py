@@ -5,6 +5,16 @@ from invest_assistant.modules.basic.mcp.service import execute_read_tool
 from invest_assistant.modules.stock_analysis import service as stock_service
 
 
+def list_pool(*, db, client: McpClientConfig, q: str | None = None, limit: int = 50) -> dict:
+    return execute_read_tool(
+        db=db,
+        client=client,
+        tool_name="stock_analysis.list_pool",
+        arguments={"q": q, "limit": limit},
+        handler=stock_service.list_pool,
+    )
+
+
 def get_stock_profile(*, db, client: McpClientConfig, stock_id: int, limit: int = 1) -> dict:
     return execute_read_tool(
         db=db,

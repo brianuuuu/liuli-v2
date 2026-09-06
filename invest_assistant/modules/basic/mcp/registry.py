@@ -24,6 +24,11 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "low",
         "service_name": "track_discovery.service.get_track_detail",
     },
+    "stock_analysis.list_pool": {
+        "read_only": True,
+        "risk_level": "low",
+        "service_name": "stock_analysis.service.list_pool",
+    },
     "stock_analysis.get_stock_profile": {
         "read_only": True,
         "risk_level": "low",

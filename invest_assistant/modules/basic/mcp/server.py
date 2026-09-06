@@ -45,13 +45,20 @@ MCP_TOOL_DESCRIPTIONS = {
         "按已知 track_id 获取赛道详情，包括赛道基础信息、研究材料、相关标的和验证信息。"
         "仅在已知 track_id 时调用，不要猜测 ID。"
     ),
+    "stock_analysis.list_pool": (
+        "查询标的池，支持按证券代码、名称、拼音或简称模糊匹配。"
+        "这是获取 stock_id 的入口：缺少 stock_id 时先调用本工具，再用返回的 stock_id 调 "
+        "get_stock_profile 或 get_daily_bars；返回里的 track_ids 可直接用于 track_discovery.get_track_detail。"
+        "支持 q、limit 过滤。"
+    ),
     "stock_analysis.get_stock_profile": (
         "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"
-        "不要把股票代码或证券代码直接当 stock_id。"
+        "不要把股票代码或证券代码直接当 stock_id，缺少 ID 时先用 stock_analysis.list_pool 查询。"
     ),
     "stock_analysis.get_daily_bars": (
         "按已知 stock_id 查询本地缓存的股票日 K 数据，可指定 start_date、end_date 和 limit。"
-        "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id。"
+        "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id，"
+        "缺少 ID 时先用 stock_analysis.list_pool 查询。"
     ),
     "knowledge_base.get_researcher_profile": (
         "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
@@ -207,6 +214,15 @@ def _register_tools(server: FastMCP) -> None:
             "track_discovery.get_track_detail",
             {"track_id": track_id},
             track_discovery.get_track_detail,
+        )
+
+    @server.tool(name="stock_analysis.list_pool", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.list_pool"])
+    def mcp_stock_analysis_list_pool(ctx: Context, q: str | None = None, limit: int = 50) -> dict:
+        return _run_tool(
+            ctx,
+            "stock_analysis.list_pool",
+            {"q": q, "limit": limit},
+            stock_analysis.list_pool,
         )
 
     @server.tool(name="stock_analysis.get_stock_profile", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.get_stock_profile"])

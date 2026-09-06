@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v31：对外 MCP 增加只读工具 `stock_analysis.list_pool`，作为外部 client 获取 `stock_id` 的入口，按证券代码、名称、拼音、简称在标的池范围内模糊匹配，返回结果同时带出已绑定的 `track_ids`；`stock_analysis.get_stock_profile` 与 `get_daily_bars` 的工具描述改为指向该入口，不再要求 client 自行猜测 ID。
 - v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，文件带 `researcher_code/display_name` frontmatter，并由 `knowledge_base.get_researcher_profile` 一次性返回完整 profile 原文、简介、价值观和方法论。
 - v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`，供 Codex 读取完整研究员 profile；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
 - v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀研究人格与方法论 profile，研究回流承接 MCP 返回的研究报告。
@@ -5360,6 +5361,7 @@ market_radar.get_hotwords
 market_radar.get_tag_trend
 track_discovery.list_tracks
 track_discovery.get_track_detail
+stock_analysis.list_pool
 stock_analysis.get_stock_profile
 stock_analysis.get_daily_bars
 knowledge_base.get_researcher_profile
@@ -5367,6 +5369,8 @@ report_library.list_reports
 report_library.read_report_content
 portfolio.get_overview
 ```
+
+`stock_analysis.list_pool` 是外部 client 获取 `stock_id` 的入口，按证券代码、名称、拼音或简称在标的池范围内模糊匹配，返回 `stock_id`、`stock_code`、`stock_name`、`status` 和已绑定的 `track_ids`；不暴露全量股票主表。
 
 `knowledge_base.get_researcher_profile` 用于按研究员展示名称、`researcher_code` 或 ID 读取完整研究员 profile，返回 `profile_content`、简介、价值观、方法论、状态、profile 路径和 hash；文件访问限制在知识库研究员 profile 目录内。
 
