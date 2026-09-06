@@ -858,6 +858,10 @@ def create_research_feedback(db: Session, payload: KnowledgeResearchFeedbackCrea
     return item
 
 
+RESEARCH_FEEDBACK_SOURCES = {"mcp"}
+RESEARCH_FEEDBACK_STATUSES = {"received", "parsed", "imported"}
+
+
 def upload_research_feedback(
     db: Session,
     *,
@@ -870,6 +874,14 @@ def upload_research_feedback(
     status: str = "received",
     now: datetime | None = None,
 ) -> tuple[KnowledgeResearchFeedback, int, int]:
+    if source not in RESEARCH_FEEDBACK_SOURCES:
+        raise ValueError(f"source is not allowed: {source}")
+    if status not in RESEARCH_FEEDBACK_STATUSES:
+        raise ValueError(f"status is not allowed: {status}")
+    code = _normalize_optional_text(researcher_code)
+    if code is not None and db.scalar(select(KnowledgeResearcher).where(KnowledgeResearcher.researcher_code == code)) is None:
+        raise ValueError(f"researcher_code not found: {code}")
+    researcher_code = code
     module_name = _normalize_optional_text(business_module) or "knowledge_base"
     report, content_size = report_service.create_markdown_report_file_and_index(
         db,

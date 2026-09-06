@@ -1,6 +1,6 @@
 import json
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime, time
 from time import perf_counter
 from urllib.parse import urlparse
 
@@ -18,16 +18,31 @@ from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
 from invest_assistant.modules.basic.mcp.tools import knowledge_base, market_radar, portfolio, report_library, stock_analysis, track_discovery
 
 MCP_SCOPE = "mcp"
+
+
+class McpToolError(RuntimeError):
+    """回给客户端的错误，消息以机器可读的错误码前缀开头。"""
+
+
+_ERROR_CODES: tuple[tuple[type[Exception], str], ...] = (
+    (PermissionError, "FORBIDDEN"),
+    (FileNotFoundError, "NOT_FOUND"),
+    (ValueError, "INVALID_ARGUMENT"),
+)
 MCP_INSTRUCTIONS = (
     "本 MCP 服务只暴露 liuli 的受控投资研究数据查询能力。默认工具均为只读，禁止下单建议、"
     "禁止绕过业务模块直接写库、禁止读取任意文件。优先使用 market_radar、track_discovery、"
     "stock_analysis、knowledge_base、report_library、portfolio 的查询工具，并在回答中区分事实数据、系统推断和外部参考。"
     "返回内容以中文为主，客户端应按 UTF-8 解码；如终端显示乱码，优先检查客户端或终端编码。"
+    "调用失败时错误消息以机器可读前缀开头：[FORBIDDEN] 无权限、[NOT_FOUND] 对象不存在、"
+    "[INVALID_ARGUMENT] 参数非法、[INTERNAL] 服务端异常；请据此决定是换工具还是换参数。"
 )
 MCP_TOOL_DESCRIPTIONS = {
     "market_radar.search_source_items": (
         "搜索 liuli 已入库的信息流条目，适合查询新闻、公告、快讯、研报摘要等市场信息。"
-        "支持关键词 q、来源 source_name、类型 source_type、重要标记 important_only、tag_id、limit、offset 过滤。"
+        "支持关键词 q、来源 source_name、类型 source_type、重要标记 important_only、tag_id、"
+        "时间范围 start_time/end_time（YYYY-MM-DD 或完整 ISO 时间）、limit、offset 过滤。"
+        "正文默认截断到 content_chars 个字符并标记 content_truncated，需要全文时把 content_chars 设为 0。"
     ),
     "market_radar.get_hotwords": (
         "查询市场雷达热词列表，适合按状态或关键词了解当前已沉淀的热点词。"
@@ -35,15 +50,17 @@ MCP_TOOL_DESCRIPTIONS = {
     ),
     "market_radar.get_tag_trend": (
         "按已知 tag_id 查询标签热度趋势，用于观察某个标签在信息流中的热度变化。"
+        "同一标签在 24h/7d/30d 三个窗口各有一条序列，必须用 window_type 指定，默认 7d，混窗口比较没有意义。"
         "不要猜测 tag_id；缺少 ID 时先通过信息流或热词查询确认。"
     ),
     "track_discovery.list_tracks": (
         "查询赛道列表，适合按状态或关键词查找赛道候选项，并获取后续 get_track_detail 所需的 track_id。"
-        "支持 status、q、limit 过滤。"
+        "支持 status、q、limit、offset 过滤。"
     ),
     "track_discovery.get_track_detail": (
-        "按已知 track_id 获取赛道详情，包括赛道基础信息、研究材料、相关标的和验证信息。"
-        "仅在已知 track_id 时调用，不要猜测 ID。"
+        "按已知 track_id 获取赛道详情。默认只返回赛道基础信息、汇总、最新快照、相关标的和标签；"
+        "需要研究材料、历史快照或热度趋势时用 sections 显式指定（materials/snapshots/stocks/tags/heat），"
+        "列表字段按 list_limit 截断并给出 {字段}_total。仅在已知 track_id 时调用，不要猜测 ID。"
     ),
     "stock_analysis.list_pool": (
         "查询标的池，支持按证券代码、名称、拼音或简称模糊匹配。"
@@ -54,11 +71,14 @@ MCP_TOOL_DESCRIPTIONS = {
     "stock_analysis.get_stock_profile": (
         "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"
         "不要把股票代码或证券代码直接当 stock_id，缺少 ID 时先用 stock_analysis.list_pool 查询。"
+        "默认只返回基础信息、汇总、最新评分、最新估值和赛道绑定；需要材料、公告、笔记、标签或历史序列时"
+        "用 sections 显式指定（score/valuation/materials/disclosures/tracks/notes/tags），"
+        "列表字段按 history_limit 截断并给出 {字段}_total。"
     ),
     "stock_analysis.get_daily_bars": (
         "按已知 stock_id 查询本地缓存的股票日 K 数据，可指定 start_date、end_date 和 limit。"
         "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id，"
-        "缺少 ID 时先用 stock_analysis.list_pool 查询。"
+        "缺少 ID 时先用 stock_analysis.list_pool 查询。limit 最多 800 根，更长周期请按日期分段取。"
     ),
     "knowledge_base.get_researcher_profile": (
         "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
@@ -66,12 +86,14 @@ MCP_TOOL_DESCRIPTIONS = {
     ),
     "knowledge_base.upload_research_feedback": (
         "上传外部研究回流和 Markdown 报告。参数为 title、markdown、researcher_code、skill_name、"
-        "business_module、source、status；工具会先写入报告库，再创建 knowledge_research_feedback 索引记录。"
+        "business_module、source、status；business_module 必须落在允许的业务模块白名单内，"
+        "researcher_code 必须是已存在的研究员，source 目前只允许 mcp，status 只允许 received/parsed/imported。"
+        "工具会先写入报告库，再创建 knowledge_research_feedback 索引记录。"
         "该工具是受控写入工具，必须显式加入 MCP client allowed_tools。"
     ),
     "report_library.list_reports": (
         "查询报告库列表，适合查找 report_library.read_report_content 所需的 report_id。"
-        "支持 limit、offset 分页。"
+        "支持标题关键词 q、报告口径 report_kind（market/track/stock 等）和 limit、offset 分页。"
     ),
     "report_library.read_report_content": (
         "按已知 report_id 读取报告正文内容。仅在已知 report_id 时调用，不要猜测 ID；"
@@ -164,13 +186,27 @@ def _register_tools(server: FastMCP) -> None:
         source_type: str | None = None,
         important_only: bool = False,
         tag_id: int | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        content_chars: int = market_radar.DEFAULT_SOURCE_ITEM_CONTENT_CHARS,
         limit: int = 50,
         offset: int = 0,
     ) -> dict:
         return _run_tool(
             ctx,
             "market_radar.search_source_items",
-            {"q": q, "source_name": source_name, "source_type": source_type, "important_only": important_only, "tag_id": tag_id, "limit": limit, "offset": offset},
+            {
+                "q": q,
+                "source_name": source_name,
+                "source_type": source_type,
+                "important_only": important_only,
+                "tag_id": tag_id,
+                "start_time": _parse_optional_datetime(start_time),
+                "end_time": _parse_optional_datetime(end_time),
+                "content_chars": content_chars,
+                "limit": limit,
+                "offset": offset,
+            },
             market_radar.search_source_items,
         )
 
@@ -190,8 +226,13 @@ def _register_tools(server: FastMCP) -> None:
         )
 
     @server.tool(name="market_radar.get_tag_trend", description=MCP_TOOL_DESCRIPTIONS["market_radar.get_tag_trend"])
-    def mcp_market_radar_get_tag_trend(ctx: Context, tag_id: int, limit: int = 50) -> dict:
-        return _run_tool(ctx, "market_radar.get_tag_trend", {"tag_id": tag_id, "limit": limit}, market_radar.get_tag_trend)
+    def mcp_market_radar_get_tag_trend(ctx: Context, tag_id: int, window_type: str = "7d", limit: int = 50) -> dict:
+        return _run_tool(
+            ctx,
+            "market_radar.get_tag_trend",
+            {"tag_id": tag_id, "window_type": window_type, "limit": limit},
+            market_radar.get_tag_trend,
+        )
 
     @server.tool(name="track_discovery.list_tracks", description=MCP_TOOL_DESCRIPTIONS["track_discovery.list_tracks"])
     def mcp_track_discovery_list_tracks(
@@ -199,20 +240,26 @@ def _register_tools(server: FastMCP) -> None:
         status: str | None = None,
         q: str | None = None,
         limit: int = 50,
+        offset: int = 0,
     ) -> dict:
         return _run_tool(
             ctx,
             "track_discovery.list_tracks",
-            {"status": status, "q": q, "limit": limit},
+            {"status": status, "q": q, "limit": limit, "offset": offset},
             track_discovery.list_tracks,
         )
 
     @server.tool(name="track_discovery.get_track_detail", description=MCP_TOOL_DESCRIPTIONS["track_discovery.get_track_detail"])
-    def mcp_track_discovery_get_track_detail(ctx: Context, track_id: int) -> dict:
+    def mcp_track_discovery_get_track_detail(
+        ctx: Context,
+        track_id: int,
+        sections: list[str] | None = None,
+        list_limit: int = track_discovery.DEFAULT_TRACK_DETAIL_LIST_LIMIT,
+    ) -> dict:
         return _run_tool(
             ctx,
             "track_discovery.get_track_detail",
-            {"track_id": track_id},
+            {"track_id": track_id, "sections": sections, "list_limit": list_limit},
             track_discovery.get_track_detail,
         )
 
@@ -226,11 +273,16 @@ def _register_tools(server: FastMCP) -> None:
         )
 
     @server.tool(name="stock_analysis.get_stock_profile", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.get_stock_profile"])
-    def mcp_stock_analysis_get_stock_profile(ctx: Context, stock_id: int) -> dict:
+    def mcp_stock_analysis_get_stock_profile(
+        ctx: Context,
+        stock_id: int,
+        sections: list[str] | None = None,
+        history_limit: int = stock_analysis.DEFAULT_STOCK_PROFILE_HISTORY_LIMIT,
+    ) -> dict:
         return _run_tool(
             ctx,
             "stock_analysis.get_stock_profile",
-            {"stock_id": stock_id},
+            {"stock_id": stock_id, "sections": sections, "history_limit": history_limit},
             stock_analysis.get_stock_profile,
         )
 
@@ -285,11 +337,17 @@ def _register_tools(server: FastMCP) -> None:
         )
 
     @server.tool(name="report_library.list_reports", description=MCP_TOOL_DESCRIPTIONS["report_library.list_reports"])
-    def mcp_report_library_list_reports(ctx: Context, limit: int = 50, offset: int = 0) -> dict:
+    def mcp_report_library_list_reports(
+        ctx: Context,
+        q: str | None = None,
+        report_kind: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
         return _run_tool(
             ctx,
             "report_library.list_reports",
-            {"limit": limit, "offset": offset},
+            {"q": q, "report_kind": report_kind, "limit": limit, "offset": offset},
             report_library.list_reports,
         )
 
@@ -363,7 +421,7 @@ def _run_tool(ctx: Context, tool_name: str, arguments: dict, handler: Callable) 
                 "stack_trace": stack_trace_from_exception(exc),
             },
         )
-        raise
+        raise _tool_error(exc) from exc
     finally:
         db.close()
 
@@ -372,6 +430,24 @@ def _parse_optional_date(value: str | None) -> date | None:
     if value is None or value == "":
         return None
     return date.fromisoformat(value)
+
+
+def _parse_optional_datetime(value: str | None) -> datetime | None:
+    """接受 YYYY-MM-DD 或完整 ISO 时间，前者按当天零点处理。"""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return datetime.combine(date.fromisoformat(text), time.min)
+
+
+def _tool_error(exc: Exception) -> McpToolError:
+    for exc_type, code in _ERROR_CODES:
+        if isinstance(exc, exc_type):
+            return McpToolError(f"[{code}] {exc}")
+    return McpToolError(f"[INTERNAL] {type(exc).__name__}: {exc}")
 
 
 def _sanitize_arguments_for_log(arguments: dict) -> dict:

@@ -14,11 +14,14 @@ def serialize_for_mcp(value):
     return jsonable_encoder(value)
 
 
-def effective_limit(client: McpClientConfig, requested_limit: int | None) -> int:
-    client_limit = normalize_result_limit(client.max_result_limit)
+def effective_limit(client: McpClientConfig, requested_limit: int | None, tool_limit: int | None = None) -> int:
+    """工具级 max_result_limit 只用于放宽（如日线要拉长周期），不会把客户端上限调低。"""
+    ceiling = normalize_result_limit(client.max_result_limit)
+    if tool_limit is not None:
+        ceiling = max(ceiling, max(1, int(tool_limit)))
     if requested_limit is None:
-        return client_limit
-    return max(1, min(int(requested_limit), client_limit))
+        return ceiling
+    return max(1, min(int(requested_limit), ceiling))
 
 
 def execute_read_tool(
@@ -37,9 +40,11 @@ def execute_read_tool(
     if not is_tool_allowed(client, tool_name):
         raise PermissionError(f"MCP tool not allowed for client {client.name}: {tool_name}")
 
+    tool_limit = metadata.get("max_result_limit")
     requested_limit = arguments.get("limit")
-    limit = effective_limit(client, requested_limit if requested_limit is not None else None)
-    call_arguments = {**arguments, "limit": limit}
+    limit = effective_limit(client, requested_limit, int(tool_limit) if tool_limit is not None else None)
+    # 详情类工具不接受 limit，就不要硬塞给 handler，省掉一层只为吃掉参数的 lambda。
+    call_arguments = {**arguments, "limit": limit} if "limit" in arguments else dict(arguments)
     started_at = perf_counter()
     result = handler(db, **call_arguments)
     duration_ms = int((perf_counter() - started_at) * 1000)

@@ -53,7 +53,7 @@ def create_track(db: Session, payload: TrackCreate, enqueue_backfill: bool = Tru
     return _track_dict(db, track)
 
 
-def list_tracks(db: Session, status: str | None = None, q: str | None = None, limit: int | None = None) -> list[dict]:
+def list_tracks(db: Session, status: str | None = None, q: str | None = None, limit: int | None = None, offset: int = 0) -> list[dict]:
     stmt = select(Track).order_by(Track.updated_at.desc(), Track.id.desc())
     if status:
         stmt = stmt.where(Track.status == status)
@@ -67,6 +67,9 @@ def list_tracks(db: Session, status: str | None = None, q: str | None = None, li
                 Track.current_view.ilike(pattern),
             )
         )
+    safe_offset = max(0, int(offset or 0))
+    if safe_offset:
+        stmt = stmt.offset(safe_offset)
     if limit is not None:
         stmt = stmt.limit(limit)
     tracks = list(db.scalars(stmt))

@@ -39,6 +39,8 @@ WINDOWS = {
     "30d": timedelta(days=30),
 }
 
+DEFAULT_HEAT_WINDOW = "7d"
+
 RANK_CHANGE_BASELINES = {
     "24h": timedelta(hours=1),
     "7d": timedelta(days=1),
@@ -405,6 +407,26 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
+def _source_item_time_condition(start_time: datetime | None, end_time: datetime | None) -> list:
+    """publish_time 可能为空，这类条目按 created_at 参与时间过滤，避免被整段筛掉。"""
+    conditions = []
+    if start_time is not None:
+        conditions.append(
+            or_(
+                SourceItem.publish_time >= start_time,
+                and_(SourceItem.publish_time.is_(None), SourceItem.created_at >= start_time),
+            )
+        )
+    if end_time is not None:
+        conditions.append(
+            or_(
+                SourceItem.publish_time <= end_time,
+                and_(SourceItem.publish_time.is_(None), SourceItem.created_at <= end_time),
+            )
+        )
+    return conditions
+
+
 def _source_item_filter_conditions(
     *,
     q: str | None = None,
@@ -412,8 +434,10 @@ def _source_item_filter_conditions(
     source_type: str | None = None,
     important_only: bool = False,
     tag_id: int | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> list:
-    conditions = []
+    conditions = _source_item_time_condition(start_time, end_time)
     query = str(q or "").strip()
     if query:
         like_query = f"%{query}%"
@@ -471,6 +495,8 @@ def list_source_items_page(
     source_type: str | None = None,
     important_only: bool = False,
     tag_id: int | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> Page[dict]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
@@ -480,6 +506,8 @@ def list_source_items_page(
         source_type=source_type,
         important_only=important_only,
         tag_id=tag_id,
+        start_time=start_time,
+        end_time=end_time,
     )
     stmt = select(SourceItem).where(*conditions).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     total = count_source_items(
@@ -489,6 +517,8 @@ def list_source_items_page(
         source_type=source_type,
         important_only=important_only,
         tag_id=tag_id,
+        start_time=start_time,
+        end_time=end_time,
     )
     items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
     return make_page(_source_item_dicts(db, items), total, safe_limit, safe_offset)
@@ -501,6 +531,8 @@ def count_source_items(
     source_type: str | None = None,
     important_only: bool = False,
     tag_id: int | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
 ) -> int:
     conditions = _source_item_filter_conditions(
         q=q,
@@ -508,6 +540,8 @@ def count_source_items(
         source_type=source_type,
         important_only=important_only,
         tag_id=tag_id,
+        start_time=start_time,
+        end_time=end_time,
     )
     return int(db.scalar(select(func.count()).select_from(SourceItem).where(*conditions)) or 0)
 
@@ -893,8 +927,18 @@ def latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
     return result
 
 
-def tag_trend(db: Session, tag_id: int) -> list[TagHeatSnapshot]:
-    return list(db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.tag_id == tag_id).order_by(TagHeatSnapshot.stat_time.asc())))
+def tag_trend(db: Session, tag_id: int, window_type: str = DEFAULT_HEAT_WINDOW, limit: int | None = None) -> list[TagHeatSnapshot]:
+    """标签热度趋势。一个标签在同一时刻会有 24h/7d/30d 三条快照，必须按窗口过滤，否则序列是混窗口的。"""
+    if window_type not in WINDOWS:
+        raise ValueError(f"unsupported window_type: {window_type}")
+    stmt = (
+        select(TagHeatSnapshot)
+        .where(TagHeatSnapshot.tag_id == tag_id, TagHeatSnapshot.window_type == window_type)
+        .order_by(TagHeatSnapshot.stat_time.desc())
+    )
+    if limit is not None:
+        stmt = stmt.limit(max(1, int(limit)))
+    return list(reversed(list(db.scalars(stmt))))
 
 
 def rank_change_reference_stat_time(db: Session, window: str, latest_stat: datetime, *extra_conditions) -> datetime | None:

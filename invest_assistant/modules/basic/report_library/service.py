@@ -25,9 +25,18 @@ def list_reports(db: Session) -> list[Report]:
     return list(db.scalars(select(Report).order_by(Report.created_at.desc(), Report.id.desc())))
 
 
-def list_reports_page(db: Session, limit: int | None = 50, offset: int = 0, report_kind: str | None = None) -> Page[Report]:
+def list_reports_page(
+    db: Session,
+    limit: int | None = 50,
+    offset: int = 0,
+    report_kind: str | None = None,
+    q: str | None = None,
+) -> Page[Report]:
     stmt = select(Report).order_by(Report.created_at.desc(), Report.id.desc())
     stmt = _filter_reports_by_kind(stmt, report_kind)
+    keyword = str(q or "").strip()
+    if keyword:
+        stmt = stmt.where(Report.title.ilike(f"%{keyword}%"))
     return page_from_statement(db, stmt, limit=limit, offset=offset)
 
 

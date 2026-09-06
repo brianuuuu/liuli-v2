@@ -38,6 +38,8 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "read_only": True,
         "risk_level": "low",
         "service_name": "stock_analysis.service.list_cached_stock_daily_bars",
+        # 日线要按年拉长周期，客户端 50/100 的通用上限不够用，这里单独放宽到约三年交易日。
+        "max_result_limit": 800,
     },
     "knowledge_base.get_researcher_profile": {
         "read_only": True,

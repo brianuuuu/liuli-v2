@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v32：对外 MCP 面向外部投研工具做接口收敛：标签热度趋势按 `window_type`（24h/7d/30d，默认 7d）过滤，不再返回混窗口序列；标的和赛道详情默认只返回精简集，材料、公告、笔记、标签和历史序列改为 `sections` 显式索取并按条数上限裁剪，裁剪信息通过 `{字段}_total` 和 `truncated` 回传；信息流查询增加 `start_time`/`end_time` 时间范围和正文截断 `content_chars`；日 K 单独放宽到 800 根；赛道列表补 `offset`，报告库列表补标题关键词和报告口径过滤；查不到对象统一抛错，错误消息带 `[FORBIDDEN]`/`[NOT_FOUND]`/`[INVALID_ARGUMENT]`/`[INTERNAL]` 前缀；研究回流写入校验 `source`、`status` 取值和 `researcher_code` 是否存在。返回裁剪只做在 MCP 包装层，业务 service 对 Web 和 H5 的返回结构不变。
 - v31：对外 MCP 增加只读工具 `stock_analysis.list_pool`，作为外部 client 获取 `stock_id` 的入口，按证券代码、名称、拼音、简称在标的池范围内模糊匹配，返回结果同时带出已绑定的 `track_ids`；`stock_analysis.get_stock_profile` 与 `get_daily_bars` 的工具描述改为指向该入口，不再要求 client 自行猜测 ID。
 - v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，文件带 `researcher_code/display_name` frontmatter，并由 `knowledge_base.get_researcher_profile` 一次性返回完整 profile 原文、简介、价值观和方法论。
 - v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`，供 Codex 读取完整研究员 profile；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
