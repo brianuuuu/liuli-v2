@@ -4,11 +4,11 @@ export type StockDetailSection = "overview" | "rating" | "materials" | "notes";
 
 export const DEFAULT_STOCK_DETAIL_SECTION: StockDetailSection = "overview";
 
-export const STOCK_DETAIL_SECTIONS: { value: StockDetailSection; label: string }[] = [
-  { value: "overview", label: "概览" },
-  { value: "rating", label: "评分估值" },
-  { value: "materials", label: "材料" },
-  { value: "notes", label: "笔记" }
+export const STOCK_DETAIL_SECTIONS: { key: StockDetailSection; label: string }[] = [
+  { key: "overview", label: "概览" },
+  { key: "rating", label: "评分估值" },
+  { key: "materials", label: "材料" },
+  { key: "notes", label: "笔记" }
 ];
 
 export const SCORE_DIMENSIONS: { key: keyof StockScoreSnapshot; label: string }[] = [

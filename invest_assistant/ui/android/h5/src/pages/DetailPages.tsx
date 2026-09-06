@@ -9,12 +9,13 @@ import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
 import { nativeBridge, requestAppBack } from "../native/bridge";
 import { formatDateTime } from "../utils/format";
 
-export function DetailFrame({ title, children }: { title: string; children: React.ReactNode }) {
+/** header 传了就整块替换默认标题栏，给标的详情这类需要自定义头部的页面用。 */
+export function DetailFrame({ title, header, children }: { title?: string; header?: React.ReactNode; children: React.ReactNode }) {
   useLayoutEffect(() => {
     document.documentElement.scrollLeft = 0;
     document.body.scrollLeft = 0;
   }, []);
-  return <main className="detail-page"><header className="detail-header"><button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button><h1>{title}</h1><span /></header><div className="detail-content">{children}</div></main>;
+  return <main className="detail-page">{header ?? <header className="detail-header"><button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button><h1>{title}</h1><span /></header>}<div className="detail-content">{children}</div></main>;
 }
 
 export function NewsDetailPage() {

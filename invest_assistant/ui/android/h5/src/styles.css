@@ -466,9 +466,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pool-card--pager span { color: var(--blue); font-size: 10px; opacity: .75; }
 .pool-limit-hint { margin: 8px 2px 0; color: var(--subtle); font-size: 11px; }
 /* 标的视图切换沉到页面底部并贴底吸附：重要材料是无限流，不吸附就永远够不到。 */
-/* 标的页整列撑满一屏，分段器用 margin-top:auto 落到底部； 56px = 顶部二级导航 36 + 内容上内边距 12 + 吸底间距 8， -20px 抵消内容区 28px 下内边距中多出的部分，避免短内容时多出一段滚动。 */
-.stock-view-stack { display: flex; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); flex-direction: column; margin-bottom: -20px; }
-.stock-view-bar { position: sticky; z-index: 5; bottom: 8px; margin-top: auto; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+/* 分段器 Portal 到 body 上 fixed 悬浮，页面自己留出被盖住的高度。 */
+.stock-view-stack { padding-bottom: 54px; }
+.stock-view-bar { position: fixed; z-index: 15; right: 12px; bottom: 8px; left: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .stock-view-bar .pill-segments { margin-bottom: 0; }
 .stock-view-bar .pill-segments button { flex: 1 1 0; text-align: center; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; border-radius: 8px; background: var(--panel-soft); }
@@ -480,25 +480,34 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 
 .dashboard-material-item__entity-link { min-width: 0; overflow: hidden; padding: 0; color: var(--text); font-size: 13px; font-weight: 680; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.stock-profile { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-.stock-profile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.stock-profile__head > div { min-width: 0; }
-.stock-profile__head h2 { overflow: hidden; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .2px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.stock-profile__head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.stock-head { position: sticky; z-index: 20; top: 0; border-bottom: 1px solid var(--border); background: var(--panel); }
+.stock-head__main { display: grid; min-height: 48px; align-items: center; grid-template-columns: 44px minmax(0, 1fr) auto; }
+.stock-head__main > button { display: grid; height: 48px; place-items: center; }
+.stock-head__title { min-width: 0; }
+.stock-head__title strong { display: block; overflow: hidden; font-size: 17px; font-weight: 680; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.stock-head__title span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.stock-head__score { display: grid; justify-items: end; gap: 2px; padding: 0 14px 0 10px; }
+.stock-head__score b { color: var(--blue); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.stock-head__score span { color: var(--subtle); font-size: 10px; white-space: nowrap; }
+.stock-head__facts { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 0 14px 9px 44px; scrollbar-width: none; }
+.stock-head__facts::-webkit-scrollbar { display: none; }
+.stock-head__facts em { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-style: normal; white-space: nowrap; }
+.stock-head__facts i { flex: 0 0 auto; color: var(--border); font-style: normal; }
+.stock-head__facts .stock-status { padding: 3px 8px; }
+.stock-head .secondary-navigation { border-top: 1px solid var(--border); background: transparent; }
+.stock-head .secondary-navigation__track { padding: 0 8px; }
+.stock-head .secondary-navigation__item { flex: 1 1 0; }
 .stock-status { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 620; line-height: 1.35; white-space: nowrap; }
 .stock-status--focused { background: var(--blue-soft); color: var(--blue); }
 .stock-status--watching { background: #fff3e0; color: #b45309; }
 .stock-status--archived { color: var(--subtle); }
 :root[data-theme="dark"] .stock-status--watching { background: #2a2113; color: #f59e0b; }
-.stock-profile__tracks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.stock-profile__tracks span { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
-.stock-profile__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.stock-profile__metrics div { display: grid; min-width: 0; gap: 4px; padding-left: 12px; border-left: 1px solid var(--border); }
-.stock-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
-.stock-profile__metrics span { color: var(--muted); font-size: 11px; }
-.stock-profile__metrics strong { overflow: hidden; font-size: 17px; font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .stock-detail-chart { width: 100%; }
 .stock-detail-chart.is-loading { border-radius: 8px; background: var(--panel-soft); }
+.stock-detail-score-head { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); margin-bottom: 4px; }
+.stock-detail-score-head div { padding: 10px 12px; border-radius: 8px; background: var(--panel-soft); }
+.stock-detail-score-head span { display: block; color: var(--muted); font-size: 12px; }
+.stock-detail-score-head strong { display: block; margin-top: 6px; font-size: 20px; font-weight: 700; }
 .stock-detail-copy { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--blue); }
 .stock-detail-copy.is-risk { border-left-color: #f59e0b; }
 .stock-detail-copy span { color: var(--muted); font-size: 12px; }
@@ -575,4 +584,5 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   body { display: flex; justify-content: center; background: #dce2ea; }
   #root { width: 430px; background: var(--bg); box-shadow: 0 0 30px rgba(0, 0, 0, .12); }
   .mobile-page-frame__top { right: auto; left: 50%; width: 430px; transform: translateX(-50%); }
+  .stock-view-bar { right: auto; left: 50%; width: 406px; transform: translateX(-50%); }
 }

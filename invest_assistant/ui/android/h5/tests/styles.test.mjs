@@ -138,11 +138,23 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;[^}]*bottom:\s*8px;[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
-    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*calc\(100dvh - 56px\);[^}]*flex-direction:\s*column;[^}]*margin-bottom:\s*-20px;/s);
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*margin-top:\s*auto;/s);
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*12px;[^}]*bottom:\s*8px;[^}]*left:\s*12px;[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*54px;/s);
+    expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*text-align:\s*center;/s);
+  });
+
+  it("标的详情吸顶头部三行成组", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.stock-head\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*border-bottom:\s*1px solid var\(--border\);[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-head__main\s*\{[^}]*display:\s*grid;[^}]*min-height:\s*48px;[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) auto;/s);
+    expect(styles).toMatch(/\.stock-head__score b\s*\{[^}]*color:\s*var\(--blue\);[^}]*font-variant-numeric:\s*tabular-nums;/s);
+    expect(styles).toMatch(/\.stock-head__facts\s*\{[^}]*display:\s*flex;[^}]*overflow-x:\s*auto;/s);
+    expect(styles).toMatch(/\.stock-head \.secondary-navigation\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.stock-status--focused\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
+    expect(styles).not.toMatch(/\.stock-profile\s*\{/s);
   });
 
   it("renders dashboard materials as a compact continuous list", () => {

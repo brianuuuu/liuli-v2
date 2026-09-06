@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { Fragment, lazy, Suspense, useState } from "react";
 import { useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
+import { requestAppBack } from "../native/bridge";
 import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
@@ -39,22 +41,8 @@ export function StockDetailPage() {
   }
   const detail = query.data;
   return (
-    <DetailFrame title="标的详情">
+    <DetailFrame header={<StockDetailHeader detail={detail} section={section} onSection={setSection} />}>
       <div className="page-stack">
-        <StockProfile detail={detail} />
-        <div className="pill-segments pill-segments--compact" role="group" aria-label="标的详情分区">
-          {STOCK_DETAIL_SECTIONS.map((item) => (
-            <button
-              type="button"
-              key={item.value}
-              className={section === item.value ? "is-active" : ""}
-              aria-pressed={section === item.value}
-              onClick={() => setSection(item.value)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
         {section === "overview" ? <OverviewSection detail={detail} /> : null}
         {section === "rating" ? <RatingSection detail={detail} /> : null}
         {section === "materials" ? <MaterialsSection detail={detail} /> : null}
@@ -64,33 +52,41 @@ export function StockDetailPage() {
   );
 }
 
-/** 档案头：顶部标题栏只写“标的详情”，这张卡负责公司名、代码、状态、赛道和三项关键指标。 */
-function StockProfile({ detail }: { detail: StockDetail }) {
+/** 吸顶头部：第一行返回+名称/代码+评分，第二行状态和赛道，第三行分区导航，滚动时始终可见。 */
+function StockDetailHeader({ detail, section, onSection }: {
+  detail: StockDetail;
+  section: StockDetailSection;
+  onSection: (value: StockDetailSection) => void;
+}) {
   const status = detail.pool?.status ?? detail.stock.status;
   const tracks = trackNames(detail);
   const identity = stockIdentityLine(detail);
   const score = detail.latest_score;
-  const gap = detail.latest_valuation?.expectation_gap_rate;
   return (
-    <section className="stock-profile">
-      <div className="stock-profile__head">
-        <div>
-          <h2>{detail.stock.stock_name?.trim() || detail.stock.stock_code?.trim() || "未命名标的"}</h2>
-          {identity ? <p>{identity}</p> : null}
+    <header className="stock-head">
+      <div className="stock-head__main">
+        <button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button>
+        <div className="stock-head__title">
+          <strong>{detail.stock.stock_name?.trim() || detail.stock.stock_code?.trim() || "未命名标的"}</strong>
+          {identity ? <span>{identity}</span> : null}
         </div>
-        {status ? <span className={`stock-status stock-status--${poolStatusTone(status)}`}>{poolStatusLabel(status)}</span> : null}
+        {score ? (
+          <div className="stock-head__score">
+            <b>{formatNumber(score.total_score, 2)}</b>
+            <span>综合评分{score.investment_level ? ` · ${score.investment_level}` : ""}</span>
+          </div>
+        ) : null}
       </div>
-      {tracks.length ? (
-        <div className="stock-profile__tracks">
-          {tracks.map((name) => <span key={name}>{name}</span>)}
+      {status || tracks.length ? (
+        <div className="stock-head__facts" data-horizontal-scroll="true">
+          {status ? <span className={`stock-status stock-status--${poolStatusTone(status)}`}>{poolStatusLabel(status)}</span> : null}
+          {tracks.map((name, index) => (
+            <Fragment key={name}>{index > 0 ? <i aria-hidden="true">·</i> : null}<em>{name}</em></Fragment>
+          ))}
         </div>
       ) : null}
-      <div className="stock-profile__metrics">
-        <div><span>综合评分</span><strong>{score ? formatNumber(score.total_score, 2) : "-"}</strong></div>
-        <div><span>投资等级</span><strong>{score?.investment_level || "-"}</strong></div>
-        <div><span>三年空间</span><strong className={valuationGapTone(gap)}>{formatValuationGap(gap)}</strong></div>
-      </div>
-    </section>
+      <SecondaryNavigation items={STOCK_DETAIL_SECTIONS} activeKey={section} onChange={onSection} />
+    </header>
   );
 }
 
@@ -102,6 +98,10 @@ function OverviewSection({ detail }: { detail: StockDetail }) {
       <SectionCard title="最新评级">
         {score ? (
           <>
+            <div className="stock-detail-score-head">
+              <div><span>综合评分</span><strong>{formatNumber(score.total_score, 2)}</strong></div>
+              <div><span>投资等级</span><strong>{score.investment_level || "-"}</strong></div>
+            </div>
             <Suspense fallback={<ChartFallback height={220} />}>
               <RatingRadar dimensions={scoreDimensions(score)} />
             </Suspense>

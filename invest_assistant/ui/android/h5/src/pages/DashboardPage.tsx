@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
@@ -57,7 +58,7 @@ export function DashboardPage() {
         if (key === "today") return <TodayDashboard />;
         if (key === "market") return <MarketDashboard />;
         if (key === "track") return <TrackDashboard />;
-        if (key === "stock") return <StockDashboard />;
+        if (key === "stock") return <StockDashboard active={key === tab} />;
         return <PortfolioDashboard />;
       }} />
     </MobilePageFrame>
@@ -210,26 +211,34 @@ function TrackDashboard() {
   );
 }
 
-function StockDashboard() {
+/**
+ * 视图分段器挂到 body 上做 fixed：横滑分页容器带 transform 和 contain，
+ * 页内的 fixed 会以分页容器为包含块，sticky 又要靠整列高度撑，都不稳。
+ * 只有当前 tab 渲染它，避免相邻预渲染页把分段器带到别的 tab 上。
+ */
+function StockDashboard({ active }: { active: boolean }) {
   const [view, setView] = useState<StockTabView>(lastStockView);
   return (
     <div className="page-stack stock-view-stack">
       {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
-      <div className="stock-view-bar">
-        <div className="pill-segments" role="group" aria-label="标的视图" data-swipe-ignore="true">
-          {STOCK_TAB_VIEWS.map((item) => (
-            <button
-              type="button"
-              key={item.value}
-              className={view === item.value ? "is-active" : ""}
-              aria-pressed={view === item.value}
-              onClick={() => { rememberStockView(item.value); setView(item.value); }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {active ? createPortal(
+        <div className="stock-view-bar" data-swipe-ignore="true">
+          <div className="pill-segments" role="group" aria-label="标的视图">
+            {STOCK_TAB_VIEWS.map((item) => (
+              <button
+                type="button"
+                key={item.value}
+                className={view === item.value ? "is-active" : ""}
+                aria-pressed={view === item.value}
+                onClick={() => { rememberStockView(item.value); setView(item.value); }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }
