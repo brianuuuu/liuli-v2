@@ -1,6 +1,8 @@
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig
 from invest_assistant.modules.basic.mcp.service import execute_read_tool, execute_write_tool
 from invest_assistant.modules.basic.report_library import service as report_service
+from invest_assistant.modules.basic.report_library.schemas import ReportRead
+from invest_assistant.shared.pagination import Page
 
 
 def list_reports(
@@ -12,12 +14,22 @@ def list_reports(
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
+    def handler(session, **arguments) -> Page[ReportRead]:
+        page = report_service.list_reports_page(session, **arguments)
+        return Page[ReportRead](
+            items=[ReportRead.model_validate(item) for item in page.items],
+            total=page.total,
+            limit=page.limit,
+            offset=page.offset,
+            has_more=page.has_more,
+        )
+
     return execute_read_tool(
         db=db,
         client=client,
         tool_name="report_library.list_reports",
         arguments={"q": q, "report_kind": report_kind, "limit": limit, "offset": offset},
-        handler=report_service.list_reports_page,
+        handler=handler,
     )
 
 

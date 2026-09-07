@@ -9,6 +9,7 @@ from mcp.server.auth.settings import AuthSettings
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic_core import PydanticSerializationError
 
 from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.bootstrap.config import get_settings
@@ -25,6 +26,7 @@ class McpToolError(RuntimeError):
 
 
 _ERROR_CODES: tuple[tuple[type[Exception], str], ...] = (
+    (PydanticSerializationError, "INTERNAL"),
     (PermissionError, "FORBIDDEN"),
     (FileNotFoundError, "NOT_FOUND"),
     (ValueError, "INVALID_ARGUMENT"),
@@ -72,8 +74,8 @@ MCP_TOOL_DESCRIPTIONS = {
         "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"
         "不要把股票代码或证券代码直接当 stock_id，缺少 ID 时先用 stock_analysis.list_pool 查询。"
         "默认只返回基础信息、汇总、最新评分、最新估值和赛道绑定；需要材料、公告、笔记、标签或历史序列时"
-        "用 sections 显式指定（score/valuation/materials/disclosures/tracks/notes/tags），"
-        "列表字段按 history_limit 截断并给出 {字段}_total。"
+        "用 sections 显式指定（score_history/valuation_history/materials/disclosures/notes/tags），"
+        "列表字段按 history_limit 截断并给出 {字段}_total，history_limit 取值为 1 到 100。"
     ),
     "stock_analysis.get_daily_bars": (
         "按已知 stock_id 查询本地缓存的股票日 K 数据，可指定 start_date、end_date 和 limit。"

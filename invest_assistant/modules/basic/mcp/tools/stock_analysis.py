@@ -6,8 +6,10 @@ from invest_assistant.modules.basic.mcp.service import execute_read_tool
 from invest_assistant.modules.stock_analysis import service as stock_service
 
 STOCK_PROFILE_SECTIONS: dict[str, tuple[str, ...]] = {
-    "score": ("latest_score", "score_history"),
-    "valuation": ("latest_valuation", "valuation_history"),
+    "score": ("latest_score",),
+    "score_history": ("score_history",),
+    "valuation": ("latest_valuation",),
+    "valuation_history": ("valuation_history",),
     "materials": ("materials",),
     "disclosures": ("disclosures",),
     "tracks": ("tracks",),
@@ -16,6 +18,7 @@ STOCK_PROFILE_SECTIONS: dict[str, tuple[str, ...]] = {
 }
 DEFAULT_STOCK_PROFILE_SECTIONS = ("score", "valuation", "tracks")
 DEFAULT_STOCK_PROFILE_HISTORY_LIMIT = 20
+MAX_STOCK_PROFILE_HISTORY_LIMIT = 100
 
 
 def list_pool(*, db, client: McpClientConfig, q: str | None = None, limit: int = 50) -> dict:
@@ -36,6 +39,7 @@ def get_stock_profile(
     sections: list[str] | None = None,
     history_limit: int = DEFAULT_STOCK_PROFILE_HISTORY_LIMIT,
 ) -> dict:
+    history_limit = _validate_history_limit(history_limit)
     state = {"truncated": False}
 
     def handler(session, stock_id: int) -> dict:
@@ -66,6 +70,13 @@ def get_stock_profile(
     if state["truncated"]:
         result["truncated"] = True
     return result
+
+
+def _validate_history_limit(value: int) -> int:
+    limit = int(value)
+    if not 1 <= limit <= MAX_STOCK_PROFILE_HISTORY_LIMIT:
+        raise ValueError(f"history_limit must be between 1 and {MAX_STOCK_PROFILE_HISTORY_LIMIT}")
+    return limit
 
 
 def get_daily_bars(
