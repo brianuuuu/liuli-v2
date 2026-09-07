@@ -216,15 +216,17 @@
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `stock_id` | int | 必填 | 标的主键 ID |
-| `sections` | string[] \| null | `["score","valuation","tracks"]` | 可选 `score` / `valuation` / `materials` / `disclosures` / `tracks` / `notes` / `tags`，未选中的整段不返回 |
-| `history_limit` | int | `20` | 各列表字段的条数上限 |
+| `sections` | string[] \| null | `["score","valuation","tracks"]` | 可选 `score` / `score_history` / `valuation` / `valuation_history` / `materials` / `disclosures` / `tracks` / `notes` / `tags`，未选中的整段不返回；历史序列必须显式选择 |
+| `history_limit` | int | `20` | 各列表字段的条数上限，取值范围 1～100 |
 
 返回单体信封，`data` 恒含 `stock`（`id`、`symbol`、`stock_code`、`stock_name`、`market`、`exchange`、`status`、`created_at`、`updated_at`）、`pool`（标的池条目，无则 `null`）和 `summary`（`track_count`、`material_count`、`high_importance_material_count`、`note_count`、`last_updated_at`）；其余按 `sections`：
 
 | section | 字段 | 裁剪方式 |
 |---|---|---|
-| `score` | `latest_score`、`score_history` | 历史取最近 `history_limit` 条（原序为时间升序） |
-| `valuation` | `latest_valuation`、`valuation_history` | 同上 |
+| `score` | `latest_score` | 不裁剪 |
+| `score_history` | `score_history` | 取最近 `history_limit` 条（原序为时间升序） |
+| `valuation` | `latest_valuation` | 不裁剪 |
+| `valuation_history` | `valuation_history` | 取最近 `history_limit` 条（原序为时间升序） |
 | `materials` | `materials` | 取最新 `history_limit` 条 |
 | `disclosures` | `disclosures` | 取最新 `history_limit` 条 |
 | `tracks` | `tracks` | 不裁剪 |
