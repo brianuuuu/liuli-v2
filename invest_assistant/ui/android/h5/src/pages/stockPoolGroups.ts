@@ -46,6 +46,18 @@ export function poolStatusCounts(items: StockPoolItem[]): Record<PoolStatusKey, 
   }, {} as Record<PoolStatusKey, number>);
 }
 
+export type AnnualizedValuationSpace = "大" | "中" | "小";
+
+/** 将三年总估值空间按复合增长率折算成年化，再映射为卡片角标。 */
+export function annualizedValuationSpace(expectationGapRate?: number | null): AnnualizedValuationSpace | null {
+  if (expectationGapRate == null || !Number.isFinite(expectationGapRate) || expectationGapRate <= -1) return null;
+  const annualizedRate = Math.pow(1 + expectationGapRate, 1 / 3) - 1;
+  const thresholdTolerance = 1e-12;
+  if (annualizedRate > 0.2 + thresholdTolerance) return "大";
+  if (annualizedRate >= 0.1 - thresholdTolerance) return "中";
+  return "小";
+}
+
 /** 标的卡片按三列排布，最多六行；超出时最后一格让给翻页按钮。 */
 export const POOL_CARD_COLUMNS = 3;
 export const POOL_CARD_MAX_ROWS = 6;

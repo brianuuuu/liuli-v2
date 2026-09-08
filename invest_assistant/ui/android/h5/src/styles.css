@@ -455,11 +455,19 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .profile-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
 .pool-card-grid { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* 内容垂直居中，没有绑定赛道的卡片才不会在底部留出空洞。 */
-.pool-card { display: flex; min-width: 0; min-height: 58px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
+.pool-card { position: relative; display: flex; min-width: 0; min-height: 58px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
 .pool-card:active { border-color: var(--blue); background: var(--blue-soft); }
 /* 三层信息依次减弱：名称 > 代码 > 赛道。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .pool-card span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.pool-card .pool-card__badges { position: absolute; top: 4px; right: 4px; display: flex; overflow: visible; gap: 2px; }
+.pool-card__badge { display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-size: 9px; font-style: normal; font-weight: 700; line-height: 16px; }
+.pool-card__badge--space-大 { background: #fee2e2; color: #dc2626; }
+.pool-card__badge--space-中 { background: #fef3c7; color: #b45309; }
+.pool-card__badge--space-小 { background: #e2e8f0; color: #64748b; }
+:root[data-theme="dark"] .pool-card__badge--space-大 { background: #3b171b; color: #f87171; }
+:root[data-theme="dark"] .pool-card__badge--space-中 { background: #34260f; color: #fbbf24; }
+:root[data-theme="dark"] .pool-card__badge--space-小 { background: #273244; color: #94a3b8; }
 /* 翻页格与标的卡片同尺寸，用主色浅底表明它是动作而不是一条数据。 */
 .pool-card--pager { align-items: center; justify-content: center; gap: 2px; border-color: var(--blue-soft); background: var(--blue-soft); }
 .pool-card--pager strong { color: var(--blue); font-size: 12px; font-weight: 650; }

@@ -17,6 +17,7 @@ import {
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
+  annualizedValuationSpace,
   filterPoolByStatus,
   nextPoolPage,
   poolPageLayout,
@@ -274,6 +275,7 @@ function StockPoolView() {
           <div className="pool-card-grid">
             {layout.cards.map((item) => (
               <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+                <PoolCardBadges investmentLevel={item.investment_level} expectationGapRate={item.expectation_gap_rate} />
                 <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
                 <span>{item.stock_code?.trim() || "--"}</span>
               </button>
@@ -294,6 +296,21 @@ function StockPoolView() {
         </>
       ) : <EmptyState title="该状态下暂无标的" detail="切换上方分组查看其他标的" />}
     </SectionCard>
+  );
+}
+
+function PoolCardBadges({ investmentLevel, expectationGapRate }: {
+  investmentLevel?: string | null;
+  expectationGapRate?: number | null;
+}) {
+  const level = investmentLevel?.trim();
+  const space = annualizedValuationSpace(expectationGapRate);
+  if (!level && !space) return null;
+  return (
+    <span className="pool-card__badges" aria-label="投资等级和三年空间">
+      {level ? <i className="pool-card__badge">{level}</i> : null}
+      {space ? <i className={`pool-card__badge pool-card__badge--space-${space}`}>{space}</i> : null}
+    </span>
   );
 }
 
