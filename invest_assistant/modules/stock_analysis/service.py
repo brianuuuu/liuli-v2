@@ -341,7 +341,18 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None) -> li
     if limit is not None:
         stmt = stmt.limit(limit)
     rows = db.execute(stmt).all()
-    return [_pool_item_dict_from_stock(db, item, stock) for item, stock in rows]
+    stock_ids = [item.stock_id for item, _stock in rows]
+    latest_scores = _latest_scores_by_stock(db, stock_ids)
+    latest_valuations = _latest_valuations_by_stock(db, stock_ids)
+    result = []
+    for item, stock in rows:
+        row = _pool_item_dict_from_stock(db, item, stock)
+        score = latest_scores.get(item.stock_id)
+        valuation = latest_valuations.get(item.stock_id)
+        row["investment_level"] = score.investment_level if score else None
+        row["expectation_gap_rate"] = valuation.expectation_gap_rate if valuation else None
+        result.append(row)
+    return result
 
 
 def list_candidates(db: Session) -> list[dict]:
@@ -744,6 +755,8 @@ def _active_track_summaries_for_stock(db: Session, stock_id: int) -> list[dict]:
 
 
 def _latest_scores_by_stock(db: Session, stock_ids: list[int]) -> dict[int, StockScoreSnapshot]:
+    if not stock_ids:
+        return {}
     scores = list(
         db.scalars(
             select(StockScoreSnapshot)
@@ -759,6 +772,27 @@ def _latest_scores_by_stock(db: Session, stock_ids: list[int]) -> dict[int, Stoc
     for score in scores:
         if score.stock_id not in latest:
             latest[score.stock_id] = score
+    return latest
+
+
+def _latest_valuations_by_stock(db: Session, stock_ids: list[int]) -> dict[int, StockValuationSnapshot]:
+    if not stock_ids:
+        return {}
+    valuations = list(
+        db.scalars(
+            select(StockValuationSnapshot)
+            .where(StockValuationSnapshot.stock_id.in_(stock_ids))
+            .order_by(
+                StockValuationSnapshot.stock_id.asc(),
+                StockValuationSnapshot.analysis_date.desc(),
+                StockValuationSnapshot.id.desc(),
+            )
+        )
+    )
+    latest: dict[int, StockValuationSnapshot] = {}
+    for valuation in valuations:
+        if valuation.stock_id not in latest:
+            latest[valuation.stock_id] = valuation
     return latest
 
 

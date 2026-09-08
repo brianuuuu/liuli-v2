@@ -4,6 +4,7 @@ import {
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
+  annualizedValuationSpace,
   filterPoolByStatus,
   poolStatusCounts,
   poolStatusLabel,
@@ -100,5 +101,21 @@ describe("标的池卡片分页", () => {
     expect(nextPoolPage(0, 4)).toBe(1);
     expect(nextPoolPage(3, 4)).toBe(0);
     expect(nextPoolPage(0, 1)).toBe(0);
+  });
+});
+
+describe("标的池卡片三年空间角标", () => {
+  it("按三年复合增长率折算为大中小", () => {
+    expect(annualizedValuationSpace(1.0)).toBe("大");
+    expect(annualizedValuationSpace(0.5)).toBe("中");
+    expect(annualizedValuationSpace(0.1)).toBe("小");
+    expect(annualizedValuationSpace(Math.pow(1.2, 3) - 1)).toBe("中");
+    expect(annualizedValuationSpace(Math.pow(1.1, 3) - 1)).toBe("中");
+  });
+
+  it("缺失或无效空间不生成角标", () => {
+    expect(annualizedValuationSpace(null)).toBeNull();
+    expect(annualizedValuationSpace(Number.NaN)).toBeNull();
+    expect(annualizedValuationSpace(-1)).toBeNull();
   });
 });
