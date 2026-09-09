@@ -188,6 +188,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   background: var(--panel);
   box-shadow: var(--shadow);
 }
+.dashboard-flat-section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .section-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .section-card__header h2 { margin: 0; font-size: 15px; font-weight: 680; }
 .market-ranking-card { min-width: 0; }
@@ -456,6 +457,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pool-card-grid { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* 内容垂直居中，没有绑定赛道的卡片才不会在底部留出空洞。 */
 .pool-card { position: relative; display: flex; min-width: 0; min-height: 58px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
+.dashboard-flat-section .pool-card { background: var(--panel); }
 .pool-card:active { border-color: var(--blue); background: var(--blue-soft); }
 /* 三层信息依次减弱：名称 > 代码 > 赛道。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
@@ -470,6 +472,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 :root[data-theme="dark"] .pool-card__badge--space-小 { background: #273244; color: #94a3b8; }
 /* 翻页格与标的卡片同尺寸，用主色浅底表明它是动作而不是一条数据。 */
 .pool-card--pager { align-items: center; justify-content: center; gap: 2px; border-color: var(--blue-soft); background: var(--blue-soft); }
+.dashboard-flat-section .pool-card--pager { background: var(--blue-soft); }
 .pool-card--pager strong { color: var(--blue); font-size: 12px; font-weight: 650; }
 .pool-card--pager span { color: var(--blue); font-size: 10px; opacity: .75; }
 .pool-limit-hint { margin: 8px 2px 0; color: var(--subtle); font-size: 11px; }

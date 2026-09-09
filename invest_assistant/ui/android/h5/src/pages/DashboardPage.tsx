@@ -130,7 +130,7 @@ function MarketDashboard() {
   });
   return (
     <div className="page-stack">
-      <SectionCard title="热度排行榜" className="market-ranking-card">
+      <SectionCard className="market-ranking-card dashboard-flat-section">
         <div className="market-ranking-content" aria-live="polite">
           {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
             <ErrorState message="热度排行加载失败" onRetry={() => void rankings.refetch()} />
@@ -195,7 +195,7 @@ function TrackDashboard() {
   }))) ?? [];
   return (
     <div className="page-stack">
-      <SectionCard title="重要材料">
+      <SectionCard className="dashboard-flat-section">
         {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
           <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
         ) : (
@@ -254,7 +254,7 @@ function StockPoolView() {
   const visible = filterPoolByStatus(items, status);
   const layout = poolPageLayout(visible, page);
   return (
-    <SectionCard title="标的池">
+    <SectionCard className="dashboard-flat-section">
       <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="标的池状态">
         {POOL_STATUS_OPTIONS.map((option) => (
           <button
@@ -336,7 +336,7 @@ function StockMaterialsView() {
     materialTime: item.material_time
   }))) ?? [];
   return (
-    <SectionCard title="最新材料">
+    <SectionCard className="dashboard-flat-section">
       {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
         <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
       ) : (

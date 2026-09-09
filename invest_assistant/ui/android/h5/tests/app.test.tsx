@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
 import { tokenStorageKey } from "../src/api/client";
+import { resetDashboardViewState } from "../src/pages/dashboardViewState";
 
 vi.mock("../src/components/MiniChart", () => ({
   DonutChart: ({ items }: { items: Array<{ name: string; value: number }> }) => (
@@ -48,6 +49,7 @@ class DashboardObserverFake {
 
 describe("mobile H5 app", () => {
   beforeEach(() => {
+    resetDashboardViewState();
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.location.hash = "";
@@ -311,12 +313,11 @@ describe("mobile H5 app", () => {
     fireEvent.click(marketTab);
     await waitFor(() => expect(marketTab).toHaveAttribute("aria-selected", "true"));
 
-    const heading = await screen.findByRole("heading", { name: "热度排行榜" });
     const ranking = await screen.findByText("1. 市场热词");
     const typeFilter = screen.getByRole("group", { name: "排行榜类型" });
     const windowFilter = screen.getByRole("group", { name: "时间范围" });
 
-    expect(heading.compareDocumentPosition(ranking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "热度排行榜" })).not.toBeInTheDocument();
     expect(ranking.compareDocumentPosition(typeFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(typeFilter.compareDocumentPosition(windowFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(typeFilter.parentElement).toHaveAttribute("data-swipe-ignore", "true");
@@ -483,10 +484,12 @@ describe("mobile H5 app", () => {
     renderApp();
     const trackTab = await screen.findByRole("tab", { name: "赛道" });
     fireEvent.click(trackTab);
+    await waitFor(() => expect(trackTab).toHaveAttribute("aria-selected", "true"));
     expect(await screen.findByText("先进制程取得进展")).toBeInTheDocument();
     expect(screen.getByText("半导体")).toBeInTheDocument();
     expect(screen.getByText("产业链验证进度加快")).toBeInTheDocument();
     expect(screen.getByText("利好")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "重要材料" })).not.toBeInTheDocument();
     expect(screen.queryByText("升温赛道")).not.toBeInTheDocument();
     expect(screen.queryByText("重点赛道")).not.toBeInTheDocument();
     expect(screen.queryByText("赛道热度")).not.toBeInTheDocument();
@@ -538,6 +541,9 @@ describe("mobile H5 app", () => {
           has_more: !secondPage
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
+      if (url.includes("/api/stock-analysis/pool")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
       if (url.includes("/api/console/workbench-today")) {
         return new Response(JSON.stringify({ market_indices: { items: [] } }), {
           status: 200,
@@ -554,12 +560,14 @@ describe("mobile H5 app", () => {
     renderApp();
     const stockTab = await screen.findByRole("tab", { name: "标的" });
     fireEvent.click(stockTab);
+    await waitFor(() => expect(stockTab).toHaveAttribute("aria-selected", "true"));
     expect(await screen.findByText("海外订单增速放缓")).toBeInTheDocument();
     expect(screen.getByText("宁德时代")).toBeInTheDocument();
     expect(screen.getByText("300750")).toBeInTheDocument();
     expect(screen.getByText("短期需求承压")).toBeInTheDocument();
     expect(screen.getByText("利空")).toBeInTheDocument();
-    expect(screen.queryByText("标的池")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "最新材料" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "标的池" })).toBeInTheDocument();
     expect(screen.queryByText("重点标的")).not.toBeInTheDocument();
     expect(screen.queryByText("评分排行")).not.toBeInTheDocument();
 
@@ -573,6 +581,13 @@ describe("mobile H5 app", () => {
     expect(materialUrls.every((url) => url.includes("status=confirmed"))).toBe(true);
     expect(materialUrls.some((url) => url.includes("offset=0") && url.includes("limit=10"))).toBe(true);
     expect(materialUrls.some((url) => url.includes("offset=10") && url.includes("limit=10"))).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "标的池" }));
+    expect(await screen.findByText("该状态下暂无标的")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "标的池" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "重要材料" }));
+    expect(await screen.findByText("海外订单增速放缓")).toBeInTheDocument();
   });
 
   it("keeps edit groups as the pinned note navigation action", async () => {
