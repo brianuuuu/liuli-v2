@@ -104,6 +104,57 @@ def test_researcher_profile_create_update_and_read_round_trip(tmp_path, monkeypa
     )
 
 
+def test_update_researcher_keeps_sections_absent_from_payload(tmp_path, monkeypatch):
+    """前端只提交部分段落时（例如 Tabs 未挂载的字段），其余段落必须原样保留。"""
+    patch_researcher_roots(monkeypatch, tmp_path)
+    SessionLocal, _ = make_session(tmp_path)
+    db = SessionLocal()
+
+    created = service.create_researcher(
+        db,
+        KnowledgeResearcherCreate(
+            researcher_code="analyst_003",
+            display_name="A股标的研究员",
+            status="active",
+            intro="原始简介",
+            soul="原始价值观",
+            method="原始方法论",
+        ),
+    )
+
+    # 只提交 soul，intro 与 method 缺省为 None
+    updated = service.update_researcher(
+        db,
+        service.get_researcher(db, created.id),
+        KnowledgeResearcherCreate(
+            researcher_code="analyst_003",
+            display_name="A股标的研究员",
+            status="active",
+            soul="新价值观",
+        ),
+    )
+
+    assert updated.soul == "新价值观"
+    assert updated.method == "原始方法论"
+    assert updated.intro == "原始简介"
+
+    # 显式空串仍然是清空，不能被"保留原值"吞掉
+    cleared = service.update_researcher(
+        db,
+        service.get_researcher(db, created.id),
+        KnowledgeResearcherCreate(
+            researcher_code="analyst_003",
+            display_name="A股标的研究员",
+            status="active",
+            method="",
+        ),
+    )
+
+    assert cleared.method == ""
+    assert cleared.soul == "新价值观"
+    assert cleared.intro == "原始简介"
+
+
 def test_researcher_profile_parser_returns_empty_missing_sections(tmp_path, monkeypatch):
     knowledge_root = patch_researcher_roots(monkeypatch, tmp_path)
     profile_path = knowledge_root / "external" / "researchers" / "analyst_002" / "profile.md"

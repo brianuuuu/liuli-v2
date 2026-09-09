@@ -106,9 +106,10 @@ class KnowledgeResearcherCreate(BaseModel):
     researcher_code: str
     display_name: str
     status: str = "active"
-    intro: str = ""
-    soul: str = ""
-    method: str = ""
+    # None 表示本次不提交该段落，写档时保留原有内容；空串才是显式清空。
+    intro: str | None = None
+    soul: str | None = None
+    method: str | None = None
 
 
 class KnowledgeResearcherRead(KnowledgeResearcherCreate):
@@ -116,6 +117,9 @@ class KnowledgeResearcherRead(KnowledgeResearcherCreate):
     profile_path: str
     profile_hash: str | None = None
     profile_content: str = ""
+    intro: str = ""
+    soul: str = ""
+    method: str = ""
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

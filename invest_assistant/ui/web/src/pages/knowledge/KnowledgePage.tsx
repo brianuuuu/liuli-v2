@@ -985,6 +985,7 @@ function ResearcherSection() {
               {
                 key: "intro",
                 label: "简介",
+                forceRender: true,
                 children: (
                   <Form.Item name="intro" label="简介">
                     <Input.TextArea rows={12} placeholder="研究员定位、适用边界和使用说明" />
@@ -994,6 +995,7 @@ function ResearcherSection() {
               {
                 key: "soul",
                 label: "价值观",
+                forceRender: true,
                 children: (
                   <Form.Item name="soul" label="价值观">
                     <Input.TextArea rows={12} placeholder="世界观、长期偏好、禁区和研究人格" />
@@ -1003,6 +1005,7 @@ function ResearcherSection() {
               {
                 key: "method",
                 label: "方法论",
+                forceRender: true,
                 children: (
                   <Form.Item name="method" label="方法论">
                     <Input.TextArea rows={12} placeholder="分析框架、评分习惯、估值习惯和输出要求" />

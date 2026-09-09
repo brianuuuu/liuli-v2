@@ -355,7 +355,7 @@ def parse_researcher_profile_markdown(content: str) -> dict[str, str]:
     return result
 
 
-def _write_researcher_profile(stored_path: str, researcher_code: str, display_name: str, intro: str, soul: str, method: str) -> str:
+def _write_researcher_profile(stored_path: str, researcher_code: str, display_name: str, intro: str | None, soul: str | None, method: str | None) -> str:
     content = format_researcher_profile_markdown(
         researcher_code=researcher_code,
         display_name=display_name,
@@ -717,7 +717,9 @@ def update_researcher(db: Session, item: KnowledgeResearcher, payload: Knowledge
         raise ValueError("display_name is required")
     item.display_name = display_name
     item.status = _normalize_researcher_status(payload.status)
-    item.profile_hash = _write_researcher_profile(item.profile_path, item.researcher_code, display_name, payload.intro, payload.soul, payload.method)
+    existing = parse_researcher_profile_markdown(_read_researcher_profile(item.profile_path))
+    sections = {key: (existing[key] if getattr(payload, key) is None else getattr(payload, key)) for key in ("intro", "soul", "method")}
+    item.profile_hash = _write_researcher_profile(item.profile_path, item.researcher_code, display_name, sections["intro"], sections["soul"], sections["method"])
     db.commit()
     db.refresh(item)
     return _researcher_read(item)
