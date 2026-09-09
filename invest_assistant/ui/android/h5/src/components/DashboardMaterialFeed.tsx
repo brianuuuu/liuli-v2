@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EmptyState } from "./Ui";
 import { formatDateTime } from "../utils/format";
+import { materialDirectionPresentation } from "../utils/materialDirection";
 
 export type DashboardMaterialItem = {
   id: number;
@@ -22,14 +23,6 @@ type Props = {
   onLoadMore: () => void;
   /** 只有标的信息流会传：点击公司名进入标的详情。赛道信息流不传，保持不可点。 */
   onEntityClick?: (item: DashboardMaterialItem) => void;
-};
-
-const directionPresentation: Record<string, { label: string; tone: string }> = {
-  support: { label: "利好", tone: "positive" },
-  positive: { label: "利好", tone: "positive" },
-  weaken: { label: "利空", tone: "negative" },
-  negative: { label: "利空", tone: "negative" },
-  neutral: { label: "中性", tone: "neutral" }
 };
 
 export function DashboardMaterialFeed({
@@ -72,7 +65,7 @@ export function DashboardMaterialFeed({
   return (
     <div className="dashboard-material-list">
       {items.map((item) => {
-        const direction = item.direction ? directionPresentation[item.direction] : undefined;
+        const direction = materialDirectionPresentation(item.direction);
         const metadata = [
           item.sourceName?.trim(),
           item.materialTime ? formatDateTime(item.materialTime) : undefined

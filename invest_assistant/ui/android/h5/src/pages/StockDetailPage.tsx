@@ -20,6 +20,7 @@ import {
 import { DetailFrame } from "./DetailPages";
 import type { StockDetail } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
+import { materialDirectionPresentation } from "../utils/materialDirection";
 
 const RatingRadar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.RatingRadar })));
 const ScoreTrendBar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ScoreTrendBar })));
@@ -163,16 +164,22 @@ function MaterialsSection({ detail }: { detail: StockDetail }) {
         title="材料"
         action={<button type="button" className="text-button" onClick={() => setShowAll((value) => !value)}>{showAll ? "只看有效" : "看全部"}</button>}
       >
-        {visible.length ? visible.map((item) => (
-          <article className="stock-detail-material" key={item.id}>
-            <h3>{item.material_title?.trim() || "--"}</h3>
-            {item.material_summary?.trim() ? <p>{item.material_summary}</p> : null}
-            <footer>
-              {[item.material_source_name?.trim(), item.material_time ? formatDateTime(item.material_time) : null].filter(Boolean).join(" · ") || "--"}
-              {item.material_url ? <a href={item.material_url} target="_blank" rel="noreferrer">原文 <ExternalLink size={13} /></a> : null}
-            </footer>
-          </article>
-        )) : <EmptyState title="暂无材料" detail={showAll ? undefined : "已隐藏噪音和已忽略材料"} />}
+        {visible.length ? visible.map((item) => {
+          const direction = materialDirectionPresentation(item.impact_direction);
+          return (
+            <article className="stock-detail-material" key={item.id}>
+              <h3>
+                <span>{item.material_title?.trim() || "--"}</span>
+                {direction ? <em className={`material-direction material-direction--${direction.tone}`}>{direction.label}</em> : null}
+              </h3>
+              {item.material_summary?.trim() ? <p>{item.material_summary}</p> : null}
+              <footer>
+                {[item.material_source_name?.trim(), item.material_time ? formatDateTime(item.material_time) : null].filter(Boolean).join(" · ") || "--"}
+                {item.material_url ? <a href={item.material_url} target="_blank" rel="noreferrer">原文 <ExternalLink size={13} /></a> : null}
+              </footer>
+            </article>
+          );
+        }) : <EmptyState title="暂无材料" detail={showAll ? undefined : "已隐藏噪音和已忽略材料"} />}
       </SectionCard>
       <SectionCard title="公告财报">
         {detail.disclosures.length ? detail.disclosures.slice(0, 20).map((item) => (

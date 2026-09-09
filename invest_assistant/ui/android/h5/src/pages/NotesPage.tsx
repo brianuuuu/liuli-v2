@@ -6,6 +6,7 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { ReorderableNoteGroups } from "../components/ReorderableNoteGroups";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { TagPicker } from "../components/TagPicker";
@@ -55,29 +56,41 @@ export function NotesPage() {
 
 function NotesGroupContent({ groupId }: { groupId: string }) {
   const navigate = useNavigate();
+  const client = useQueryClient();
   const notes = useQuery({
     queryKey: ["notes", groupId],
     queryFn: () => mobileApi.notes({ limit: 30, offset: 0, status: "active", group_id: groupId === "all" ? undefined : Number(groupId) })
   });
-  if (notes.isLoading) return <LoadingState />;
-  if (notes.isError) return <ErrorState onRetry={() => void notes.refetch()} />;
-  if (!notes.data?.items?.length) return <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />;
+  /** 分组标签栏和笔记同属这一屏，一次下拉把两者都拉新。 */
+  const refresh = async () => {
+    const [refetched] = await Promise.all([
+      notes.refetch(),
+      client.refetchQueries({ queryKey: ["note-groups"] })
+    ]);
+    if (refetched.isError) throw refetched.error;
+  };
   return (
-    <div className="note-list">
-      {notes.data.items.map((note) => (
-        <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}>
-          <header>
-            <div className="note-card-meta">
-              <time>{formatDateTime(note.updated_at ?? note.created_at)}</time>
-              {note.group ? <span className="note-card-group">{note.group.name}</span> : null}
-            </div>
-            <MoreHorizontal size={20} />
-          </header>
-          <p>{note.content}</p>
-          {note.tags?.length ? <footer>{note.tags.map((tag) => <span className="note-card-tag" key={tag.id}>#{tag.name}</span>)}</footer> : null}
-        </article>
-      ))}
-    </div>
+    <PullToRefresh ariaLabel="笔记下拉刷新" onRefresh={refresh}>
+      {notes.isLoading ? <LoadingState /> : notes.isError ? <ErrorState onRetry={() => void notes.refetch()} /> : !notes.data?.items?.length ? (
+        <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />
+      ) : (
+        <div className="note-list">
+          {notes.data.items.map((note) => (
+            <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}>
+              <header>
+                <div className="note-card-meta">
+                  <time>{formatDateTime(note.updated_at ?? note.created_at)}</time>
+                  {note.group ? <span className="note-card-group">{note.group.name}</span> : null}
+                </div>
+                <MoreHorizontal size={20} />
+              </header>
+              <p>{note.content}</p>
+              {note.tags?.length ? <footer>{note.tags.map((tag) => <span className="note-card-tag" key={tag.id}>#{tag.name}</span>)}</footer> : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </PullToRefresh>
   );
 }
 

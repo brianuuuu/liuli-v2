@@ -792,6 +792,90 @@ describe("mobile H5 app", () => {
     expect(ungroupedCard?.querySelector("footer")).toBeNull();
   });
 
+  it("labels stock detail materials as 利好 or 利空 and leaves noise unlabelled", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/stocks/12";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.includes("/api/stock-analysis/stocks/12/detail")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({
+        stock: { id: 12, stock_name: "示例股份", stock_code: "600000", status: "watching" },
+        pool: null,
+        tracks: [],
+        latest_score: null,
+        latest_valuation: null,
+        score_history: [],
+        materials: [
+          { id: 1, impact_direction: "positive", status: "confirmed", material_title: "订单超预期" },
+          { id: 2, impact_direction: "negative", status: "confirmed", material_title: "毛利率下滑" },
+          { id: 3, impact_direction: "neutral", status: "pending", material_title: "高管变动" },
+          { id: 4, impact_direction: "noise", status: "confirmed", material_title: "无关快讯" }
+        ],
+        disclosures: [],
+        notes: []
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "材料" }));
+
+    const positive = await screen.findByText("利好");
+    expect(positive).toHaveClass("material-direction--positive");
+    expect(positive.closest(".stock-detail-material")).toHaveTextContent("订单超预期");
+    expect(screen.getByText("利空")).toHaveClass("material-direction--negative");
+    expect(screen.getByText("中性")).toHaveClass("material-direction--neutral");
+    expect(screen.queryByText("无关快讯")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "看全部" }));
+    const noiseCard = (await screen.findByText("无关快讯")).closest(".stock-detail-material");
+    expect(noiseCard?.querySelector(".material-direction")).toBeNull();
+  });
+
+  it("reloads the note list and its group tabs after a top pull", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    let noteContent = "第一版想法";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const payload = url.includes("note-groups")
+        ? [{ id: 3, name: "投资复盘", sort_order: 0, status: "active" }]
+        : url.includes("market-radar/tags")
+          ? []
+          : {
+              items: [{ id: 9, content: noteContent, status: "active", updated_at: "2026-07-25T09:30:00", group: null, tags: [] }],
+              total: 1,
+              limit: 30,
+              offset: 0,
+              has_more: false
+            };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByText("第一版想法")).toBeInTheDocument();
+    const pullRegion = screen.getByLabelText("笔记下拉刷新");
+    noteContent = "刷新后的想法";
+    fireEvent.touchStart(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }]
+    });
+    fireEvent.touchMove(pullRegion, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 230, target: pullRegion }]
+    });
+    fireEvent.touchEnd(pullRegion, {
+      changedTouches: [{ identifier: 1, clientX: 120, clientY: 230, target: pullRegion }]
+    });
+
+    expect(await screen.findByText("刷新后的想法")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/knowledge/note-groups"))).toHaveLength(2);
+    });
+  });
+
   it("searches existing tags and submits persistent tag relations for a note", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes/9";

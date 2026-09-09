@@ -520,7 +520,8 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .detail-facts b { font-size: 14px; font-weight: 560; }
 .stock-detail-material { padding: 12px 0; }
 .stock-detail-material + .stock-detail-material { border-top: 1px solid var(--border); }
-.stock-detail-material h3 { margin: 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; overflow-wrap: anywhere; }
+.stock-detail-material h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; }
+.stock-detail-material h3 > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .stock-detail-material p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .stock-detail-material footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--subtle); font-size: 11px; }
 .stock-detail-material footer a { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); }
