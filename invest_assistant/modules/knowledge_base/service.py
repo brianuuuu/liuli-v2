@@ -931,6 +931,13 @@ def update_research_feedback(
     return item
 
 
+def delete_research_feedback(db: Session, item: KnowledgeResearchFeedback) -> KnowledgeResearchFeedback:
+    """只删除回流索引记录，报告本身仍留在报告库，由报告库自行管理。"""
+    db.delete(item)
+    db.commit()
+    return item
+
+
 def import_research_feedback(db: Session, feedback_id: int) -> dict:
     feedback = get_research_feedback(db, feedback_id)
     if feedback is None:

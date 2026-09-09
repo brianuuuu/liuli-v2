@@ -15,6 +15,7 @@ import {
   deleteKnowledgeNote,
   deleteKnowledgePrompt,
   deleteKnowledgeResearcher,
+  deleteKnowledgeResearchFeedback,
   listKnowledgeExternalSkillFiles,
   listKnowledgeExternalSkills,
   listKnowledgeNoteGroups,
@@ -1088,6 +1089,16 @@ function ResearchFeedbackSection() {
     }
   }
 
+  async function removeFeedback(record: KnowledgeResearchFeedback) {
+    try {
+      await deleteKnowledgeResearchFeedback(record.id);
+      message.success("研究回流已删除");
+      await feedback.refresh();
+    } catch (error) {
+      message.error(getApiErrorDetail(error, "研究回流删除失败"));
+    }
+  }
+
   const feedbackColumns: ColumnsType<KnowledgeResearchFeedback> = [
     { title: "标题", dataIndex: "title", width: 320, ellipsis: true },
     { title: "研究员编号", dataIndex: "researcher_code", width: 130, render: (value) => value || "-" },
@@ -1099,11 +1110,20 @@ function ResearchFeedbackSection() {
     { title: "更新时间", dataIndex: "updated_at", width: 150, render: formatDateTime },
     {
       title: "操作",
-      width: 130,
+      width: 190,
       render: (_, record) => (
         <Space size={6}>
           <Button size="small" onClick={() => void viewFeedback(record)}>查看</Button>
           <Button className="import-feedback" size="small" loading={importingId === record.id} onClick={() => void importFeedback(record)}>导入</Button>
+          <Popconfirm
+            title="删除这条研究回流？"
+            description="仅删除回流记录，报告仍保留在报告库。"
+            okText="删除"
+            cancelText="取消"
+            onConfirm={() => removeFeedback(record)}
+          >
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
         </Space>
       )
     }

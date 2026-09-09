@@ -286,6 +286,11 @@ export async function updateKnowledgeResearchFeedback(id: number, payload: Knowl
   return response.data;
 }
 
+export async function deleteKnowledgeResearchFeedback(id: number): Promise<KnowledgeResearchFeedback> {
+  const response = await apiClient.delete<KnowledgeResearchFeedback>(`/api/knowledge/research-feedback/${id}`);
+  return response.data;
+}
+
 export async function importKnowledgeResearchFeedback(id: number): Promise<KnowledgeResearchFeedbackImportResult> {
   const response = await apiClient.post<KnowledgeResearchFeedbackImportResult>(`/api/knowledge/research-feedback/${id}/import`);
   return response.data;

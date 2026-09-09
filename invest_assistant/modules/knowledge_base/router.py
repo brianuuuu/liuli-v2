@@ -231,6 +231,14 @@ def update_research_feedback(feedback_id: int, payload: KnowledgeResearchFeedbac
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.delete("/research-feedback/{feedback_id}", response_model=KnowledgeResearchFeedbackRead)
+def delete_research_feedback(feedback_id: int, db: Session = Depends(get_db)):
+    item = service.get_research_feedback(db, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="research feedback not found")
+    return service.delete_research_feedback(db, item)
+
+
 @router.post("/research-feedback/{feedback_id}/import")
 def import_research_feedback(feedback_id: int, db: Session = Depends(get_db)) -> dict:
     try:

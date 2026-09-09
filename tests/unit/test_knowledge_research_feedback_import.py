@@ -12,6 +12,8 @@ from invest_assistant.modules.knowledge_base.models import KnowledgeResearchFeed
 from invest_assistant.modules.knowledge_base.schemas import KnowledgeResearchFeedbackCreate
 from invest_assistant.modules.knowledge_base.service import (
     create_research_feedback,
+    delete_research_feedback,
+    get_research_feedback,
     import_research_feedback,
 )
 from invest_assistant.modules.stock_analysis.models import StockValuationSnapshot
@@ -302,3 +304,18 @@ def test_delete_score_removes_snapshot():
 
     assert delete_score(db, created.id) is True
     assert list_scores(db, 1) == []
+
+
+def test_delete_research_feedback_removes_row_but_keeps_report():
+    db = make_session()
+    feedback = create_feedback(db, "万东医疗-2026-Q1-评级报告", score_markdown())
+    feedback_id = feedback.id
+    report_id = feedback.report_id
+    assert report_id is not None
+
+    deleted = delete_research_feedback(db, feedback)
+
+    assert deleted.id == feedback_id
+    assert get_research_feedback(db, feedback_id) is None
+    # 报告是报告库的独立实体，删除回流记录不得连带删掉它
+    assert report_service.get_report(db, report_id) is not None

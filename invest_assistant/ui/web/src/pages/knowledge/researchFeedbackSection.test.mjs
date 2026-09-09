@@ -13,3 +13,6 @@ assert.match(source, />刷新<\/Button>/, "refresh button label should be concis
 assert.match(source, />一键导入<\/Button>/, "toolbar must expose one-click import");
 assert.match(source, /\{\s*title:\s*"标题",\s*dataIndex:\s*"title",\s*width:\s*320,\s*ellipsis:\s*true\s*\}/, "title column width should be explicitly reduced");
 assert.match(source, /\{\s*title:\s*"来源",\s*dataIndex:\s*"source",\s*width:\s*130,\s*ellipsis:\s*true,\s*render:\s*\(value\)\s*=>\s*<span style=\{\{ whiteSpace: "nowrap" \}\}>\{value \|\| "-"\}<\/span>\s*\}/, "source column must be slightly wider and single-line");
+assert.match(source, /title="删除这条研究回流？"/, "research feedback rows must offer a delete action behind a confirm popup");
+assert.match(source, /description="仅删除回流记录，报告仍保留在报告库。"/, "delete confirm must state that the report itself survives");
+assert.match(source, /await deleteKnowledgeResearchFeedback\(record\.id\)/, "delete must call the research feedback delete endpoint");
