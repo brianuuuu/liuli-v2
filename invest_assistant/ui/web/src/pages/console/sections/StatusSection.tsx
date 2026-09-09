@@ -5,7 +5,7 @@ import { useCallback, useMemo } from "react";
 import { getAiLogDailyUsage, getDataSources, getSystemStatus } from "../../../api/console";
 import { useLiuliTheme } from "../../../app/theme";
 import { ChartCard } from "../../../components/charts/ChartCard";
-import { chartGridColor, chartTextColor } from "../../../components/charts/chartTheme";
+import { chartGridColor } from "../../../components/charts/chartTheme";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 
@@ -41,6 +41,8 @@ function CardNote({ children }: { children: ReactNode }) {
   return <div style={{ marginTop: 6, fontSize: 12, color: "var(--ll-muted)", lineHeight: 1.5 }}>{children}</div>;
 }
 
+type TooltipRow = { color: string; seriesName: string; value: number; axisValue: string };
+
 export function StatusSection() {
   const { resolvedMode } = useLiuliTheme();
   const status = useAsyncData(useCallback(getSystemStatus, []), {
@@ -56,99 +58,168 @@ export function StatusSection() {
   const totalTokens = days.reduce((sum, item) => sum + item.total_tokens, 0);
   const totalRequests = days.reduce((sum, item) => sum + item.requests, 0);
 
-  const axisText = chartTextColor(resolvedMode);
+  const dark = resolvedMode === "dark";
   const gridLine = chartGridColor(resolvedMode);
-  // 卡片底色，用作堆叠段之间的 2px 间隙色
-  const surface = resolvedMode === "dark" ? "#161b22" : "#ffffff";
-  // 验证过的分类色槽 1/2（validate_palette.js 双模式全部通过）
-  const seriesBlue = resolvedMode === "dark" ? "#3987e5" : "#2a78d6";
-  const seriesOrange = resolvedMode === "dark" ? "#d95926" : "#eb6834";
+  const axisText = dark ? "#8b949e" : "#64748b";
+  const strongText = dark ? "#e6edf3" : "#0f172a";
+  // 卡片底色：堆叠段之间的间隙用底色挖出来，而不是给柱子描一圈对比色边
+  const surface = dark ? "#161b22" : "#ffffff";
+  // 验证过的分类色槽 1/2（validate_palette.js 明暗双模式六项全过）
+  const seriesBlue = dark ? "#3987e5" : "#2a78d6";
+  const seriesOrange = dark ? "#d95926" : "#eb6834";
 
-  const axisBase = useMemo(
+  // 提示框跟随主题，暗色下不再是白底
+  const tooltipBase = useMemo(
     () => ({
-      xAxis: {
-        type: "category" as const,
-        data: days.map((item) => item.date.slice(5)),
-        axisLine: { lineStyle: { color: gridLine } },
-        axisTick: { show: false },
-        axisLabel: { color: axisText, fontSize: 10 }
-      },
-      grid: { top: 36, left: 8, right: 12, bottom: 4, containLabel: true }
+      backgroundColor: dark ? "#21262d" : "#ffffff",
+      borderColor: dark ? "rgba(255,255,255,0.12)" : "#e2e8f0",
+      borderWidth: 1,
+      padding: [10, 12],
+      textStyle: { color: strongText, fontSize: 12 },
+      extraCssText: `border-radius:7px;box-shadow:0 6px 20px ${dark ? "rgba(0,0,0,0.45)" : "rgba(15,23,42,0.10)"};`
+    }),
+    [dark, strongText]
+  );
+
+  // 数值是主角、系列名是配角；系列用一小段线标识而不是实心色块
+  const renderTooltip = useCallback(
+    (params: unknown, withTotal: boolean) => {
+      const list = (Array.isArray(params) ? params : [params]) as TooltipRow[];
+      if (!list.length) return "";
+      const divider = dark ? "rgba(255,255,255,0.10)" : "#e2e8f0";
+      const key = (color: string) =>
+        `<span style="display:inline-block;width:10px;height:2px;border-radius:1px;background:${color};margin-right:8px;vertical-align:middle"></span>`;
+      const row = (color: string, name: string, value: number) =>
+        `<div style="display:flex;align-items:center;line-height:22px">${key(color)}` +
+        `<span style="color:${axisText}">${name}</span>` +
+        `<span style="margin-left:auto;padding-left:24px;font-weight:600;color:${strongText}">${value.toLocaleString("zh-CN")}</span></div>`;
+      const total = list.reduce((sum, item) => sum + Number(item.value || 0), 0);
+      return (
+        `<div style="min-width:150px">` +
+        `<div style="color:${axisText};margin-bottom:2px">${list[0].axisValue}</div>` +
+        list.map((item) => row(item.color, item.seriesName, Number(item.value || 0))).join("") +
+        (withTotal
+          ? `<div style="display:flex;line-height:22px;margin-top:4px;padding-top:4px;border-top:1px solid ${divider}">` +
+            `<span style="color:${axisText}">合计</span>` +
+            `<span style="margin-left:auto;padding-left:24px;font-weight:600;color:${strongText}">${total.toLocaleString("zh-CN")}</span></div>`
+          : "") +
+        `</div>`
+      );
+    },
+    [axisText, strongText, dark]
+  );
+
+  const xAxisBase = useMemo(
+    () => ({
+      type: "category" as const,
+      data: days.map((item) => item.date.slice(5)),
+      axisLine: { lineStyle: { color: gridLine } },
+      axisTick: { show: false },
+      axisLabel: { color: axisText, fontSize: 10, margin: 10 }
     }),
     [days, axisText, gridLine]
   );
 
+  const yAxisBase = useMemo(
+    () => ({
+      type: "value" as const,
+      minInterval: 1,
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: gridLine } }
+    }),
+    [gridLine]
+  );
+
   const tokenOption = useMemo<EChartsOption>(
     () => ({
-      ...axisBase,
+      xAxis: xAxisBase,
+      yAxis: {
+        ...yAxisBase,
+        axisLabel: { color: axisText, fontSize: 10, formatter: (value: number) => compactNumber(value) }
+      },
+      grid: { top: 42, left: 8, right: 12, bottom: 4, containLabel: true },
       legend: {
-        top: 0,
-        right: 0,
+        top: 2,
+        left: 0,
         itemWidth: 10,
         itemHeight: 10,
+        itemGap: 16,
+        icon: "roundRect",
         textStyle: { color: axisText, fontSize: 11 },
         data: ["输入 token", "输出 token"]
       },
       tooltip: {
+        ...tooltipBase,
         trigger: "axis",
-        axisPointer: { type: "shadow" },
-        valueFormatter: (value: unknown) => Number(value ?? 0).toLocaleString("zh-CN")
-      },
-      yAxis: {
-        type: "value",
-        minInterval: 1,
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: gridLine } },
-        axisLabel: { color: axisText, fontSize: 10, formatter: (value: number) => compactNumber(value) }
+        axisPointer: {
+          type: "shadow",
+          shadowStyle: { color: dark ? "rgba(255,255,255,0.04)" : "rgba(15,23,42,0.04)" }
+        },
+        formatter: (params: unknown) => renderTooltip(params, true)
       },
       series: [
         {
           name: "输入 token",
           type: "bar",
           stack: "token",
-          barMaxWidth: 18,
+          barMaxWidth: 22,
           itemStyle: { color: seriesBlue, borderColor: surface, borderWidth: 2 },
+          emphasis: { itemStyle: { opacity: 0.85 } },
           data: days.map((item) => item.prompt_tokens)
         },
         {
           name: "输出 token",
           type: "bar",
           stack: "token",
-          barMaxWidth: 18,
-          itemStyle: { color: seriesOrange, borderColor: surface, borderWidth: 2, borderRadius: [3, 3, 0, 0] },
+          barMaxWidth: 22,
+          itemStyle: { color: seriesOrange, borderColor: surface, borderWidth: 2, borderRadius: [4, 4, 0, 0] },
+          emphasis: { itemStyle: { opacity: 0.85 } },
           data: days.map((item) => item.completion_tokens)
         }
       ]
     }),
-    [axisBase, axisText, gridLine, seriesBlue, seriesOrange, surface, days]
+    [xAxisBase, yAxisBase, axisText, seriesBlue, seriesOrange, surface, days, tooltipBase, renderTooltip, dark]
   );
 
   const requestOption = useMemo<EChartsOption>(
     () => ({
-      ...axisBase,
+      xAxis: xAxisBase,
+      yAxis: { ...yAxisBase, axisLabel: { color: axisText, fontSize: 10 } },
+      grid: { top: 18, left: 8, right: 12, bottom: 4, containLabel: true },
       tooltip: {
+        ...tooltipBase,
         trigger: "axis",
-        axisPointer: { type: "shadow" },
-        valueFormatter: (value: unknown) => `${Number(value ?? 0).toLocaleString("zh-CN")} 次`
-      },
-      yAxis: {
-        type: "value",
-        minInterval: 1,
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: gridLine } },
-        axisLabel: { color: axisText, fontSize: 10 }
+        axisPointer: { type: "line", lineStyle: { color: gridLine, width: 1 } },
+        formatter: (params: unknown) => renderTooltip(params, false)
       },
       series: [
         {
           name: "调用次数",
-          type: "bar",
-          barMaxWidth: 18,
-          itemStyle: { color: seriesBlue, borderRadius: [3, 3, 0, 0] },
+          type: "line",
+          smooth: false,
+          symbol: "circle",
+          symbolSize: 8,
+          lineStyle: { color: seriesBlue, width: 2, cap: "round", join: "round" },
+          // 端点带 2px 底色描环，交叠处仍然清晰
+          itemStyle: { color: seriesBlue, borderColor: surface, borderWidth: 2 },
+          areaStyle: {
+            color: {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: dark ? "rgba(57,135,229,0.22)" : "rgba(42,120,214,0.16)" },
+                { offset: 1, color: dark ? "rgba(57,135,229,0)" : "rgba(42,120,214,0)" }
+              ]
+            }
+          },
           data: days.map((item) => item.requests)
         }
       ]
     }),
-    [axisBase, axisText, gridLine, seriesBlue, days]
+    [xAxisBase, yAxisBase, axisText, gridLine, seriesBlue, surface, days, tooltipBase, renderTooltip, dark]
   );
 
   return (
