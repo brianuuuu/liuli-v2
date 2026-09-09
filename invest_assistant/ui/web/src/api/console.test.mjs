@@ -6,12 +6,16 @@ const sections = readFileSync("invest_assistant/ui/web/src/pages/console/section
 const statusSection = readFileSync("invest_assistant/ui/web/src/pages/console/sections/StatusSection.tsx", "utf8");
 
 assert.match(api, /export async function getAiLogStats\(\)/, "console API must expose aggregate AI log stats");
+assert.match(api, /export async function getAiLogDailyUsage\(days = 14\)/, "console API must expose the daily token usage trend");
 assert.match(api, /const\s+aiLogsRequests\s*=\s*new Map<string, Promise<Page<AiRequestLog>>>/, "AI log list must dedupe in-flight requests by params");
 assert.match(api, /const\s+requestKey\s*=\s*JSON\.stringify\(requestParams\)/, "AI log list must key in-flight requests by pagination params");
 assert.match(api, /offset\?:\s*number/, "AI log list params must support offset pagination");
 assert.match(api, /mcp:\s*\{[\s\S]*enabled_clients:\s*number/, "system status type must expose MCP status details");
 
 assert.match(sections, /getAiLogs\(\{\s*limit:\s*pageSize,\s*offset:\s*\(page - 1\) \* pageSize\s*\}\)/, "AI logs tab must request the selected server-side page");
-assert.match(statusSection, /getAiLogStats/, "console status must use aggregate AI log stats");
-assert.doesNotMatch(statusSection, /getAiLogs/, "console status must not fetch the AI log list for a count");
-assert.match(statusSection, /title="MCP"/, "console status section must render an MCP status card");
+assert.match(statusSection, /getAiLogDailyUsage\(USAGE_DAYS\)/, "console status must chart token usage from the daily-usage endpoint");
+assert.doesNotMatch(statusSection, /getAiLogs\(/, "console status must not fetch the AI log list for a count");
+assert.match(statusSection, /title="MCP 服务"/, "console status section must render an MCP status card");
+assert.match(statusSection, /已启用客户端 \{mcp\.enabled_clients\} \/ 共 \{mcp\.clients\}/, "MCP card must spell out what the client counts mean");
+// dataviz 规则：禁止双 Y 轴，两个量纲必须拆成两张图
+assert.doesNotMatch(statusSection, /yAxis:\s*\[/, "status charts must not use a dual y-axis");

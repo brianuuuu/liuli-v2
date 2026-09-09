@@ -6,7 +6,11 @@ from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
 from invest_assistant.modules.alert_center.models import AlertEvent
-from invest_assistant.modules.basic.ai_audit.service import count_ai_request_logs, list_ai_request_logs_page
+from invest_assistant.modules.basic.ai_audit.service import (
+    ai_request_log_daily_usage,
+    count_ai_request_logs,
+    list_ai_request_logs_page,
+)
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
@@ -374,6 +378,14 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
 @router.get("/ai-logs/stats")
 def ai_log_stats(db: Session = Depends(get_db)) -> dict[str, int]:
     return count_ai_request_logs(db)
+
+
+@router.get("/ai-logs/daily-usage")
+def ai_log_daily_usage(
+    days: int = Query(14, ge=1, le=90),
+    db: Session = Depends(get_db),
+) -> list[dict[str, int | str]]:
+    return ai_request_log_daily_usage(db, days=days)
 
 
 def _ai_log_dict(item) -> dict:

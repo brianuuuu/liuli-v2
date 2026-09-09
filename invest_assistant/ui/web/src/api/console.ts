@@ -132,6 +132,14 @@ export type AiLogStats = {
   today_tokens: number;
 };
 
+export type AiLogDailyUsage = {
+  date: string;
+  requests: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+};
+
 export type AiLogListParams = {
   limit?: number;
   offset?: number;
@@ -182,6 +190,11 @@ export async function getAiLogStats(): Promise<AiLogStats> {
       aiLogStatsRequest = null;
     });
   return aiLogStatsRequest;
+}
+
+export async function getAiLogDailyUsage(days = 14): Promise<AiLogDailyUsage[]> {
+  const response = await apiClient.get<AiLogDailyUsage[]>("/api/console/ai-logs/daily-usage", { params: { days } });
+  return response.data;
 }
 
 export async function getAiLogs(params: AiLogListParams = { limit: 50, offset: 0 }): Promise<Page<AiRequestLog>> {
