@@ -25,7 +25,7 @@ describe("mobile card elevation", () => {
   it("renders the market, track, and stock dashboard content directly on the page background", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.dashboard-flat-section\s*\{[^}]*padding:\s*0;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+    expect(styles).toMatch(/\.dashboard-flat-section\s*\{[^}]*padding:\s*0 15px;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
     expect(styles).toMatch(/\.dashboard-flat-section \.pool-card\s*\{[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.dashboard-flat-section \.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
   });
