@@ -208,6 +208,11 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   border-top: 1px solid var(--border);
 }
 .market-ranking-filters .segmented { min-width: 0; padding: 3px; }
+/* 热度排行筛选器沉底吸附：排行条数会变，跟随内容就会忽上忽下。 */
+/* 同样 Portal 到 body 上 fixed，页面自己留出被盖住的高度。 */
+.market-filter-stack { padding-bottom: 62px; }
+.market-filter-bar { position: fixed; z-index: 15; right: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); bottom: 8px; left: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.market-filter-bar .market-ranking-filters { margin-top: 0; padding-top: 0; border-top: 0; }
 .list-row {
   display: flex;
   width: 100%;
@@ -592,5 +597,5 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   body { display: flex; justify-content: center; background: #dce2ea; }
   #root { width: 430px; background: var(--bg); box-shadow: 0 0 30px rgba(0, 0, 0, .12); }
   .mobile-page-frame__top { right: auto; left: 50%; width: 430px; transform: translateX(-50%); }
-  .stock-view-bar { right: auto; left: 50%; width: calc(430px - 2 * (var(--dashboard-page-gutter) + var(--dashboard-flat-inset))); transform: translateX(-50%); }
+  .stock-view-bar, .market-filter-bar { right: auto; left: 50%; width: calc(430px - 2 * (var(--dashboard-page-gutter) + var(--dashboard-flat-inset))); transform: translateX(-50%); }
 }

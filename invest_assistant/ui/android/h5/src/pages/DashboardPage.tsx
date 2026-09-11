@@ -57,7 +57,7 @@ export function DashboardPage() {
     <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={dashboardTabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}>
       <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={(key) => { rememberDashboardTab(key); setTab(key); }} motionSink={navigationMotion} renderPage={(key) => {
         if (key === "today") return <TodayDashboard />;
-        if (key === "market") return <MarketDashboard />;
+        if (key === "market") return <MarketDashboard active={key === tab} />;
         if (key === "track") return <TrackDashboard />;
         if (key === "stock") return <StockDashboard active={key === tab} />;
         return <PortfolioDashboard />;
@@ -120,7 +120,12 @@ function TodayDashboard() {
   );
 }
 
-function MarketDashboard() {
+/**
+ * 热度排行筛选器与标的页的视图切换器同样沉底：排行条数随类型和时间窗口变化，
+ * 跟着内容走就会忽上忽下，条数多时还会被挤出首屏。挂到 body 上做 fixed 的理由
+ * 与 StockDashboard 一致，只有当前 tab 渲染它，避免预渲染的相邻页把它带出来。
+ */
+function MarketDashboard({ active }: { active: boolean }) {
   const [rankingType, setRankingType] = useState<MarketRankingType>("all");
   const [rankingWindow, setRankingWindow] = useState<MarketRankingWindow>("7d");
   const rankings = useQuery({
@@ -129,7 +134,7 @@ function MarketDashboard() {
     staleTime: 300_000
   });
   return (
-    <div className="page-stack">
+    <div className="page-stack market-filter-stack">
       <SectionCard className="market-ranking-card dashboard-flat-section">
         <div className="market-ranking-content" aria-live="polite">
           {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
@@ -154,23 +159,28 @@ function MarketDashboard() {
             })
           ) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}
         </div>
-        <div className="market-ranking-filters" data-swipe-ignore="true">
-          <div className="segmented" role="group" aria-label="排行榜类型">
-            {([
-              ["all", "市场"],
-              ["track", "赛道"],
-              ["stock", "标的"]
-            ] as const).map(([value, label]) => (
-              <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
-            ))}
-          </div>
-          <div className="segmented" role="group" aria-label="时间范围">
-            {(["24h", "7d", "30d"] as const).map((value) => (
-              <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
-            ))}
-          </div>
-        </div>
       </SectionCard>
+      {active ? createPortal(
+        <div className="market-filter-bar" data-swipe-ignore="true">
+          <div className="market-ranking-filters">
+            <div className="segmented" role="group" aria-label="排行榜类型">
+              {([
+                ["all", "市场"],
+                ["track", "赛道"],
+                ["stock", "标的"]
+              ] as const).map(([value, label]) => (
+                <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
+              ))}
+            </div>
+            <div className="segmented" role="group" aria-label="时间范围">
+              {(["24h", "7d", "30d"] as const).map((value) => (
+                <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }

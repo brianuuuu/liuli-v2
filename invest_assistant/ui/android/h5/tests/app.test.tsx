@@ -320,7 +320,9 @@ describe("mobile H5 app", () => {
     expect(screen.queryByRole("heading", { name: "热度排行榜" })).not.toBeInTheDocument();
     expect(ranking.compareDocumentPosition(typeFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(typeFilter.compareDocumentPosition(windowFilter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(typeFilter.parentElement).toHaveAttribute("data-swipe-ignore", "true");
+    // 分页手势用 closest 向上找忽略标记，筛选器沉底后包在 .market-filter-bar 里，断言这条祖先链即可。
+    expect(typeFilter.closest("[data-swipe-ignore='true']")).not.toBeNull();
+    expect(typeFilter.closest(".market-filter-bar")).not.toBeNull();
     expect(screen.queryByText("信息总量")).not.toBeInTheDocument();
     expect(screen.queryByText("活跃标签")).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/market-radar/overview"))).toBe(false);

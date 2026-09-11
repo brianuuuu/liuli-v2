@@ -128,6 +128,10 @@ describe("mobile card elevation", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.market-ranking-filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*8px;[^}]*margin-top:\s*12px;[^}]*padding-top:\s*12px;/s);
+    // 热度排行筛选器沉底吸附，与标的页切换器共用同一条内容列与同一套变量。
+    expect(styles).toMatch(/\.market-filter-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*8px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);/s);
+    expect(styles).toMatch(/\.market-filter-bar \.market-ranking-filters\s*\{[^}]*margin-top:\s*0;[^}]*padding-top:\s*0;[^}]*border-top:\s*0;/s);
+    expect(styles).toMatch(/\.market-filter-stack\s*\{[^}]*padding-bottom:\s*62px;/s);
     expect(styles).toMatch(/\.market-ranking-filters \.segmented\s*\{[^}]*min-width:\s*0;[^}]*padding:\s*3px;/s);
     expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters\s*\{[^}]*gap:\s*6px;/s);
     expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters \.segmented button\s*\{[^}]*font-size:\s*11px;/s);
