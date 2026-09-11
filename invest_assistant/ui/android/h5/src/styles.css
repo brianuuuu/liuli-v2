@@ -12,6 +12,11 @@
   --shadow: none;
   --top-bg: #ffffff;
   --content-font-size: 14px;
+  /* 看板内容列的左右内缩由两层叠加而成：页框 .mobile-page-frame__content 的 12px
+     再加看板内容自身的 15px。底部视图切换器 portal 到 body，继承不到这两层，
+     只能显式复用同一组值，改动时必须两处同步。 */
+  --dashboard-page-gutter: 12px;
+  --dashboard-flat-inset: 15px;
 }
 
 :root[data-theme="dark"] {
@@ -188,7 +193,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   background: var(--panel);
   box-shadow: var(--shadow);
 }
-.dashboard-flat-section { padding: 0 15px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.dashboard-flat-section { padding: 0 var(--dashboard-flat-inset); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .section-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .section-card__header h2 { margin: 0; font-size: 15px; font-weight: 680; }
 .market-ranking-card { min-width: 0; }
@@ -479,7 +484,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 /* 标的视图切换沉到页面底部并贴底吸附：重要材料是无限流，不吸附就永远够不到。 */
 /* 分段器 Portal 到 body 上 fixed 悬浮，页面自己留出被盖住的高度。 */
 .stock-view-stack { padding-bottom: 54px; }
-.stock-view-bar { position: fixed; z-index: 15; right: 12px; bottom: 8px; left: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.stock-view-bar { position: fixed; z-index: 15; right: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); bottom: 8px; left: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .stock-view-bar .pill-segments { margin-bottom: 0; }
 .stock-view-bar .pill-segments button { flex: 1 1 0; text-align: center; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; border-radius: 8px; background: var(--panel-soft); }
@@ -587,5 +592,5 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   body { display: flex; justify-content: center; background: #dce2ea; }
   #root { width: 430px; background: var(--bg); box-shadow: 0 0 30px rgba(0, 0, 0, .12); }
   .mobile-page-frame__top { right: auto; left: 50%; width: 430px; transform: translateX(-50%); }
-  .stock-view-bar { right: auto; left: 50%; width: 406px; transform: translateX(-50%); }
+  .stock-view-bar { right: auto; left: 50%; width: calc(430px - 2 * (var(--dashboard-page-gutter) + var(--dashboard-flat-inset))); transform: translateX(-50%); }
 }

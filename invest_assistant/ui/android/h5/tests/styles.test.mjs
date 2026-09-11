@@ -25,7 +25,12 @@ describe("mobile card elevation", () => {
   it("renders the market, track, and stock dashboard content directly on the page background", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.dashboard-flat-section\s*\{[^}]*padding:\s*0 15px;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+    expect(styles).toMatch(/\.dashboard-flat-section\s*\{[^}]*padding:\s*0 var\(--dashboard-flat-inset\);[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+    // --dashboard-page-gutter 是页框左右内边距的副本，页框一改这里必须同步，否则底部切换器会错位。
+    const frameGutter = styles.match(/\.mobile-page-frame__content\s*\{[^}]*padding:\s*\d+px (\d+px)/s)?.[1];
+    const declaredGutter = styles.match(/--dashboard-page-gutter:\s*(\d+px);/)?.[1];
+    expect(frameGutter).toBeDefined();
+    expect(declaredGutter).toBe(frameGutter);
     expect(styles).toMatch(/\.dashboard-flat-section \.pool-card\s*\{[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.dashboard-flat-section \.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
   });
@@ -146,7 +151,8 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*12px;[^}]*bottom:\s*8px;[^}]*left:\s*12px;[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*8px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*54px;/s);
     expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
