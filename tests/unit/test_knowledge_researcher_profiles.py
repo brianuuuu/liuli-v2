@@ -212,6 +212,25 @@ def test_researcher_profile_parser_supports_legacy_export_headings():
     assert "按六维评分" in parsed["method"]
 
 
+def test_researcher_profile_parser_preserves_level_two_headings_inside_method():
+    method = (
+        "先建立证据基线。\n\n"
+        "## 财务质量\n\n"
+        "检查现金流与利润匹配度。\n\n"
+        "## 估值框架\n\n"
+        "交叉验证多种估值方法。"
+    )
+    profile = service.format_researcher_profile_markdown(
+        researcher_code="analyst_004",
+        display_name="长方法论研究员",
+        intro="简介",
+        soul="价值观",
+        method=method,
+    )
+
+    assert service.parse_researcher_profile_markdown(profile)["method"] == method
+
+
 def test_researcher_code_is_unique(tmp_path, monkeypatch):
     patch_researcher_roots(monkeypatch, tmp_path)
     SessionLocal, _ = make_session(tmp_path)

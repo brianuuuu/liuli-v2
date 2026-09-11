@@ -1009,7 +1009,7 @@ function ResearcherSection() {
                 forceRender: true,
                 children: (
                   <Form.Item name="method" label="方法论">
-                    <Input.TextArea rows={12} placeholder="分析框架、评分习惯、估值习惯和输出要求" />
+                    <Input.TextArea rows={12} showCount placeholder="分析框架、评分习惯、估值习惯和输出要求（不限制字符数）" />
                   </Form.Item>
                 )
               }

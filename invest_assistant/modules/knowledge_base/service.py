@@ -99,6 +99,7 @@ RESEARCHER_PROFILE_SECTION_PATTERN = re.compile(
     r"^##(?!#)\s*(.+?)\s*$",
     re.MULTILINE,
 )
+RESEARCHER_PROFILE_LEGACY_SECTION_PATTERN = re.compile(r"^(soul|method)\s*[:：]", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -338,14 +339,21 @@ def format_researcher_profile_markdown(
 
 def parse_researcher_profile_markdown(content: str) -> dict[str, str]:
     result = {"intro": "", "soul": "", "method": ""}
-    matches = list(RESEARCHER_PROFILE_SECTION_PATTERN.finditer(content or ""))
+    # Only the three profile section headings delimit stored fields.  A section's
+    # Markdown body may itself contain level-two headings, especially a longer
+    # methodology, and those headings must remain part of the field.
+    matches = []
+    for match in RESEARCHER_PROFILE_SECTION_PATTERN.finditer(content or ""):
+        raw_label = re.sub(r"\s+", " ", match.group(1).strip())
+        if raw_label in RESEARCHER_PROFILE_SECTIONS or RESEARCHER_PROFILE_LEGACY_SECTION_PATTERN.match(raw_label):
+            matches.append(match)
     for index, match in enumerate(matches):
         raw_label = re.sub(r"\s+", " ", match.group(1).strip())
         key = RESEARCHER_PROFILE_SECTIONS.get(raw_label)
         lowered_label = raw_label.lower()
-        if key is None and lowered_label.startswith("soul"):
+        if key is None and re.match(r"^soul\s*[:：]", lowered_label):
             key = "soul"
-        if key is None and lowered_label.startswith("method"):
+        if key is None and re.match(r"^method\s*[:：]", lowered_label):
             key = "method"
         if key is None:
             continue
