@@ -5,13 +5,26 @@ import {
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
   formatValuationGap,
+  priorityRankLabel,
   scoreDimensions,
   scoreTrendRows,
+  suggestedGroupLabel,
   trackNames,
+  trendDimensions,
+  trendHistoryRows,
+  trendLevelTone,
+  trendNarratives,
   valuationGapTone,
+  valuationHistoryRows,
   valuationModelLabel
 } from "../src/pages/stockDetailPresentation";
-import type { StockDetail, StockDetailMaterial, StockScoreSnapshot } from "../src/types/api";
+import type {
+  StockDetail,
+  StockDetailMaterial,
+  StockScoreSnapshot,
+  StockTrendSnapshot,
+  StockValuationSnapshot
+} from "../src/types/api";
 
 const score = {
   id: 1,
@@ -34,9 +47,84 @@ describe("标的详情路由", () => {
 });
 
 describe("标的详情分区", () => {
-  it("默认进入概览，四个分区顺序固定", () => {
+  it("默认进入概览，评级、估值、趋势各自独立成页", () => {
     expect(DEFAULT_STOCK_DETAIL_SECTION).toBe("overview");
-    expect(STOCK_DETAIL_SECTIONS.map((item) => item.label)).toEqual(["概览", "评分估值", "材料", "笔记"]);
+    expect(STOCK_DETAIL_SECTIONS.map((item) => item.label)).toEqual(["概览", "评级", "估值", "趋势", "材料", "笔记"]);
+    expect(STOCK_DETAIL_SECTIONS.map((item) => item.value)).toEqual([
+      "overview",
+      "rating",
+      "valuation",
+      "trend",
+      "materials",
+      "notes"
+    ]);
+  });
+});
+
+const trend = {
+  id: 9,
+  research_date: "2026-09-11",
+  market_data_date: "2026-09-10",
+  trend_level: "T2",
+  researcher_code: "trend_001",
+  main_track: "消费电子",
+  track_short: "中",
+  track_mid: "中",
+  track_long: "强",
+  company_position: "核心受益",
+  market_recognition: "品牌出海有辨识度，AI 家庭生态叙事发酵；尚未证明成为全市场主线核心",
+  capital_recognition: "9月3日放量启动后缩量回踩，成交量约20日均量的七成",
+  stock_stage: "修复",
+  mainline_cycle: "发酵",
+  suggested_group: "candidate",
+  priority_rank: null,
+  core_logic: "突破后回踩修复，等待量价确认。",
+  primary_risk: "放量跌破平台上沿则修复逻辑弱化。"
+} as StockTrendSnapshot;
+
+describe("趋势展示口径", () => {
+  it("T0 与 T1 视为强势，其余不着色", () => {
+    expect(trendLevelTone("T0")).toBe("positive");
+    expect(trendLevelTone("T1")).toBe("positive");
+    expect(trendLevelTone("T2")).toBe("");
+    expect(trendLevelTone("T5")).toBe("");
+    expect(trendLevelTone(null)).toBe("");
+  });
+
+  it("分组建议与全池排名按中文呈现，未排名不显示为 0", () => {
+    expect(suggestedGroupLabel("focused")).toBe("重点");
+    expect(suggestedGroupLabel("candidate")).toBe("候选");
+    expect(suggestedGroupLabel(null)).toBe("-");
+    expect(priorityRankLabel(null)).toBe("未做全池排名");
+    expect(priorityRankLabel(3)).toBe("全池第 3 位");
+  });
+
+  it("六维合并赛道三个期限，认可度整句不截断", () => {
+    const rows = trendDimensions(trend);
+    expect(rows.map((item) => item.label)).toEqual(["赛道趋势", "公司地位", "市场认可", "资金认可", "日线位置", "主线周期"]);
+    expect(rows[0].value).toBe("中 / 中 / 强");
+    expect(rows[2].value).toBe(trend.market_recognition);
+    expect(trendDimensions({} as StockTrendSnapshot).map((item) => item.value)).toEqual(["-", "-", "-", "-", "-", "-"]);
+  });
+
+  it("长文本只列出有内容的字段，主要风险单独着色", () => {
+    const rows = trendNarratives(trend);
+    expect(rows.map((item) => item.label)).toEqual(["核心逻辑", "主要风险"]);
+    expect(rows[1].risk).toBe(true);
+    expect(trendNarratives({ ...trend, core_logic: "  ", primary_risk: null } as StockTrendSnapshot)).toEqual([]);
+  });
+
+  it("历史趋势与历史估值都按时间倒序，最新在最前", () => {
+    const trends = trendHistoryRows([
+      { ...trend, id: 1, research_date: "2026-07-05" },
+      { ...trend, id: 2, research_date: "2026-09-11" }
+    ]);
+    expect(trends.map((item) => item.id)).toEqual([2, 1]);
+    const valuations = valuationHistoryRows([
+      { id: 1, analysis_date: "2026-04-25" },
+      { id: 2, analysis_date: "2026-09-10" }
+    ] as StockValuationSnapshot[]);
+    expect(valuations.map((item) => item.id)).toEqual([2, 1]);
   });
 });
 

@@ -164,6 +164,31 @@ export type StockValuationSnapshot = {
   researcher?: string | null;
 };
 
+export type StockTrendSnapshot = {
+  id: number;
+  research_date: string;
+  trend_level: string;
+  market_data_date?: string | null;
+  researcher_code?: string | null;
+  main_track?: string | null;
+  track_short?: string | null;
+  track_mid?: string | null;
+  track_long?: string | null;
+  company_position?: string | null;
+  market_recognition?: string | null;
+  capital_recognition?: string | null;
+  stock_stage?: string | null;
+  mainline_cycle?: string | null;
+  remaining_upside?: string | null;
+  trend_duration?: string | null;
+  suggested_group?: string | null;
+  priority_rank?: number | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
+  next_verification?: string | null;
+  data_gaps?: string | null;
+};
+
 export type StockDetailMaterial = {
   id: number;
   impact_direction?: string | null;
@@ -196,6 +221,9 @@ export type StockDetail = {
   latest_score?: StockScoreSnapshot | null;
   score_history: StockScoreSnapshot[];
   latest_valuation?: StockValuationSnapshot | null;
+  valuation_history: StockValuationSnapshot[];
+  latest_trend?: StockTrendSnapshot | null;
+  trend_history: StockTrendSnapshot[];
   materials: StockDetailMaterial[];
   disclosures: Array<{
     id: number;

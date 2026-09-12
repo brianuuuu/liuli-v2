@@ -10,15 +10,22 @@ import {
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
   formatValuationGap,
+  priorityRankLabel,
   scoreDimensions,
   scoreTrendRows,
+  suggestedGroupLabel,
   trackNames,
+  trendDimensions,
+  trendHistoryRows,
+  trendLevelTone,
+  trendNarratives,
   valuationGapTone,
+  valuationHistoryRows,
   valuationModelLabel,
   type StockDetailSection
 } from "./stockDetailPresentation";
 import { DetailFrame } from "./DetailPages";
-import type { StockDetail } from "../types/api";
+import type { StockDetail, StockTrendSnapshot } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
 import { materialDirectionPresentation } from "../utils/materialDirection";
 
@@ -57,6 +64,8 @@ export function StockDetailPage() {
         </div>
         {section === "overview" ? <OverviewSection detail={detail} /> : null}
         {section === "rating" ? <RatingSection detail={detail} /> : null}
+        {section === "valuation" ? <ValuationSection detail={detail} /> : null}
+        {section === "trend" ? <TrendSection detail={detail} /> : null}
         {section === "materials" ? <MaterialsSection detail={detail} /> : null}
         {section === "notes" ? <NotesSection detail={detail} /> : null}
       </div>
@@ -97,6 +106,7 @@ function StockProfile({ detail }: { detail: StockDetail }) {
 function OverviewSection({ detail }: { detail: StockDetail }) {
   const score = detail.latest_score;
   const valuation = detail.latest_valuation;
+  const trend = detail.latest_trend;
   return (
     <>
       <SectionCard title="最新评级">
@@ -123,14 +133,39 @@ function OverviewSection({ detail }: { detail: StockDetail }) {
           </div>
         ) : <EmptyState title="暂无估值" detail="等待研究员写入估值快照" />}
       </SectionCard>
+      <SectionCard title="最新趋势">
+        {trend ? (
+          <div className="detail-facts">
+            <div><span>T 等级</span><b className={trendLevelTone(trend.trend_level)}>{trend.trend_level}</b></div>
+            <div><span>日线位置</span><b>{trend.stock_stage || "-"}</b></div>
+            <div><span>主赛道</span><b>{trend.main_track || "-"}</b></div>
+            <div><span>分组建议</span><b>{suggestedGroupLabel(trend.suggested_group)}</b></div>
+            <div><span>全池排名</span><b>{trend.priority_rank ?? "-"}</b></div>
+            <div><span>研究日期</span><b>{trend.research_date}</b></div>
+          </div>
+        ) : <EmptyState title="暂无趋势研究" detail="等待研究员写入趋势快照" />}
+      </SectionCard>
     </>
   );
 }
 
 function RatingSection({ detail }: { detail: StockDetail }) {
   const rows = scoreTrendRows(detail.score_history);
+  const score = detail.latest_score;
   return (
     <>
+      <SectionCard title="最新评级">
+        {score ? (
+          <>
+            <Suspense fallback={<ChartFallback height={220} />}>
+              <RatingRadar dimensions={scoreDimensions(score)} />
+            </Suspense>
+            {score.core_logic ? <div className="stock-detail-copy"><span>核心逻辑</span><p>{score.core_logic}</p></div> : null}
+            {score.primary_risk ? <div className="stock-detail-copy is-risk"><span>主要风险</span><p>{score.primary_risk}</p></div> : null}
+            <footer className="stock-detail-meta">{score.researcher_code || "未标注研究员"} · {score.report_time}</footer>
+          </>
+        ) : <EmptyState title="暂无评级" detail="等待研究员写入评分" />}
+      </SectionCard>
       <SectionCard title="评分趋势">
         {rows.length ? (
           <Suspense fallback={<ChartFallback height={180} />}>
@@ -151,6 +186,95 @@ function RatingSection({ detail }: { detail: StockDetail }) {
           />
         )) : <EmptyState title="暂无历史评分" />}
       </SectionCard>
+    </>
+  );
+}
+
+function ValuationSection({ detail }: { detail: StockDetail }) {
+  const valuation = detail.latest_valuation;
+  const history = valuationHistoryRows(detail.valuation_history ?? []);
+  return (
+    <>
+      <SectionCard title="最新估值">
+        {valuation ? (
+          <>
+            <div className="detail-facts">
+              <div><span>最新市值</span><b>{formatNumber(valuation.current_market_value, 2)}</b></div>
+              <div><span>三年合理市值</span><b>{formatNumber(valuation.expected_market_value_3y, 2)}</b></div>
+              <div><span>三年估值空间</span><b className={valuationGapTone(valuation.expectation_gap_rate)}>{formatValuationGap(valuation.expectation_gap_rate)}</b></div>
+              <div><span>估值报告时间</span><b>{valuation.analysis_date || "-"}</b></div>
+              <div><span>估值期</span><b>{valuation.report_period || "-"}</b></div>
+              <div><span>估值依据</span><b>{valuationModelLabel(valuation.primary_model)}</b></div>
+            </div>
+            <footer className="stock-detail-meta">{valuation.researcher || "未标注研究员"}</footer>
+          </>
+        ) : <EmptyState title="暂无估值" detail="等待研究员写入估值快照" />}
+      </SectionCard>
+      <SectionCard title="历史估值">
+        {history.length ? history.map((item) => (
+          <ListRow
+            key={item.id}
+            title={`${item.analysis_date || "-"} · ${valuationModelLabel(item.primary_model)}`}
+            meta={`当前 ${formatNumber(item.current_market_value, 2)} · 三年 ${formatNumber(item.expected_market_value_3y, 2)}`}
+            trailing={<strong className={valuationGapTone(item.expectation_gap_rate)}>{formatValuationGap(item.expectation_gap_rate)}</strong>}
+          />
+        )) : <EmptyState title="暂无历史估值" />}
+      </SectionCard>
+    </>
+  );
+}
+
+function TrendSection({ detail }: { detail: StockDetail }) {
+  const trend = detail.latest_trend;
+  const history = trendHistoryRows(detail.trend_history ?? []);
+  return (
+    <>
+      <SectionCard title="最新趋势">
+        {trend ? <LatestTrend trend={trend} /> : <EmptyState title="暂无趋势研究" detail="等待研究员写入趋势快照" />}
+      </SectionCard>
+      <SectionCard title="历史趋势">
+        {history.length ? history.map((item) => (
+          <ListRow
+            key={item.id}
+            title={`${item.research_date} · ${item.stock_stage || "-"}`}
+            meta={`${item.main_track || "未标注赛道"} · ${suggestedGroupLabel(item.suggested_group)}`}
+            trailing={<strong className={`stock-trend-level ${trendLevelTone(item.trend_level)}`}>{item.trend_level}</strong>}
+          />
+        )) : <EmptyState title="暂无历史趋势" />}
+      </SectionCard>
+    </>
+  );
+}
+
+/** 六维是标签加整句判断，用可换行的两行式列表，不塞进定宽格子，免得像 Web 那样被截断。 */
+function LatestTrend({ trend }: { trend: StockTrendSnapshot }) {
+  return (
+    <>
+      <div className="stock-trend-head">
+        <strong className={`stock-trend-level ${trendLevelTone(trend.trend_level)}`}>{trend.trend_level}</strong>
+        <div>
+          <b>{trend.stock_stage || "-"}</b>
+          <span>{trend.main_track || "未标注赛道"} · {suggestedGroupLabel(trend.suggested_group)} · {priorityRankLabel(trend.priority_rank)}</span>
+        </div>
+      </div>
+      <dl className="stock-trend-dimensions">
+        {trendDimensions(trend).map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {trendNarratives(trend).map((item) => (
+        <div className={item.risk ? "stock-detail-copy is-risk" : "stock-detail-copy"} key={item.label}>
+          <span>{item.label}</span>
+          <p>{item.value}</p>
+        </div>
+      ))}
+      <footer className="stock-detail-meta">
+        {trend.researcher_code || "未标注研究员"} · {trend.research_date}
+        {trend.market_data_date ? ` · 行情截至 ${trend.market_data_date}` : ""}
+      </footer>
     </>
   );
 }

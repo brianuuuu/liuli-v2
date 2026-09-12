@@ -525,6 +525,16 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .stock-detail-copy span { color: var(--muted); font-size: 12px; }
 .stock-detail-copy p { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
 .stock-detail-meta { margin-top: 12px; color: var(--subtle); font-size: 11px; }
+.stock-trend-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.stock-trend-head > div { min-width: 0; }
+.stock-trend-head > div b { display: block; font-size: 15px; font-weight: 650; }
+.stock-trend-head > div span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.stock-trend-level { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+.stock-trend-dimensions { display: grid; gap: 0; margin: 0; }
+.stock-trend-dimensions > div { display: flex; gap: 12px; align-items: baseline; padding: 9px 0; }
+.stock-trend-dimensions > div + div { border-top: 1px solid var(--border); }
+.stock-trend-dimensions dt { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
+.stock-trend-dimensions dd { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 13px; line-height: 1.6; }
 .stock-detail-score-value { color: var(--blue); font-size: 14px; font-weight: 650; }
 .detail-facts { display: grid; gap: 0; }
 .detail-facts div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; }

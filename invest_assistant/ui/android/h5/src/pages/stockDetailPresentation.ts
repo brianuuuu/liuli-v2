@@ -1,12 +1,14 @@
-import type { StockDetail, StockDetailMaterial, StockScoreSnapshot } from "../types/api";
+import type { StockDetail, StockDetailMaterial, StockScoreSnapshot, StockTrendSnapshot, StockValuationSnapshot } from "../types/api";
 
-export type StockDetailSection = "overview" | "rating" | "materials" | "notes";
+export type StockDetailSection = "overview" | "rating" | "valuation" | "trend" | "materials" | "notes";
 
 export const DEFAULT_STOCK_DETAIL_SECTION: StockDetailSection = "overview";
 
 export const STOCK_DETAIL_SECTIONS: { value: StockDetailSection; label: string }[] = [
   { value: "overview", label: "概览" },
-  { value: "rating", label: "评分估值" },
+  { value: "rating", label: "评级" },
+  { value: "valuation", label: "估值" },
+  { value: "trend", label: "趋势" },
   { value: "materials", label: "材料" },
   { value: "notes", label: "笔记" }
 ];
@@ -61,4 +63,61 @@ export function scoreTrendRows(rows: StockScoreSnapshot[], max = 8) {
   return [...rows]
     .sort((a, b) => String(a.report_time).localeCompare(String(b.report_time)))
     .slice(-max);
+}
+
+
+/** T0 最强，数字越大越弱。 */
+export const TREND_LEVELS = ["T0", "T1", "T2", "T3", "T4", "T5"];
+
+/** 沿用 App 的涨红跌绿约定：强势标红，弱势走灰。 */
+export function trendLevelTone(level?: string | null) {
+  const index = TREND_LEVELS.indexOf(String(level || "").toUpperCase());
+  if (index < 0) return "";
+  return index <= 1 ? "positive" : "";
+}
+
+export function suggestedGroupLabel(value?: string | null) {
+  if (!value) return "-";
+  return { focused: "重点", candidate: "候选", watching: "观察", archived: "归档" }[value] ?? value;
+}
+
+export function priorityRankLabel(value?: number | null) {
+  return value === null || value === undefined ? "未做全池排名" : `全池第 ${value} 位`;
+}
+
+/**
+ * 六维判断，与报告正文的六维表格一一对应。
+ * 赛道趋势三个期限合成一行；市场认可和资金认可常是整句话，移动端按可换行文本渲染，不做截断。
+ */
+export function trendDimensions(snapshot: StockTrendSnapshot) {
+  const horizons = [snapshot.track_short, snapshot.track_mid, snapshot.track_long];
+  return [
+    { label: "赛道趋势", value: horizons.some(Boolean) ? horizons.map((item) => item || "-").join(" / ") : "-" },
+    { label: "公司地位", value: snapshot.company_position || "-" },
+    { label: "市场认可", value: snapshot.market_recognition || "-" },
+    { label: "资金认可", value: snapshot.capital_recognition || "-" },
+    { label: "日线位置", value: snapshot.stock_stage || "-" },
+    { label: "主线周期", value: snapshot.mainline_cycle || "-" }
+  ];
+}
+
+/** 趋势结论里的长文本，空的不占位。 */
+export function trendNarratives(snapshot: StockTrendSnapshot) {
+  return [
+    { label: "核心逻辑", value: snapshot.core_logic, risk: false },
+    { label: "主要风险", value: snapshot.primary_risk, risk: true },
+    { label: "剩余空间", value: snapshot.remaining_upside, risk: false },
+    { label: "持续窗口", value: snapshot.trend_duration, risk: false },
+    { label: "下一验证点", value: snapshot.next_verification, risk: false },
+    { label: "证据缺口", value: snapshot.data_gaps, risk: false }
+  ].filter((item) => Boolean(item.value?.trim()));
+}
+
+/** 历史列表按时间倒序，最新的在最前面。 */
+export function trendHistoryRows(rows: StockTrendSnapshot[]) {
+  return [...rows].sort((a, b) => String(b.research_date).localeCompare(String(a.research_date)));
+}
+
+export function valuationHistoryRows(rows: StockValuationSnapshot[]) {
+  return [...rows].sort((a, b) => String(b.analysis_date || "").localeCompare(String(a.analysis_date || "")));
 }
