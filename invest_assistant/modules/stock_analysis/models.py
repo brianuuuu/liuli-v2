@@ -173,8 +173,9 @@ class StockTrendSnapshot(Base):
     track_mid: Mapped[str | None] = mapped_column(String(10), nullable=True)
     track_long: Mapped[str | None] = mapped_column(String(10), nullable=True)
     company_position: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    market_recognition: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    capital_recognition: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 这两项是带证据的判断描述，不是短标签：真实报告普遍写到 60~110 字，按 Text 存。
+    market_recognition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    capital_recognition: Mapped[str | None] = mapped_column(Text, nullable=True)
     stock_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     mainline_cycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
     remaining_upside: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -201,15 +202,36 @@ class StockCompareGroup(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+# 早期按 VARCHAR(50) 建的表，PostgreSQL 会因为超长直接拒绝整条趋势快照，
+# SQLite 不校验长度所以本地试不出来。加宽到 TEXT 不丢数据，已经是 TEXT 的库跳过。
+TREND_TEXT_WIDENED_COLUMNS = ("market_recognition", "capital_recognition")
+
+
 def ensure_stock_analysis_schema(engine: Engine) -> None:
-    if engine.dialect.name != "sqlite":
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            table_exists = conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name='market_index_daily_bar'")
+            ).first()
+            if table_exists is None:
+                MarketIndexDailyBar.__table__.create(bind=conn, checkfirst=True)
+        return
+    if engine.dialect.name != "postgresql":
         return
     with engine.begin() as conn:
-        table_exists = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='market_index_daily_bar'")
-        ).first()
-        if table_exists is None:
-            MarketIndexDailyBar.__table__.create(bind=conn, checkfirst=True)
+        narrowed = conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'stock_trend_snapshot' "
+                "AND character_maximum_length IS NOT NULL "
+                "AND column_name = ANY(:columns)"
+            ),
+            {"columns": list(TREND_TEXT_WIDENED_COLUMNS)},
+        ).scalars().all()
+        for column in narrowed:
+            if column not in TREND_TEXT_WIDENED_COLUMNS:
+                continue
+            conn.execute(text(f"ALTER TABLE stock_trend_snapshot ALTER COLUMN {column} TYPE TEXT"))
 
 
 class StockTrackRelation(Base):

@@ -554,6 +554,38 @@ def test_import_trend_report_accepts_minimal_item(tmp_path, monkeypatch):
     assert trend["researcher_code"] == "analyst_001"
 
 
+def test_import_trend_report_accepts_long_recognition_text(tmp_path, monkeypatch):
+    """市场/资金认可度是带证据的判断描述，真实报告写到百字以上，必须整条落库不截断。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    long_text = "9月1日成交约113.6万手，短期结构突破8月平台；随后两日缩量回踩，未跌破MA20，量能仍高于20日均量。" * 2
+    feedback = create_trend_feedback(
+        db,
+        "万东医疗-2026-07-05-趋势研究",
+        trend_markdown([trend_item(market_recognition=long_text, capital_recognition=long_text)]),
+    )
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["success_count"] == 1
+    assert result["trends"][0]["market_recognition"] == long_text
+    assert result["trends"][0]["capital_recognition"] == long_text
+
+
+def test_import_trend_report_reports_which_field_is_too_long(tmp_path, monkeypatch):
+    """仍有长度上限的字段要在落库前报出字段名和字数，而不是让数据库抛一句英文。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(
+        db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item(stock_stage="修复" * 20)])
+    )
+
+    with pytest.raises(ValueError, match="stock_stage 超长：40 字，上限 30 字"):
+        import_research_feedback(db, feedback.id)
+
+
 def test_import_trend_report_rejects_unknown_suggested_group(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     db = make_session()

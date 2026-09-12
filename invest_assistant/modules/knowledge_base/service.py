@@ -6,7 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import String, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.report_library import service as report_service
@@ -39,6 +39,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 )
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.stock_analysis import service as stock_service
+from invest_assistant.modules.stock_analysis.models import StockTrendSnapshot
 from invest_assistant.modules.track_discovery.models import Track
 from invest_assistant.modules.stock_analysis.schemas import (
     StockScoreSnapshotCreate,
@@ -62,6 +63,13 @@ SUGGESTED_GROUPS = {"focused", "candidate", "watching", "archived"}
 # 必填只有标的身份（stock_id 或 company_code）加下面两项，其余缺失按 null 落库：
 # 报告原文可经 report_id 回溯，不值得为少一个字段让一批里的某条整体失败。
 TREND_REQUIRED_FIELDS = ["research_date", "trend_level"]
+# 落库前按列宽自查：超长时 PostgreSQL 只会抛一句英文 value too long，
+# 定位不到是哪条的哪个字段，这里先换成能直接照着改报告的中文提示。
+TREND_COLUMN_LIMITS = {
+    column.name: column.type.length
+    for column in StockTrendSnapshot.__table__.columns
+    if isinstance(column.type, String) and column.type.length
+}
 TREND_TEXT_FIELDS = [
     "main_track",
     "track_short",
@@ -1165,7 +1173,15 @@ def _normalize_trend_import_payload(db: Session, payload: dict, feedback: Knowle
     for field in TREND_TEXT_FIELDS:
         normalized[field] = _normalize_optional_text(str(payload.get(field) or ""))
     normalized["track_id"] = _resolve_trend_track_id(db, normalized["main_track"])
+    _assert_trend_field_lengths(normalized)
     return normalized
+
+
+def _assert_trend_field_lengths(normalized: dict) -> None:
+    for field, limit in TREND_COLUMN_LIMITS.items():
+        value = normalized.get(field)
+        if isinstance(value, str) and len(value) > limit:
+            raise ValueError(f"{field} 超长：{len(value)} 字，上限 {limit} 字")
 
 
 def _resolve_trend_track_id(db: Session, main_track: str | None) -> int | None:
