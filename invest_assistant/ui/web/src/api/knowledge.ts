@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { MarketTag } from "../types/api";
+import type { MarketTag, StockTrendSnapshot } from "../types/api";
 import { normalizeKnowledgeNotePage } from "./knowledgePage";
 
 export type KnowledgeNoteGroup = {
@@ -182,6 +182,16 @@ export type KnowledgeResearchFeedbackImportResult = {
     analysis_date?: string | null;
     researcher?: string | null;
   };
+  trends?: StockTrendSnapshot[];
+  success_count?: number;
+  failure_count?: number;
+  failures?: KnowledgeResearchFeedbackImportFailure[];
+};
+
+export type KnowledgeResearchFeedbackImportFailure = {
+  index: number;
+  stock?: string | null;
+  error: string;
 };
 
 export async function listKnowledgeNotes(params: KnowledgeNoteQuery = {}): Promise<KnowledgeNotePage> {

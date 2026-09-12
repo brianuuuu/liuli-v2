@@ -19,6 +19,8 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationCreate,
     StockTrackRelationRead,
     StockTrackRelationUpdate,
+    StockTrendSnapshotCreate,
+    StockTrendSnapshotRead,
     StockValuationComparisonRead,
     StockMaterialCreate,
     StockMaterialUpdate,
@@ -142,6 +144,24 @@ def delete_score(score_id: int, db: Session = Depends(get_db)) -> dict[str, bool
     deleted = service.delete_score(db, score_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="score not found")
+    return {"deleted": True}
+
+
+@router.get("/stocks/{stock_id}/trends", response_model=list[StockTrendSnapshotRead])
+def list_trends(stock_id: int, db: Session = Depends(get_db)) -> list:
+    return service.list_trends(db, stock_id)
+
+
+@router.post("/stocks/{stock_id}/trends", response_model=StockTrendSnapshotRead)
+def create_trend(stock_id: int, payload: StockTrendSnapshotCreate, db: Session = Depends(get_db)):
+    return service.create_trend(db, stock_id, payload)
+
+
+@router.delete("/trends/{trend_id}")
+def delete_trend(trend_id: int, db: Session = Depends(get_db)) -> dict[str, bool]:
+    deleted = service.delete_trend(db, trend_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="trend not found")
     return {"deleted": True}
 
 

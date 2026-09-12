@@ -302,11 +302,18 @@ def test_authoritative_docs_remove_old_internal_agent_boundary():
         "## 简介 intro",
         "## 价值观 soul",
         "## 方法论 method",
-        "公司名称-YYYY-MM-DD-报告类型",
+        "研究对象-YYYY-MM-DD-报告类型",
         "万东医疗-2026-07-05-标的评级报告",
         "stock_score_snapshot",
         "report_time, researcher_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk",
         "报告类型为 `标的评级报告`",
+        "stock_trend_snapshot",
+        "安克创新-2026-09-11-趋势研究",
+        "标的池-2026-09-11-趋势研究",
+        "报告类型为 `趋势研究` 时，末尾最终 JSON **永远是数组**",
+        "`trend_level` 必须是 `T0`~`T5`",
+        "无唯一键，同一标的同一天允许多份快照",
+        "只要有一条成功即算导入成功并把回流状态置为 `parsed`",
     ]:
         assert expected in docs
 

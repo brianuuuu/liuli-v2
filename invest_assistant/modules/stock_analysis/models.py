@@ -156,6 +156,39 @@ class StockValuationSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
+class StockTrendSnapshot(Base):
+    """标的趋势研究结论快照，由知识库研究回流导入写入，纯追加，同一天允许多份。"""
+
+    __tablename__ = "stock_trend_snapshot"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
+    research_date: Mapped[date] = mapped_column(Date, nullable=False)
+    market_data_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    researcher_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    track_id: Mapped[int | None] = mapped_column(ForeignKey("track.id"), nullable=True)
+    main_track: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    trend_level: Mapped[str] = mapped_column(String(4), nullable=False)
+    track_short: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    track_mid: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    track_long: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    company_position: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    market_recognition: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    capital_recognition: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    stock_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    mainline_cycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    remaining_upside: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trend_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_group: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    priority_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    core_logic: Mapped[str | None] = mapped_column(Text, nullable=True)
+    primary_risk: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_verification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_gaps: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_id: Mapped[int | None] = mapped_column(ForeignKey("report.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
 class StockCompareGroup(Base):
     __tablename__ = "stock_compare_group"
 

@@ -39,7 +39,12 @@ from invest_assistant.modules.knowledge_base.schemas import (
 )
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.stock_analysis import service as stock_service
-from invest_assistant.modules.stock_analysis.schemas import StockScoreSnapshotCreate, StockValuationSnapshotCreate
+from invest_assistant.modules.track_discovery.models import Track
+from invest_assistant.modules.stock_analysis.schemas import (
+    StockScoreSnapshotCreate,
+    StockTrendSnapshotCreate,
+    StockValuationSnapshotCreate,
+)
 
 DEEPSEEK_HOTWORD_PROMPT_KEY = "market_radar.extract_daily_hotwords_deepseek"
 DEEPSEEK_MARKET_DAILY_REPORT_PROMPT_KEY = "market_radar.generate_daily_report"
@@ -48,7 +53,32 @@ DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_de
 RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 SCORE_REPORT_TYPE = "标的评级报告"
 VALUATION_REPORT_TYPE = "标的估值报告"
+TREND_REPORT_TYPE = "趋势研究"
+# 报告标题：研究对象-YYYY-MM-DD-报告类型。研究对象只是标签，不参与业务解析。
 SCORE_REPORT_TITLE_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(.+)$")
+TREND_LEVELS = {"T0", "T1", "T2", "T3", "T4", "T5"}
+SUGGESTED_GROUPS = {"focused", "candidate", "watching", "archived"}
+# 趋势报告的最终 JSON 永远是数组，元素字段与 stock_trend_snapshot 一一对应。
+# 必填只有标的身份（stock_id 或 company_code）加下面两项，其余缺失按 null 落库：
+# 报告原文可经 report_id 回溯，不值得为少一个字段让一批里的某条整体失败。
+TREND_REQUIRED_FIELDS = ["research_date", "trend_level"]
+TREND_TEXT_FIELDS = [
+    "main_track",
+    "track_short",
+    "track_mid",
+    "track_long",
+    "company_position",
+    "market_recognition",
+    "capital_recognition",
+    "stock_stage",
+    "mainline_cycle",
+    "remaining_upside",
+    "trend_duration",
+    "core_logic",
+    "primary_risk",
+    "next_verification",
+    "data_gaps",
+]
 SCORE_IMPORT_FIELDS = [
     "company_code",
     "business_moat_score",
@@ -952,6 +982,8 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     if not report_path.exists():
         raise ValueError("report file not found")
     content = report_path.read_text(encoding="utf-8")
+    if report_type == TREND_REPORT_TYPE:
+        return _import_trend_feedback(db, feedback, report_time, _extract_trailing_json_array(content))
     payload = _extract_trailing_json_object(content)
     if report_type == SCORE_REPORT_TYPE:
         return _import_score_feedback(db, feedback, company_name, report_time, payload)
@@ -1041,19 +1073,138 @@ def _import_valuation_feedback(
     }
 
 
+def _import_trend_feedback(
+    db: Session,
+    feedback: KnowledgeResearchFeedback,
+    report_time: date,
+    items: list,
+) -> dict:
+    """趋势报告的最终 JSON 永远是数组，单标的就是长度 1 的数组，因此只有这一条导入路径。"""
+    if not items:
+        raise ValueError("趋势报告末尾的 JSON 数组为空")
+    trends: list[dict] = []
+    failures: list[dict] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            failures.append({"index": index, "error": "数组元素必须是 JSON 对象"})
+            continue
+        try:
+            payload = _normalize_trend_import_payload(db, item, feedback, report_time)
+            stock = _resolve_trend_stock(db, item)
+            trend = stock_service.create_trend(db, stock.id, StockTrendSnapshotCreate(**payload))
+        except Exception as exc:  # 单条失败不影响其余条目
+            db.rollback()
+            failures.append({"index": index, "stock": _trend_item_label(item), "error": str(exc)})
+            continue
+        trends.append(stock_service._trend_snapshot_dict(trend))
+    if not trends:
+        detail = "；".join(f"第 {row['index'] + 1} 条 {row.get('stock') or ''}：{row['error']}" for row in failures[:5])
+        raise ValueError(f"趋势报告全部导入失败：{detail}")
+    feedback.status = "parsed"
+    db.commit()
+    db.refresh(feedback)
+    return {
+        "target": "stock_trend_snapshot",
+        "message": f"趋势导入完成：成功 {len(trends)} 个，失败 {len(failures)} 个",
+        "success_count": len(trends),
+        "failure_count": len(failures),
+        "failures": failures,
+        "trends": trends,
+    }
+
+
+def _trend_item_label(item: dict) -> str | None:
+    return _normalize_optional_text(str(item.get("company_code") or item.get("stock_id") or ""))
+
+
+def _resolve_trend_stock(db: Session, item: dict) -> Stock:
+    """报告直接带 stock_id 时优先用它，缺失时再按 company_code 反查。"""
+    stock_id = item.get("stock_id")
+    if stock_id is not None and not (isinstance(stock_id, str) and not stock_id.strip()):
+        try:
+            resolved_id = int(stock_id)
+        except Exception as exc:
+            raise ValueError("stock_id 必须是整数") from exc
+        stock = db.get(Stock, resolved_id)
+        if stock is None:
+            raise ValueError(f"未找到股票: stock_id={resolved_id}")
+        return stock
+    return _resolve_import_stock(db, item.get("company_code"), target="趋势")
+
+
+def _normalize_trend_import_payload(db: Session, payload: dict, feedback: KnowledgeResearchFeedback, report_time: date) -> dict:
+    for field in TREND_REQUIRED_FIELDS:
+        value = payload.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError(f"趋势导入缺少字段: {field}")
+
+    research_date = _import_date_field(payload.get("research_date"), "research_date")
+    if research_date != report_time:
+        raise ValueError(f"research_date 与报告标题日期不一致: {research_date} != {report_time}")
+
+    trend_level = str(payload.get("trend_level") or "").strip().upper()
+    if trend_level not in TREND_LEVELS:
+        raise ValueError(f"trend_level 必须是 {'、'.join(sorted(TREND_LEVELS))}")
+
+    suggested_group = str(payload.get("suggested_group") or "").strip().lower()
+    if suggested_group and suggested_group not in SUGGESTED_GROUPS:
+        raise ValueError(f"suggested_group 必须是 {'、'.join(sorted(SUGGESTED_GROUPS))}")
+
+    market_data_date = payload.get("market_data_date")
+    normalized: dict[str, Any] = {
+        "research_date": research_date,
+        "trend_level": trend_level,
+        "suggested_group": suggested_group or None,
+        "priority_rank": _trend_import_priority_rank(payload.get("priority_rank")),
+        "researcher_code": _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
+        "market_data_date": None
+        if market_data_date is None or (isinstance(market_data_date, str) and not market_data_date.strip())
+        else _import_date_field(market_data_date, "market_data_date"),
+        "report_id": feedback.report_id,
+    }
+    for field in TREND_TEXT_FIELDS:
+        normalized[field] = _normalize_optional_text(str(payload.get(field) or ""))
+    normalized["track_id"] = _resolve_trend_track_id(db, normalized["main_track"])
+    return normalized
+
+
+def _resolve_trend_track_id(db: Session, main_track: str | None) -> int | None:
+    """赛道按名称精确匹配；匹配不到只留 main_track 文本，不报错也不新建赛道。"""
+    if not main_track:
+        return None
+    return db.scalar(select(Track.id).where(Track.name == main_track))
+
+
+def _trend_import_priority_rank(value: Any) -> int | None:
+    """priority_rank 只在做过全池排名时才有值，未排名时为 null。"""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, bool):
+        raise ValueError("priority_rank 必须是正整数或 null")
+    try:
+        rank = int(value)
+    except Exception as exc:
+        raise ValueError("priority_rank 必须是正整数或 null") from exc
+    if rank <= 0:
+        raise ValueError("priority_rank 必须是正整数或 null")
+    return rank
+
+
 def _parse_feedback_report_title(title: str) -> tuple[str, date, str]:
+    """标题格式 研究对象-YYYY-MM-DD-报告类型。研究对象只是标签，标的一律从正文 JSON 解析。"""
     match = SCORE_REPORT_TITLE_RE.match(str(title or "").strip())
     if not match:
         raise ValueError("未识别可导入的报告类型")
-    company_name, report_date, report_type = match.groups()
+    subject, report_date, report_type = match.groups()
     try:
         parsed_date = date.fromisoformat(report_date)
     except ValueError as exc:
         raise ValueError("报告标题日期格式必须为 YYYY-MM-DD") from exc
-    return company_name.strip(), parsed_date, report_type.strip()
+    return subject.strip(), parsed_date, report_type.strip()
 
 
-def _extract_trailing_json_object(markdown: str) -> dict:
+def _extract_trailing_json_payload(markdown: str) -> dict | list:
+    """取报告末尾的最终 JSON。单份报告是对象，组合报告是同构对象组成的数组。"""
     content = str(markdown or "").strip()
     if not content:
         raise ValueError("报告内容为空")
@@ -1069,21 +1220,35 @@ def _extract_trailing_json_object(markdown: str) -> dict:
             continue
         try:
             parsed = json.loads(text)
-            if isinstance(parsed, dict):
+            if isinstance(parsed, (dict, list)):
                 return parsed
         except Exception:
             pass
         for index in range(len(text) - 1, -1, -1):
-            if text[index] != "{":
+            if text[index] not in "{[":
                 continue
             fragment = text[index:].strip()
             try:
                 parsed, end = decoder.raw_decode(fragment)
             except Exception:
                 continue
-            if isinstance(parsed, dict) and not fragment[end:].strip():
+            if isinstance(parsed, (dict, list)) and not fragment[end:].strip():
                 return parsed
     raise ValueError("未在报告末尾解析到 JSON")
+
+
+def _extract_trailing_json_object(markdown: str) -> dict:
+    payload = _extract_trailing_json_payload(markdown)
+    if not isinstance(payload, dict):
+        raise ValueError("报告末尾的 JSON 必须是对象")
+    return payload
+
+
+def _extract_trailing_json_array(markdown: str) -> list:
+    payload = _extract_trailing_json_payload(markdown)
+    if not isinstance(payload, list):
+        raise ValueError("趋势报告末尾的 JSON 必须是数组")
+    return payload
 
 
 def _normalize_score_import_payload(payload: dict) -> dict:
@@ -1123,7 +1288,7 @@ def _normalize_valuation_import_payload(payload: dict, feedback: KnowledgeResear
     normalized["company"] = str(payload.get("company") or "").strip()
     normalized["company_code"] = _normalize_company_code(payload.get("company_code"))
     normalized["report_period"] = str(payload.get("report_period") or "").strip()
-    normalized["report_release_date"] = _valuation_import_date(payload.get("report_release_date"), "report_release_date")
+    normalized["report_release_date"] = _import_date_field(payload.get("report_release_date"), "report_release_date")
     normalized["current_market_value"] = _valuation_import_positive_float(payload.get("current_market_value"), "current_market_value")
     normalized["financial_performance"] = _valuation_import_object(payload.get("financial_performance"), "financial_performance")
     normalized["trend_reference"] = _valuation_import_object(payload.get("trend_reference"), "trend_reference")
@@ -1139,7 +1304,7 @@ def _normalize_valuation_import_payload(payload: dict, feedback: KnowledgeResear
     normalized["primary_model"] = primary_model
     normalized["expected_market_value_3y"] = _valuation_import_float(payload.get("expected_market_value_3y"), "expected_market_value_3y")
     normalized["expectation_gap_rate"] = round(normalized["expected_market_value_3y"] / normalized["current_market_value"] - 1, 6)
-    normalized["analysis_date"] = _valuation_import_date(payload.get("analysis_date"), "analysis_date")
+    normalized["analysis_date"] = _import_date_field(payload.get("analysis_date"), "analysis_date")
     normalized["researcher_code"] = _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")) or "valuator_001"
     return normalized
 
@@ -1153,7 +1318,7 @@ def _normalize_company_code(value: Any) -> str:
     return code
 
 
-def _valuation_import_date(value: Any, field: str) -> date:
+def _import_date_field(value: Any, field: str) -> date:
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
     try:

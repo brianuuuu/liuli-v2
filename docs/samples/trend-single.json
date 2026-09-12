@@ -1,0 +1,26 @@
+[
+  {
+    "company_code": "300866",
+    "research_date": "2026-09-11",
+    "market_data_date": "2026-09-10",
+    "researcher_code": "trend_001",
+    "main_track": "消费电子",
+    "trend_level": "T2",
+    "track_short": "中",
+    "track_mid": "中",
+    "track_long": "强",
+    "company_position": "核心受益",
+    "market_recognition": "有辨识度，仍有分歧",
+    "capital_recognition": "有启动，持续性待确认",
+    "stock_stage": "修复",
+    "mainline_cycle": "发酵",
+    "remaining_upside": "以研究日收盘价为基准，未来1-3个月：基准区间 +4.9% 至 +7.6%，乐观 +11.5%，不利 -9.4% 至 -7.2%；均为量价结构情景，非确定目标。",
+    "trend_duration": "本轮先看 1-3 个月；新品销售与三季报验证后才考虑延长至 3-6 个月。",
+    "suggested_group": "candidate",
+    "priority_rank": null,
+    "core_logic": "品牌出海核心受益者，AI 家庭生态带来增量叙事；9 月突破后回踩，20 日相对表现较强，但主升初期与持续资金认可仍待确认。",
+    "primary_risk": "关税退款放大当期盈利，新品兑现未明；放量跌破平台上沿且不能收复则修复逻辑弱化。",
+    "next_verification": "未来 1-2 周观察回踩承接与前高收复；随后核查新品上市销售、三季报剔除一次性因素后的盈利及存货现金流。",
+    "data_gaps": "未取得既有 T 等级；缺剔除关税退款后的完整盈利桥接；本次未做全池排名。"
+  }
+]

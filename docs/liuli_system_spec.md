@@ -2405,6 +2405,8 @@ stock：宁德时代
 ```text
 stock_research_note
 stock_score_snapshot
+stock_valuation_snapshot
+stock_trend_snapshot
 stock_compare_group
 stock_risk_point
 stock_thesis
@@ -2413,6 +2415,51 @@ stock_pool
 stock_tag_relation
 stock_track_relation
 stock_material
+```
+
+#### `stock_trend_snapshot`
+
+`stock_trend_snapshot` 是标的趋势研究结论快照，与 `stock_score_snapshot`、`stock_valuation_snapshot` 平级，
+由知识库研究回流导入写入，纯追加，同一天允许多份。
+
+```sql
+stock_trend_snapshot
+- id
+- stock_id                 -- 报告直接带 stock_id 时用它，缺失时按 company_code 反查
+- research_date            -- 研究日期，必须与报告标题日期一致
+- market_data_date         -- 行情数据截止日期
+- researcher_code          -- 如 trend_001
+- track_id                 -- 核心赛道 ID，按 main_track 名称匹配 track.name，匹配不到留空
+- main_track               -- 报告原始赛道名，匹配不到赛道时的兜底
+- trend_level              -- T0 ~ T5
+- track_short              -- 六维·赛道，1-3 月：强 / 中 / 弱
+- track_mid                -- 六维·赛道，6-12 月
+- track_long               -- 六维·赛道，2-3 年
+- company_position         -- 六维·公司：龙头 / 核心受益 / 高弹性受益等
+- market_recognition       -- 六维·市场认可度
+- capital_recognition      -- 六维·资金认可度
+- stock_stage              -- 六维·位置：启动 / 突破初期 / 主升 / 修复 / 破位等
+- mainline_cycle           -- 六维·周期：启动 / 发酵 / 加速 / 高潮 / 分歧 / 退潮
+- remaining_upside         -- 当前剩余空间判断
+- trend_duration           -- 趋势持续窗口
+- suggested_group          -- focused / candidate / watching / archived
+- priority_rank            -- 当前全池优先级，可为空
+- core_logic
+- primary_risk
+- next_verification        -- 下一验证点
+- data_gaps                -- 当前数据 / 证据缺口
+- report_id                -- 对应研究报告，可空
+- created_at
+```
+
+规则：
+
+```text
+无唯一键，同一标的同一天允许多份快照，按 created_at 先后并存；
+trend_level 限定 T0~T5，T0 最强；
+suggested_group 只是建议，不自动修改 stock_pool.status；
+track_id 匹配不到时只留 main_track 文本，不自动创建赛道，也不写 stock_track_relation；
+行情派生数据不入表，按 market_data_date 从 stock_daily_bar 读取。
 ```
 
 #### `stock_pool`
@@ -5215,9 +5262,17 @@ Skill 名称
 回流时间
 ```
 
-报告库 ID 和报告路径是内部索引字段，用于从报告库读取正文，不作为研究回流列表或详情页的展示列。通过 `liuli-stock-rater` 和 `liuli-stock-valuator` 回流的标题格式固定为 `公司名称-YYYY-MM-DD-报告类型`，其中报告类型包括 `标的评级报告` 和 `标的估值报告`，例如 `万东医疗-2026-07-05-标的评级报告`、`万东医疗-2026-07-05-标的估值报告`。
+报告库 ID 和报告路径是内部索引字段，用于从报告库读取正文，不作为研究回流列表或详情页的展示列。报告标题格式统一为 `研究对象-YYYY-MM-DD-报告类型`，报告类型包括 `标的评级报告`、`标的估值报告` 和 `趋势研究`，例如 `万东医疗-2026-07-05-标的评级报告`、`万东医疗-2026-07-05-标的估值报告`、`安克创新-2026-09-11-趋势研究`。
 
-研究回流导入由后端自动识别，不在页面暴露目标表选择。第一版只按标题识别：按最后两个 `-` 拆出公司名称、`YYYY-MM-DD` 日期和报告类型；报告类型为 `标的评级报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_score_snapshot`。最终 JSON 必须包含 `company_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk`，`researcher_code` 可由 JSON 覆盖，否则使用回流记录中的研究员编号。报告类型为 `标的估值报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_valuation_snapshot`；最终 JSON 必须包含 `company, company_code, report_period, report_release_date, current_market_value, financial_performance, trend_reference, guidance_check, quarter_performance, quarter_main_reason, profit_model, fcf_model, revenue_model, primary_model, expected_market_value_3y, analysis_date, researcher_code`，导入端会按当前市值和三年合理市值重算 `expectation_gap_rate`。`company_code` 必须匹配已有 `stock.stock_code`，系统不自动创建标的。
+趋势研究报告的标题第一段只是人类可读的范围标签，不参与任何业务解析，`安克创新-2026-09-11-趋势研究`、`标的池-2026-09-11-趋势研究`、`AI算力-2026-09-11-趋势研究` 在导入端走完全相同的路径，标的一律从正文 JSON 解析。
+
+研究回流导入由后端自动识别，不在页面暴露目标表选择。识别只看标题：按最后两个 `-` 拆出研究对象、`YYYY-MM-DD` 日期和报告类型；报告类型为 `标的评级报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_score_snapshot`。最终 JSON 必须包含 `company_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk`，`researcher_code` 可由 JSON 覆盖，否则使用回流记录中的研究员编号。报告类型为 `标的估值报告` 时读取报告库 Markdown 末尾最终 JSON，并写入 `stock_valuation_snapshot`；最终 JSON 必须包含 `company, company_code, report_period, report_release_date, current_market_value, financial_performance, trend_reference, guidance_check, quarter_performance, quarter_main_reason, profit_model, fcf_model, revenue_model, primary_model, expected_market_value_3y, analysis_date, researcher_code`，导入端会按当前市值和三年合理市值重算 `expectation_gap_rate`。`company_code` 必须匹配已有 `stock.stock_code`，系统不自动创建标的。
+
+报告类型为 `趋势研究` 时，末尾最终 JSON **永远是数组**，不是数组直接报错；单标的报告就是长度 1 的数组，因此导入端只有一条路径，没有单份和批量的分支。数组每个元素对应一条 `stock_trend_snapshot`，字段名与表字段一一对应，元素给 `main_track` 名称而不是 `track_id`，`stock_id`、`track_id`、`report_id` 由导入端填。
+
+趋势元素的必填项只有标的身份（`stock_id` 或 `company_code`）、`research_date` 和 `trend_level`，其余字段缺失按 null 落库：报告原文可经 `report_id` 回溯，不值得为少一个字段让一批里的某条整体失败。硬校验只有三条：`trend_level` 必须是 `T0`~`T5`，`suggested_group` 给了就必须是 `focused/candidate/watching/archived`，`research_date` 必须与报告标题日期一致。
+
+趋势导入按部分成功处理：逐条写入并返回成功和失败条数以及失败明细，只要有一条成功即算导入成功并把回流状态置为 `parsed`，全部失败才算导入失败。因为快照表没有唯一键，重复导入会产生重复记录，所以一键导入不会重跑已 `parsed` 的回流；确需重导由人工单条触发。
 
 ## 对外 MCP 服务设计
 

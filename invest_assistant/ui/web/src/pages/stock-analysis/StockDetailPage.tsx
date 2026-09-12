@@ -29,7 +29,8 @@ import type {
   StockMaterial,
   StockResearchNote,
   StockScoreSnapshot,
-  StockTrackRelation
+  StockTrackRelation,
+  StockTrendSnapshot
 } from "../../types/api";
 import { formatTime, poolStatusOptions } from "./sections/shared";
 import {
@@ -45,6 +46,13 @@ import {
   filterStockMaterials
 } from "./stockMaterialFilter.ts";
 import type { MaterialViewMode } from "./stockMaterialFilter.ts";
+import {
+  buildLatestTrendSummary,
+  buildTrendDimensions,
+  buildTrendLevelTimelineOption,
+  suggestedGroupLabel,
+  trendLevelTone
+} from "./trendPresentation";
 import {
   buildLatestValuationSummary,
   buildValuationComparisonOption,
@@ -221,6 +229,7 @@ export function StockDetailPage() {
                   children: <ScoresTab data={data} />
                 },
                 { key: "valuation", label: "估值", children: <ValuationTab data={data} /> },
+                { key: "trend", label: "趋势", children: <TrendTab data={data} /> },
                 {
                   key: "materials",
                   label: "材料公告",
@@ -414,6 +423,14 @@ function OverviewTab({ data }: { data: StockDetail }) {
             <div className="detail-row"><span>最新估值报告时间</span><span>{data.latest_valuation?.analysis_date || "-"}</span></div>
             <div className="detail-row"><span>估值期</span><span>{data.latest_valuation?.report_period || "-"}</span></div>
             <div className="detail-row"><span>估值依据</span><span>{valuationModelLabel(data.latest_valuation?.primary_model)}</span></div>
+            <div className="detail-row">
+              <span>最新趋势等级</span>
+              <span className={`stock-trend-level ${trendLevelTone(data.latest_trend?.trend_level)}`}>
+                {data.latest_trend?.trend_level || "-"}
+              </span>
+            </div>
+            <div className="detail-row"><span>趋势阶段</span><span>{data.latest_trend?.stock_stage || "-"}</span></div>
+            <div className="detail-row"><span>最新趋势研究时间</span><span>{data.latest_trend?.research_date || "-"}</span></div>
           </div>
         </div>
         <div className="stock-detail-overview-main">
@@ -802,6 +819,95 @@ function ValuationTab({ data }: { data: StockDetail }) {
         </div>
       </div>
     </WorkbenchCard>
+  );
+}
+
+function TrendTab({ data }: { data: StockDetail }) {
+  const { resolvedMode } = useLiuliTheme();
+  const latest = data.latest_trend ? buildLatestTrendSummary(data.latest_trend) : null;
+  const trendColumns: ColumnsType<StockTrendSnapshot> = [
+    { title: "研究日", dataIndex: "research_date", width: 110 },
+    {
+      title: "T 等级",
+      dataIndex: "trend_level",
+      width: 90,
+      render: (value) => <span className={`stock-trend-level ${trendLevelTone(value)}`}>{value || "-"}</span>
+    },
+    { title: "阶段", dataIndex: "stock_stage", width: 100, render: (value) => value || "-" },
+    { title: "主赛道", dataIndex: "main_track", width: 130, ellipsis: true, render: (value) => value || "-" },
+    { title: "地位", dataIndex: "company_position", width: 110, render: (value) => value || "-" },
+    { title: "市场认可", dataIndex: "market_recognition", width: 150, ellipsis: true, render: (value) => value || "-" },
+    { title: "资金认可", dataIndex: "capital_recognition", width: 150, ellipsis: true, render: (value) => value || "-" },
+    { title: "主线周期", dataIndex: "mainline_cycle", width: 100, render: (value) => value || "-" },
+    { title: "分组建议", dataIndex: "suggested_group", width: 100, render: suggestedGroupLabel },
+    { title: "排名", dataIndex: "priority_rank", width: 80, render: (value) => (value === null || value === undefined ? "-" : value) },
+    { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" }
+  ];
+  return (
+    <WorkbenchCard>
+      <div className="stock-detail-panel">
+        <div className="stock-detail-panel-section first">
+          {latest && data.latest_trend ? (
+            <div className="stock-trend-latest">
+              <div className="stock-valuation-section-head">
+                <div className="stock-detail-subtitle">最新趋势</div>
+                <span>{latest.researchDate || "-"} · 行情截至 {latest.marketDataDate || "-"} · {latest.researcherCode || "未标注研究员"}</span>
+              </div>
+              <div className="stock-valuation-summary-grid">
+                <div className="stock-valuation-summary-item featured">
+                  <span>T 等级</span>
+                  <strong className={`stock-trend-level ${latest.levelTone}`}>{latest.trendLevel}</strong>
+                  <em>{latest.stockStage}</em>
+                </div>
+                <div className="stock-valuation-summary-item">
+                  <span>主赛道</span>
+                  <strong>{latest.mainTrack}</strong>
+                </div>
+                <div className="stock-valuation-summary-item">
+                  <span>分组建议</span>
+                  <strong>{latest.suggestedGroup}</strong>
+                  <em>{latest.priorityRank === null ? "未做全池排名" : `全池第 ${latest.priorityRank} 位`}</em>
+                </div>
+                <div className="stock-valuation-summary-item">
+                  <span>持续窗口</span>
+                  <strong>{latest.trendDuration}</strong>
+                </div>
+              </div>
+              <div className="stock-trend-dimensions">
+                {buildTrendDimensions(data.latest_trend).map((item) => (
+                  <div className="stock-trend-dimension" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="stock-trend-notes">
+                <TrendNote label="核心逻辑" value={data.latest_trend.core_logic} />
+                <TrendNote label="主要风险" value={data.latest_trend.primary_risk} />
+                <TrendNote label="剩余空间" value={data.latest_trend.remaining_upside} />
+                <TrendNote label="下一验证点" value={data.latest_trend.next_verification} />
+                <TrendNote label="证据缺口" value={data.latest_trend.data_gaps} />
+              </div>
+            </div>
+          ) : <EmptyAction description="暂无趋势研究" />}
+          <div className="stock-valuation-chart-section">
+            <div className="stock-detail-subtitle">T 等级变化</div>
+            {data.trend_history.length ? <InlineChart option={buildTrendLevelTimelineOption(data.trend_history, resolvedMode)} /> : <EmptyAction description="暂无趋势历史" />}
+          </div>
+          <Table rowKey="id" size="small" dataSource={data.trend_history} columns={trendColumns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1240 }} />
+        </div>
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function TrendNote({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="stock-trend-note">
+      <span>{label}</span>
+      <p>{value}</p>
+    </div>
   );
 }
 

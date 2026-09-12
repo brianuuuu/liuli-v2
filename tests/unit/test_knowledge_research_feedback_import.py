@@ -17,7 +17,8 @@ from invest_assistant.modules.knowledge_base.service import (
     import_research_feedback,
 )
 from invest_assistant.modules.stock_analysis.models import StockValuationSnapshot
-from invest_assistant.modules.stock_analysis.service import delete_score
+from invest_assistant.modules.stock_analysis.service import delete_score, list_trends
+from invest_assistant.modules.track_discovery.models import Track
 
 
 def make_session() -> Session:
@@ -319,3 +320,247 @@ def test_delete_research_feedback_removes_row_but_keeps_report():
     assert get_research_feedback(db, feedback_id) is None
     # 报告是报告库的独立实体，删除回流记录不得连带删掉它
     assert report_service.get_report(db, report_id) is not None
+
+
+def trend_item(**overrides) -> dict:
+    data = {
+        "company_code": "600055",
+        "research_date": "2026-07-05",
+        "market_data_date": "2026-07-04",
+        "researcher_code": "trend_001",
+        "main_track": "医疗影像",
+        "trend_level": "T2",
+        "track_short": "中",
+        "track_mid": "中",
+        "track_long": "强",
+        "company_position": "核心受益",
+        "market_recognition": "有辨识度，仍有分歧",
+        "capital_recognition": "有启动，持续性待确认",
+        "stock_stage": "修复",
+        "mainline_cycle": "发酵",
+        "remaining_upside": "基准 +4.9% 至 +7.6%，不利 -9.4% 至 -7.2%。",
+        "trend_duration": "先看1-3个月。",
+        "suggested_group": "candidate",
+        "priority_rank": None,
+        "core_logic": "平台突破后回踩修复，等待量价确认。",
+        "primary_risk": "放量跌破平台上沿则修复逻辑弱化。",
+        "next_verification": "未来1-2周观察承接与收复。",
+        "data_gaps": "未取得既有T等级。",
+    }
+    data.update(overrides)
+    return data
+
+
+def trend_markdown(items: list[dict]) -> str:
+    import json
+
+    body = json.dumps(items, ensure_ascii=False, indent=2)
+    return "# 趋势研究\n\n正文。\n\n```json\n" + body + "\n```\n"
+
+
+def create_trend_feedback(db: Session, title: str, markdown: str) -> KnowledgeResearchFeedback:
+    return create_feedback(db, title, markdown, researcher_code="analyst_001", skill_name="liuli-stock-trend")
+
+
+def seed_stocks(db: Session) -> None:
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.add(Stock(stock_code="300866", stock_name="安克创新", symbol="300866.SZ", exchange="SZ"))
+    db.commit()
+
+
+def test_import_single_stock_trend_report(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["target"] == "stock_trend_snapshot"
+    # 单标的就是长度 1 的数组，提示与批量完全一致，没有特例分支
+    assert result["message"] == "趋势导入完成：成功 1 个，失败 0 个"
+    assert result["success_count"] == 1
+    trend = result["trends"][0]
+    assert trend["stock_id"] == 1
+    assert trend["research_date"] == date(2026, 7, 5)
+    assert trend["market_data_date"] == date(2026, 7, 4)
+    assert trend["trend_level"] == "T2"
+    assert trend["stock_stage"] == "修复"
+    assert trend["mainline_cycle"] == "发酵"
+    assert trend["track_short"] == "中"
+    assert trend["capital_recognition"] == "有启动，持续性待确认"
+    assert trend["suggested_group"] == "candidate"
+    assert trend["priority_rank"] is None
+    assert trend["report_id"] == feedback.report_id
+    assert db.get(KnowledgeResearchFeedback, feedback.id).status == "parsed"
+
+
+def test_import_pool_trend_report_writes_every_item(tmp_path, monkeypatch):
+    """标的池报告和单标的报告走同一条路径，标题第一段只是标签。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    items = [
+        trend_item(priority_rank=1),
+        trend_item(company_code="300866", trend_level="T1", main_track="消费电子", priority_rank=2),
+    ]
+    feedback = create_trend_feedback(db, "标的池-2026-07-05-趋势研究", trend_markdown(items))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["message"] == "趋势导入完成：成功 2 个，失败 0 个"
+    assert [row["stock_id"] for row in result["trends"]] == [1, 2]
+    assert [row["priority_rank"] for row in result["trends"]] == [1, 2]
+
+
+def test_import_trend_report_prefers_stock_id_over_company_code(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    item = trend_item(stock_id=2, company_code="600055")
+    feedback = create_trend_feedback(db, "AI算力-2026-07-05-趋势研究", trend_markdown([item]))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["trends"][0]["stock_id"] == 2
+
+
+def test_import_trend_report_falls_back_to_company_code(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["trends"][0]["stock_id"] == 1
+
+
+def test_import_trend_report_resolves_track_by_name(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    db.add(Track(name="医疗影像"))
+    db.commit()
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
+
+    trend = import_research_feedback(db, feedback.id)["trends"][0]
+
+    assert trend["track_id"] == 1
+    assert trend["main_track"] == "医疗影像"
+
+
+def test_import_trend_report_keeps_track_text_when_name_unknown(tmp_path, monkeypatch):
+    """赛道名匹配不上时只留文本，不报错也不新建赛道，研究判断不丢。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item(main_track="没入库的赛道")]))
+
+    trend = import_research_feedback(db, feedback.id)["trends"][0]
+
+    assert trend["track_id"] is None
+    assert trend["main_track"] == "没入库的赛道"
+
+
+def test_import_trend_report_allows_multiple_snapshots_on_same_day(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    first = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
+    import_research_feedback(db, first.id)
+    second = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item(trend_level="T1")]))
+
+    import_research_feedback(db, second.id)
+
+    trends = list_trends(db, 1)
+    assert len(trends) == 2
+    assert {item.trend_level for item in trends} == {"T1", "T2"}
+
+
+def test_import_trend_report_reports_partial_success(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    items = [
+        trend_item(),
+        trend_item(company_code="999999"),
+        trend_item(company_code="300866", trend_level="T9"),
+    ]
+    feedback = create_trend_feedback(db, "标的池-2026-07-05-趋势研究", trend_markdown(items))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["message"] == "趋势导入完成：成功 1 个，失败 2 个"
+    assert result["failures"][0]["stock"] == "999999"
+    assert "未找到股票" in result["failures"][0]["error"]
+    assert "trend_level 必须是" in result["failures"][1]["error"]
+    # 部分成功即算成功，状态置 parsed，一键导入不会再重跑出重复记录
+    assert db.get(KnowledgeResearchFeedback, feedback.id).status == "parsed"
+
+
+def test_import_trend_report_fails_when_every_item_fails(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    items = [trend_item(company_code="999999"), trend_item(company_code="888888")]
+    feedback = create_trend_feedback(db, "标的池-2026-07-05-趋势研究", trend_markdown(items))
+
+    with pytest.raises(ValueError, match="趋势报告全部导入失败"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_trend_report_rejects_object_payload(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    import json
+
+    markdown = "# 趋势研究\n\n正文。\n\n```json\n" + json.dumps(trend_item(), ensure_ascii=False) + "\n```\n"
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", markdown)
+
+    with pytest.raises(ValueError, match="趋势报告末尾的 JSON 必须是数组"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_trend_report_rejects_research_date_mismatch(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(
+        db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item(research_date="2026-07-06")])
+    )
+
+    with pytest.raises(ValueError, match="趋势报告全部导入失败"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_trend_report_accepts_minimal_item(tmp_path, monkeypatch):
+    """只给标的身份、研究日期和等级也能导入，其余字段按 null 落库。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    minimal = {"company_code": "600055", "research_date": "2026-07-05", "trend_level": "T3"}
+    feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([minimal]))
+
+    trend = import_research_feedback(db, feedback.id)["trends"][0]
+
+    assert trend["trend_level"] == "T3"
+    assert trend["main_track"] is None
+    assert trend["track_id"] is None
+    assert trend["suggested_group"] is None
+    assert trend["core_logic"] is None
+    # researcher_code 缺失时回落到回流记录上的研究员
+    assert trend["researcher_code"] == "analyst_001"
+
+
+def test_import_trend_report_rejects_unknown_suggested_group(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(
+        db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item(suggested_group="hold")])
+    )
+
+    with pytest.raises(ValueError, match="趋势报告全部导入失败"):
+        import_research_feedback(db, feedback.id)

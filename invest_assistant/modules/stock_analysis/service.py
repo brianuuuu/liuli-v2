@@ -19,6 +19,7 @@ from invest_assistant.modules.stock_analysis.models import (
     StockResearchNote,
     StockScoreSnapshot,
     StockTrackRelation,
+    StockTrendSnapshot,
     StockValuationSnapshot,
     StockMaterial,
 )
@@ -30,6 +31,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockScoreSnapshotCreate,
     StockTrackRelationCreate,
     StockTrackRelationUpdate,
+    StockTrendSnapshotCreate,
     StockValuationSnapshotCreate,
 )
 from invest_assistant.services.tushare import client as tushare_client
@@ -539,6 +541,13 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
             )
         )
     )
+    trend_history = list(
+        db.scalars(
+            select(StockTrendSnapshot)
+            .where(StockTrendSnapshot.stock_id == stock_id)
+            .order_by(StockTrendSnapshot.research_date.asc(), StockTrendSnapshot.id.asc())
+        )
+    )
     materials = list_stock_materials(db, stock_id)
     disclosures = [_disclosure_dict(item) for item in _stock_disclosures(db, stock_id, materials)]
     tracks = list_track_relations(db, stock_id)
@@ -565,6 +574,8 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         "score_history": [_score_snapshot_dict(item) for item in score_history],
         "latest_valuation": _valuation_snapshot_dict(valuation_history[-1]) if valuation_history else None,
         "valuation_history": [_valuation_snapshot_dict(item) for item in valuation_history],
+        "latest_trend": _trend_snapshot_dict(trend_history[-1]) if trend_history else None,
+        "trend_history": [_trend_snapshot_dict(item) for item in trend_history],
         "materials": materials,
         "disclosures": disclosures,
         "tracks": tracks,
@@ -631,6 +642,41 @@ def _valuation_snapshot_dict(item: StockValuationSnapshot) -> dict:
         "researcher": item.researcher,
         "created_at": item.created_at,
     }
+
+
+TREND_SNAPSHOT_FIELDS = [
+    "research_date",
+    "market_data_date",
+    "researcher_code",
+    "track_id",
+    "main_track",
+    "trend_level",
+    "track_short",
+    "track_mid",
+    "track_long",
+    "company_position",
+    "market_recognition",
+    "capital_recognition",
+    "stock_stage",
+    "mainline_cycle",
+    "remaining_upside",
+    "trend_duration",
+    "suggested_group",
+    "priority_rank",
+    "core_logic",
+    "primary_risk",
+    "next_verification",
+    "data_gaps",
+    "report_id",
+]
+
+
+def _trend_snapshot_dict(item: StockTrendSnapshot) -> dict:
+    data = {field: getattr(item, field) for field in TREND_SNAPSHOT_FIELDS}
+    data["id"] = item.id
+    data["stock_id"] = item.stock_id
+    data["created_at"] = item.created_at
+    return data
 
 
 def _note_dict(item: StockResearchNote) -> dict:
@@ -1137,6 +1183,33 @@ def create_valuation(db: Session, stock_id: int, payload: StockValuationSnapshot
     db.commit()
     db.refresh(item)
     return item
+
+
+def create_trend(db: Session, stock_id: int, payload: StockTrendSnapshotCreate) -> StockTrendSnapshot:
+    item = StockTrendSnapshot(stock_id=stock_id, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def list_trends(db: Session, stock_id: int) -> list[StockTrendSnapshot]:
+    return list(
+        db.scalars(
+            select(StockTrendSnapshot)
+            .where(StockTrendSnapshot.stock_id == stock_id)
+            .order_by(StockTrendSnapshot.research_date.desc(), StockTrendSnapshot.id.desc())
+        )
+    )
+
+
+def delete_trend(db: Session, trend_id: int) -> bool:
+    item = db.get(StockTrendSnapshot, trend_id)
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
 
 
 def delete_score(db: Session, score_id: int) -> bool:

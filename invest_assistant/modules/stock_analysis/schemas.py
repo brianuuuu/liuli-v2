@@ -82,6 +82,39 @@ class StockValuationSnapshotCreate(BaseModel):
     researcher: str | None = None
 
 
+class StockTrendSnapshotCreate(BaseModel):
+    research_date: date
+    trend_level: str
+    market_data_date: date | None = None
+    researcher_code: str | None = None
+    track_id: int | None = None
+    main_track: str | None = None
+    track_short: str | None = None
+    track_mid: str | None = None
+    track_long: str | None = None
+    company_position: str | None = None
+    market_recognition: str | None = None
+    capital_recognition: str | None = None
+    stock_stage: str | None = None
+    mainline_cycle: str | None = None
+    remaining_upside: str | None = None
+    trend_duration: str | None = None
+    suggested_group: str | None = None
+    priority_rank: int | None = None
+    core_logic: str | None = None
+    primary_risk: str | None = None
+    next_verification: str | None = None
+    data_gaps: str | None = None
+    report_id: int | None = None
+
+
+class StockTrendSnapshotRead(StockTrendSnapshotCreate):
+    id: int
+    stock_id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class StockDailyBarRead(BaseModel):
     id: int
     stock_id: int
@@ -314,6 +347,8 @@ class StockDetailRead(BaseModel):
     score_history: list[StockScoreSnapshotRead] = Field(default_factory=list)
     latest_valuation: StockDetailValuationSnapshot | None = None
     valuation_history: list[StockDetailValuationSnapshot] = Field(default_factory=list)
+    latest_trend: StockTrendSnapshotRead | None = None
+    trend_history: list[StockTrendSnapshotRead] = Field(default_factory=list)
     materials: list[StockMaterialRead] = Field(default_factory=list)
     disclosures: list[StockDetailDisclosure] = Field(default_factory=list)
     tracks: list[StockTrackRelationRead] = Field(default_factory=list)

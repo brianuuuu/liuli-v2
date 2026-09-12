@@ -5,6 +5,7 @@ import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
+import { formatFeedbackImportSummary, hasImportFailure } from "./researchFeedbackImport";
 import {
   archiveKnowledgeNote,
   archiveKnowledgeNoteGroup,
@@ -1047,9 +1048,11 @@ function ResearchFeedbackSection() {
     setImportingId(record.id);
     try {
       const result = await importKnowledgeResearchFeedback(record.id);
-      message.success(
-        `${result.message || "导入成功"}${result.score?.id ? `：评分 ID ${result.score.id}` : result.valuation?.id ? `：估值 ID ${result.valuation.id}` : ""}`
-      );
+      if (hasImportFailure(result)) {
+        message.warning(formatFeedbackImportSummary(result));
+      } else {
+        message.success(formatFeedbackImportSummary(result));
+      }
       await feedback.refresh();
     } catch (error) {
       const showImportError = Modal.error;
