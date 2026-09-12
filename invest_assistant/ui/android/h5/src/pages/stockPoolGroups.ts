@@ -68,6 +68,32 @@ export function trendLevelBadge(trendLevel?: string | null): TrendLevel | null {
   return TREND_LEVELS.find((level) => level === normalized) ?? null;
 }
 
+export type PoolCardBadgeSet = {
+  level: string | null;
+  space: AnnualizedValuationSpace | null;
+  trend: TrendLevel | null;
+};
+
+export function poolCardBadgeSet(item: StockPoolItem): PoolCardBadgeSet {
+  return {
+    level: item.investment_level?.trim() || null,
+    space: annualizedValuationSpace(item.expectation_gap_rate),
+    trend: trendLevelBadge(item.trend_level)
+  };
+}
+
+/**
+ * 槽位预留按实际有几个角标算：360px 机型上卡片文字区只有 78px，四字名就占 52px，
+ * 无条件预留会把没有角标的卡片也截断。类名只说明占了哪几个槽位，具体宽度交给样式。
+ */
+export function poolCardSlotClass(badges: PoolCardBadgeSet): string {
+  const topCount = (badges.level ? 1 : 0) + (badges.space ? 1 : 0);
+  const slots: string[] = [];
+  if (topCount) slots.push(`pool-card--slot-top-${topCount}`);
+  if (badges.trend) slots.push("pool-card--slot-trend");
+  return slots.join(" ");
+}
+
 /** 标的卡片按三列排布，最多六行；超出时最后一格让给翻页按钮。 */
 export const POOL_CARD_COLUMNS = 3;
 export const POOL_CARD_MAX_ROWS = 6;

@@ -17,12 +17,13 @@ import {
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
-  annualizedValuationSpace,
   filterPoolByStatus,
   nextPoolPage,
   poolPageLayout,
+  poolCardBadgeSet,
+  poolCardSlotClass,
   poolStatusCounts,
-  trendLevelBadge,
+  type PoolCardBadgeSet,
   type PoolStatusKey,
   type StockTabView
 } from "./stockPoolGroups";
@@ -284,17 +285,21 @@ function StockPoolView() {
       ) : visible.length ? (
         <>
           <div className="pool-card-grid">
-            {layout.cards.map((item) => (
-              <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
-                <PoolCardBadges
-                  investmentLevel={item.investment_level}
-                  expectationGapRate={item.expectation_gap_rate}
-                  trendLevel={item.trend_level}
-                />
-                <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
-                <span>{item.stock_code?.trim() || "--"}</span>
-              </button>
-            ))}
+            {layout.cards.map((item) => {
+              const badges = poolCardBadgeSet(item);
+              return (
+                <button
+                  type="button"
+                  className={`pool-card ${poolCardSlotClass(badges)}`.trimEnd()}
+                  key={item.id}
+                  onClick={() => navigate(`/stocks/${item.stock_id}`)}
+                >
+                  <PoolCardBadges badges={badges} />
+                  <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+                  <span>{item.stock_code?.trim() || "--"}</span>
+                </button>
+              );
+            })}
             {layout.showPager ? (
               <button
                 type="button"
@@ -318,14 +323,8 @@ function StockPoolView() {
  * 三个角标按固定槽位分两组：右上是研究结论（投资等级 + 三年空间），右下是趋势时机。
  * 槽位固定而不是挤成一排，缺数据时剩下的角标才不会漂到别的维度的位置上。
  */
-function PoolCardBadges({ investmentLevel, expectationGapRate, trendLevel }: {
-  investmentLevel?: string | null;
-  expectationGapRate?: number | null;
-  trendLevel?: string | null;
-}) {
-  const level = investmentLevel?.trim();
-  const space = annualizedValuationSpace(expectationGapRate);
-  const trend = trendLevelBadge(trendLevel);
+function PoolCardBadges({ badges }: { badges: PoolCardBadgeSet }) {
+  const { level, space, trend } = badges;
   if (!level && !space && !trend) return null;
   return (
     <>

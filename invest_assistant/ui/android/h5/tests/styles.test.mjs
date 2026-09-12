@@ -155,14 +155,17 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
-    // 角标分两组固定槽位：右上研究结论、右下趋势时机，文字各自留出对应宽度才不会压到角标。
-    expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*padding-right:\s*38px;/s);
-    expect(styles).toMatch(/\.pool-card span\s*\{[^}]*padding-right:\s*24px;/s);
-    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*top:\s*4px;[^}]*right:\s*4px;[^}]*padding-right:\s*0;/s);
-    expect(styles).toMatch(/\.pool-card__badge--trend\s*\{[^}]*position:\s*absolute;[^}]*right:\s*4px;[^}]*bottom:\s*5px;/s);
-    // 翻页格自己居中，预留槽位会把文字推歪。
-    expect(styles).toMatch(/\.pool-card--pager strong\s*\{[^}]*padding-right:\s*0;/s);
-    expect(styles).toMatch(/\.pool-card--pager span\s*\{[^}]*padding-right:\s*0;/s);
+    // 角标分两组固定槽位：右上研究结论、右下趋势时机，文字按实际占用的槽位留宽才不会压到角标。
+    // 没有角标的卡片一律不预留：360px 机型上文字区只有 78px，四字名就占 52px，多留一点就会截断。
+    expect(styles).not.toMatch(/\.pool-card strong\s*\{[^}]*padding-right:/s);
+    expect(styles).not.toMatch(/\.pool-card span\s*\{[^}]*padding-right:/s);
+    expect(styles).toMatch(/\.pool-card--slot-top-1 strong\s*\{[^}]*padding-right:\s*10px;/s);
+    expect(styles).toMatch(/\.pool-card--slot-top-2 strong\s*\{[^}]*padding-right:\s*25px;/s);
+    expect(styles).toMatch(/\.pool-card--slot-trend span\s*\{[^}]*padding-right:\s*12px;/s);
+    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*top:\s*4px;[^}]*right:\s*3px;[^}]*padding-right:\s*0;/s);
+    // 角标缩到 14px 才能在 360px 机型上给四字名让出位置。
+    expect(styles).toMatch(/\.pool-card__badge\s*\{[^}]*min-width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*8px;[^}]*line-height:\s*14px;/s);
+    expect(styles).toMatch(/\.pool-card__badge--trend\s*\{[^}]*position:\s*absolute;[^}]*right:\s*3px;[^}]*bottom:\s*5px;/s);
     for (const level of ["T0", "T1", "T2", "T3", "T4", "T5"]) {
       expect(styles).toMatch(new RegExp(String.raw`\.pool-card__badge--trend-${level}\s*\{[^}]*background:[^;}]+;[^}]*color:[^;}]+;`, "s"));
       expect(styles).toMatch(new RegExp(String.raw`:root\[data-theme="dark"\] \.pool-card__badge--trend-${level}\s*\{`, "s"));

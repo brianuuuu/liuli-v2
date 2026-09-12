@@ -8,6 +8,8 @@ import {
   filterPoolByStatus,
   poolStatusCounts,
   trendLevelBadge,
+  poolCardBadgeSet,
+  poolCardSlotClass,
   poolStatusLabel,
   POOL_PAGE_CAPACITY,
   poolPageLayout,
@@ -118,6 +120,23 @@ describe("标的池卡片三年空间角标", () => {
     expect(annualizedValuationSpace(null)).toBeNull();
     expect(annualizedValuationSpace(Number.NaN)).toBeNull();
     expect(annualizedValuationSpace(-1)).toBeNull();
+  });
+});
+
+describe("标的池卡片角标槽位", () => {
+  const item = (extra: Partial<StockPoolItem>): StockPoolItem =>
+    ({ id: 1, stock_id: 1, status: "watching", ...extra }) as StockPoolItem;
+
+  it("按实际存在的角标给出槽位类名", () => {
+    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "A", expectation_gap_rate: 1.0, trend_level: "T1" }))))
+      .toBe("pool-card--slot-top-2 pool-card--slot-trend");
+    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "A" })))).toBe("pool-card--slot-top-1");
+    expect(poolCardSlotClass(poolCardBadgeSet(item({ trend_level: "T3" })))).toBe("pool-card--slot-trend");
+  });
+
+  it("没有角标时不留槽位，标的名拿满整行", () => {
+    expect(poolCardSlotClass(poolCardBadgeSet(item({})))).toBe("");
+    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "  ", trend_level: "T9" })))).toBe("");
   });
 });
 
