@@ -8,7 +8,11 @@ import {
   filterPoolByStatus,
   poolStatusCounts,
   trendLevelBadge,
+  badgeTierClass,
+  investmentLevelTier,
   poolCardBadgeSet,
+  trendLevelTier,
+  valuationSpaceTier,
   poolCardSlotClass,
   poolStatusLabel,
   POOL_PAGE_CAPACITY,
@@ -120,6 +124,43 @@ describe("标的池卡片三年空间角标", () => {
     expect(annualizedValuationSpace(null)).toBeNull();
     expect(annualizedValuationSpace(Number.NaN)).toBeNull();
     expect(annualizedValuationSpace(-1)).toBeNull();
+  });
+});
+
+describe("标的池卡片角标档位配色", () => {
+  it("S/A、T0-T2、大 同属强档", () => {
+    expect(investmentLevelTier("S")).toBe("strong");
+    expect(investmentLevelTier("A")).toBe("strong");
+    expect(trendLevelTier("T0")).toBe("strong");
+    expect(trendLevelTier("T2")).toBe("strong");
+    expect(valuationSpaceTier("大")).toBe("strong");
+  });
+
+  it("B/C、T3-T4、中 同属中档", () => {
+    expect(investmentLevelTier("B")).toBe("mid");
+    expect(investmentLevelTier("C")).toBe("mid");
+    expect(trendLevelTier("T3")).toBe("mid");
+    expect(trendLevelTier("T4")).toBe("mid");
+    expect(valuationSpaceTier("中")).toBe("mid");
+  });
+
+  it("D、T5、小 同属弱档", () => {
+    expect(investmentLevelTier("D")).toBe("weak");
+    expect(trendLevelTier("T5")).toBe("weak");
+    expect(valuationSpaceTier("小")).toBe("weak");
+  });
+
+  it("评级口径之外的等级不套档位，保留中性样式", () => {
+    expect(investmentLevelTier("E")).toBeNull();
+    expect(investmentLevelTier("")).toBeNull();
+    expect(investmentLevelTier(null)).toBeNull();
+    expect(badgeTierClass(null)).toBe("");
+    expect(badgeTierClass("strong")).toBe("pool-card__badge--tier-strong");
+  });
+
+  it("大小写与空白不影响档位判断", () => {
+    expect(investmentLevelTier(" a ")).toBe("strong");
+    expect(investmentLevelTier("b")).toBe("mid");
   });
 });
 

@@ -479,27 +479,17 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pool-card--slot-trend span { padding-right: 12px; }
 .pool-card .pool-card__badges { position: absolute; top: 4px; right: 3px; display: flex; overflow: visible; padding-right: 0; gap: 2px; }
 .pool-card__badge { display: grid; min-width: 14px; height: 14px; padding: 0 3px; place-items: center; border-radius: 3px; background: var(--blue-soft); color: var(--blue); font-size: 8px; font-style: normal; font-weight: 700; line-height: 14px; }
-.pool-card__badge--space-大 { background: #fee2e2; color: #dc2626; }
-.pool-card__badge--space-中 { background: #fef3c7; color: #b45309; }
-.pool-card__badge--space-小 { background: #e2e8f0; color: #64748b; }
 /* 趋势等级占右下槽位，用代码行右侧本来就空着的一半。 */
 .pool-card__badge--trend { position: absolute; right: 3px; bottom: 5px; }
-/* 紫色梯度避开"空间"的红黄灰和"等级"的蓝：T0 实心最重，越弱越淡，T3 起退成中性。 */
-.pool-card__badge--trend-T0 { background: #7c3aed; color: #ffffff; }
-.pool-card__badge--trend-T1 { background: #ddd6fe; color: #5b21b6; }
-.pool-card__badge--trend-T2 { background: #ede9fe; color: #6d28d9; }
-.pool-card__badge--trend-T3 { background: #eef0f4; color: #64748b; }
-.pool-card__badge--trend-T4 { background: #eef0f4; color: #8b95a4; }
-.pool-card__badge--trend-T5 { background: #eef0f4; color: #a5adb9; }
-:root[data-theme="dark"] .pool-card__badge--space-大 { background: #3b171b; color: #f87171; }
-:root[data-theme="dark"] .pool-card__badge--space-中 { background: #34260f; color: #fbbf24; }
-:root[data-theme="dark"] .pool-card__badge--space-小 { background: #273244; color: #94a3b8; }
-:root[data-theme="dark"] .pool-card__badge--trend-T0 { background: #7c3aed; color: #f5f3ff; }
-:root[data-theme="dark"] .pool-card__badge--trend-T1 { background: #2e2350; color: #c4b5fd; }
-:root[data-theme="dark"] .pool-card__badge--trend-T2 { background: #251d40; color: #a78bfa; }
-:root[data-theme="dark"] .pool-card__badge--trend-T3 { background: #262b33; color: #9ca3af; }
-:root[data-theme="dark"] .pool-card__badge--trend-T4 { background: #232830; color: #808894; }
-:root[data-theme="dark"] .pool-card__badge--trend-T5 { background: #212630; color: #6b7280; }
+/* 三个维度共用一套档位配色，颜色只说"好到什么程度"：S/A、T0-T2、大为强，
+   B/C、T3-T4、中为中，D、T5、小为弱。视觉重量依次递减，弱档自然沉下去，
+   一眼扫过去红得越多的卡片越好。评级口径外的未知值不套档位，保留中性蓝。 */
+.pool-card__badge--tier-strong { background: #fecaca; color: #b91c1c; }
+.pool-card__badge--tier-mid { background: #fef3c7; color: #b45309; }
+.pool-card__badge--tier-weak { background: #eef1f5; color: #97a1b0; }
+:root[data-theme="dark"] .pool-card__badge--tier-strong { background: #4a1a1f; color: #fca5a5; }
+:root[data-theme="dark"] .pool-card__badge--tier-mid { background: #3a2a10; color: #fbbf24; }
+:root[data-theme="dark"] .pool-card__badge--tier-weak { background: #23272f; color: #767f8c; }
 /* 翻页格与标的卡片同尺寸，用主色浅底表明它是动作而不是一条数据。 */
 .pool-card--pager { align-items: center; justify-content: center; gap: 2px; border-color: var(--blue-soft); background: var(--blue-soft); }
 .dashboard-flat-section .pool-card--pager { background: var(--blue-soft); }

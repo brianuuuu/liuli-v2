@@ -20,8 +20,12 @@ import {
   filterPoolByStatus,
   nextPoolPage,
   poolPageLayout,
+  badgeTierClass,
+  investmentLevelTier,
   poolCardBadgeSet,
   poolCardSlotClass,
+  trendLevelTier,
+  valuationSpaceTier,
   poolStatusCounts,
   type PoolCardBadgeSet,
   type PoolStatusKey,
@@ -330,12 +334,15 @@ function PoolCardBadges({ badges }: { badges: PoolCardBadgeSet }) {
     <>
       {level || space ? (
         <span className="pool-card__badges" aria-label="投资等级和三年空间">
-          {level ? <i className="pool-card__badge">{level}</i> : null}
-          {space ? <i className={`pool-card__badge pool-card__badge--space-${space}`}>{space}</i> : null}
+          {level ? <i className={`pool-card__badge ${badgeTierClass(investmentLevelTier(level))}`.trimEnd()}>{level}</i> : null}
+          {space ? <i className={`pool-card__badge ${badgeTierClass(valuationSpaceTier(space))}`}>{space}</i> : null}
         </span>
       ) : null}
       {trend ? (
-        <i className={`pool-card__badge pool-card__badge--trend pool-card__badge--trend-${trend}`} aria-label={`趋势等级 ${trend}`}>
+        <i
+          className={`pool-card__badge pool-card__badge--trend ${badgeTierClass(trendLevelTier(trend))}`}
+          aria-label={`趋势等级 ${trend}`}
+        >
           {trend}
         </i>
       ) : null}

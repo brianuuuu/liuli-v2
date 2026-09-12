@@ -68,6 +68,52 @@ export function trendLevelBadge(trendLevel?: string | null): TrendLevel | null {
   return TREND_LEVELS.find((level) => level === normalized) ?? null;
 }
 
+/**
+ * 三个维度共用一套强/中/弱配色：颜色只编码"好到什么程度"，不编码"这是哪个维度"。
+ * 各自一套色时 A 和 B 同为蓝色，等级高低反而看不出来；统一之后一张卡片红得越多越好。
+ */
+export type BadgeTier = "strong" | "mid" | "weak";
+
+const INVESTMENT_LEVEL_TIERS: Record<string, BadgeTier> = {
+  S: "strong",
+  A: "strong",
+  B: "mid",
+  C: "mid",
+  D: "weak"
+};
+
+const TREND_LEVEL_TIERS: Record<TrendLevel, BadgeTier> = {
+  T0: "strong",
+  T1: "strong",
+  T2: "strong",
+  T3: "mid",
+  T4: "mid",
+  T5: "weak"
+};
+
+const VALUATION_SPACE_TIERS: Record<AnnualizedValuationSpace, BadgeTier> = {
+  大: "strong",
+  中: "mid",
+  小: "weak"
+};
+
+/** 评级口径之外的等级不套用档位配色，走中性样式，避免把看不懂的值画成"差"。 */
+export function investmentLevelTier(investmentLevel?: string | null): BadgeTier | null {
+  return INVESTMENT_LEVEL_TIERS[investmentLevel?.trim().toUpperCase() ?? ""] ?? null;
+}
+
+export function trendLevelTier(trendLevel: TrendLevel): BadgeTier {
+  return TREND_LEVEL_TIERS[trendLevel];
+}
+
+export function valuationSpaceTier(space: AnnualizedValuationSpace): BadgeTier {
+  return VALUATION_SPACE_TIERS[space];
+}
+
+export function badgeTierClass(tier: BadgeTier | null): string {
+  return tier ? `pool-card__badge--tier-${tier}` : "";
+}
+
 export type PoolCardBadgeSet = {
   level: string | null;
   space: AnnualizedValuationSpace | null;

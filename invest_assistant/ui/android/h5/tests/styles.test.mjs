@@ -166,10 +166,13 @@ describe("mobile card elevation", () => {
     // 角标缩到 14px 才能在 360px 机型上给四字名让出位置。
     expect(styles).toMatch(/\.pool-card__badge\s*\{[^}]*min-width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*8px;[^}]*line-height:\s*14px;/s);
     expect(styles).toMatch(/\.pool-card__badge--trend\s*\{[^}]*position:\s*absolute;[^}]*right:\s*3px;[^}]*bottom:\s*5px;/s);
-    for (const level of ["T0", "T1", "T2", "T3", "T4", "T5"]) {
-      expect(styles).toMatch(new RegExp(String.raw`\.pool-card__badge--trend-${level}\s*\{[^}]*background:[^;}]+;[^}]*color:[^;}]+;`, "s"));
-      expect(styles).toMatch(new RegExp(String.raw`:root\[data-theme="dark"\] \.pool-card__badge--trend-${level}\s*\{`, "s"));
+    // 三个维度共用一套档位配色，颜色只编码强弱；各维度不再有自己的一套色。
+    for (const tier of ["strong", "mid", "weak"]) {
+      expect(styles).toMatch(new RegExp(String.raw`\.pool-card__badge--tier-${tier}\s*\{[^}]*background:[^;}]+;[^}]*color:[^;}]+;`, "s"));
+      expect(styles).toMatch(new RegExp(String.raw`:root\[data-theme="dark"\] \.pool-card__badge--tier-${tier}\s*\{`, "s"));
     }
+    expect(styles).not.toMatch(/\.pool-card__badge--space-/s);
+    expect(styles).not.toMatch(/\.pool-card__badge--trend-T\d/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
     expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*8px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*54px;/s);
