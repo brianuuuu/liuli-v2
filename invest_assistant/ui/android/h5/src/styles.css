@@ -470,21 +470,38 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .dashboard-flat-section .pool-card { background: var(--panel); }
 .pool-card:active { border-color: var(--blue); background: var(--blue-soft); }
 /* 三层信息依次减弱：名称 > 代码 > 赛道。 */
-.pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.pool-card span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
-.pool-card .pool-card__badges { position: absolute; top: 4px; right: 4px; display: flex; overflow: visible; gap: 2px; }
+/* 名称和代码各自给右侧角标槽位留出宽度：长名在角标前就省略，不会压到角标底下。 */
+.pool-card strong { max-width: 100%; padding-right: 38px; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.pool-card span { max-width: 100%; padding-right: 24px; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.pool-card .pool-card__badges { position: absolute; top: 4px; right: 4px; display: flex; overflow: visible; padding-right: 0; gap: 2px; }
 .pool-card__badge { display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-size: 9px; font-style: normal; font-weight: 700; line-height: 16px; }
 .pool-card__badge--space-大 { background: #fee2e2; color: #dc2626; }
 .pool-card__badge--space-中 { background: #fef3c7; color: #b45309; }
 .pool-card__badge--space-小 { background: #e2e8f0; color: #64748b; }
+/* 趋势等级占右下槽位，用代码行右侧本来就空着的一半。 */
+.pool-card__badge--trend { position: absolute; right: 4px; bottom: 5px; }
+/* 紫色梯度避开"空间"的红黄灰和"等级"的蓝：T0 实心最重，越弱越淡，T3 起退成中性。 */
+.pool-card__badge--trend-T0 { background: #7c3aed; color: #ffffff; }
+.pool-card__badge--trend-T1 { background: #ddd6fe; color: #5b21b6; }
+.pool-card__badge--trend-T2 { background: #ede9fe; color: #6d28d9; }
+.pool-card__badge--trend-T3 { background: #eef0f4; color: #64748b; }
+.pool-card__badge--trend-T4 { background: #eef0f4; color: #8b95a4; }
+.pool-card__badge--trend-T5 { background: #eef0f4; color: #a5adb9; }
 :root[data-theme="dark"] .pool-card__badge--space-大 { background: #3b171b; color: #f87171; }
 :root[data-theme="dark"] .pool-card__badge--space-中 { background: #34260f; color: #fbbf24; }
 :root[data-theme="dark"] .pool-card__badge--space-小 { background: #273244; color: #94a3b8; }
+:root[data-theme="dark"] .pool-card__badge--trend-T0 { background: #7c3aed; color: #f5f3ff; }
+:root[data-theme="dark"] .pool-card__badge--trend-T1 { background: #2e2350; color: #c4b5fd; }
+:root[data-theme="dark"] .pool-card__badge--trend-T2 { background: #251d40; color: #a78bfa; }
+:root[data-theme="dark"] .pool-card__badge--trend-T3 { background: #262b33; color: #9ca3af; }
+:root[data-theme="dark"] .pool-card__badge--trend-T4 { background: #232830; color: #808894; }
+:root[data-theme="dark"] .pool-card__badge--trend-T5 { background: #212630; color: #6b7280; }
 /* 翻页格与标的卡片同尺寸，用主色浅底表明它是动作而不是一条数据。 */
 .pool-card--pager { align-items: center; justify-content: center; gap: 2px; border-color: var(--blue-soft); background: var(--blue-soft); }
 .dashboard-flat-section .pool-card--pager { background: var(--blue-soft); }
-.pool-card--pager strong { color: var(--blue); font-size: 12px; font-weight: 650; }
-.pool-card--pager span { color: var(--blue); font-size: 10px; opacity: .75; }
+/* 翻页格自己居中，不需要给角标留槽位。 */
+.pool-card--pager strong { padding-right: 0; color: var(--blue); font-size: 12px; font-weight: 650; }
+.pool-card--pager span { padding-right: 0; color: var(--blue); font-size: 10px; opacity: .75; }
 .pool-limit-hint { margin: 8px 2px 0; color: var(--subtle); font-size: 11px; }
 /* 标的视图切换沉到页面底部并贴底吸附：重要材料是无限流，不吸附就永远够不到。 */
 /* 分段器 Portal 到 body 上 fixed 悬浮，页面自己留出被盖住的高度。 */

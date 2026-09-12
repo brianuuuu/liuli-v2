@@ -7,6 +7,7 @@ import {
   annualizedValuationSpace,
   filterPoolByStatus,
   poolStatusCounts,
+  trendLevelBadge,
   poolStatusLabel,
   POOL_PAGE_CAPACITY,
   poolPageLayout,
@@ -117,5 +118,20 @@ describe("标的池卡片三年空间角标", () => {
     expect(annualizedValuationSpace(null)).toBeNull();
     expect(annualizedValuationSpace(Number.NaN)).toBeNull();
     expect(annualizedValuationSpace(-1)).toBeNull();
+  });
+});
+
+describe("标的池卡片趋势等级角标", () => {
+  it("认 T0~T5 并统一成大写", () => {
+    expect(trendLevelBadge("T0")).toBe("T0");
+    expect(trendLevelBadge("t5")).toBe("T5");
+    expect(trendLevelBadge(" T2 ")).toBe("T2");
+  });
+
+  it("缺失或越界的等级不生成角标", () => {
+    expect(trendLevelBadge(null)).toBeNull();
+    expect(trendLevelBadge("")).toBeNull();
+    expect(trendLevelBadge("T6")).toBeNull();
+    expect(trendLevelBadge("A")).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ class StockPoolRead(StockPoolCreate):
     stock_name: str | None = None
     investment_level: str | None = None
     expectation_gap_rate: float | None = None
+    trend_level: str | None = None
     tracks: list[dict] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

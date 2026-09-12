@@ -58,6 +58,16 @@ export function annualizedValuationSpace(expectationGapRate?: number | null): An
   return "小";
 }
 
+/** 趋势等级只认 T0~T5（T0 最强），越界值不上角标，避免把脏数据画成一个没有配色的色块。 */
+export const TREND_LEVELS = ["T0", "T1", "T2", "T3", "T4", "T5"] as const;
+
+export type TrendLevel = (typeof TREND_LEVELS)[number];
+
+export function trendLevelBadge(trendLevel?: string | null): TrendLevel | null {
+  const normalized = trendLevel?.trim().toUpperCase();
+  return TREND_LEVELS.find((level) => level === normalized) ?? null;
+}
+
 /** 标的卡片按三列排布，最多六行；超出时最后一格让给翻页按钮。 */
 export const POOL_CARD_COLUMNS = 3;
 export const POOL_CARD_MAX_ROWS = 6;

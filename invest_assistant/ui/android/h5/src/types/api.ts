@@ -250,6 +250,7 @@ export type StockPoolItem = {
   stock_name?: string | null;
   investment_level?: string | null;
   expectation_gap_rate?: number | null;
+  trend_level?: string | null;
   status: string;
   tracks?: StockPoolTrack[];
   created_at?: string | null;

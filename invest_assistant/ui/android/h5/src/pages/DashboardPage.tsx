@@ -22,6 +22,7 @@ import {
   nextPoolPage,
   poolPageLayout,
   poolStatusCounts,
+  trendLevelBadge,
   type PoolStatusKey,
   type StockTabView
 } from "./stockPoolGroups";
@@ -285,7 +286,11 @@ function StockPoolView() {
           <div className="pool-card-grid">
             {layout.cards.map((item) => (
               <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
-                <PoolCardBadges investmentLevel={item.investment_level} expectationGapRate={item.expectation_gap_rate} />
+                <PoolCardBadges
+                  investmentLevel={item.investment_level}
+                  expectationGapRate={item.expectation_gap_rate}
+                  trendLevel={item.trend_level}
+                />
                 <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
                 <span>{item.stock_code?.trim() || "--"}</span>
               </button>
@@ -309,18 +314,33 @@ function StockPoolView() {
   );
 }
 
-function PoolCardBadges({ investmentLevel, expectationGapRate }: {
+/**
+ * 三个角标按固定槽位分两组：右上是研究结论（投资等级 + 三年空间），右下是趋势时机。
+ * 槽位固定而不是挤成一排，缺数据时剩下的角标才不会漂到别的维度的位置上。
+ */
+function PoolCardBadges({ investmentLevel, expectationGapRate, trendLevel }: {
   investmentLevel?: string | null;
   expectationGapRate?: number | null;
+  trendLevel?: string | null;
 }) {
   const level = investmentLevel?.trim();
   const space = annualizedValuationSpace(expectationGapRate);
-  if (!level && !space) return null;
+  const trend = trendLevelBadge(trendLevel);
+  if (!level && !space && !trend) return null;
   return (
-    <span className="pool-card__badges" aria-label="投资等级和三年空间">
-      {level ? <i className="pool-card__badge">{level}</i> : null}
-      {space ? <i className={`pool-card__badge pool-card__badge--space-${space}`}>{space}</i> : null}
-    </span>
+    <>
+      {level || space ? (
+        <span className="pool-card__badges" aria-label="投资等级和三年空间">
+          {level ? <i className="pool-card__badge">{level}</i> : null}
+          {space ? <i className={`pool-card__badge pool-card__badge--space-${space}`}>{space}</i> : null}
+        </span>
+      ) : null}
+      {trend ? (
+        <i className={`pool-card__badge pool-card__badge--trend pool-card__badge--trend-${trend}`} aria-label={`趋势等级 ${trend}`}>
+          {trend}
+        </i>
+      ) : null}
+    </>
   );
 }
 

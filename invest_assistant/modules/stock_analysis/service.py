@@ -346,13 +346,16 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None) -> li
     stock_ids = [item.stock_id for item, _stock in rows]
     latest_scores = _latest_scores_by_stock(db, stock_ids)
     latest_valuations = _latest_valuations_by_stock(db, stock_ids)
+    latest_trends = _latest_trends_by_stock(db, stock_ids)
     result = []
     for item, stock in rows:
         row = _pool_item_dict_from_stock(db, item, stock)
         score = latest_scores.get(item.stock_id)
         valuation = latest_valuations.get(item.stock_id)
+        trend = latest_trends.get(item.stock_id)
         row["investment_level"] = score.investment_level if score else None
         row["expectation_gap_rate"] = valuation.expectation_gap_rate if valuation else None
+        row["trend_level"] = trend.trend_level if trend else None
         result.append(row)
     return result
 
@@ -839,6 +842,28 @@ def _latest_valuations_by_stock(db: Session, stock_ids: list[int]) -> dict[int, 
     for valuation in valuations:
         if valuation.stock_id not in latest:
             latest[valuation.stock_id] = valuation
+    return latest
+
+
+def _latest_trends_by_stock(db: Session, stock_ids: list[int]) -> dict[int, StockTrendSnapshot]:
+    """趋势快照同一标的同一天允许多份，取研究日期最新、同日内最后写入的那份。"""
+    if not stock_ids:
+        return {}
+    trends = list(
+        db.scalars(
+            select(StockTrendSnapshot)
+            .where(StockTrendSnapshot.stock_id.in_(stock_ids))
+            .order_by(
+                StockTrendSnapshot.stock_id.asc(),
+                StockTrendSnapshot.research_date.desc(),
+                StockTrendSnapshot.id.desc(),
+            )
+        )
+    )
+    latest: dict[int, StockTrendSnapshot] = {}
+    for trend in trends:
+        if trend.stock_id not in latest:
+            latest[trend.stock_id] = trend
     return latest
 
 
