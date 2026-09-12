@@ -836,8 +836,8 @@ function TrendTab({ data }: { data: StockDetail }) {
     { title: "阶段", dataIndex: "stock_stage", width: 100, render: (value) => value || "-" },
     { title: "主赛道", dataIndex: "main_track", width: 130, ellipsis: true, render: (value) => value || "-" },
     { title: "地位", dataIndex: "company_position", width: 110, render: (value) => value || "-" },
-    { title: "市场认可", dataIndex: "market_recognition", width: 150, ellipsis: true, render: (value) => value || "-" },
-    { title: "资金认可", dataIndex: "capital_recognition", width: 150, ellipsis: true, render: (value) => value || "-" },
+    { title: "市场认可", dataIndex: "market_recognition", width: 150, ellipsis: true, render: (value) => <span title={value || undefined}>{value || "-"}</span> },
+    { title: "资金认可", dataIndex: "capital_recognition", width: 150, ellipsis: true, render: (value) => <span title={value || undefined}>{value || "-"}</span> },
     { title: "主线周期", dataIndex: "mainline_cycle", width: 100, render: (value) => value || "-" },
     { title: "分组建议", dataIndex: "suggested_group", width: 100, render: suggestedGroupLabel },
     { title: "排名", dataIndex: "priority_rank", width: 80, render: (value) => (value === null || value === undefined ? "-" : value) },
@@ -853,7 +853,7 @@ function TrendTab({ data }: { data: StockDetail }) {
                 <div className="stock-detail-subtitle">最新趋势</div>
                 <span>{latest.researchDate || "-"} · 行情截至 {latest.marketDataDate || "-"} · {latest.researcherCode || "未标注研究员"}</span>
               </div>
-              <div className="stock-valuation-summary-grid">
+              <div className="stock-valuation-summary-grid stock-trend-summary-grid">
                 <div className="stock-valuation-summary-item featured">
                   <span>T 等级</span>
                   <strong className={`stock-trend-level ${latest.levelTone}`}>{latest.trendLevel}</strong>
@@ -868,23 +868,23 @@ function TrendTab({ data }: { data: StockDetail }) {
                   <strong>{latest.suggestedGroup}</strong>
                   <em>{latest.priorityRank === null ? "未做全池排名" : `全池第 ${latest.priorityRank} 位`}</em>
                 </div>
-                <div className="stock-valuation-summary-item">
-                  <span>持续窗口</span>
-                  <strong>{latest.trendDuration}</strong>
-                </div>
               </div>
-              <div className="stock-trend-dimensions">
+              <dl className="stock-trend-dimensions">
                 {buildTrendDimensions(data.latest_trend).map((item) => (
                   <div className="stock-trend-dimension" key={item.label}>
-                    <span>{item.label}</span>
-                    <strong>{item.value}</strong>
+                    <dt>
+                      {item.label}
+                      {item.hint ? <i>{item.hint}</i> : null}
+                    </dt>
+                    <dd>{item.value}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
               <div className="stock-trend-notes">
                 <TrendNote label="核心逻辑" value={data.latest_trend.core_logic} />
                 <TrendNote label="主要风险" value={data.latest_trend.primary_risk} />
                 <TrendNote label="剩余空间" value={data.latest_trend.remaining_upside} />
+                <TrendNote label="持续窗口" value={data.latest_trend.trend_duration} />
                 <TrendNote label="下一验证点" value={data.latest_trend.next_verification} />
                 <TrendNote label="证据缺口" value={data.latest_trend.data_gaps} />
               </div>

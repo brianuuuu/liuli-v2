@@ -47,16 +47,27 @@ const dimensions = buildTrendDimensions({
   track_mid: "中",
   track_long: "强",
   company_position: "核心受益",
-  market_recognition: "有辨识度，仍有分歧",
-  capital_recognition: "有启动，持续性待确认",
+  market_recognition: "品牌出海有辨识度，AI 家庭生态叙事发酵；尚未证明成为全市场主线核心",
+  capital_recognition: "9月3日放量启动后缩量回踩，9月11日成交量约20日均量的七成",
   stock_stage: "修复"
 });
-assert.equal(dimensions.length, 8, "six dimensions, with the track one split into three horizons");
+assert.equal(dimensions.length, 6, "six dimensions, with the three track horizons merged into one row");
 assert.deepEqual(
   dimensions.map((item) => item.label),
-  ["赛道·短期", "赛道·中期", "赛道·长期", "公司地位", "市场认可", "资金认可", "日线位置", "主线周期"]
+  ["赛道趋势", "公司地位", "市场认可", "资金认可", "日线位置", "主线周期"]
 );
-assert.equal(dimensions[7].value, "-", "a missing dimension must render as a dash, not undefined");
+assert.equal(dimensions[0].value, "中 / 中 / 强", "track horizons render as one short row");
+assert.equal(
+  dimensions[2].value,
+  "品牌出海有辨识度，AI 家庭生态叙事发酵；尚未证明成为全市场主线核心",
+  "recognition judgements are full sentences and must be returned untruncated"
+);
+assert.equal(dimensions[5].value, "-", "a missing dimension must render as a dash, not undefined");
+assert.equal(
+  buildTrendDimensions({}).map((item) => item.value).join(""),
+  "------",
+  "an empty snapshot must not produce a row of slashes"
+);
 
 const summary = buildLatestTrendSummary({
   trend_level: "T2",
@@ -64,7 +75,6 @@ const summary = buildLatestTrendSummary({
   main_track: "消费电子",
   suggested_group: "candidate",
   priority_rank: null,
-  trend_duration: "先看 1-3 个月",
   research_date: "2026-09-11",
   market_data_date: "2026-09-10",
   researcher_code: "trend_001"

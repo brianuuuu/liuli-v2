@@ -25,18 +25,25 @@ export function suggestedGroupLabel(value?: string | null) {
   }[value] ?? value;
 }
 
-/** 六维判断：赛道拆三个期限，其余四维各一格。 */
+/**
+ * 六维判断，与报告正文的六维表格一一对应。
+ * 赛道趋势的三个期限合成一行，市场认可和资金认可在报告里常是整句话，
+ * 所以这里只给出标签和原值，由调用方按可换行的文本渲染，不要塞进定宽卡片。
+ */
 export function buildTrendDimensions(snapshot: Partial<StockTrendSnapshot>) {
+  const horizons = [snapshot.track_short, snapshot.track_mid, snapshot.track_long];
   return [
-    { label: "赛道·短期", value: snapshot.track_short },
-    { label: "赛道·中期", value: snapshot.track_mid },
-    { label: "赛道·长期", value: snapshot.track_long },
-    { label: "公司地位", value: snapshot.company_position },
-    { label: "市场认可", value: snapshot.market_recognition },
-    { label: "资金认可", value: snapshot.capital_recognition },
-    { label: "日线位置", value: snapshot.stock_stage },
-    { label: "主线周期", value: snapshot.mainline_cycle }
-  ].map((item) => ({ ...item, value: item.value || "-" }));
+    {
+      label: "赛道趋势",
+      value: horizons.some(Boolean) ? horizons.map((item) => item || "-").join(" / ") : "-",
+      hint: "短期 / 中期 / 长期"
+    },
+    { label: "公司地位", value: snapshot.company_position || "-" },
+    { label: "市场认可", value: snapshot.market_recognition || "-" },
+    { label: "资金认可", value: snapshot.capital_recognition || "-" },
+    { label: "日线位置", value: snapshot.stock_stage || "-" },
+    { label: "主线周期", value: snapshot.mainline_cycle || "-" }
+  ];
 }
 
 export function buildLatestTrendSummary(snapshot: Partial<StockTrendSnapshot>) {
@@ -47,7 +54,6 @@ export function buildLatestTrendSummary(snapshot: Partial<StockTrendSnapshot>) {
     mainTrack: snapshot.main_track || "-",
     suggestedGroup: suggestedGroupLabel(snapshot.suggested_group),
     priorityRank: snapshot.priority_rank ?? null,
-    trendDuration: snapshot.trend_duration || "-",
     researchDate: snapshot.research_date || null,
     marketDataDate: snapshot.market_data_date || null,
     researcherCode: snapshot.researcher_code || null
