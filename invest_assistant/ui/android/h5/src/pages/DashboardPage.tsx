@@ -138,59 +138,67 @@ function MarketDashboard({ active }: { active: boolean }) {
     queryFn: () => mobileApi.marketRankings(rankingType, rankingWindow),
     staleTime: 300_000
   });
+  /** 排行只有这一个查询，refetch 天然跟着当前的类型和时间窗口走。 */
+  const refresh = async () => {
+    const result = await rankings.refetch();
+    if (result.isError) throw result.error;
+  };
   return (
-    <div className="page-stack market-filter-stack">
-      <SectionCard className="market-ranking-card dashboard-flat-section">
-        <div className="market-ranking-content" aria-live="polite">
-          {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
-            <ErrorState message="热度排行加载失败" onRetry={() => void rankings.refetch()} />
-          ) : rankings.data?.length ? (
-            rankings.data.slice(0, 10).map((item) => {
-              const movement = rankMovementDisplay(item);
-              return <ListRow
-                key={item.tag_id}
-                title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`}
-                meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`}
-                trailing={(
-                  <div className="market-ranking-metrics">
-                    <strong className="score">{formatNumber(item.heat_score, 1)}</strong>
-                    <span className="market-ranking-movement">
-                      <span>位次变化</span>
-                      <strong className={`market-ranking-movement--${movement.tone}`}>{movement.value}</strong>
-                    </span>
-                  </div>
-                )}
-              />;
-            })
-          ) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}
-        </div>
-      </SectionCard>
-      {active ? createPortal(
-        <div className="market-filter-bar" data-swipe-ignore="true">
-          <div className="market-ranking-filters">
-            <div className="segmented" role="group" aria-label="排行榜类型">
-              {([
-                ["all", "市场"],
-                ["track", "赛道"],
-                ["stock", "标的"]
-              ] as const).map(([value, label]) => (
-                <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
-              ))}
-            </div>
-            <div className="segmented" role="group" aria-label="时间范围">
-              {(["24h", "7d", "30d"] as const).map((value) => (
-                <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
-              ))}
-            </div>
+    <PullToRefresh ariaLabel="市场页下拉刷新" onRefresh={refresh}>
+      <div className="page-stack market-filter-stack">
+        <SectionCard className="market-ranking-card dashboard-flat-section">
+          <div className="market-ranking-content" aria-live="polite">
+            {rankings.isLoading ? <LoadingState /> : rankings.isError ? (
+              <ErrorState message="热度排行加载失败" onRetry={() => void rankings.refetch()} />
+            ) : rankings.data?.length ? (
+              rankings.data.slice(0, 10).map((item) => {
+                const movement = rankMovementDisplay(item);
+                return <ListRow
+                  key={item.tag_id}
+                  title={`${item.rank_no}. ${item.tag?.name ?? "未命名标签"}`}
+                  meta={`${item.trigger_count} 次触发 · ${item.source_count} 来源`}
+                  trailing={(
+                    <div className="market-ranking-metrics">
+                      <strong className="score">{formatNumber(item.heat_score, 1)}</strong>
+                      <span className="market-ranking-movement">
+                        <span>位次变化</span>
+                        <strong className={`market-ranking-movement--${movement.tone}`}>{movement.value}</strong>
+                      </span>
+                    </div>
+                  )}
+                />;
+              })
+            ) : <EmptyState title="暂无热度排行" detail="等待热度快照生成" />}
           </div>
-        </div>,
-        document.body
-      ) : null}
-    </div>
+        </SectionCard>
+        {active ? createPortal(
+          <div className="market-filter-bar" data-swipe-ignore="true">
+            <div className="market-ranking-filters">
+              <div className="segmented" role="group" aria-label="排行榜类型">
+                {([
+                  ["all", "市场"],
+                  ["track", "赛道"],
+                  ["stock", "标的"]
+                ] as const).map(([value, label]) => (
+                  <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
+                ))}
+              </div>
+              <div className="segmented" role="group" aria-label="时间范围">
+                {(["24h", "7d", "30d"] as const).map((value) => (
+                  <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
+    </PullToRefresh>
   );
 }
 
 function TrackDashboard() {
+  const client = useQueryClient();
   const query = useInfiniteQuery({
     queryKey: ["track-materials"],
     initialPageParam: 0,
@@ -208,22 +216,34 @@ function TrackDashboard() {
     sourceName: item.material_source_name,
     materialTime: item.material_time
   }))) ?? [];
+  /** 材料流按页累加，下拉时先把分页收回第一页，否则已加载的每一页都会被重拉一遍。 */
+  const refresh = async () => {
+    client.setQueryData<{ pages: unknown[]; pageParams: unknown[] }>(["track-materials"], (current) => current ? {
+      ...current,
+      pages: current.pages.slice(0, 1),
+      pageParams: current.pageParams.slice(0, 1)
+    } : current);
+    const result = await query.refetch();
+    if (result.isError) throw result.error;
+  };
   return (
-    <div className="page-stack">
-      <SectionCard className="dashboard-flat-section">
-        {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
-          <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
-        ) : (
-          <DashboardMaterialFeed
-            items={items}
-            hasNextPage={query.hasNextPage}
-            isFetchingNextPage={query.isFetchingNextPage}
-            isFetchNextPageError={query.isFetchNextPageError}
-            onLoadMore={() => void query.fetchNextPage()}
-          />
-        )}
-      </SectionCard>
-    </div>
+    <PullToRefresh ariaLabel="赛道页下拉刷新" onRefresh={refresh}>
+      <div className="page-stack">
+        <SectionCard className="dashboard-flat-section">
+          {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
+            <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
+          ) : (
+            <DashboardMaterialFeed
+              items={items}
+              hasNextPage={query.hasNextPage}
+              isFetchingNextPage={query.isFetchingNextPage}
+              isFetchNextPageError={query.isFetchNextPageError}
+              onLoadMore={() => void query.fetchNextPage()}
+            />
+          )}
+        </SectionCard>
+      </div>
+    </PullToRefresh>
   );
 }
 

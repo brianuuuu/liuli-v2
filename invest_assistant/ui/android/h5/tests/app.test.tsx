@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
@@ -506,6 +506,147 @@ describe("mobile H5 app", () => {
     expect(materialUrls.every((url) => url.includes("status=confirmed"))).toBe(true);
     expect(materialUrls.some((url) => url.includes("offset=0") && url.includes("limit=10"))).toBe(true);
     expect(materialUrls.some((url) => url.includes("offset=10") && url.includes("limit=10"))).toBe(true);
+  });
+
+  it("refreshes the track material feed on pull and rewinds its paging", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const firstItems = Array.from({ length: 10 }, (_, index) => ({
+      id: index + 1,
+      track_id: 8,
+      track_name: `赛道 ${index + 1}`,
+      direction: "noise",
+      material_title: index === 0 ? "首页赛道材料" : `材料 ${index + 1}`,
+      material_source_name: "来源 A",
+      material_time: "2026-07-29T10:00:00+08:00"
+    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/track-discovery/materials")) {
+        const secondPage = url.includes("offset=10");
+        return new Response(JSON.stringify({
+          items: secondPage ? [{
+            id: 11,
+            track_id: 9,
+            track_name: "机器人",
+            direction: "neutral",
+            material_title: "第二页赛道材料",
+            material_source_name: "来源 B"
+          }] : firstItems,
+          total: 11,
+          limit: 10,
+          offset: secondPage ? 10 : 0,
+          has_more: !secondPage
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const materialUrls = () => fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/track-discovery/materials"));
+
+    renderApp();
+    const trackTab = await screen.findByRole("tab", { name: "赛道" });
+    fireEvent.click(trackTab);
+    await waitFor(() => expect(trackTab).toHaveAttribute("aria-selected", "true"));
+    expect(await screen.findByText("首页赛道材料")).toBeInTheDocument();
+
+    DashboardObserverFake.instances.at(-1)?.intersect();
+    expect(await screen.findByText("第二页赛道材料")).toBeInTheDocument();
+    expect(materialUrls()).toHaveLength(2);
+
+    const region = await screen.findByLabelText("赛道页下拉刷新");
+    fireEvent.touchStart(region, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: region }]
+    });
+    fireEvent.touchMove(region, {
+      touches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+    });
+    fireEvent.touchEnd(region, {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+    });
+
+    // 分页收回第一页，重拉只补一次 offset=0，不会把第二页一起重拉
+    await waitFor(() => expect(materialUrls()).toHaveLength(3));
+    expect(materialUrls().at(-1)).toContain("offset=0");
+    expect(materialUrls().filter((url) => url.includes("offset=10"))).toHaveLength(1);
+    expect(screen.queryByText("第二页赛道材料")).not.toBeInTheDocument();
+    expect(screen.getByText("首页赛道材料")).toBeInTheDocument();
+  });
+
+  it("refreshes the market ranking on pull keeping the selected filters", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/market-radar/rankings")) {
+        const name = url.includes("type=stock") ? "标的热度" : "市场热词";
+        return new Response(JSON.stringify([{
+          tag_id: 1,
+          trigger_count: 8,
+          source_count: 3,
+          heat_score: 12.5,
+          rank_no: 1,
+          rank_change: 3,
+          rank_movement: "up",
+          tag: { id: 1, name }
+        }]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rankingUrls = () => fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/market-radar/rankings"));
+
+    renderApp();
+    const marketTab = await screen.findByRole("tab", { name: "市场" });
+    fireEvent.click(marketTab);
+    await waitFor(() => expect(marketTab).toHaveAttribute("aria-selected", "true"));
+    expect(await screen.findByText("1. 市场热词")).toBeInTheDocument();
+
+    const typeFilter = screen.getByRole("group", { name: "排行榜类型" });
+    fireEvent.click(within(typeFilter).getByRole("button", { name: "标的" }));
+    expect(await screen.findByText("1. 标的热度")).toBeInTheDocument();
+    const countBeforePull = rankingUrls().length;
+
+    const region = await screen.findByLabelText("市场页下拉刷新");
+    fireEvent.touchStart(region, {
+      touches: [{ identifier: 1, clientX: 120, clientY: 100, target: region }]
+    });
+    fireEvent.touchMove(region, {
+      touches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+    });
+    fireEvent.touchEnd(region, {
+      touches: [],
+      changedTouches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+    });
+
+    // 重拉跟着当前选中的筛选走，不会退回默认的 type=all
+    await waitFor(() => expect(rankingUrls()).toHaveLength(countBeforePull + 1));
+    expect(rankingUrls().at(-1)).toContain("type=stock");
+    expect(screen.getByText("1. 标的热度")).toBeInTheDocument();
   });
 
   it("shows the stock material feed and appends the next page", async () => {
