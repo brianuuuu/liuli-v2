@@ -395,7 +395,7 @@ function PortfolioDashboard() {
           <Metric label="总市值" value={formatMoney(summary?.total_value)} />
           <Metric label="持仓市值" value={formatMoney(summary?.position_market_value)} />
           <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
-          <Metric label="年度盈亏" value={formatMoney(summary?.year_pnl)} tone={(summary?.year_pnl ?? 0) >= 0 ? "up" : "down"} />
+          <Metric label="月度盈亏" value={formatMoney(summary?.month_pnl)} tone={(summary?.month_pnl ?? 0) >= 0 ? "up" : "down"} />
         </div>
         <SectionCard title="今日表现">
           <div className="portfolio-day-row">

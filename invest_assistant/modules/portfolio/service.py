@@ -449,7 +449,7 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
             total_day_pnl += float(performance["day_pnl"])
         if performance["status"] == "available" and performance["adjusted_base"] is not None:
             total_adjusted_base += float(performance["adjusted_base"])
-        elif performance["status"] != "inception":
+        elif performance["status"] not in {"inception", "empty"}:
             day_pct_available = False
         total_position_count += int(summary["position_count"] or 0)
         total_cash += cash_amount
@@ -477,6 +477,7 @@ def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
             "total_value": total_value,
             "day_pnl": summary_day_pnl,
             "day_pct": summary_day_pct,
+            "month_pnl": _month_pnl(db, [item.id for item in portfolios], total_value),
             "year_pnl": _year_pnl(db, [item.id for item in portfolios], total_value),
         },
         "allocation_rows": allocation_rows,
@@ -1102,6 +1103,13 @@ def _portfolio_daily_performance(
                     "adjusted_base": None,
                     "status": "inception",
                 }
+        if float(current_total) == 0:
+            return {
+                "day_pnl": 0.0,
+                "day_pct": None,
+                "adjusted_base": None,
+                "status": "empty",
+            }
         return {
             "day_pnl": None,
             "day_pct": None,
@@ -1124,6 +1132,14 @@ def _portfolio_daily_performance(
     day_pnl = float(current_total) - previous_total - net_external_flow
     adjusted_base = previous_total + net_external_flow
     if adjusted_base <= 0:
+        if adjusted_base == 0 and day_pnl == 0:
+            # 空组合：分子分母都不贡献，不能让它把整体涨跌幅拖成不可用
+            return {
+                "day_pnl": 0.0,
+                "day_pct": None,
+                "adjusted_base": None,
+                "status": "empty",
+            }
         return {
             "day_pnl": day_pnl,
             "day_pct": None,
@@ -1142,14 +1158,24 @@ def _today_shanghai() -> date:
     return utc_now().astimezone(ZoneInfo("Asia/Shanghai")).date()
 
 
-def _year_pnl(db: Session, portfolio_ids: list[int], current_total_value: float) -> float:
+def _period_pnl(db: Session, portfolio_ids: list[int], current_total_value: float, period_start: date) -> float:
+    """区间盈亏 = 当前总市值 - 期初总市值 - 期间入金 + 期间出金。口径与 _external_flow_amount 一致。"""
     if not portfolio_ids:
         return 0.0
-    year_start = date(_today_shanghai().year, 1, 1)
-    deposits = _cash_flow_sum(db, portfolio_ids, {"deposit"}, year_start)
-    withdrawals = _cash_flow_sum(db, portfolio_ids, {"withdraw"}, year_start)
-    start_value = _start_value_for_year(db, portfolio_ids, year_start)
+    deposits = _cash_flow_sum(db, portfolio_ids, {"deposit"}, period_start)
+    withdrawals = _cash_flow_sum(db, portfolio_ids, {"withdraw"}, period_start)
+    start_value = _start_value_before(db, portfolio_ids, period_start)
     return current_total_value - start_value - deposits + withdrawals
+
+
+def _year_pnl(db: Session, portfolio_ids: list[int], current_total_value: float) -> float:
+    today = _today_shanghai()
+    return _period_pnl(db, portfolio_ids, current_total_value, date(today.year, 1, 1))
+
+
+def _month_pnl(db: Session, portfolio_ids: list[int], current_total_value: float) -> float:
+    today = _today_shanghai()
+    return _period_pnl(db, portfolio_ids, current_total_value, date(today.year, today.month, 1))
 
 
 def _cash_flow_sum(db: Session, portfolio_ids: list[int], flow_types: set[str], start_date: date) -> float:
@@ -1165,14 +1191,14 @@ def _cash_flow_sum(db: Session, portfolio_ids: list[int], flow_types: set[str], 
     )
 
 
-def _start_value_for_year(db: Session, portfolio_ids: list[int], year_start: date) -> float:
+def _start_value_before(db: Session, portfolio_ids: list[int], period_start: date) -> float:
     total = 0.0
     for portfolio_id in portfolio_ids:
         snapshot = db.scalar(
             select(PortfolioValueSnapshot)
             .where(
                 PortfolioValueSnapshot.portfolio_id == portfolio_id,
-                PortfolioValueSnapshot.snapshot_date <= year_start,
+                PortfolioValueSnapshot.snapshot_date <= period_start,
             )
             .order_by(PortfolioValueSnapshot.snapshot_date.desc(), PortfolioValueSnapshot.id.desc())
         )

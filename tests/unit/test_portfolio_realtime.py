@@ -327,6 +327,102 @@ def test_overview_uses_net_asset_daily_pnl_and_only_excludes_external_flows(monk
         db.close()
 
 
+def test_overview_empty_portfolio_does_not_break_aggregate_day_pct(monkeypatch, tmp_path):
+    """空组合分子分母都不贡献，不能把所有组合的今日涨跌幅拖成不可用。"""
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        active = service.create_portfolio(db, PortfolioCreate(name="有持仓"), user_id=1)
+        active.created_at = datetime(2026, 7, 1, 0, 0)
+        position = service.create_or_update_position(
+            db,
+            active.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 11
+        position.previous_close = 10
+        db.add(
+            PortfolioValueSnapshot(
+                portfolio_id=active.id,
+                snapshot_date=date(2026, 7, 30),
+                total_value=1000,
+                position_market_value=1000,
+                cash_amount=0,
+                position_count=1,
+                source="test",
+            )
+        )
+        # 空组合：昨日快照为 0，今天也没有持仓和现金
+        empty = service.create_portfolio(db, PortfolioCreate(name="空组合"), user_id=1)
+        empty.created_at = datetime(2026, 7, 1, 0, 0)
+        db.add(
+            PortfolioValueSnapshot(
+                portfolio_id=empty.id,
+                snapshot_date=date(2026, 7, 30),
+                total_value=0,
+                position_market_value=0,
+                cash_amount=0,
+                position_count=0,
+                source="test",
+            )
+        )
+        db.commit()
+
+        overview = service.get_overview(db)
+
+        assert overview["summary"]["total_value"] == 1100
+        assert overview["summary"]["day_pnl"] == pytest.approx(100)
+        assert overview["summary"]["day_pct"] == pytest.approx(10.0)
+    finally:
+        db.close()
+
+
+def test_overview_exposes_month_pnl_alongside_year_pnl(monkeypatch, tmp_path):
+    """月度盈亏按当月 1 号的期初市值算，外部资金同样只剔除入金出金。"""
+    target_date = date(2026, 7, 31)
+    monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        stock = seed_stock(db)
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        position = service.create_or_update_position(
+            db,
+            portfolio.id,
+            PortfolioPositionCreate(stock_id=stock.id, quantity=100),
+        )
+        position.current_price = 12
+        position.previous_close = 12
+        for snapshot_date, total in ((date(2026, 1, 1), 500), (date(2026, 7, 1), 900)):
+            db.add(
+                PortfolioValueSnapshot(
+                    portfolio_id=portfolio.id,
+                    snapshot_date=snapshot_date,
+                    total_value=total,
+                    position_market_value=total,
+                    cash_amount=0,
+                    position_count=1,
+                    source="test",
+                )
+            )
+        db.commit()
+        # 7 月入金 100，不算收益；6 月入金 300 只影响年度不影响月度
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="deposit", amount=300, flow_date=date(2026, 6, 10)))
+        service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="deposit", amount=100, flow_date=date(2026, 7, 10)))
+
+        overview = service.get_overview(db, portfolio.id)
+
+        # 总市值 = 持仓 1200 + 现金 400
+        assert overview["summary"]["total_value"] == pytest.approx(1600)
+        assert overview["summary"]["month_pnl"] == pytest.approx(1600 - 900 - 100)
+        assert overview["summary"]["year_pnl"] == pytest.approx(1600 - 500 - 400)
+    finally:
+        db.close()
+
+
 def test_new_portfolio_inception_day_uses_zero_daily_pnl(monkeypatch, tmp_path):
     target_date = date(2026, 7, 31)
     monkeypatch.setattr(service, "_today_shanghai", lambda: target_date)

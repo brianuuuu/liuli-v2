@@ -285,6 +285,7 @@ export type PortfolioOverview = {
     total_value?: number;
     day_pnl?: number | null;
     day_pct?: number | null;
+    month_pnl?: number | null;
     year_pnl?: number | null;
   };
   allocation_rows?: Array<{ label: string; market_value: number; weight?: number | null; current_price?: number | null; quote_time?: string | null; day_pct?: number | null }>;

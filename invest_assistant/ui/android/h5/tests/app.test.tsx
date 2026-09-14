@@ -1564,6 +1564,7 @@ describe("mobile H5 app", () => {
             total_value: 200000,
             position_market_value: 180000,
             cash_amount: 20000,
+            month_pnl: 3400,
             year_pnl: 12000,
             day_pnl: 1234,
             day_pct: 0.68
@@ -1598,6 +1599,8 @@ describe("mobile H5 app", () => {
     const treemap = screen.getByRole("heading", { name: "标的热力图" });
     const totalValue = screen.getByText("总市值");
 
+    expect(screen.getByText("月度盈亏")).toBeInTheDocument();
+    expect(screen.queryByText("年度盈亏")).not.toBeInTheDocument();
     expect(totalValue.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(allocation.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1644,7 +1647,7 @@ describe("mobile H5 app", () => {
       if (url.includes("/api/portfolios/overview")) {
         return new Response(JSON.stringify({
           portfolio_options: [],
-          summary: { total_value: 0, position_market_value: 0, cash_amount: 0, year_pnl: 0, day_pnl: 0, day_pct: null },
+          summary: { total_value: 0, position_market_value: 0, cash_amount: 0, month_pnl: 0, year_pnl: 0, day_pnl: 0, day_pct: null },
           pie_items: []
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }

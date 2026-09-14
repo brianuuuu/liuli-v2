@@ -967,6 +967,7 @@ export type PortfolioOverview = {
     total_value: number;
     day_pnl: number | null;
     day_pct?: number | null;
+    month_pnl?: number | null;
     year_pnl: number;
   };
   allocation_rows: PortfolioOverviewAllocationRow[];
