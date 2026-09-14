@@ -23,7 +23,6 @@ import {
   badgeTierClass,
   investmentLevelTier,
   poolCardBadgeSet,
-  poolCardSlotClass,
   trendLevelTier,
   valuationSpaceTier,
   poolStatusCounts,
@@ -289,21 +288,13 @@ function StockPoolView() {
       ) : visible.length ? (
         <>
           <div className="pool-card-grid">
-            {layout.cards.map((item) => {
-              const badges = poolCardBadgeSet(item);
-              return (
-                <button
-                  type="button"
-                  className={`pool-card ${poolCardSlotClass(badges)}`.trimEnd()}
-                  key={item.id}
-                  onClick={() => navigate(`/stocks/${item.stock_id}`)}
-                >
-                  <PoolCardBadges badges={badges} />
-                  <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
-                  <span>{item.stock_code?.trim() || "--"}</span>
-                </button>
-              );
-            })}
+            {layout.cards.map((item) => (
+              <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+                <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+                <span>{item.stock_code?.trim() || "--"}</span>
+                <PoolCardBadges badges={poolCardBadgeSet(item)} />
+              </button>
+            ))}
             {layout.showPager ? (
               <button
                 type="button"
@@ -324,29 +315,24 @@ function StockPoolView() {
 }
 
 /**
- * 三个角标按固定槽位分两组：右上是研究结论（投资等级 + 三年空间），右下是趋势时机。
- * 槽位固定而不是挤成一排，缺数据时剩下的角标才不会漂到别的维度的位置上。
+ * 角标独占代码下面一行，横排左对齐：三个维度按趋势、等级、空间固定顺序，
+ * 位置即维度。压在名称四角时既要给名称预留宽度又要防叠字，挪下来两边都不用让。
  */
 function PoolCardBadges({ badges }: { badges: PoolCardBadgeSet }) {
   const { level, space, trend } = badges;
   if (!level && !space && !trend) return null;
   return (
-    <>
-      {level || space ? (
-        <span className="pool-card__badges" aria-label="投资等级和三年空间">
-          {level ? <i className={`pool-card__badge ${badgeTierClass(investmentLevelTier(level))}`.trimEnd()}>{level}</i> : null}
-          {space ? <i className={`pool-card__badge ${badgeTierClass(valuationSpaceTier(space))}`}>{space}</i> : null}
-        </span>
-      ) : null}
+    <span className="pool-card__badges">
       {trend ? (
-        <i
-          className={`pool-card__badge pool-card__badge--trend ${badgeTierClass(trendLevelTier(trend))}`}
-          aria-label={`趋势等级 ${trend}`}
-        >
-          {trend}
-        </i>
+        <i className={`pool-card__badge ${badgeTierClass(trendLevelTier(trend))}`} aria-label={`趋势等级 ${trend}`}>{trend}</i>
       ) : null}
-    </>
+      {level ? (
+        <i className={`pool-card__badge ${badgeTierClass(investmentLevelTier(level))}`.trimEnd()} aria-label={`投资等级 ${level}`}>{level}</i>
+      ) : null}
+      {space ? (
+        <i className={`pool-card__badge ${badgeTierClass(valuationSpaceTier(space))}`} aria-label={`三年空间 ${space}`}>{space}</i>
+      ) : null}
+    </span>
   );
 }
 

@@ -13,7 +13,6 @@ import {
   poolCardBadgeSet,
   trendLevelTier,
   valuationSpaceTier,
-  poolCardSlotClass,
   poolStatusLabel,
   POOL_PAGE_CAPACITY,
   poolPageLayout,
@@ -164,20 +163,20 @@ describe("标的池卡片角标档位配色", () => {
   });
 });
 
-describe("标的池卡片角标槽位", () => {
+describe("标的池卡片角标集合", () => {
   const item = (extra: Partial<StockPoolItem>): StockPoolItem =>
     ({ id: 1, stock_id: 1, status: "watching", ...extra }) as StockPoolItem;
 
-  it("按实际存在的角标给出槽位类名", () => {
-    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "A", expectation_gap_rate: 1.0, trend_level: "T1" }))))
-      .toBe("pool-card--slot-top-2 pool-card--slot-trend");
-    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "A" })))).toBe("pool-card--slot-top-1");
-    expect(poolCardSlotClass(poolCardBadgeSet(item({ trend_level: "T3" })))).toBe("pool-card--slot-trend");
+  it("三个维度各自解析，缺哪个就少哪个角标", () => {
+    expect(poolCardBadgeSet(item({ investment_level: "A", expectation_gap_rate: 1.0, trend_level: "T1" })))
+      .toEqual({ level: "A", space: "大", trend: "T1" });
+    expect(poolCardBadgeSet(item({ investment_level: "A" }))).toEqual({ level: "A", space: null, trend: null });
   });
 
-  it("没有角标时不留槽位，标的名拿满整行", () => {
-    expect(poolCardSlotClass(poolCardBadgeSet(item({})))).toBe("");
-    expect(poolCardSlotClass(poolCardBadgeSet(item({ investment_level: "  ", trend_level: "T9" })))).toBe("");
+  it("空白等级和越界趋势等级都不生成角标", () => {
+    expect(poolCardBadgeSet(item({}))).toEqual({ level: null, space: null, trend: null });
+    expect(poolCardBadgeSet(item({ investment_level: "  ", trend_level: "T9" })))
+      .toEqual({ level: null, space: null, trend: null });
   });
 });
 

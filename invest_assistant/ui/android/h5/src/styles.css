@@ -465,22 +465,17 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .profile-row strong, .profile-row span { display: block; }
 .profile-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
 .pool-card-grid { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-/* 内容垂直居中，没有绑定赛道的卡片才不会在底部留出空洞。 */
-.pool-card { position: relative; display: flex; min-width: 0; min-height: 58px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
+/* 内容垂直居中：没有任何角标的卡片才不会在底部留出空洞。 */
+.pool-card { position: relative; display: flex; min-width: 0; min-height: 72px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
 .dashboard-flat-section .pool-card { background: var(--panel); }
 .pool-card:active { border-color: var(--blue); background: var(--blue-soft); }
-/* 三层信息依次减弱：名称 > 代码 > 赛道。 */
+/* 三层信息依次减弱：名称 > 代码 > 角标。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .pool-card span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
-/* 槽位只按实际有的角标预留，且宽度是角标伸进文字区的部分（角标块宽 + 3px 外缩 - 卡片自身 9px 内边距 + 2px 间隙）：
-   360px 机型上文字区只有 78px，四字名就占 52px，无条件按角标块整宽预留会把没有角标的卡片也截断。 */
-.pool-card--slot-top-1 strong { padding-right: 10px; }
-.pool-card--slot-top-2 strong { padding-right: 25px; }
-.pool-card--slot-trend span { padding-right: 12px; }
-.pool-card .pool-card__badges { position: absolute; top: 4px; right: 3px; display: flex; overflow: visible; padding-right: 0; gap: 2px; }
-.pool-card__badge { display: grid; min-width: 14px; height: 14px; padding: 0 3px; place-items: center; border-radius: 3px; background: var(--blue-soft); color: var(--blue); font-size: 8px; font-style: normal; font-weight: 700; line-height: 14px; }
-/* 趋势等级占右下槽位，用代码行右侧本来就空着的一半。 */
-.pool-card__badge--trend { position: absolute; right: 3px; bottom: 5px; }
+/* 角标独占代码下面一行：不再压在文字上，标的名和代码都能拿满整行，
+   360px 机型上文字区只有 78px，四字名就占 52px，压角标时怎么排都要截断。 */
+.pool-card .pool-card__badges { display: flex; overflow: visible; margin-top: 4px; gap: 3px; }
+.pool-card__badge { display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-size: 9px; font-style: normal; font-weight: 700; line-height: 16px; }
 /* 三个维度共用一套档位配色，颜色只说"好到什么程度"：S/A、T0-T2、大为强，
    B/C、T3-T4、中为中，D、T5、小为弱。视觉重量依次递减，弱档自然沉下去，
    一眼扫过去红得越多的卡片越好。评级口径外的未知值不套档位，保留中性蓝。 */

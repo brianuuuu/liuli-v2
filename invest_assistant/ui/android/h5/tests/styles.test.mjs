@@ -150,22 +150,19 @@ describe("mobile card elevation", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.pool-card-grid\s*\{[^}]*gap:\s*6px;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
-    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*58px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*8px;/s);
+    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*72px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*8px;/s);
     expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*color:\s*var\(--text\);[^}]*font-size:\s*13px;[^}]*font-weight:\s*600;/s);
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
-    // 角标分两组固定槽位：右上研究结论、右下趋势时机，文字按实际占用的槽位留宽才不会压到角标。
-    // 没有角标的卡片一律不预留：360px 机型上文字区只有 78px，四字名就占 52px，多留一点就会截断。
+    // 角标独占代码下面一行，不再绝对定位压在文字上，因此文字也不需要预留任何槽位。
     expect(styles).not.toMatch(/\.pool-card strong\s*\{[^}]*padding-right:/s);
     expect(styles).not.toMatch(/\.pool-card span\s*\{[^}]*padding-right:/s);
-    expect(styles).toMatch(/\.pool-card--slot-top-1 strong\s*\{[^}]*padding-right:\s*10px;/s);
-    expect(styles).toMatch(/\.pool-card--slot-top-2 strong\s*\{[^}]*padding-right:\s*25px;/s);
-    expect(styles).toMatch(/\.pool-card--slot-trend span\s*\{[^}]*padding-right:\s*12px;/s);
-    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*top:\s*4px;[^}]*right:\s*3px;[^}]*padding-right:\s*0;/s);
-    // 角标缩到 14px 才能在 360px 机型上给四字名让出位置。
-    expect(styles).toMatch(/\.pool-card__badge\s*\{[^}]*min-width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*8px;[^}]*line-height:\s*14px;/s);
-    expect(styles).toMatch(/\.pool-card__badge--trend\s*\{[^}]*position:\s*absolute;[^}]*right:\s*3px;[^}]*bottom:\s*5px;/s);
+    expect(styles).not.toMatch(/\.pool-card--slot-/s);
+    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*display:\s*flex;[^}]*margin-top:\s*4px;[^}]*gap:\s*3px;/s);
+    expect(styles).not.toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*position:\s*absolute;/s);
+    expect(styles).not.toMatch(/\.pool-card__badge--trend\s*\{/s);
+    expect(styles).toMatch(/\.pool-card__badge\s*\{[^}]*min-width:\s*16px;[^}]*height:\s*16px;[^}]*font-size:\s*9px;[^}]*line-height:\s*16px;/s);
     // 三个维度共用一套档位配色，颜色只编码强弱；各维度不再有自己的一套色。
     for (const tier of ["strong", "mid", "weak"]) {
       expect(styles).toMatch(new RegExp(String.raw`\.pool-card__badge--tier-${tier}\s*\{[^}]*background:[^;}]+;[^}]*color:[^;}]+;`, "s"));
