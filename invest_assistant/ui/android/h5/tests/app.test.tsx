@@ -1199,7 +1199,7 @@ describe("mobile H5 app", () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("offset=50"))).toBe(true);
   });
 
-  it("opens tasks on AI recommendations before alert events", async () => {
+  it("opens tasks on AI recommendations before pending reports and alert events", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
     vi.stubGlobal(
@@ -1215,12 +1215,197 @@ describe("mobile H5 app", () => {
     renderApp();
 
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "预警事件"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "待处理报告", "预警事件"]);
     expect(screen.getByRole("tab", { name: "AI 推荐词" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByPlaceholderText("搜索推荐词")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新增 AI 推荐词" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "已通过" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "已拒绝" })).not.toBeInTheDocument();
+  });
+
+  function pendingReportsFetchMock(rows: unknown[]) {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, method: String(init?.method ?? "GET") });
+      if (url.includes("/api/knowledge/research-feedback")) {
+        return new Response(JSON.stringify(rows), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 50, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    return { calls, fetchMock };
+  }
+
+  const pendingReportRow = {
+    id: 7,
+    title: "宁德时代-2026-09-12-标的评级报告",
+    report_id: 41,
+    researcher_code: "R001",
+    business_module: "stock_analysis",
+    source: "mcp",
+    status: "received",
+    returned_at: "2026-09-12T14:32:00"
+  };
+
+  it("lists pending reports the backend marked importable", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const { calls, fetchMock } = pendingReportsFetchMock([pendingReportRow]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+
+    expect(await screen.findByRole("button", { name: "阅读" })).toBeInTheDocument();
+    expect(screen.getByText("宁德时代-2026-09-12-标的评级报告")).toBeInTheDocument();
+    expect(screen.getByText("标的评级报告")).toBeInTheDocument();
+    expect(screen.getByText("R001")).toBeInTheDocument();
+    expect(screen.queryByText("stock_analysis")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导入" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "删除" })).toBeInTheDocument();
+    const listCall = calls.find((call) => call.url.includes("/api/knowledge/research-feedback"));
+    expect(new URL(String(listCall?.url), "http://localhost").searchParams.get("pending_import")).toBe("true");
+  });
+
+  it("opens the report reader from a pending report", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const { fetchMock } = pendingReportsFetchMock([pendingReportRow]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "阅读" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/reports/41"));
+  });
+
+  it("imports a pending report and reloads the list", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const { calls, fetchMock } = pendingReportsFetchMock([pendingReportRow]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "导入" }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url.includes("/research-feedback/7/import"))).toBe(true));
+    expect(await screen.findByText("已导入《宁德时代-2026-09-12-标的评级报告》")).toBeInTheDocument();
+    await waitFor(() => expect(calls.filter((call) => call.method === "GET" && call.url.includes("pending_import")).length).toBeGreaterThan(1));
+  });
+
+  it("shows the backend reason when a pending report import fails", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (String(init?.method ?? "GET") === "POST" && url.includes("/import")) {
+        return new Response(JSON.stringify({ detail: "未找到股票：宁德时代" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      if (url.includes("/api/knowledge/research-feedback")) {
+        return new Response(JSON.stringify([pendingReportRow]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 50, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "导入" }));
+
+    expect(await screen.findByText("导入失败：未找到股票：宁德时代")).toBeInTheDocument();
+  });
+
+  it("deletes a pending report only after the confirmation sheet", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const { calls, fetchMock } = pendingReportsFetchMock([pendingReportRow]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "删除" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === "DELETE" && call.url.includes("/research-feedback/7"))).toBe(true));
+  });
+
+  it("refreshes pending reports on pull", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const { calls, fetchMock } = pendingReportsFetchMock([pendingReportRow]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    await screen.findByText("宁德时代-2026-09-12-标的评级报告");
+    const listCalls = () => calls.filter((call) => call.method === "GET" && call.url.includes("pending_import")).length;
+    const before = listCalls();
+
+    const pullRegion = screen.getByLabelText("待处理报告下拉刷新");
+    fireEvent.touchStart(pullRegion, { touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }] });
+    fireEvent.touchMove(pullRegion, { touches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
+    fireEvent.touchEnd(pullRegion, { changedTouches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
+
+    await waitFor(() => expect(listCalls()).toBeGreaterThan(before));
+  });
+
+  it("rewinds alert paging after a pull refresh", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const alertRequests: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.includes("/api/alerts/events")) {
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 50, offset: 0, has_more: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      alertRequests.push(url);
+      const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") ?? 0);
+      return new Response(JSON.stringify({
+        items: [{ id: offset + 1, status: "unread", event_level: "info", title: `事件-${offset}`, message: "内容", event_time: "2026-07-20T00:00:00" }],
+        total: 200,
+        limit: 50,
+        offset,
+        has_more: true
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("tab", { name: "预警事件" }));
+    await screen.findByText("事件-0");
+    fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+    await screen.findByText("事件-50");
+
+    const pullRegion = screen.getByLabelText("预警事件下拉刷新");
+    fireEvent.touchStart(pullRegion, { touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }] });
+    fireEvent.touchMove(pullRegion, { touches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
+    fireEvent.touchEnd(pullRegion, { changedTouches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
+
+    await waitFor(() => expect(alertRequests).toHaveLength(3));
+    expect(new URL(alertRequests[2], "http://localhost").searchParams.get("offset")).toBe("0");
   });
 
   it("moves the pending hint count into the load-more remaining count", async () => {

@@ -946,10 +946,25 @@ def upload_research_feedback(
     return feedback, report.id, content_size
 
 
-def list_research_feedback(db: Session) -> list[KnowledgeResearchFeedback]:
-    return list(
+IMPORTABLE_REPORT_TYPES = {SCORE_REPORT_TYPE, VALUATION_REPORT_TYPE, TREND_REPORT_TYPE}
+
+
+def is_pending_import_feedback(item: KnowledgeResearchFeedback) -> bool:
+    """待导入 = 收到后还没解析过，且标题能落到一种可导入的报告类型上。"""
+    if item.status != "received" or not item.report_id:
+        return False
+    try:
+        _, _, report_type = _parse_feedback_report_title(item.title)
+    except ValueError:
+        return False
+    return report_type in IMPORTABLE_REPORT_TYPES
+
+
+def list_research_feedback(db: Session, *, pending_import: bool = False) -> list[KnowledgeResearchFeedback]:
+    items = list(
         db.scalars(select(KnowledgeResearchFeedback).order_by(KnowledgeResearchFeedback.returned_at.desc(), KnowledgeResearchFeedback.id.desc()))
     )
+    return [item for item in items if is_pending_import_feedback(item)] if pending_import else items
 
 
 def get_research_feedback(db: Session, feedback_id: int) -> KnowledgeResearchFeedback | None:

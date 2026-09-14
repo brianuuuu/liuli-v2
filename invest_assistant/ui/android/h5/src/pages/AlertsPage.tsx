@@ -1,8 +1,9 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { alertMatchesTab, type AlertTab } from "../api/filters";
 import { mobileApi } from "../api/mobileApi";
+import { PullToRefresh } from "../components/PullToRefresh";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
 
@@ -14,6 +15,7 @@ const tabs: Array<{ key: AlertTab; label: string }> = [
 
 export function AlertsContent() {
   const navigate = useNavigate();
+  const client = useQueryClient();
   const [tab, setTab] = useState<AlertTab>("all");
   const query = useInfiniteQuery({
     queryKey: ["alerts"],
@@ -23,6 +25,16 @@ export function AlertsContent() {
   });
   const allEvents = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   const events = allEvents.filter((item) => alertMatchesTab(tab, item));
+  /** 下拉刷新回到第一页，否则 refetch 会把已翻出来的几十页全部重拉一遍。 */
+  const refresh = async () => {
+    client.setQueryData(["alerts"], (current: typeof query.data) => current ? {
+      ...current,
+      pages: current.pages.slice(0, 1),
+      pageParams: current.pageParams.slice(0, 1)
+    } : current);
+    const result = await query.refetch();
+    if (result.isError) throw result.error;
+  };
   return (
     <section className="tasks-panel">
       <div className="segmented tasks-status-filter" data-swipe-ignore="true">
@@ -32,7 +44,9 @@ export function AlertsContent() {
           </button>
         ))}
       </div>
-      <AlertTabContent active events={events} query={query} navigate={navigate} />
+      <PullToRefresh ariaLabel="预警事件下拉刷新" onRefresh={refresh}>
+        <AlertTabContent active events={events} query={query} navigate={navigate} />
+      </PullToRefresh>
     </section>
   );
 }

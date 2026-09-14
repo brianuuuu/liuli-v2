@@ -10,6 +10,7 @@ import type {
   MarketOverview,
   NoteGroup,
   PageDto,
+  PendingReport,
   PortfolioOverview,
   PortfolioValuePoint,
   Report,
@@ -121,6 +122,13 @@ export const mobileApi = {
     apiClient.get<PageDto<HotwordOption>>("/api/market-radar/hotwords", { limit: 100, offset: 0 }),
   trackOptions: () => apiClient.get<TrackOption[]>("/api/track-discovery/tracks", { limit: 50 }),
   stockOptions: (keyword: string) => apiClient.get<StockOption[]>("/api/stocks/search", { keyword }),
+  // 待处理报告 = 知识库研究回流里「收到、可导入、还没导入」的那批，判定规则留在后端。
+  pendingReports: (signal?: AbortSignal) =>
+    apiClient.get<PendingReport[]>("/api/knowledge/research-feedback", { pending_import: true }, signal),
+  importPendingReport: (id: number) =>
+    apiClient.post<{ message?: string }>(`/api/knowledge/research-feedback/${id}/import`),
+  deletePendingReport: (id: number) =>
+    apiClient.delete<PendingReport>(`/api/knowledge/research-feedback/${id}`),
   reports: (offset = 0, limit = 30) =>
     apiClient.get<PageDto<Report>>("/api/reports", { offset, limit }),
   reportDetail: (id: number) => apiClient.get<Report>(`/api/reports/${id}`),

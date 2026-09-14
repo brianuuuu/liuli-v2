@@ -4,9 +4,21 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** 后端 detail 原文，用于把「未识别可导入的报告类型」这类业务原因直接展示给用户。 */
+    readonly detail?: string,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+async function readErrorDetail(response: Response) {
+  try {
+    const payload = await response.clone().json();
+    const detail = (payload as { detail?: unknown })?.detail;
+    return typeof detail === "string" && detail.trim() ? detail.trim() : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -52,7 +64,7 @@ async function request<T>(
     window.dispatchEvent(new CustomEvent("liuli:unauthorized"));
   }
   if (!response.ok) {
-    throw new ApiError(`请求失败（${response.status}）`, response.status);
+    throw new ApiError(`请求失败（${response.status}）`, response.status, await readErrorDetail(response));
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

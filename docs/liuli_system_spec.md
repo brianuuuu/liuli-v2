@@ -4649,7 +4649,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/knowledge/researchers` | 新增研究员并写入 profile 文件 |
 | PUT | `/api/knowledge/researchers/{id}` | 编辑研究员并更新 profile 文件 |
 | DELETE | `/api/knowledge/researchers/{id}` | 删除研究员 |
-| GET | `/api/knowledge/research-feedback` | 研究回流报告列表 |
+| GET | `/api/knowledge/research-feedback` | 研究回流报告列表，`pending_import=true` 只返回收到、可导入且未导入的报告（安卓待办「待处理报告」用） |
 | GET | `/api/knowledge/research-feedback/{id}` | 研究回流详情并通过报告库读取正文 |
 | POST | `/api/knowledge/research-feedback` | MCP 写入研究回流索引 |
 | POST | `/api/knowledge/research-feedback/{id}/import` | 按标题自动识别并导入业务表 |

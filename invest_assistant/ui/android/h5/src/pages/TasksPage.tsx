@@ -5,9 +5,11 @@ import type { PagerMotionSink } from "../components/pagerMotion";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { AiSuggestionsPanel } from "./AiSuggestionsPanel";
 import { AlertsContent } from "./AlertsPage";
+import { PendingReportsPanel } from "./PendingReportsPanel";
 
 const taskTabs = [
   { key: "suggestions", label: "AI 推荐词" },
+  { key: "pending-reports", label: "待处理报告" },
   { key: "alerts", label: "预警事件" }
 ] as const;
 
@@ -25,7 +27,9 @@ export function TasksPage() {
         activeKey={tab}
         onChange={setTab}
         motionSink={navigationMotion}
-        renderPage={(key) => key === "suggestions" ? <AiSuggestionsPanel /> : <AlertsContent />}
+        renderPage={(key) => key === "suggestions"
+          ? <AiSuggestionsPanel />
+          : key === "pending-reports" ? <PendingReportsPanel /> : <AlertsContent />}
       />
     </MobilePageFrame>
   );

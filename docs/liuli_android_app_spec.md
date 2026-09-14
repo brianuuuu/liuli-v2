@@ -265,16 +265,22 @@ H5 是路由真相来源；每次路由变化必须同步当前父模块和底�
 二级导航：
 
 ```text
-AI 推荐词｜预警事件
+AI 推荐词｜待处理报告｜预警事件
 ```
 
-待办根路由为 `/tasks`，默认显示 AI 推荐词，第二项“预警事件”内部使用“全部｜未读｜已处理”紧凑筛选；现有 `/api/alerts/events` 没有状态参数，因此按现有分页加载后在客户端筛选。若当前已加载页没有目标状态但服务端仍有后续页，按单请求顺序继续渐进加载，直到找到结果或到达末页，禁止显示假空态或发起并行重复请求。预警详情路由为 `/tasks/alerts/{id}`。
+待办根路由为 `/tasks`，默认显示 AI 推荐词，第三项“预警事件”内部使用“全部｜未读｜已处理”紧凑筛选；现有 `/api/alerts/events` 没有状态参数，因此按现有分页加载后在客户端筛选。若当前已加载页没有目标状态但服务端仍有后续页，按单请求顺序继续渐进加载，直到找到结果或到达末页，禁止显示假空态或发起并行重复请求。预警详情路由为 `/tasks/alerts/{id}`。
 
 详情支持现有标记已读和已处理接口，不增加处理备注字段。
 
 “AI 推荐词”仅展示待审核列表并支持分页，不提供搜索、新增、已通过和已拒绝列表。卡片采用与看板、资讯一致的字号和高密度移动布局；点击卡片进入 `/tasks/suggestions/{id}` 独立审核详情页，不使用长按操作或审核弹窗。详情页仅展示推荐词、推荐理由和审核表单，支持设置最终标签词，并绑定市场热词、赛道或已有标的；标的必须从股票主数据搜索结果中选择。推荐词数据依次从路由状态、TanStack Query 列表缓存和 `sessionStorage` 读取，全部缺失时返回待办列表，不新增详情接口。
 
 详情页“通过”和“拒绝”均直接调用现有单条接口，不弹确认窗口；成功后刷新列表并返回 `/tasks`，失败则保留详情和输入。列表加载区提供“一键拒绝”，点击后不弹确认窗口，立即对当前已加载到按钮上方的待审核推荐词按顺序逐条调用现有拒绝接口；单条失败不得阻断后续请求，完成后显示实际成功和失败条数，操作期间禁止重复提交。不新增批量接口。
+
+“待处理报告”是知识库研究回流在手机端的处理入口，只显示已收到、能识别为可导入类型且尚未导入的报告，列表读取 `GET /api/knowledge/research-feedback?pending_import=true`。可导入判定（状态为 received、带报告、标题解析出标的评级报告/标的估值报告/趋势研究）留在后端，手机端不得复刻解析规则，也不新增聚合接口。
+
+卡片展示报告标题、报告类型、研究员编号和回流时间，并提供“阅读｜导入｜删除”三个操作：阅读跳转已有报告阅读页 `/reports/{report_id}`，不新建阅读器；导入调用 `POST /api/knowledge/research-feedback/{id}/import`，成功后刷新列表并显示一行轻量结果提示，失败时显示后端 detail 原文；删除必须先弹底部确认层二次确认，确认后调用 `DELETE /api/knowledge/research-feedback/{id}`，只删回流记录，报告仍保留在报告库。确认层挂载到 `document.body`，避免横滑分页容器的 transform 影响 fixed 定位。
+
+AI 推荐词、待处理报告和预警事件三个页面均支持顶部下拉刷新；分页列表刷新时回到第一页，不重拉已翻出的全部页。
 
 ### 6.5 我的
 
@@ -307,6 +313,7 @@ AI 推荐词｜预警事件
 | 组合看板 | `/api/portfolios/overview`、`/api/portfolios/value-snapshots` |
 | 笔记与分组 | `/api/knowledge/notes`、`/archive`、`DELETE /api/knowledge/notes/{id}`、`/api/knowledge/note-groups` |
 | 待办-预警 | `/api/alerts/events`、`/read`、`/handle` |
+| 待办-待处理报告 | `/api/knowledge/research-feedback?pending_import=true`、`/{id}/import`、`DELETE /api/knowledge/research-feedback/{id}` |
 | 待办-AI 推荐词 | 待审核 `/api/market-radar/ai-tag-suggestions`、`/approve`、`/reject`，以及热词、赛道和股票搜索接口 |
 | 报告 | `/api/reports`、`/api/reports/{id}`、`/content` |
 

@@ -208,8 +208,8 @@ def delete_prompt(prompt_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/research-feedback", response_model=list[KnowledgeResearchFeedbackRead])
-def list_research_feedback(db: Session = Depends(get_db)) -> list:
-    return service.list_research_feedback(db)
+def list_research_feedback(pending_import: bool = False, db: Session = Depends(get_db)) -> list:
+    return service.list_research_feedback(db, pending_import=pending_import)
 
 
 @router.post("/research-feedback", response_model=KnowledgeResearchFeedbackRead)

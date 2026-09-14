@@ -15,6 +15,7 @@ from invest_assistant.modules.knowledge_base.service import (
     delete_research_feedback,
     get_research_feedback,
     import_research_feedback,
+    list_research_feedback,
 )
 from invest_assistant.modules.stock_analysis.models import StockValuationSnapshot
 from invest_assistant.modules.stock_analysis.service import delete_score, list_trends
@@ -320,6 +321,47 @@ def test_delete_research_feedback_removes_row_but_keeps_report():
     assert get_research_feedback(db, feedback_id) is None
     # 报告是报告库的独立实体，删除回流记录不得连带删掉它
     assert report_service.get_report(db, report_id) is not None
+
+
+def test_list_research_feedback_pending_import_keeps_only_importable_received_rows(tmp_path, monkeypatch):
+    """安卓「待处理报告」只要收到、可导入、还没导入的那批，判定留在后端而不是端上。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    score = create_feedback(db, "万东医疗-2026-07-05-标的评级报告", score_markdown())
+    valuation = create_feedback(db, "万东医疗-2026-07-05-标的估值报告", score_markdown())
+    trend = create_feedback(db, "万东医疗-2026-07-05-趋势研究", score_markdown())
+    unknown_type = create_feedback(db, "万东医疗-2026-07-05-随手记", score_markdown())
+    bad_title = create_feedback(db, "没有日期的标题", score_markdown())
+    already_imported = create_feedback(db, "万东医疗-2026-07-04-标的评级报告", score_markdown())
+    already_imported.status = "parsed"
+    db.commit()
+
+    pending_ids = [item.id for item in list_research_feedback(db, pending_import=True)]
+
+    assert sorted(pending_ids) == sorted([score.id, valuation.id, trend.id])
+    assert unknown_type.id not in pending_ids
+    assert bad_title.id not in pending_ids
+    assert already_imported.id not in pending_ids
+    # 不带过滤时仍然是整张表，Web 的研究回流页不受影响
+    assert len(list_research_feedback(db)) == 6
+
+
+def test_list_research_feedback_pending_import_drops_rows_without_report(tmp_path, monkeypatch):
+    """没有报告就没法阅读也没法导入，不该出现在待处理报告里。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    orphan = create_research_feedback(
+        db,
+        KnowledgeResearchFeedbackCreate(
+            title="万东医疗-2026-07-05-标的评级报告",
+            report_id=None,
+            source="mcp",
+            status="received",
+        ),
+    )
+
+    assert [item.id for item in list_research_feedback(db, pending_import=True)] == []
+    assert [item.id for item in list_research_feedback(db)] == [orphan.id]
 
 
 def trend_item(**overrides) -> dict:

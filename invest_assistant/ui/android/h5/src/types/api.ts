@@ -52,6 +52,17 @@ export type Report = {
   publish_time?: string | null;
   created_at?: string | null;
 };
+export type PendingReport = {
+  id: number;
+  title: string;
+  report_id?: number | null;
+  researcher_code?: string | null;
+  skill_name?: string | null;
+  business_module?: string | null;
+  source?: string;
+  status?: string;
+  returned_at?: string | null;
+};
 export type MarketOverview = {
   source_items: number;
   tags: number;
