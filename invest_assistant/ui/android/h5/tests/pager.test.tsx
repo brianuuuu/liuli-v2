@@ -419,6 +419,78 @@ describe("horizontal tab pager", () => {
   });
 });
 
+describe("horizontal tab pager slots", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  function slotOffsets(container: HTMLElement) {
+    return [...container.querySelectorAll<HTMLElement>(".horizontal-tab-pager__page")].map((page) => ({
+      key: page.textContent,
+      offset: page.style.getPropertyValue("--pager-page-offset").trim()
+    }));
+  }
+
+  function SlotHarness({ startKey, innerRef }: {
+    startKey: (typeof items)[number]["key"];
+    innerRef: React.RefObject<HorizontalTabPagerHandle<(typeof items)[number]["key"]> | null>;
+  }) {
+    const [activeKey, setActiveKey] = React.useState(startKey);
+    return (
+      <HorizontalTabPager
+        ref={innerRef}
+        items={items}
+        activeKey={activeKey}
+        onChange={setActiveKey}
+        renderPage={(key) => <div>{key}</div>}
+      />
+    );
+  }
+
+  it("never parks two pages in the same slot while switching between three tabs", () => {
+    vi.useFakeTimers();
+    const ref = createRef<HorizontalTabPagerHandle<(typeof items)[number]["key"]>>();
+    const { container } = render(<SlotHarness startKey="today" innerRef={ref} />);
+
+    // 逐个走到第三页，让三页都挂载
+    for (const key of ["market", "track"] as const) {
+      act(() => ref.current?.requestChange(key));
+      act(() => vi.advanceTimersByTime(300));
+    }
+    expect(container.querySelectorAll(".horizontal-tab-pager__page")).toHaveLength(3);
+
+    // 第三页切回第二页：动画途中第一页不能和第二页落到同一格
+    act(() => ref.current?.requestChange("market"));
+    act(() => vi.advanceTimersByTime(20));
+    const slots = slotOffsets(container);
+    const offsets = slots.map((slot) => slot.offset);
+    expect(new Set(offsets).size).toBe(offsets.length);
+    expect(slots.find((slot) => slot.key === "market")?.offset).toBe("-1");
+    expect(slots.find((slot) => slot.key === "today")?.offset).toBe("-2");
+    expect(slots.find((slot) => slot.key === "track")?.offset).toBe("0");
+  });
+
+  it("slides a skipped-over target in from the adjacent slot and parks the page it jumps past", () => {
+    vi.useFakeTimers();
+    const ref = createRef<HorizontalTabPagerHandle<(typeof items)[number]["key"]>>();
+    const { container } = render(<SlotHarness startKey="today" innerRef={ref} />);
+
+    act(() => ref.current?.requestChange("market"));
+    act(() => vi.advanceTimersByTime(300));
+    act(() => ref.current?.requestChange("today"));
+    act(() => vi.advanceTimersByTime(300));
+
+    // 从第一页直接跳到第三页，跳过的第二页必须让开
+    act(() => ref.current?.requestChange("track"));
+    act(() => vi.advanceTimersByTime(20));
+    const slots = slotOffsets(container);
+    expect(slots.find((slot) => slot.key === "today")?.offset).toBe("0");
+    expect(slots.find((slot) => slot.key === "track")?.offset).toBe("1");
+    expect(slots.find((slot) => slot.key === "market")?.offset).toBe("2");
+  });
+});
+
 describe("pager cache", () => {
   it("evicts the oldest unprotected key and never exceeds three entries", () => {
     expect(touchPagerCache(["today"], "market")).toEqual(["today", "market"]);

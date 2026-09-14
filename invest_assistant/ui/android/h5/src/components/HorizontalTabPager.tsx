@@ -66,6 +66,26 @@ function shouldIgnoreSwipeTarget(target: EventTarget | null) {
   return Boolean(horizontalScroller && horizontalScroller.scrollWidth > horizontalScroller.clientWidth);
 }
 
+/**
+ * 每张分页占第几格（当前页为 0，一格等于一屏宽）。
+ * 标签多于两个时，同一侧可能同时挂着两张页，必须按真实格位摆开；
+ * 否则它们会落到同一格互相盖住，切换途中露出另一张页的内容。
+ * 跨格跳转时目标页临时借用相邻格滑入，被跳过的页让到视野外的格子。
+ */
+export function pageSlotOffset(
+  index: number,
+  activeIndex: number,
+  transitionTargetIndex: number | null
+) {
+  if (index === activeIndex) return 0;
+  if (transitionTargetIndex === null || transitionTargetIndex === activeIndex) {
+    return index - activeIndex;
+  }
+  const direction = transitionTargetIndex > activeIndex ? 1 : -1;
+  if (index === transitionTargetIndex) return direction;
+  return index > activeIndex ? 2 : -2;
+}
+
 export function pagerTargetIndex(
   currentIndex: number,
   itemCount: number,
@@ -389,21 +409,23 @@ function HorizontalTabPagerInner<T extends string>(
         "--pager-settle-duration": `${settleDuration}ms`
       } as PagerStyle}
     >
-      {visiblePages.map(({ index, key }) => (
-        <section
-          className={`horizontal-tab-pager__page ${
-            index === activeIndex
-              ? "horizontal-tab-pager__page--current"
-              : index < activeIndex
-                ? "horizontal-tab-pager__page--previous"
-                : "horizontal-tab-pager__page--next"
-          }`}
-          aria-hidden={index !== activeIndex}
-          key={key}
-        >
-          {renderPage(key)}
-        </section>
-      ))}
+      {visiblePages.map(({ index, key }) => {
+        const offset = pageSlotOffset(index, activeIndex, transitionTargetIndex);
+        return (
+          <section
+            className={`horizontal-tab-pager__page ${
+              offset === 0
+                ? "horizontal-tab-pager__page--current"
+                : "horizontal-tab-pager__page--off"
+            }`}
+            style={{ "--pager-page-offset": String(offset) } as CSSProperties}
+            aria-hidden={index !== activeIndex}
+            key={key}
+          >
+            {renderPage(key)}
+          </section>
+        );
+      })}
     </div>
   );
 }

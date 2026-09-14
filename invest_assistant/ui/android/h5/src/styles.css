@@ -138,15 +138,15 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   position: relative;
   transform: translate3d(var(--pager-drag-x), 0, 0);
 }
-.horizontal-tab-pager__page--previous,
-.horizontal-tab-pager__page--next {
+/* 非当前页按 --pager-page-offset 指定的格位摆放：三个以上标签时，同侧的两张页
+   不能共用一个 ±100%，否则会叠在同一格，切换途中露出另一张页的内容。 */
+.horizontal-tab-pager__page--off {
   position: absolute;
   top: 0;
   left: 0;
+  transform: translate3d(calc(var(--pager-page-offset) * 100% + var(--pager-drag-x)), 0, 0);
   pointer-events: none;
 }
-.horizontal-tab-pager__page--previous { transform: translate3d(calc(-100% + var(--pager-drag-x)), 0, 0); }
-.horizontal-tab-pager__page--next { transform: translate3d(calc(100% + var(--pager-drag-x)), 0, 0); }
 .horizontal-tab-pager.is-settling .horizontal-tab-pager__page { transition: transform var(--pager-settle-duration) cubic-bezier(.2, .8, .2, 1); }
 .page-stack { display: grid; gap: 10px; }
 .welcome-card {
