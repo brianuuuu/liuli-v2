@@ -709,6 +709,36 @@ def test_review_performance_uses_cash_flow_adjusted_returns_for_single_portfolio
         db.close()
 
 
+def test_review_performance_ignores_cash_adjustment_and_dividend_as_external_flow(monkeypatch, tmp_path):
+    """现金校准配合调仓、除权分红都不是外部资金，只有入金出金才从收益里剔除。"""
+    SessionLocal = make_session(tmp_path)
+    db = SessionLocal()
+    try:
+        monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 30))
+        portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        # 06-02 调仓日：卖出股票换成现金，总市值守恒，当日收益应为 0
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 1), 1000)
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 2), 1000)
+        # 06-03 分红入账：现金多出 50，属于真实收益
+        add_value_snapshot(db, portfolio.id, date(2026, 6, 3), 1050)
+        add_cash_flow(db, portfolio.id, "adjustment", 600, date(2026, 6, 2))
+        add_cash_flow(db, portfolio.id, "dividend", 50, date(2026, 6, 3))
+        for day, close in ((1, 4000), (2, 4000), (3, 4000)):
+            add_index_bar(db, date(2026, 6, day), close)
+
+        result = service.get_review_performance(db, portfolio_id=portfolio.id, period="month", refresh_benchmark=False)
+
+        points = result["curve_points"]
+        assert [point["external_flow"] for point in points] == [0.0, 0.0, 0.0]
+        assert round(points[1]["daily_return_pct"], 6) == 0.0
+        assert round(points[1]["portfolio_return_pct"], 6) == 0.0
+        assert round(points[2]["daily_return_pct"], 2) == 5.0
+        assert round(points[2]["portfolio_return_pct"], 2) == 5.0
+        assert round(result["summary"]["portfolio_return_pct"], 2) == 5.0
+    finally:
+        db.close()
+
+
 def test_review_performance_uses_only_common_portfolio_and_benchmark_dates(monkeypatch, tmp_path):
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()

@@ -770,10 +770,16 @@ def _review_external_flows_by_date(db: Session, portfolio_ids: list[int], start_
 
 
 def _external_flow_amount(item: PortfolioCashFlow) -> float:
+    """外部资金流动只认入金和出金。
+
+    现金校准 adjustment 是内部再分配，不是外部资金：配合调仓时现金和持仓市值此消彼长，
+    总市值本就守恒；配合除权分红时多出来的现金本身就是真实收益，扣掉会把收益抹平。
+    dividend 和 interest 同理，都留在收益里。口径与看板 _portfolio_daily_performance 一致。
+    """
     amount = float(item.amount or 0)
     if item.flow_type == "withdraw":
         return -amount
-    if item.flow_type in {"deposit", "adjustment"}:
+    if item.flow_type == "deposit":
         return amount
     return 0.0
 
