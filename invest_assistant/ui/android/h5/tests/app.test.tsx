@@ -592,6 +592,107 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("海外订单增速放缓")).toBeInTheDocument();
   });
 
+  it("refreshes only the active stock view on pull and rewinds material paging", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const firstItems = Array.from({ length: 10 }, (_, index) => ({
+      id: index + 1,
+      stock_id: 18,
+      stock_name: `标的 ${index + 1}`,
+      stock_code: `${300750 + index}`,
+      impact_direction: "noise",
+      material_title: index === 0 ? "首页标的材料" : `标的材料 ${index + 1}`,
+      material_source_name: "来源 C",
+      material_time: "2026-07-29T11:00:00+08:00"
+    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/stock-analysis/materials")) {
+        const secondPage = url.includes("offset=10");
+        return new Response(JSON.stringify({
+          items: secondPage ? [{
+            id: 11,
+            stock_id: 19,
+            stock_name: "贵州茅台",
+            stock_code: "600519",
+            impact_direction: "support",
+            material_title: "第二页标的材料",
+            material_source_name: "来源 D"
+          }] : firstItems,
+          total: 11,
+          limit: 10,
+          offset: secondPage ? 10 : 0,
+          has_more: !secondPage
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/stock-analysis/pool")) {
+        return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 4, offset: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const materialUrls = () => fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/stock-analysis/materials"));
+    const poolUrls = () => fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes("/api/stock-analysis/pool"));
+    const pull = async () => {
+      const region = await screen.findByLabelText("标的页下拉刷新");
+      fireEvent.touchStart(region, {
+        touches: [{ identifier: 1, clientX: 120, clientY: 100, target: region }]
+      });
+      fireEvent.touchMove(region, {
+        touches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+      });
+      fireEvent.touchEnd(region, {
+        touches: [],
+        changedTouches: [{ identifier: 1, clientX: 122, clientY: 230, target: region }]
+      });
+    };
+
+    renderApp();
+    const stockTab = await screen.findByRole("tab", { name: "标的" });
+    fireEvent.click(stockTab);
+    await waitFor(() => expect(stockTab).toHaveAttribute("aria-selected", "true"));
+    expect(await screen.findByText("首页标的材料")).toBeInTheDocument();
+
+    DashboardObserverFake.instances.at(-1)?.intersect();
+    expect(await screen.findByText("第二页标的材料")).toBeInTheDocument();
+    expect(materialUrls()).toHaveLength(2);
+    const poolCountBeforePull = poolUrls().length;
+
+    await pull();
+
+    // 分页已收回第一页，重拉只补一次 offset=0，不会把第二页一起重拉
+    await waitFor(() => expect(materialUrls()).toHaveLength(3));
+    expect(materialUrls().at(-1)).toContain("offset=0");
+    expect(materialUrls().filter((url) => url.includes("offset=10"))).toHaveLength(1);
+    expect(screen.queryByText("第二页标的材料")).not.toBeInTheDocument();
+    // 另一个视图不该被这次下拉带着刷
+    expect(poolUrls()).toHaveLength(poolCountBeforePull);
+
+    fireEvent.click(screen.getByRole("button", { name: "标的池" }));
+    expect(await screen.findByText("该状态下暂无标的")).toBeInTheDocument();
+    const materialCountBeforePoolPull = materialUrls().length;
+    const poolCountBeforePoolPull = poolUrls().length;
+
+    await pull();
+
+    await waitFor(() => expect(poolUrls()).toHaveLength(poolCountBeforePoolPull + 1));
+    expect(materialUrls()).toHaveLength(materialCountBeforePoolPull);
+  });
+
   it("keeps edit groups as the pinned note navigation action", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";

@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -234,28 +234,48 @@ function TrackDashboard() {
  */
 function StockDashboard({ active }: { active: boolean }) {
   const [view, setView] = useState<StockTabView>(lastStockView);
+  const client = useQueryClient();
+  /**
+   * 两个视图各自持有查询，一次下拉只刷当前视图：材料流顺带把分页收回第一页，
+   * 标的池是一次性拉全量，重拉即可，卡片翻页位置由 poolPageLayout 取模兜底。
+   */
+  const refresh = async () => {
+    const queryKey = view === "materials" ? ["stock-materials"] : ["stock-pool"];
+    if (view === "materials") {
+      client.setQueryData<{ pages: unknown[]; pageParams: unknown[] }>(queryKey, (current) => current ? {
+        ...current,
+        pages: current.pages.slice(0, 1),
+        pageParams: current.pageParams.slice(0, 1)
+      } : current);
+    }
+    await client.refetchQueries({ queryKey, exact: true });
+    const state = client.getQueryState(queryKey);
+    if (state?.status === "error") throw state.error;
+  };
   return (
-    <div className="page-stack stock-view-stack">
-      {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
-      {active ? createPortal(
-        <div className="stock-view-bar" data-swipe-ignore="true">
-          <div className="pill-segments" role="group" aria-label="标的视图">
-            {STOCK_TAB_VIEWS.map((item) => (
-              <button
-                type="button"
-                key={item.value}
-                className={view === item.value ? "is-active" : ""}
-                aria-pressed={view === item.value}
-                onClick={() => { rememberStockView(item.value); setView(item.value); }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body
-      ) : null}
-    </div>
+    <PullToRefresh ariaLabel="标的页下拉刷新" onRefresh={refresh}>
+      <div className="page-stack stock-view-stack">
+        {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
+        {active ? createPortal(
+          <div className="stock-view-bar" data-swipe-ignore="true">
+            <div className="pill-segments" role="group" aria-label="标的视图">
+              {STOCK_TAB_VIEWS.map((item) => (
+                <button
+                  type="button"
+                  key={item.value}
+                  className={view === item.value ? "is-active" : ""}
+                  aria-pressed={view === item.value}
+                  onClick={() => { rememberStockView(item.value); setView(item.value); }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
+    </PullToRefresh>
   );
 }
 
