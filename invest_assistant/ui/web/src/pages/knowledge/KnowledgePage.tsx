@@ -1022,6 +1022,11 @@ function ResearcherSection() {
   );
 }
 
+function isMarkdownReportPath(path?: string | null): boolean {
+  if (!path) return true;
+  return path.trim().toLowerCase().endsWith(".md");
+}
+
 function ResearchFeedbackSection() {
   const feedback = useAsyncData(useCallback(listKnowledgeResearchFeedback, []), [] as KnowledgeResearchFeedback[]);
   const [viewing, setViewing] = useState<KnowledgeResearchFeedback | null>(null);
@@ -1033,12 +1038,15 @@ function ResearchFeedbackSection() {
   async function viewFeedback(record: KnowledgeResearchFeedback) {
     setViewing(record);
     setReportContent("");
-    if (!record.report_id) return;
+    if (!record.report_id) {
+      setReportContent("暂无可读报告。");
+      return;
+    }
     setReportLoading(true);
     try {
       setReportContent(await getReportContent(record.report_id));
-    } catch (error) {
-      message.error(`报告读取失败：${getApiErrorDetail(error)}`);
+    } catch {
+      setReportContent("报告文件不存在或无法读取。");
     } finally {
       setReportLoading(false);
     }
@@ -1145,20 +1153,28 @@ function ResearchFeedbackSection() {
       >
         <Table rowKey="id" size="small" loading={feedback.loading} dataSource={feedback.data} columns={feedbackColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} />
       </DataPanel>
-      <Modal title={viewing?.title || "研究回流详情"} width={980} style={{ top: 24 }} open={!!viewing} onCancel={() => setViewing(null)} footer={null} destroyOnHidden>
-        {viewing ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Typography.Text type="secondary">
-              来源：{viewing.source || "-"}　状态：{viewing.status || "-"}　回流时间：{formatDateTime(viewing.returned_at)}　更新时间：{formatDateTime(viewing.updated_at)}
-            </Typography.Text>
-            <Typography.Text type="secondary">
-              研究员编号：{viewing.researcher_code || "-"}　Skill 名称：{viewing.skill_name || "-"}　业务模块：{viewing.business_module || "-"}
-            </Typography.Text>
-            <Typography.Title level={5}>研究报告</Typography.Title>
-            <Input.TextArea readOnly rows={14} value={reportLoading ? "读取中..." : reportContent || "暂无报告内容"} />
-          </Space>
-        ) : null}
-      </Modal>
+      {viewing && createPortal(
+        <div className="full-screen-reader-overlay">
+          <div className="full-screen-reader-close" onClick={() => setViewing(null)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+          <div className="full-screen-reader-content">
+            {reportLoading ? (
+              <Typography.Text type="secondary">读取中...</Typography.Text>
+            ) : isMarkdownReportPath(viewing.report_path) && reportContent ? (
+              <MarkdownViewer content={reportContent} />
+            ) : (
+              <Typography.Paragraph copyable={Boolean(reportContent)} style={{ whiteSpace: "pre-wrap" }}>
+                {reportContent || "暂无报告内容"}
+              </Typography.Paragraph>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
