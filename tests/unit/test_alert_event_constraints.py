@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -10,7 +10,7 @@ from invest_assistant.bootstrap.database import Base, get_db
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.alert_center.models import AlertRule
 from invest_assistant.modules.alert_center.models import ensure_alert_center_schema
-from invest_assistant.modules.alert_center.service import evaluate_rules
+from invest_assistant.modules.alert_center.service import evaluate_rules, reset_job_failure_watermarks
 from invest_assistant.modules.alert_center.router import router as alert_router
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
@@ -19,6 +19,7 @@ from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.market_radar import jobs as market_jobs
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, SourceItem
 from invest_assistant.modules.knowledge_base.service import ResolvedPrompt
+from invest_assistant.shared.time_utils import utc_now
 
 
 def make_session() -> Session:
@@ -175,6 +176,7 @@ def test_single_alert_event_can_be_read_and_deleted():
 
 def test_alert_rule_enable_disable_and_delete_actions_hide_deleted_rule():
     db = make_session()
+    reset_job_failure_watermarks()
     client = make_alert_client(db)
     create_response = client.post(
         "/api/alerts/rules",
@@ -275,6 +277,8 @@ def test_hotword_candidate_job_does_not_create_alert_events(monkeypatch):
 
 def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
     db = make_session()
+    reset_job_failure_watermarks()
+    now = utc_now()
     db.add_all(
         [
             JobConfig(
@@ -295,8 +299,8 @@ def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
                 module_name="market_radar",
                 trigger_type="manual",
                 status="failed",
-                started_at=datetime(2026, 6, 24, 9, 0, 0),
-                finished_at=datetime(2026, 6, 24, 9, 0, 1),
+                started_at=now - timedelta(minutes=2),
+                finished_at=now - timedelta(minutes=1),
                 duration_ms=1000,
                 error_message="network down",
             ),
@@ -305,8 +309,8 @@ def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
                 module_name="market_radar",
                 trigger_type="schedule",
                 status="success",
-                started_at=datetime(2026, 6, 24, 10, 0, 0),
-                finished_at=datetime(2026, 6, 24, 10, 0, 1),
+                started_at=now - timedelta(minutes=2),
+                finished_at=now - timedelta(minutes=1),
                 duration_ms=1000,
             ),
         ]
@@ -328,6 +332,8 @@ def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
 
 def test_job_failure_rule_does_not_recreate_handled_alert_for_same_run_log():
     db = make_session()
+    reset_job_failure_watermarks()
+    now = utc_now()
     rule = AlertRule(
         name="任务中心失败报警",
         rule_type="job_failure",
@@ -340,8 +346,8 @@ def test_job_failure_rule_does_not_recreate_handled_alert_for_same_run_log():
         module_name="market_radar",
         trigger_type="manual",
         status="failed",
-        started_at=datetime(2026, 6, 24, 9, 0, 0),
-        finished_at=datetime(2026, 6, 24, 9, 0, 1),
+        started_at=now - timedelta(minutes=2),
+        finished_at=now - timedelta(minutes=1),
         duration_ms=1000,
         error_message="network down",
     )
@@ -365,13 +371,15 @@ def test_job_failure_rule_does_not_recreate_handled_alert_for_same_run_log():
 
 def test_job_failure_rule_ignores_failed_logs_at_or_before_min_log_id():
     db = make_session()
+    reset_job_failure_watermarks()
+    now = utc_now()
     old_log = JobRunLog(
         job_name="old.job",
         module_name="test",
         trigger_type="manual",
         status="failed",
-        started_at=datetime(2026, 6, 24, 8, 0, 0),
-        finished_at=datetime(2026, 6, 24, 8, 0, 1),
+        started_at=now - timedelta(minutes=4),
+        finished_at=now - timedelta(minutes=3),
         duration_ms=1000,
     )
     db.add(old_log)
@@ -391,8 +399,8 @@ def test_job_failure_rule_ignores_failed_logs_at_or_before_min_log_id():
             module_name="test",
             trigger_type="manual",
             status="failed",
-            started_at=datetime(2026, 6, 24, 9, 0, 0),
-            finished_at=datetime(2026, 6, 24, 9, 0, 1),
+            started_at=now - timedelta(minutes=2),
+            finished_at=now - timedelta(minutes=1),
             duration_ms=1000,
         )
     )
@@ -404,6 +412,103 @@ def test_job_failure_rule_ignores_failed_logs_at_or_before_min_log_id():
     assert result.inserted_count == 1
     assert len(events) == 1
     assert "new.job" in events[0].title
+
+
+def test_job_failure_rule_skips_backlog_older_than_startup_window():
+    db = make_session()
+    reset_job_failure_watermarks()
+    now = utc_now()
+    db.add_all(
+        [
+            AlertRule(
+                name="任务中心失败报警",
+                rule_type="job_failure",
+                target_type="job_center",
+                condition_json='{"event_level":"warning"}',
+                enabled=True,
+            ),
+            JobRunLog(
+                job_name="market_radar.fetch_news",
+                module_name="market_radar",
+                trigger_type="schedule",
+                status="failed",
+                started_at=now - timedelta(days=3),
+                finished_at=now - timedelta(days=3),
+                duration_ms=1000,
+                error_message="worker 停机期间的积压失败",
+            ),
+            JobRunLog(
+                job_name="market_radar.fetch_news",
+                module_name="market_radar",
+                trigger_type="schedule",
+                status="failed",
+                started_at=now - timedelta(hours=2),
+                finished_at=now - timedelta(hours=2),
+                duration_ms=1000,
+                error_message="仍然早于启动回看窗口",
+            ),
+        ]
+    )
+    db.commit()
+
+    result = evaluate_rules(db)
+
+    assert result.inserted_count == 0
+    assert db.scalar(select(func.count(AlertEvent.id))) == 0
+
+
+def test_job_failure_rule_reports_failures_arriving_after_startup_watermark():
+    db = make_session()
+    reset_job_failure_watermarks()
+    now = utc_now()
+    db.add_all(
+        [
+            AlertRule(
+                name="任务中心失败报警",
+                rule_type="job_failure",
+                target_type="job_center",
+                condition_json='{"event_level":"warning"}',
+                enabled=True,
+            ),
+            JobRunLog(
+                job_name="market_radar.fetch_news",
+                module_name="market_radar",
+                trigger_type="schedule",
+                status="failed",
+                started_at=now - timedelta(days=1),
+                finished_at=now - timedelta(days=1),
+                duration_ms=1000,
+                error_message="停机期间的积压失败",
+            ),
+        ]
+    )
+    db.commit()
+
+    first = evaluate_rules(db)
+
+    db.add(
+        JobRunLog(
+            job_name="market_radar.fetch_news",
+            module_name="market_radar",
+            trigger_type="schedule",
+            status="failed",
+            started_at=now,
+            finished_at=now,
+            duration_ms=1000,
+            error_message="启动之后新发生的失败",
+        )
+    )
+    db.commit()
+
+    second = evaluate_rules(db)
+    third = evaluate_rules(db)
+
+    events = list(db.scalars(select(AlertEvent).order_by(AlertEvent.id)))
+    assert first.inserted_count == 0
+    assert second.inserted_count == 1
+    assert third.inserted_count == 0
+    assert len(events) == 1
+    assert "启动之后新发生的失败" in events[0].message
 
 
 def test_alert_rule_evaluation_job_is_scheduled_and_manually_runnable():

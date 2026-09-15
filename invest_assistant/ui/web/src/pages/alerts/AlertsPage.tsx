@@ -66,7 +66,7 @@ export function AlertsPage() {
 
   const eventColumns: ColumnsType<Record<string, unknown>> = [
     { title: "标题", dataIndex: "title" },
-    { title: "级别", dataIndex: "level" },
+    { title: "级别", dataIndex: "event_level" },
     { title: "状态", dataIndex: "status" },
     { title: "时间", dataIndex: "created_at" },
     {

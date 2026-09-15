@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,16 @@ from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.market_radar.models import Tag, TagHeatSnapshot
 from invest_assistant.shared.db_types import loads_json
 from invest_assistant.shared.pagination import Page, page_from_statement
+from invest_assistant.shared.time_utils import utc_now
+
+JOB_FAILURE_STARTUP_LOOKBACK_MINUTES = 15
+
+# 任务失败水位线只存在进程内存里：worker 重启即清空，停机期间积压的失败不会被补报。
+_JOB_FAILURE_WATERMARKS: dict[int, int] = {}
+
+
+def reset_job_failure_watermarks() -> None:
+    _JOB_FAILURE_WATERMARKS.clear()
 
 
 def create_rule(db: Session, payload: AlertRuleCreate, user_id: int | None) -> AlertRule:
@@ -170,18 +182,32 @@ def _evaluate_heat_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
     )
 
 
+def _initial_job_failure_watermark(db: Session) -> int:
+    """worker 启动后的首个水位线：只回看最近一小段时间，既不补报停机期间的积压，也保得住崩溃前后的失败。"""
+    cutoff = utc_now() - timedelta(minutes=JOB_FAILURE_STARTUP_LOOKBACK_MINUTES)
+    return int(db.scalar(select(func.max(JobRunLog.id)).where(JobRunLog.finished_at < cutoff)) or 0)
+
+
 def _evaluate_job_failure_rule(db: Session, rule: AlertRule) -> list[AlertEvent]:
     condition = loads_json(rule.condition_json) or {}
     job_name = str(condition.get("job_name") or "").strip()
     min_log_id = int(condition.get("min_log_id") or 0)
-    stmt = select(JobRunLog).where(JobRunLog.status.in_(("failed", "error"))).order_by(JobRunLog.finished_at.asc(), JobRunLog.id.asc())
-    if min_log_id > 0:
-        stmt = stmt.where(JobRunLog.id > min_log_id)
+    watermark = _JOB_FAILURE_WATERMARKS.get(rule.id)
+    if watermark is None:
+        watermark = _initial_job_failure_watermark(db)
+        _JOB_FAILURE_WATERMARKS[rule.id] = watermark
+    since_log_id = max(watermark, min_log_id)
+    stmt = (
+        select(JobRunLog)
+        .where(JobRunLog.status.in_(("failed", "error")), JobRunLog.id > since_log_id)
+        .order_by(JobRunLog.finished_at.asc(), JobRunLog.id.asc())
+    )
     if job_name:
         stmt = stmt.where(JobRunLog.job_name == job_name)
     rows = list(db.scalars(stmt))
     if not rows:
         return []
+    _JOB_FAILURE_WATERMARKS[rule.id] = max(log.id for log in rows)
     configs = {
         item.job_name: item
         for item in db.scalars(select(JobConfig).where(JobConfig.job_name.in_({row.job_name for row in rows})))
