@@ -38,8 +38,15 @@ def list_events(db: Session) -> list[AlertEvent]:
     return list(db.scalars(select(AlertEvent).order_by(AlertEvent.event_time.desc(), AlertEvent.id.desc())))
 
 
-def list_events_page(db: Session, limit: int | None = 50, offset: int = 0) -> Page[AlertEvent]:
+def list_events_page(
+    db: Session,
+    limit: int | None = 50,
+    offset: int = 0,
+    statuses: list[str] | None = None,
+) -> Page[AlertEvent]:
     stmt = select(AlertEvent).order_by(AlertEvent.event_time.desc(), AlertEvent.id.desc())
+    if statuses:
+        stmt = stmt.where(AlertEvent.status.in_(statuses))
     return page_from_statement(db, stmt, limit=limit, offset=offset)
 
 

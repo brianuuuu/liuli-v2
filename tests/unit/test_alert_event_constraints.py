@@ -414,6 +414,29 @@ def test_job_failure_rule_ignores_failed_logs_at_or_before_min_log_id():
     assert "new.job" in events[0].title
 
 
+def test_event_list_can_be_paged_and_filtered_by_status():
+    db = make_session()
+    db.add_all(
+        [
+            AlertEvent(rule_id=1, title="未读", message="message", status="unread"),
+            AlertEvent(rule_id=1, title="已读", message="message", status="read"),
+            AlertEvent(rule_id=1, title="已处理", message="message", status="handled"),
+        ]
+    )
+    db.commit()
+    client = make_alert_client(db)
+
+    all_events = client.get("/api/alerts/events", params={"limit": 2, "offset": 0})
+    handled_events = client.get("/api/alerts/events", params={"status": ["read", "handled"]})
+
+    assert all_events.status_code == 200
+    assert all_events.json()["total"] == 3
+    assert len(all_events.json()["items"]) == 2
+    assert handled_events.status_code == 200
+    assert handled_events.json()["total"] == 2
+    assert {item["status"] for item in handled_events.json()["items"]} == {"read", "handled"}
+
+
 def test_job_failure_rule_skips_backlog_older_than_startup_window():
     db = make_session()
     reset_job_failure_watermarks()

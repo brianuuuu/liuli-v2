@@ -6,6 +6,10 @@ export type PageParams = {
   offset?: number;
 };
 
+export type AlertEventQuery = PageParams & {
+  status?: string[];
+};
+
 export type AlertEventStats = {
   total: number;
   unread: number;
@@ -14,8 +18,11 @@ export type AlertEventStats = {
   unhandled: number;
 };
 
-export async function listAlertEvents(params: PageParams = {}): Promise<Page<Record<string, unknown>>> {
-  const response = await apiClient.get<Page<Record<string, unknown>>>("/api/alerts/events", { params });
+export async function listAlertEvents(params: AlertEventQuery = {}): Promise<Page<Record<string, unknown>>> {
+  const response = await apiClient.get<Page<Record<string, unknown>>>("/api/alerts/events", {
+    params,
+    paramsSerializer: { indexes: null }
+  });
   return response.data;
 }
 

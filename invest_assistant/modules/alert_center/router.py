@@ -57,9 +57,10 @@ def disable_rule(rule_id: int, db: Session = Depends(get_db)):
 def list_events(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    status: list[str] | None = Query(None),
     db: Session = Depends(get_db),
 ) -> Page[AlertEventRead]:
-    return service.list_events_page(db, limit=limit, offset=offset)
+    return service.list_events_page(db, limit=limit, offset=offset, statuses=status)
 
 
 @router.get("/events/stats")
