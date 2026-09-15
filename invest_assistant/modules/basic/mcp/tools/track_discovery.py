@@ -2,6 +2,7 @@ from invest_assistant.modules.basic.mcp.auth import McpClientConfig
 from invest_assistant.modules.basic.mcp.projection import resolve_sections, select_sections, trim_field
 from invest_assistant.modules.basic.mcp.service import execute_read_tool
 from invest_assistant.modules.track_discovery import service as track_service
+from invest_assistant.modules.track_discovery.service import ARCHIVED_STATUS
 
 TRACK_DETAIL_SECTIONS: dict[str, tuple[str, ...]] = {
     "materials": ("materials",),
@@ -23,6 +24,9 @@ def list_tracks(
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
+    # 归档是软删除后的回收站，里面多是脏数据，不对外部 MCP 调用方开放。
+    if (status or "").strip() == ARCHIVED_STATUS:
+        raise ValueError("archived tracks are not exposed via MCP")
     return execute_read_tool(
         db=db,
         client=client,

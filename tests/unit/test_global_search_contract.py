@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import invest_assistant.modules.basic.report_library.models  # noqa: F401  # knowledge_research_feedback 的 FK 目标表
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.market_radar.models import Tag, TrackTagRelation
@@ -37,18 +38,18 @@ def test_stock_pool_search_only_returns_pool_items():
         )
         db.add_all([pooled, outside_pool])
         db.flush()
-        db.add(StockPoolItem(stock_id=pooled.id, status="archived", source="manual"))
+        db.add(StockPoolItem(stock_id=pooled.id, status="watching", source="manual"))
         db.commit()
 
         rows = stock_service.list_pool(db, q="平安", limit=8)
 
         assert [row["stock_id"] for row in rows] == [pooled.id]
-        assert rows[0]["status"] == "archived"
+        assert rows[0]["status"] == "watching"
     finally:
         db.close()
 
 
-def test_track_search_matches_all_statuses_and_current_view():
+def test_track_search_matches_live_statuses_and_current_view():
     db = make_session()
     try:
         active = Track(name="AI 算力", status="active", current_view="海外算力需求继续增长")

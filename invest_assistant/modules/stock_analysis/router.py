@@ -54,9 +54,11 @@ def get_dashboard(stock_id: int | None = None, db: Session = Depends(get_db)) ->
 def list_pool(
     q: str | None = None,
     limit: int | None = Query(None, ge=1, le=50),
+    status: str | None = None,
     db: Session = Depends(get_db),
 ) -> list:
-    return service.list_pool(db, q=q, limit=limit)
+    # 不传 status 就拿不到归档标的；回收站视图必须显式 status=archived。
+    return service.list_pool(db, q=q, limit=limit, status=status)
 
 
 @router.post("/pool", response_model=StockPoolRead)

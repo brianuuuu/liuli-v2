@@ -56,10 +56,12 @@ export const mobileApi = {
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
   trackMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { status: "confirmed", offset, limit }),
-  // 后端 /pool 目前只支持 q + limit（上限 50），没有 status 过滤和分页，
+  // 后端 /pool 只支持 q + limit（上限 50）+ 单个 status，没有分页，
   // 状态分组和计数在端上完成；标的池超过 50 条时需要后端补分页。
+  // status 只在回收站视图传 archived：不传时后端本来就不返归档。
   stockDetail: (stockId: number) => apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`),
-  stockPool: (limit = 50) => apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit }),
+  stockPool: (limit = 50, status?: string) =>
+    apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit, status }),
   stockMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { status: "confirmed", offset, limit }),
   portfolioOverview: (portfolioId?: number | null) =>

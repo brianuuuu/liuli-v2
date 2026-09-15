@@ -7,7 +7,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Track } from "../../../types/api";
-import { confidenceOptions, formatTime, stageOptions, StatusTag, thesisStatusOptions } from "./shared";
+import { ARCHIVED_STATUS, confidenceOptions, formatTime, stageOptions, StatusTag, thesisStatusOptions } from "./shared";
 
 type TrackFormValues = {
   name: string;
@@ -16,8 +16,13 @@ type TrackFormValues = {
 };
 
 export function TracksSection() {
-  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  // 归档等同软删除：后端默认不返回，只有切到"归档"这个回收站视图才单独去取。
+  const archivedView = statusFilter === ARCHIVED_STATUS;
+  const tracks = useAsyncData(
+    useCallback(() => (archivedView ? listTracks({ status: ARCHIVED_STATUS }) : listTracks()), [archivedView]),
+    []
+  );
   const [editing, setEditing] = useState<Track | null>(null);
   const [open, setOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState<Track | null>(null);
@@ -91,7 +96,7 @@ export function TracksSection() {
   }
 
   async function archive(record: Track) {
-    await changeTrackStatus(record.id, "archived", "archive from web");
+    await changeTrackStatus(record.id, ARCHIVED_STATUS, "archive from web");
     message.success("赛道已归档");
     await tracks.refresh();
   }
@@ -129,7 +134,7 @@ export function TracksSection() {
             </Popconfirm>
           ) : (
             <Popconfirm title="归档这个赛道？" okText="归档" cancelText="取消" onConfirm={() => archive(record)}>
-              <Button size="small" danger disabled={record.status === "archived"}>归档</Button>
+              <Button size="small" danger disabled={record.status === ARCHIVED_STATUS}>归档</Button>
             </Popconfirm>
           )}
         </Space>

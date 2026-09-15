@@ -54,9 +54,18 @@ describe("标的池状态分组", () => {
 
   it("按状态过滤并在端上统计分组数量", () => {
     expect(filterPoolByStatus(items).map((item) => item.id)).toEqual([2]);
-    expect(filterPoolByStatus(items, "all").map((item) => item.id)).toEqual([1, 2, 3, 4, 5]);
     expect(filterPoolByStatus(items, "candidate").map((item) => item.id)).toEqual([3, 4]);
-    expect(poolStatusCounts(items)).toEqual({ all: 5, focused: 1, watching: 1, candidate: 2, archived: 1 });
+  });
+
+  it("归档等同软删除，不进“全部”也不计入常规分组计数", () => {
+    expect(filterPoolByStatus(items, "all").map((item) => item.id)).toEqual([2, 3, 4, 5]);
+    expect(poolStatusCounts(items)).toEqual({ all: 4, focused: 1, watching: 1, candidate: 2 });
+  });
+
+  it("回收站视图只统计归档一组，避免另一份数据全显示成 0", () => {
+    const archivedItems = items.filter((item) => item.status === "archived");
+    expect(filterPoolByStatus(archivedItems, "archived").map((item) => item.id)).toEqual([1]);
+    expect(poolStatusCounts(archivedItems, true)).toEqual({ archived: 1 });
   });
 });
 

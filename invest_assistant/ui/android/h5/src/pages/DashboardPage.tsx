@@ -17,6 +17,7 @@ import {
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
+  ARCHIVED_POOL_STATUS,
   filterPoolByStatus,
   nextPoolPage,
   poolPageLayout,
@@ -258,6 +259,7 @@ function StockDashboard({ active }: { active: boolean }) {
   /**
    * 两个视图各自持有查询，一次下拉只刷当前视图：材料流顺带把分页收回第一页，
    * 标的池是一次性拉全量，重拉即可，卡片翻页位置由 poolPageLayout 取模兜底。
+   * 标的池按常规/回收站分成两个 key，所以按前缀匹配刷新，不能用 exact。
    */
   const refresh = async () => {
     const queryKey = view === "materials" ? ["stock-materials"] : ["stock-pool"];
@@ -268,9 +270,9 @@ function StockDashboard({ active }: { active: boolean }) {
         pageParams: current.pageParams.slice(0, 1)
       } : current);
     }
-    await client.refetchQueries({ queryKey, exact: true });
-    const state = client.getQueryState(queryKey);
-    if (state?.status === "error") throw state.error;
+    await client.refetchQueries({ queryKey, exact: view === "materials" });
+    const failed = client.getQueryCache().findAll({ queryKey }).find((entry) => entry.state.status === "error");
+    if (failed) throw failed.state.error;
   };
   return (
     <PullToRefresh ariaLabel="标的页下拉刷新" onRefresh={refresh}>
@@ -303,9 +305,15 @@ function StockPoolView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<PoolStatusKey>(lastPoolStatus);
   const [page, setPage] = useState(0);
-  const query = useQuery({ queryKey: ["stock-pool"], queryFn: () => mobileApi.stockPool(), staleTime: 300_000 });
+  // 归档等同软删除：后端默认不返回，只有切到"归档"这个回收站视图才单独去取。
+  const archivedView = status === ARCHIVED_POOL_STATUS;
+  const query = useQuery({
+    queryKey: ["stock-pool", archivedView ? ARCHIVED_POOL_STATUS : "active"],
+    queryFn: () => mobileApi.stockPool(50, archivedView ? ARCHIVED_POOL_STATUS : undefined),
+    staleTime: 300_000
+  });
   const items = query.data ?? [];
-  const counts = poolStatusCounts(items);
+  const counts = poolStatusCounts(items, archivedView);
   const visible = filterPoolByStatus(items, status);
   const layout = poolPageLayout(visible, page);
   return (
@@ -319,7 +327,7 @@ function StockPoolView() {
             aria-pressed={status === option.value}
             onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); setPage(0); }}
           >
-            {option.label}<i>{counts[option.value] ?? 0}</i>
+            {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
           </button>
         ))}
       </div>

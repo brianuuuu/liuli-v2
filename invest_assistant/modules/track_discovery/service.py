@@ -27,6 +27,7 @@ from invest_assistant.modules.track_discovery.schemas import (
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 from invest_assistant.shared.time_utils import beijing_now
 
+ARCHIVED_STATUS = "archived"
 DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
 DEFAULT_RANK_CHANGE_WINDOW = "7d"
 DASHBOARD_RANKING_LIMIT = 10
@@ -54,9 +55,12 @@ def create_track(db: Session, payload: TrackCreate, enqueue_backfill: bool = Tru
 
 
 def list_tracks(db: Session, status: str | None = None, q: str | None = None, limit: int | None = None, offset: int = 0) -> list[dict]:
+    """归档等于软删除，不显式点名 archived 就一律不返回，回收站之外看不到这批脏数据。"""
     stmt = select(Track).order_by(Track.updated_at.desc(), Track.id.desc())
     if status:
         stmt = stmt.where(Track.status == status)
+    else:
+        stmt = stmt.where(Track.status != ARCHIVED_STATUS)
     keyword = (q or "").strip()
     if keyword:
         pattern = f"%{keyword}%"
@@ -77,7 +81,12 @@ def list_tracks(db: Session, status: str | None = None, q: str | None = None, li
 
 
 def get_dashboard(db: Session) -> dict:
-    tracks = list(db.scalars(select(Track).order_by(Track.updated_at.desc(), Track.id.desc())))
+    # 看板的热度榜、重点赛道、材料统计都从这一份 tracks 派生，归档等同软删除，在源头就滤掉。
+    tracks = list(
+        db.scalars(
+            select(Track).where(Track.status != ARCHIVED_STATUS).order_by(Track.updated_at.desc(), Track.id.desc())
+        )
+    )
     track_ids = [track.id for track in tracks]
     if not track_ids:
         return {

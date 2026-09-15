@@ -11,6 +11,9 @@ export const STOCK_TAB_VIEWS: { value: StockTabView; label: string }[] = [
 
 export type PoolStatusKey = "all" | "focused" | "watching" | "candidate" | "archived";
 
+/** 归档 = 软删除，等同回收站，不进"全部"也不进任何默认列表。 */
+export const ARCHIVED_POOL_STATUS: PoolStatusKey = "archived";
+
 /** 默认落在重点跟踪，这是日常最常看的一组。 */
 export const DEFAULT_POOL_STATUS: PoolStatusKey = "focused";
 
@@ -35,15 +38,22 @@ export function poolStatusLabel(status?: string | null) {
 }
 
 export function filterPoolByStatus(items: StockPoolItem[], status: PoolStatusKey = DEFAULT_POOL_STATUS) {
-  return status === "all" ? items : items.filter((item) => item.status === status);
+  return status === "all"
+    ? items.filter((item) => item.status !== ARCHIVED_POOL_STATUS)
+    : items.filter((item) => item.status === status);
 }
 
-/** 分组计数在端上算，因为 /pool 不返回按状态的统计。 */
-export function poolStatusCounts(items: StockPoolItem[]): Record<PoolStatusKey, number> {
+/**
+ * 分组计数在端上算，因为 /pool 不返回按状态的统计。
+ * 回收站和常规列表是两份数据，只给当前这份标计数，免得另一份全显示成 0。
+ */
+export function poolStatusCounts(items: StockPoolItem[], archivedView = false): Partial<Record<PoolStatusKey, number>> {
   return POOL_STATUS_OPTIONS.reduce((counts, option) => {
-    counts[option.value] = filterPoolByStatus(items, option.value).length;
+    if ((option.value === ARCHIVED_POOL_STATUS) === archivedView) {
+      counts[option.value] = filterPoolByStatus(items, option.value).length;
+    }
     return counts;
-  }, {} as Record<PoolStatusKey, number>);
+  }, {} as Partial<Record<PoolStatusKey, number>>);
 }
 
 export type AnnualizedValuationSpace = "大" | "中" | "小";

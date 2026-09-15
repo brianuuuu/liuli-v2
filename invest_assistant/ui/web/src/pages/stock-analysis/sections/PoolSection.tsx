@@ -9,7 +9,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Stock, StockPoolItem } from "../../../types/api";
-import { formatTime, poolStatusOptions, StatusTag } from "./shared";
+import { ARCHIVED_STATUS, formatTime, poolStatusOptions, StatusTag } from "./shared";
 
 type PoolFormValues = {
   stock_id: number;
@@ -18,9 +18,14 @@ type PoolFormValues = {
 };
 
 export function PoolSection() {
-  const pool = useAsyncData(useCallback(listStockPool, []), []);
-  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  // 归档等同软删除：后端默认不返回，只有切到"归档"这个回收站视图才单独去取。
+  const archivedView = statusFilter === ARCHIVED_STATUS;
+  const pool = useAsyncData(
+    useCallback(() => (archivedView ? listStockPool({ status: ARCHIVED_STATUS }) : listStockPool()), [archivedView]),
+    []
+  );
+  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<StockPoolItem | null>(null);
   const [stockOptions, setStockOptions] = useState<Stock[]>([]);
@@ -34,14 +39,18 @@ export function PoolSection() {
       return acc;
     }, {} as Record<string, number>);
 
+    // 回收站和常规列表是两份数据，只给当前这份标计数，免得另一份显示成 0。
+    const counted = (value: string | undefined, label: string, total: number) =>
+      (value === ARCHIVED_STATUS) === archivedView ? `${label} (${total})` : label;
+
     return [
-      { value: undefined, label: `全部 (${pool.data.length})` },
+      { value: undefined, label: counted(undefined, "全部", pool.data.length) },
       ...poolStatusOptions.map((opt) => ({
         value: opt.value,
-        label: `${opt.label} (${counts[opt.value] || 0})`
+        label: counted(opt.value, opt.label, counts[opt.value] || 0)
       }))
     ];
-  }, [pool.data]);
+  }, [pool.data, archivedView]);
 
   const rows = useMemo(() => pool.data.filter((item) => !statusFilter || item.status === statusFilter), [pool.data, statusFilter]);
   const selectStockOptions = useMemo(
@@ -74,7 +83,7 @@ export function PoolSection() {
     form.setFieldsValue({
       stock_id: editing.stock_id,
       status: editing.status,
-      track_ids: (editing.tracks || []).filter((track) => track.status !== "archived").map((track) => track.id)
+      track_ids: (editing.tracks || []).filter((track) => track.status !== ARCHIVED_STATUS).map((track) => track.id)
     });
   }, [editing, form, open]);
 

@@ -38,6 +38,8 @@ from invest_assistant.services.tushare import client as tushare_client
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
 
+ARCHIVED_STATUS = "archived"
+
 MAJOR_A_SHARE_INDICES = [
     {"code": "000001.SH", "name": "上证指数"},
     {"code": "399001.SZ", "name": "深证成指"},
@@ -322,12 +324,17 @@ def update_pool_item(db: Session, pool_id: int, payload: StockPoolCreate) -> dic
     return _pool_item_dict(db, item)
 
 
-def list_pool(db: Session, q: str | None = None, limit: int | None = None) -> list[dict]:
+def list_pool(db: Session, q: str | None = None, limit: int | None = None, status: str | None = None) -> list[dict]:
+    """归档等于软删除，不显式点名 archived 就一律不返回，回收站之外看不到这批脏数据。"""
     stmt = (
         select(StockPoolItem, Stock)
         .join(Stock, Stock.id == StockPoolItem.stock_id)
         .order_by(StockPoolItem.updated_at.desc())
     )
+    if status:
+        stmt = stmt.where(StockPoolItem.status == status)
+    else:
+        stmt = stmt.where(StockPoolItem.status != ARCHIVED_STATUS)
     keyword = (q or "").strip()
     if keyword:
         pattern = f"%{keyword}%"
@@ -371,9 +378,11 @@ def list_candidates(db: Session) -> list[dict]:
 
 
 def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
+    # 看板的所有统计都从这一份 pool_rows 派生，归档等同软删除，在源头就滤掉。
     pool_rows = db.execute(
         select(StockPoolItem, Stock)
         .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .where(StockPoolItem.status != ARCHIVED_STATUS)
         .order_by(StockPoolItem.updated_at.desc(), StockPoolItem.id.desc())
     ).all()
     if not pool_rows:
@@ -794,10 +803,15 @@ def _pool_item_dict_from_stock(db: Session, item: StockPoolItem, stock: Stock | 
 
 
 def _active_track_summaries_for_stock(db: Session, stock_id: int) -> list[dict]:
+    # 关系是 active 还不够：赛道本身归档等同软删除，不该再挂在标的上。
     rows = db.execute(
         select(Track)
         .join(StockTrackRelation, StockTrackRelation.track_id == Track.id)
-        .where(StockTrackRelation.stock_id == stock_id, StockTrackRelation.status == "active")
+        .where(
+            StockTrackRelation.stock_id == stock_id,
+            StockTrackRelation.status == "active",
+            Track.status != ARCHIVED_STATUS,
+        )
         .order_by(Track.name)
     ).scalars()
     return [_track_dict(track) for track in rows]

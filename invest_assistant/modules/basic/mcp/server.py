@@ -57,7 +57,7 @@ MCP_TOOL_DESCRIPTIONS = {
     ),
     "track_discovery.list_tracks": (
         "查询赛道列表，适合按状态或关键词查找赛道候选项，并获取后续 get_track_detail 所需的 track_id。"
-        "支持 status、q、limit、offset 过滤。"
+        "支持 status、q、limit、offset 过滤。归档赛道等同已删除，不会返回，status 也不接受 archived。"
     ),
     "track_discovery.get_track_detail": (
         "按已知 track_id 获取赛道详情。默认只返回赛道基础信息、汇总、最新快照、相关标的和标签；"
@@ -68,7 +68,7 @@ MCP_TOOL_DESCRIPTIONS = {
         "查询标的池，支持按证券代码、名称、拼音或简称模糊匹配。"
         "这是获取 stock_id 的入口：缺少 stock_id 时先调用本工具，再用返回的 stock_id 调 "
         "get_stock_profile 或 get_daily_bars；返回里的 track_ids 可直接用于 track_discovery.get_track_detail。"
-        "支持 q、limit 过滤。"
+        "支持 q、limit 过滤。归档标的等同已删除，不会返回。"
     ),
     "stock_analysis.get_stock_profile": (
         "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"

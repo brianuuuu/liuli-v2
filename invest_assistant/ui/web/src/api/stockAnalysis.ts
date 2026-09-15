@@ -60,6 +60,8 @@ export type PageParams = {
 export type StockPoolListParams = {
   q?: string;
   limit?: number;
+  /** 归档是软删除后的回收站，只有显式传 archived 才会返回。 */
+  status?: string;
 };
 
 export type StockMaterialListParams = PageParams & {
