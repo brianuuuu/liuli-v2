@@ -556,22 +556,35 @@ export function PortfolioPage() {
   function lineOption(rows: PortfolioValueSnapshot[]): EChartsOption {
     const textColor = chartTextColor(resolvedMode);
     const gridColor = chartGridColor(resolvedMode);
+    const dark = resolvedMode === "dark";
+    // 验证过的分类色槽 1/2，与控制台图表同一套
+    const seriesBlue = dark ? "#2f7ad0" : "#256abf";
+    const seriesOrange = dark ? "#d95926" : "#eb6834";
+    // 市值常年在一个很窄的区间里走，坐标轴贴着实际区间才看得出起伏；刻度落在整万就不带小数
+    const wanLabel = (value: number) => {
+      const wan = value / 10000;
+      return `${Math.abs(wan - Math.round(wan)) < 1e-6 ? wan.toFixed(0) : wan.toFixed(1)}万`;
+    };
     return {
-      color: ["#2563eb", "#10b981", "#64748b"],
+      color: [seriesBlue, seriesOrange],
       tooltip: {
         trigger: "axis",
         backgroundColor: tooltipBackgroundColor(resolvedMode),
         borderColor: gridColor,
         textStyle: { color: textColor },
+        axisPointer: { type: "line", lineStyle: { color: gridColor, width: 1 } },
         valueFormatter: (value) => formatMoney(Number(value))
       },
       legend: {
         top: 0,
+        itemWidth: 14,
+        itemHeight: 8,
         textStyle: { color: textColor }
       },
       grid: { top: 38, left: 54, right: 18, bottom: 34 },
       xAxis: {
         type: "category",
+        boundaryGap: false,
         data: rows.map((item) => item.snapshot_date),
         axisLabel: { color: textColor },
         axisLine: { lineStyle: { color: gridColor } },
@@ -579,21 +592,27 @@ export function PortfolioPage() {
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: textColor, formatter: (value: number) => `${Math.round(value / 10000)}万` },
+        scale: true,
+        axisLabel: { color: textColor, formatter: (value: number) => wanLabel(value) },
         splitLine: { lineStyle: { color: gridColor } }
       },
       series: [
         {
           name: "总市值",
           type: "line",
-          smooth: true,
+          smooth: false,
           showSymbol: false,
-          lineStyle: { width: 3 },
-          areaStyle: { color: resolvedMode === "dark" ? "rgba(96, 165, 250, 0.10)" : "rgba(37, 99, 235, 0.08)" },
+          lineStyle: { width: 2, cap: "round", join: "round" },
           data: rows.map((item) => item.total_value)
         },
-        { name: "持仓市值", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 2 }, data: rows.map((item) => item.position_market_value) },
-        { name: "现金", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 2, type: "dashed" }, data: rows.map((item) => item.cash_amount) }
+        {
+          name: "持仓市值",
+          type: "line",
+          smooth: false,
+          showSymbol: false,
+          lineStyle: { width: 2, cap: "round", join: "round" },
+          data: rows.map((item) => item.position_market_value)
+        }
       ]
     };
   }

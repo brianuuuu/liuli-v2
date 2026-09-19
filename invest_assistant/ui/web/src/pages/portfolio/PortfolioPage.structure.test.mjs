@@ -31,7 +31,7 @@ assert.match(page, /center: \["63%", "52%"\]/);
 assert.match(chartTheme, /return "transparent"/);
 assert.match(page, /现金余额/);
 assert.match(page, /资金流水/);
-assert.match(page, /组合复盘/);
+assert.match(page, /刷新复盘/);
 assert.match(page, /getPortfolioReviewPerformance/);
 assert.match(page, /沪深300/);
 assert.match(page, /收益率曲线/);

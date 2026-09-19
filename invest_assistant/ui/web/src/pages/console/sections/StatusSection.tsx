@@ -130,8 +130,8 @@ export function StatusSection() {
       minInterval: 1,
       splitNumber: 4,
       axisLine: { show: false },
-      // 网格退到背景：虚线 + 更少的刻度层，数据本身才是前景
-      splitLine: { lineStyle: { color: gridLine, type: "dashed" as const } }
+      // 网格退到背景：实线细线 + 更少的刻度层（虚线会被读成阈值线，只留给日均参考线）
+      splitLine: { lineStyle: { color: gridLine } }
     }),
     [gridLine]
   );
