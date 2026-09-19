@@ -205,16 +205,14 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
 }
 .market-ranking-filters .segmented { min-width: 0; padding: 3px; }
 /* 热度排行筛选器沉底吸附：排行条数会变，跟随内容就会忽上忽下。 */
 /* 同样 Portal 到 body 上 fixed，页面自己留出被盖住的高度。 */
 .market-filter-stack { padding-bottom: 62px; }
-.market-filter-bar { position: fixed; z-index: 15; right: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); bottom: 8px; left: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-.market-filter-bar .market-ranking-filters { margin-top: 0; padding-top: 0; border-top: 0; }
+/* 与标的页切换器同一套做法：浮在滚动内容之上的一层不描边，用阴影说明层级，
+   底距也对齐。外框圆角取内层分段器的 8px 加上 4px 内边距，两层圆角才同心。 */
+.market-filter-bar { position: fixed; z-index: 15; right: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); bottom: 10px; left: calc(var(--dashboard-page-gutter) + var(--dashboard-flat-inset)); padding: 4px; border-radius: 12px; background: var(--panel); box-shadow: var(--float-shadow); }
 .list-row {
   display: flex;
   width: 100%;
