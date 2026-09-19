@@ -26,6 +26,13 @@ describe("mobile card elevation", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.dashboard-flat-section\s*\{[^}]*padding:\s*0 var\(--dashboard-flat-inset\);[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+    // 轮廓线去掉：白底压灰底已经分层，卡片之间靠 .page-stack 的间距撑开。
+    expect(styles).toMatch(/\.section-card\s*\{[^}]*border:\s*0;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.metric\s*\{[^}]*border:\s*0;[^}]*background:\s*var\(--panel\);/s);
+    // 分隔线留下：卡片内部分行没有底色差可依靠，线是唯一在干活的东西。
+    expect(styles).toMatch(/\.portfolio-allocation__item\s*\{[^}]*border-bottom:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.settings-row\s*\{[^}]*border-bottom:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.stock-profile__metrics\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
     // --dashboard-page-gutter 是页框左右内边距的副本，页框一改这里必须同步，否则底部切换器会错位。
     const frameGutter = styles.match(/\.mobile-page-frame__content\s*\{[^}]*padding:\s*\d+px (\d+px)/s)?.[1];
     const declaredGutter = styles.match(/--dashboard-page-gutter:\s*(\d+px);/)?.[1];

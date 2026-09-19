@@ -163,13 +163,16 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .welcome-card strong { display: block; margin-top: 5px; font-size: 20px; }
 .welcome-card p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+/* 不画轮廓线：白底压在页面灰底上已经是一层分隔，卡片之间再靠 .page-stack
+   的 10px 灰底撑开，四周那圈近似色的线只会在边缘糊一道脏边。
+   卡片内部分行的线是另一回事，那种没有底色差可依靠，一律保留。 */
 .metric {
   display: flex;
   min-height: 78px;
   flex-direction: column;
   justify-content: center;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow);
@@ -190,7 +193,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .section-card {
   overflow: hidden;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow);
