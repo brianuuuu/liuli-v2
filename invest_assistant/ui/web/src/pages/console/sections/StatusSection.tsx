@@ -65,8 +65,12 @@ export function StatusSection() {
   // 卡片底色：堆叠段之间的间隙用底色挖出来，而不是给柱子描一圈对比色边
   const surface = dark ? "#161b22" : "#ffffff";
   // 验证过的分类色槽 1/2（validate_palette.js 明暗双模式六项全过）
-  const seriesBlue = dark ? "#3987e5" : "#2a78d6";
+  // 主体蓝比默认槽位再压一档，大面积铺色不刺眼；强调橙保持不变，保证小色块仍能跳出来
+  const seriesBlue = dark ? "#2f7ad0" : "#256abf";
+  const seriesBlueRgb = dark ? "47,122,208" : "37,106,191";
   const seriesOrange = dark ? "#d95926" : "#eb6834";
+  const refLine = dark ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.18)";
+  const avgTokens = days.length ? Math.round(totalTokens / days.length) : 0;
 
   // 提示框跟随主题，暗色下不再是白底
   const tooltipBase = useMemo(
@@ -124,8 +128,10 @@ export function StatusSection() {
     () => ({
       type: "value" as const,
       minInterval: 1,
+      splitNumber: 4,
       axisLine: { show: false },
-      splitLine: { lineStyle: { color: gridLine } }
+      // 网格退到背景：虚线 + 更少的刻度层，数据本身才是前景
+      splitLine: { lineStyle: { color: gridLine, type: "dashed" as const } }
     }),
     [gridLine]
   );
@@ -141,9 +147,9 @@ export function StatusSection() {
       legend: {
         top: 2,
         left: 0,
-        itemWidth: 10,
-        itemHeight: 10,
-        itemGap: 16,
+        itemWidth: 8,
+        itemHeight: 8,
+        itemGap: 14,
         icon: "roundRect",
         textStyle: { color: axisText, fontSize: 11 },
         data: ["输入 token", "输出 token"]
@@ -162,23 +168,52 @@ export function StatusSection() {
           name: "输入 token",
           type: "bar",
           stack: "token",
-          barMaxWidth: 22,
-          itemStyle: { color: seriesBlue, borderColor: surface, borderWidth: 2 },
+          barMaxWidth: 18,
+          barCategoryGap: "42%",
+          // 下段方头，顶部圆角留给堆叠最上面那段；1px 底色描边与上段拼出 2px 缝
+          itemStyle: { color: seriesBlue, borderColor: surface, borderWidth: 1 },
           emphasis: { itemStyle: { opacity: 0.85 } },
-          data: days.map((item) => item.prompt_tokens)
+          data: days.map((item) => item.prompt_tokens || null),
+          markLine: {
+            silent: true,
+            symbol: "none",
+            lineStyle: { color: refLine, type: "dashed" as const, width: 1 },
+            label: {
+              position: "insideEndTop" as const,
+              color: axisText,
+              fontSize: 10,
+              formatter: `日均 ${compactNumber(avgTokens)}`
+            },
+            data: [{ yAxis: avgTokens }]
+          }
         },
         {
           name: "输出 token",
           type: "bar",
           stack: "token",
-          barMaxWidth: 22,
-          itemStyle: { color: seriesOrange, borderColor: surface, borderWidth: 2, borderRadius: [4, 4, 0, 0] },
+          barMaxWidth: 18,
+          // 输出量只占几个百分点，保底 5px 才不会被描边吃掉成一条毛刺
+          barMinHeight: 5,
+          itemStyle: { color: seriesOrange, borderColor: surface, borderWidth: 1, borderRadius: [4, 4, 0, 0] },
           emphasis: { itemStyle: { opacity: 0.85 } },
-          data: days.map((item) => item.completion_tokens)
+          data: days.map((item) => item.completion_tokens || null)
         }
       ]
     }),
-    [xAxisBase, yAxisBase, axisText, seriesBlue, seriesOrange, surface, days, tooltipBase, renderTooltip, dark]
+    [
+      xAxisBase,
+      yAxisBase,
+      axisText,
+      seriesBlue,
+      seriesOrange,
+      surface,
+      days,
+      tooltipBase,
+      renderTooltip,
+      dark,
+      refLine,
+      avgTokens
+    ]
   );
 
   const requestOption = useMemo<EChartsOption>(
@@ -210,8 +245,8 @@ export function StatusSection() {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: dark ? "rgba(57,135,229,0.22)" : "rgba(42,120,214,0.16)" },
-                { offset: 1, color: dark ? "rgba(57,135,229,0)" : "rgba(42,120,214,0)" }
+                { offset: 0, color: `rgba(${seriesBlueRgb},${dark ? 0.22 : 0.16})` },
+                { offset: 1, color: `rgba(${seriesBlueRgb},0)` }
               ]
             }
           },
@@ -219,7 +254,7 @@ export function StatusSection() {
         }
       ]
     }),
-    [xAxisBase, yAxisBase, axisText, gridLine, seriesBlue, surface, days, tooltipBase, renderTooltip, dark]
+    [xAxisBase, yAxisBase, axisText, gridLine, seriesBlue, seriesBlueRgb, surface, days, tooltipBase, renderTooltip, dark]
   );
 
   return (
