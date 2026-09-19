@@ -32,7 +32,7 @@ describe("mobile card elevation", () => {
     expect(frameGutter).toBeDefined();
     expect(declaredGutter).toBe(frameGutter);
     expect(styles).toMatch(/\.dashboard-flat-section \.pool-card\s*\{[^}]*background:\s*var\(--panel\);/s);
-    expect(styles).toMatch(/\.dashboard-flat-section \.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
+    expect(styles).toMatch(/\.dashboard-flat-section \.pool-card--pager\s*\{[^}]*background:\s*transparent;/s);
   });
 
   it("keeps the note editor usable when the visual viewport shrinks", () => {
@@ -146,20 +146,27 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.market-ranking-movement--down\s*\{[^}]*color:\s*#16a34a;/s);
   });
 
-  it("keeps pool cards compact and pins the stock view segments in a bordered bar at the bottom", () => {
+  it("keeps pool cards borderless and pins the stock view segments in a floating bar at the bottom", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.pool-card-grid\s*\{[^}]*gap:\s*6px;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
-    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*72px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*8px;/s);
+    expect(styles).toMatch(/\.pool-card-grid\s*\{[^}]*gap:\s*8px;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
+    expect(styles).toMatch(/\.pool-card\s*\{[^}]*min-height:\s*72px;[^}]*justify-content:\s*center;[^}]*border-radius:\s*10px;/s);
+    // 卡片不画描边：白底压在页面灰底上已经分层，边框只留 1px 透明占位给按压态和翻页格。
+    expect(styles).toMatch(/\.pool-card\s*\{[^}]*border:\s*1px solid transparent;/s);
+    expect(styles).not.toMatch(/\.pool-card\s*\{[^}]*border:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.pool-card:active\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
+    expect(styles).not.toMatch(/\.pool-card:active\s*\{[^}]*border-color:/s);
     expect(styles).toMatch(/\.pool-card strong\s*\{[^}]*color:\s*var\(--text\);[^}]*font-size:\s*13px;[^}]*font-weight:\s*600;/s);
     expect(styles).toMatch(/\.pool-card span\s*\{[^}]*color:\s*var\(--muted\);[^}]*font-size:\s*11px;[^}]*font-variant-numeric:\s*tabular-nums;/s);
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
-    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*background:\s*var\(--blue-soft\);/s);
+    // 翻页格是整屏最不重要的一格：虚线空框，不能是最重的一块实色。
+    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*border:\s*1px dashed var\(--border\);[^}]*background:\s*transparent;/s);
     // 角标独占代码下面一行，不再绝对定位压在文字上，因此文字也不需要预留任何槽位。
     expect(styles).not.toMatch(/\.pool-card strong\s*\{[^}]*padding-right:/s);
     expect(styles).not.toMatch(/\.pool-card span\s*\{[^}]*padding-right:/s);
     expect(styles).not.toMatch(/\.pool-card--slot-/s);
-    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*display:\s*flex;[^}]*margin-top:\s*4px;[^}]*gap:\s*3px;/s);
+    // 角标行恒定占一行高：没有角标的卡片也不会把名称抬上去，同一行文字才对得齐。
+    expect(styles).toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*min-height:\s*16px;[^}]*margin-top:\s*4px;[^}]*gap:\s*3px;/s);
     expect(styles).not.toMatch(/\.pool-card \.pool-card__badges\s*\{[^}]*position:\s*absolute;/s);
     expect(styles).not.toMatch(/\.pool-card__badge--trend\s*\{/s);
     expect(styles).toMatch(/\.pool-card__badge\s*\{[^}]*min-width:\s*16px;[^}]*height:\s*16px;[^}]*font-size:\s*9px;[^}]*line-height:\s*16px;/s);
@@ -170,12 +177,21 @@ describe("mobile card elevation", () => {
     }
     expect(styles).not.toMatch(/\.pool-card__badge--space-/s);
     expect(styles).not.toMatch(/\.pool-card__badge--trend-T\d/s);
+    // 只有强档带色：中档、弱档同走中性底，否则满屏琥珀色会把真正的重点淹掉。
+    expect(styles).toMatch(/\.pool-card__badge--tier-mid\s*\{[^}]*background:\s*#eef1f5;/s);
+    expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*#f4f6f9;/s);
+    // 归档是回收站，推到状态行尾单独成一档。
+    expect(styles).toMatch(/\.pill-segments button\.is-archived\s*\{[^}]*margin-left:\s*auto;/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*8px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
-    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*54px;/s);
+    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*10px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--panel\);[^}]*box-shadow:\s*var\(--float-shadow\);/s);
+    // 浮层不描边，改用阴影说明层级；--shadow 恒为 none，浮层另开 --float-shadow，两个主题都要有。
+    expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*border:\s*1px solid/s);
+    expect(styles).toMatch(/:root\s*\{[^}]*--float-shadow:[^;}]+;/s);
+    expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--float-shadow:[^;}]+;/s);
+    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*58px;/s);
     expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;/s);
     expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
-    expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*text-align:\s*center;/s);
+    expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*padding:\s*8px 0;[^}]*text-align:\s*center;/s);
   });
 
   it("标的详情档案卡与状态徽章", () => {

@@ -40,7 +40,7 @@ const items = [
 describe("标的 tab 视图切换", () => {
   it("默认展示最新材料，标的池是第二个可选项", () => {
     expect(DEFAULT_STOCK_TAB_VIEW).toBe("materials");
-    expect(STOCK_TAB_VIEWS.map((item) => item.label)).toEqual(["重要材料", "标的池"]);
+    expect(STOCK_TAB_VIEWS.map((item) => item.label)).toEqual(["标的材料", "标的池"]);
   });
 });
 
@@ -90,26 +90,26 @@ describe("标的池卡片分页", () => {
   const pool = (count: number) =>
     Array.from({ length: count }, (_, index) => ({ id: index + 1, stock_id: index + 1, status: "focused" })) as StockPoolItem[];
 
-  it("三列六行以内一次铺完，不出现翻页格", () => {
-    expect(POOL_PAGE_CAPACITY).toBe(18);
-    const layout = poolPageLayout(pool(18));
+  it("三列八行以内一次铺完，不出现翻页格", () => {
+    expect(POOL_PAGE_CAPACITY).toBe(24);
+    const layout = poolPageLayout(pool(24));
     expect(layout.showPager).toBe(false);
     expect(layout.totalPages).toBe(1);
-    expect(layout.cards).toHaveLength(18);
+    expect(layout.cards).toHaveLength(24);
   });
 
   it("超出一屏时最后一格让给翻页按钮", () => {
-    const layout = poolPageLayout(pool(19));
+    const layout = poolPageLayout(pool(25));
     expect(layout.showPager).toBe(true);
     expect(layout.totalPages).toBe(2);
-    expect(layout.cards).toHaveLength(17);
-    expect(poolPageLayout(pool(19), 1).cards.map((item) => item.id)).toEqual([18, 19]);
+    expect(layout.cards).toHaveLength(23);
+    expect(poolPageLayout(pool(25), 1).cards.map((item) => item.id)).toEqual([24, 25]);
   });
 
   it("页码越界时回卷，避免出现空页", () => {
-    expect(poolPageLayout(pool(44), 2).cards.map((item) => item.id)).toEqual([35, 36, 37, 38, 39, 40, 41, 42, 43, 44]);
-    expect(poolPageLayout(pool(44), 3).page).toBe(0);
-    expect(poolPageLayout(pool(44), -1).page).toBe(2);
+    expect(poolPageLayout(pool(50), 2).cards.map((item) => item.id)).toEqual([47, 48, 49, 50]);
+    expect(poolPageLayout(pool(50), 3).page).toBe(0);
+    expect(poolPageLayout(pool(50), -1).page).toBe(2);
   });
 
   it("翻到最后一页后循环回第一页", () => {

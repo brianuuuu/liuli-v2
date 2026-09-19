@@ -323,7 +323,7 @@ function StockPoolView() {
           <button
             type="button"
             key={option.value}
-            className={status === option.value ? "is-active" : ""}
+            className={`${status === option.value ? "is-active" : ""}${option.value === ARCHIVED_POOL_STATUS ? " is-archived" : ""}`.trim()}
             aria-pressed={status === option.value}
             onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); setPage(0); }}
           >
@@ -368,7 +368,7 @@ function StockPoolView() {
  */
 function PoolCardBadges({ badges }: { badges: PoolCardBadgeSet }) {
   const { level, space, trend } = badges;
-  if (!level && !space && !trend) return null;
+  // 一个角标都没有时也留着这一行：角标行高度恒定，同一屏卡片的文字才不会各自高低。
   return (
     <span className="pool-card__badges">
       {trend ? (

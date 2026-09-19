@@ -5,7 +5,7 @@ export type StockTabView = "materials" | "pool";
 export const DEFAULT_STOCK_TAB_VIEW: StockTabView = "materials";
 
 export const STOCK_TAB_VIEWS: { value: StockTabView; label: string }[] = [
-  { value: "materials", label: "重要材料" },
+  { value: "materials", label: "标的材料" },
   { value: "pool", label: "标的池" }
 ];
 
@@ -138,9 +138,11 @@ export function poolCardBadgeSet(item: StockPoolItem): PoolCardBadgeSet {
   };
 }
 
-/** 标的卡片按三列排布，最多六行；超出时最后一格让给翻页按钮。 */
+/** 标的卡片按三列排布，最多八行；超出时最后一格让给翻页按钮。
+ *  八行是照常见机型的可用高度取的：六行在高屏上会空掉小半屏，
+ *  而八行把 50 条上限压到两页，翻页成本直接减半。 */
 export const POOL_CARD_COLUMNS = 3;
-export const POOL_CARD_MAX_ROWS = 6;
+export const POOL_CARD_MAX_ROWS = 8;
 export const POOL_PAGE_CAPACITY = POOL_CARD_COLUMNS * POOL_CARD_MAX_ROWS;
 
 export type PoolPageLayout = {

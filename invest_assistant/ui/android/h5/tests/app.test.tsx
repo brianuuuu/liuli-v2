@@ -491,7 +491,7 @@ describe("mobile H5 app", () => {
     expect(screen.getByText("半导体")).toBeInTheDocument();
     expect(screen.getByText("产业链验证进度加快")).toBeInTheDocument();
     expect(screen.getByText("利好")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "重要材料" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "标的材料" })).not.toBeInTheDocument();
     expect(screen.queryByText("升温赛道")).not.toBeInTheDocument();
     expect(screen.queryByText("重点赛道")).not.toBeInTheDocument();
     expect(screen.queryByText("赛道热度")).not.toBeInTheDocument();
@@ -729,7 +729,7 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("该状态下暂无标的")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "标的池" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "重要材料" }));
+    fireEvent.click(screen.getByRole("button", { name: "标的材料" }));
     expect(await screen.findByText("海外订单增速放缓")).toBeInTheDocument();
   });
 
