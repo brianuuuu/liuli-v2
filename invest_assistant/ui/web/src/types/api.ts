@@ -236,15 +236,23 @@ export type Hotword = {
   updated_at?: string | null;
 };
 
+export type TrackCycle = 'short' | 'mid' | 'long';
+export type TrackStrength = 'strong' | 'medium' | 'weak' | 'insufficient';
+export type TrackDirection = 'strengthening' | 'stable' | 'weakening';
+export type TrackResearchPriority = 'priority' | 'tracking' | 'deprioritized';
+export type TrackIndustryPhase = 'intro' | 'expansion' | 'mature' | 'contraction';
+export type TrackMarketPhase = 'latent' | 'start' | 'ferment' | 'accelerate' | 'climax' | 'divergence' | 'recede';
+
 export type Track = {
   id: number;
   name: string;
   description?: string | null;
   status: string;
-  track_score?: number | null;
   current_view?: string | null;
-  stage?: string | null;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
+  latest_snapshot_id?: number | null;
   tag?: MarketTag | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -293,21 +301,67 @@ export type TrackMaterial = {
   updated_at?: string | null;
 };
 
-export type TrackAnalysisSnapshot = {
+export type TrackTrendSnapshot = {
   id: number;
   track_id: number;
-  analysis_date: string;
-  market_space?: string | null;
-  market_size?: string | null;
-  growth_rate?: string | null;
-  heat_summary?: string | null;
-  ai_summary?: string | null;
-  opportunity_points?: string | null;
-  risk_points?: string | null;
-  watch_signals?: string | null;
-  score?: number | null;
+  research_date: string;
+  researcher_code?: string | null;
+  report_id?: number | null;
+  headline_cycle: TrackCycle;
+  headline_strength: TrackStrength;
+  core_judgment?: string | null;
+  research_priority?: TrackResearchPriority | null;
+  priority_rank?: number | null;
   confidence_level?: string | null;
+  short_strength?: TrackStrength | null;
+  short_direction?: TrackDirection | null;
+  short_basis?: string | null;
+  mid_strength?: TrackStrength | null;
+  mid_direction?: TrackDirection | null;
+  mid_basis?: string | null;
+  long_strength?: TrackStrength | null;
+  long_direction?: TrackDirection | null;
+  long_basis?: string | null;
+  demand_space?: string | null;
+  supply_competition?: string | null;
+  profit_cashflow?: string | null;
+  policy_catalyst?: string | null;
+  market_capital?: string | null;
+  pricing_expectation_gap?: string | null;
+  key_contradiction?: string | null;
+  segments_json?: string | null;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
+  scenarios_json?: string | null;
+  next_verification?: string | null;
+  risk_falsification?: string | null;
+  change_vs_last?: string | null;
+  data_gaps?: string | null;
+  data_sources_json?: string | null;
   created_at?: string | null;
+};
+
+/** segments_json 解析后的结构，代表公司只作展示，可检索的绑定在 stock_track_relation。 */
+export type TrackSegment = {
+  segment: string;
+  stance: 'benefiting' | 'pressured';
+  reason?: string | null;
+  constraint?: string | null;
+  representative_stocks?: string[];
+};
+
+export type TrackScenario = {
+  name: 'base' | 'bull' | 'bear';
+  key_variable?: string | null;
+  trigger?: string | null;
+  path?: string | null;
+  window?: string | null;
+};
+
+export type TrackDataSource = {
+  type: string;
+  source?: string | null;
+  as_of?: string | null;
 };
 
 export type TrackDetailSummary = {
@@ -352,8 +406,8 @@ export type TrackDetail = {
   track: Track;
   summary: TrackDetailSummary;
   heat_trends: TrackDetailHeatTrend[];
-  latest_snapshot?: TrackAnalysisSnapshot | null;
-  analysis_snapshots: TrackAnalysisSnapshot[];
+  latest_snapshot?: TrackTrendSnapshot | null;
+  trend_snapshots: TrackTrendSnapshot[];
   materials: TrackMaterial[];
   stocks: TrackDetailStockRelation[];
   tags: TagBinding[];
@@ -383,17 +437,23 @@ export type TrackHeatRanking = {
   rank_change_24h?: number | null;
   rank_change_7d?: number | null;
   rank_change_30d?: number | null;
-  stage?: string | null;
-  track_score?: number | null;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
+  headline_cycle?: TrackCycle | null;
+  headline_strength?: TrackStrength | null;
+  research_priority?: TrackResearchPriority | null;
 };
 
 export type TrackDashboardFocusTrack = {
   track_id: number;
   name: string;
-  track_score?: number | null;
   current_view?: string | null;
-  stage?: string | null;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
+  headline_cycle?: TrackCycle | null;
+  headline_strength?: TrackStrength | null;
+  research_priority?: TrackResearchPriority | null;
   bound_stock_count: number;
   recent_material_count: number;
   current_heat: number;
@@ -406,16 +466,17 @@ export type TrackDashboardMaterial = TrackMaterial & {
 export type TrackDashboardAnalysisSummary = {
   track_id: number;
   track_name: string;
-  analysis_date?: string | null;
-  market_space?: string | null;
-  market_size?: string | null;
-  growth_rate?: string | null;
-  heat_summary?: string | null;
-  opportunity_points?: string | null;
-  risk_points?: string | null;
-  watch_signals?: string | null;
-  score?: number | null;
+  research_date?: string | null;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
+  headline_cycle?: TrackCycle | null;
+  headline_strength?: TrackStrength | null;
+  research_priority?: TrackResearchPriority | null;
+  core_judgment?: string | null;
+  key_contradiction?: string | null;
+  next_verification?: string | null;
+  risk_falsification?: string | null;
 };
 
 export type TrackDashboard = {

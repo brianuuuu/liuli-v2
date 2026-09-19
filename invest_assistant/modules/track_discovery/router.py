@@ -6,8 +6,8 @@ from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.track_discovery import service
 from invest_assistant.modules.track_discovery.schemas import (
     MATERIAL_STATUSES,
-    TrackAnalysisSnapshotCreate,
-    TrackAnalysisSnapshotRead,
+    TrackTrendSnapshotCreate,
+    TrackTrendSnapshotRead,
     TrackDetailRead,
     TrackCreate,
     TrackMaterialCreate,
@@ -160,18 +160,18 @@ def update_track_material(material_id: int, payload: TrackMaterialUpdate, db: Se
     return material
 
 
-@router.get("/tracks/{track_id}/analysis-snapshots", response_model=list[TrackAnalysisSnapshotRead])
-def list_track_analysis_snapshots(track_id: int, db: Session = Depends(get_db)) -> list:
+@router.get("/tracks/{track_id}/trend-snapshots", response_model=list[TrackTrendSnapshotRead])
+def list_track_trend_snapshots(track_id: int, db: Session = Depends(get_db)) -> list:
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.list_analysis_snapshots(db, track_id)
+    return service.list_trend_snapshots(db, track_id)
 
 
-@router.post("/tracks/{track_id}/analysis-snapshots", response_model=TrackAnalysisSnapshotRead)
-def add_track_analysis_snapshot(track_id: int, payload: TrackAnalysisSnapshotCreate, db: Session = Depends(get_db)):
+@router.post("/tracks/{track_id}/trend-snapshots", response_model=TrackTrendSnapshotRead)
+def add_track_trend_snapshot(track_id: int, payload: TrackTrendSnapshotCreate, db: Session = Depends(get_db)):
     if service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
-    return service.create_analysis_snapshot(db, track_id, payload)
+    return service.create_trend_snapshot(db, track_id, payload)
 
 
 @router.post("/tracks/{track_id}/status", response_model=TrackRead)

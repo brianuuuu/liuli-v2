@@ -40,7 +40,17 @@ from invest_assistant.modules.knowledge_base.schemas import (
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.stock_analysis import service as stock_service
 from invest_assistant.modules.stock_analysis.models import StockTrendSnapshot
-from invest_assistant.modules.track_discovery.models import Track
+from invest_assistant.modules.track_discovery import service as track_service
+from invest_assistant.modules.track_discovery.models import Track, TrackTrendSnapshot
+from invest_assistant.modules.track_discovery.schemas import (
+    INDUSTRY_PHASES,
+    MARKET_PHASES,
+    RESEARCH_PRIORITIES,
+    TRACK_CYCLES,
+    TRACK_DIRECTIONS,
+    TRACK_STRENGTHS,
+    TrackTrendSnapshotCreate,
+)
 from invest_assistant.modules.stock_analysis.schemas import (
     StockScoreSnapshotCreate,
     StockTrendSnapshotCreate,
@@ -55,6 +65,7 @@ RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 SCORE_REPORT_TYPE = "标的评级报告"
 VALUATION_REPORT_TYPE = "标的估值报告"
 TREND_REPORT_TYPE = "趋势研究"
+TRACK_TREND_REPORT_TYPE = "赛道趋势研究"
 # 报告标题：研究对象-YYYY-MM-DD-报告类型。研究对象只是标签，不参与业务解析。
 SCORE_REPORT_TITLE_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(.+)$")
 TREND_LEVELS = {"T0", "T1", "T2", "T3", "T4", "T5"}
@@ -85,6 +96,51 @@ TREND_TEXT_FIELDS = [
     "core_logic",
     "primary_risk",
     "next_verification",
+    "data_gaps",
+]
+# 赛道趋势报告的最终 JSON 同样是数组，一份报告可覆盖多条赛道，元素字段与
+# track_trend_snapshot 一一对应。必填只有赛道身份（track_id 或 track_name）加下面三项。
+TRACK_TREND_REQUIRED_FIELDS = ["research_date", "headline_cycle", "headline_strength"]
+TRACK_TREND_COLUMN_LIMITS = {
+    column.name: column.type.length
+    for column in TrackTrendSnapshot.__table__.columns
+    if isinstance(column.type, String) and column.type.length
+}
+# 报告里写成数组/对象的三项，落库前序列化成 TEXT：SQLite 和 PG 要跑同一套代码，不用 JSONB。
+TRACK_TREND_JSON_FIELDS = {
+    "segments": "segments_json",
+    "scenarios": "scenarios_json",
+    "data_sources": "data_sources_json",
+}
+TRACK_TREND_ENUM_FIELDS = {
+    "headline_cycle": TRACK_CYCLES,
+    "headline_strength": TRACK_STRENGTHS,
+    "short_strength": TRACK_STRENGTHS,
+    "mid_strength": TRACK_STRENGTHS,
+    "long_strength": TRACK_STRENGTHS,
+    "short_direction": TRACK_DIRECTIONS,
+    "mid_direction": TRACK_DIRECTIONS,
+    "long_direction": TRACK_DIRECTIONS,
+    "research_priority": RESEARCH_PRIORITIES,
+    "industry_phase": INDUSTRY_PHASES,
+    "market_phase": MARKET_PHASES,
+    "confidence_level": {"low", "medium", "high"},
+}
+TRACK_TREND_TEXT_FIELDS = [
+    "core_judgment",
+    "short_basis",
+    "mid_basis",
+    "long_basis",
+    "demand_space",
+    "supply_competition",
+    "profit_cashflow",
+    "policy_catalyst",
+    "market_capital",
+    "pricing_expectation_gap",
+    "key_contradiction",
+    "next_verification",
+    "risk_falsification",
+    "change_vs_last",
     "data_gaps",
 ]
 SCORE_IMPORT_FIELDS = [
@@ -946,7 +1002,7 @@ def upload_research_feedback(
     return feedback, report.id, content_size
 
 
-IMPORTABLE_REPORT_TYPES = {SCORE_REPORT_TYPE, VALUATION_REPORT_TYPE, TREND_REPORT_TYPE}
+IMPORTABLE_REPORT_TYPES = {SCORE_REPORT_TYPE, VALUATION_REPORT_TYPE, TREND_REPORT_TYPE, TRACK_TREND_REPORT_TYPE}
 
 
 def is_pending_import_feedback(item: KnowledgeResearchFeedback) -> bool:
@@ -1007,6 +1063,8 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     content = report_path.read_text(encoding="utf-8")
     if report_type == TREND_REPORT_TYPE:
         return _import_trend_feedback(db, feedback, report_time, _extract_trailing_json_array(content))
+    if report_type == TRACK_TREND_REPORT_TYPE:
+        return _import_track_trend_feedback(db, feedback, report_time, _extract_trailing_json_array(content))
     payload = _extract_trailing_json_object(content)
     if report_type == SCORE_REPORT_TYPE:
         return _import_score_feedback(db, feedback, company_name, report_time, payload)
@@ -1134,6 +1192,118 @@ def _import_trend_feedback(
         "failures": failures,
         "trends": trends,
     }
+
+
+def _import_track_trend_feedback(
+    db: Session,
+    feedback: KnowledgeResearchFeedback,
+    report_time: date,
+    items: list,
+) -> dict:
+    """赛道趋势报告的最终 JSON 永远是数组，单赛道就是长度 1 的数组，因此只有这一条导入路径。"""
+    if not items:
+        raise ValueError("赛道趋势报告末尾的 JSON 数组为空")
+    snapshots: list[dict] = []
+    failures: list[dict] = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            failures.append({"index": index, "error": "数组元素必须是 JSON 对象"})
+            continue
+        try:
+            track = _resolve_track_trend_track(db, item)
+            payload = _normalize_track_trend_import_payload(item, feedback, report_time)
+            snapshot = track_service.create_trend_snapshot(db, track.id, TrackTrendSnapshotCreate(**payload))
+        except Exception as exc:  # 单条失败不影响其余条目
+            db.rollback()
+            failures.append({"index": index, "track": _track_trend_item_label(item), "error": str(exc)})
+            continue
+        snapshots.append(track_service._trend_snapshot_dict(snapshot))
+    if not snapshots:
+        detail = "；".join(f"第 {row['index'] + 1} 条 {row.get('track') or ''}：{row['error']}" for row in failures[:5])
+        raise ValueError(f"赛道趋势报告全部导入失败：{detail}")
+    feedback.status = "parsed"
+    db.commit()
+    db.refresh(feedback)
+    return {
+        "target": "track_trend_snapshot",
+        "message": f"赛道趋势导入完成：成功 {len(snapshots)} 条，失败 {len(failures)} 条",
+        "success_count": len(snapshots),
+        "failure_count": len(failures),
+        "failures": failures,
+        "snapshots": snapshots,
+    }
+
+
+def _track_trend_item_label(item: dict) -> str | None:
+    return _normalize_optional_text(str(item.get("track_name") or item.get("track_id") or ""))
+
+
+def _resolve_track_trend_track(db: Session, item: dict) -> Track:
+    """赛道是快照的身份，解析不到必须报错：这里和 stock_trend_snapshot 的 track_id 不同，
+    那边赛道只是附属标签，匹配不上留空即可，这里留空整条快照就没有归属。也不自动建赛道。"""
+    track_id = item.get("track_id")
+    if track_id is not None and not (isinstance(track_id, str) and not track_id.strip()):
+        try:
+            resolved_id = int(track_id)
+        except Exception as exc:
+            raise ValueError("track_id 必须是整数") from exc
+        track = db.get(Track, resolved_id)
+        if track is None:
+            raise ValueError(f"未找到赛道: track_id={resolved_id}")
+        return track
+    name = _normalize_optional_text(str(item.get("track_name") or ""))
+    if not name:
+        raise ValueError("赛道导入缺少字段: track_id 或 track_name")
+    track = db.scalar(select(Track).where(Track.name == name))
+    if track is None:
+        raise ValueError(f"未找到赛道: {name}（赛道需先在平台建好，导入不会自动创建）")
+    return track
+
+
+def _normalize_track_trend_import_payload(payload: dict, feedback: KnowledgeResearchFeedback, report_time: date) -> dict:
+    for field in TRACK_TREND_REQUIRED_FIELDS:
+        value = payload.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError(f"赛道趋势导入缺少字段: {field}")
+
+    research_date = _import_date_field(payload.get("research_date"), "research_date")
+    if research_date != report_time:
+        raise ValueError(f"research_date 与报告标题日期不一致: {research_date} != {report_time}")
+
+    normalized: dict[str, Any] = {
+        "research_date": research_date,
+        "researcher_code": _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
+        "report_id": feedback.report_id,
+        "priority_rank": _trend_import_priority_rank(payload.get("priority_rank")),
+    }
+    for field, allowed in TRACK_TREND_ENUM_FIELDS.items():
+        value = str(payload.get(field) or "").strip().lower()
+        if not value:
+            normalized[field] = None
+            continue
+        if value not in allowed:
+            raise ValueError(f"{field} 必须是 {'、'.join(sorted(allowed))}")
+        normalized[field] = value
+    for field in TRACK_TREND_REQUIRED_FIELDS:
+        if field in TRACK_TREND_ENUM_FIELDS and normalized.get(field) is None:
+            raise ValueError(f"赛道趋势导入缺少字段: {field}")
+    for field in TRACK_TREND_TEXT_FIELDS:
+        normalized[field] = _normalize_optional_text(str(payload.get(field) or ""))
+    for source_field, column in TRACK_TREND_JSON_FIELDS.items():
+        value = payload.get(source_field)
+        if value is None or value == [] or value == {}:
+            normalized[column] = None
+            continue
+        normalized[column] = _json_text(value)
+    _assert_track_trend_field_lengths(normalized)
+    return normalized
+
+
+def _assert_track_trend_field_lengths(normalized: dict) -> None:
+    for field, limit in TRACK_TREND_COLUMN_LIMITS.items():
+        value = normalized.get(field)
+        if isinstance(value, str) and len(value) > limit:
+            raise ValueError(f"{field} 超长：{len(value)} 字，上限 {limit} 字")
 
 
 def _trend_item_label(item: dict) -> str | None:

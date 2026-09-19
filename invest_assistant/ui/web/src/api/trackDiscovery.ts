@@ -4,7 +4,7 @@ import type {
   Track,
   TrackDashboard,
   TrackDetail,
-  TrackAnalysisSnapshot,
+  TrackTrendSnapshot,
   TrackMaterial,
   Page
 } from "../types/api";
@@ -14,9 +14,9 @@ export type TrackPayload = {
   name: string;
   description?: string | null;
   status?: string;
-  track_score?: number | null;
   current_view?: string | null;
-  stage?: string | null;
+  industry_phase?: string | null;
+  market_phase?: string | null;
   confidence_level?: string | null;
 };
 
@@ -36,18 +36,10 @@ export type TrackMaterialListOptions = {
   offset?: number;
 };
 
-export type TrackAnalysisSnapshotPayload = {
-  analysis_date: string;
-  market_space?: string | null;
-  market_size?: string | null;
-  growth_rate?: string | null;
-  heat_summary?: string | null;
-  ai_summary?: string | null;
-  opportunity_points?: string | null;
-  risk_points?: string | null;
-  watch_signals?: string | null;
-  score?: number | null;
-  confidence_level?: string | null;
+export type TrackTrendSnapshotPayload = Partial<Omit<TrackTrendSnapshot, "id" | "track_id" | "created_at">> & {
+  research_date: string;
+  headline_cycle: TrackTrendSnapshot["headline_cycle"];
+  headline_strength: TrackTrendSnapshot["headline_strength"];
 };
 
 export type TrackTagStockBindingPayload = {
@@ -121,10 +113,16 @@ export async function deleteTrack(trackId: number): Promise<void> {
   await apiClient.delete(`/api/track-discovery/tracks/${trackId}`);
 }
 
-export async function changeTrackStatus(trackId: number, newStatus: string, reason?: string | null, newStage?: string | null): Promise<Track> {
+export type TrackPhaseChange = {
+  industryPhase?: string | null;
+  marketPhase?: string | null;
+};
+
+export async function changeTrackStatus(trackId: number, newStatus: string, reason?: string | null, phases: TrackPhaseChange = {}): Promise<Track> {
   const response = await apiClient.post<Track>(`/api/track-discovery/tracks/${trackId}/status`, {
     new_status: newStatus,
-    new_stage: newStage || null,
+    new_industry_phase: phases.industryPhase || null,
+    new_market_phase: phases.marketPhase || null,
     reason: reason || null,
     changed_by: "manual"
   });
@@ -164,13 +162,13 @@ export async function updateTrackMaterial(materialId: number, payload: Partial<T
   return response.data;
 }
 
-export async function listTrackAnalysisSnapshots(trackId: number): Promise<TrackAnalysisSnapshot[]> {
-  const response = await apiClient.get<TrackAnalysisSnapshot[]>(`/api/track-discovery/tracks/${trackId}/analysis-snapshots`);
+export async function listTrackTrendSnapshots(trackId: number): Promise<TrackTrendSnapshot[]> {
+  const response = await apiClient.get<TrackTrendSnapshot[]>(`/api/track-discovery/tracks/${trackId}/trend-snapshots`);
   return response.data;
 }
 
-export async function createTrackAnalysisSnapshot(trackId: number, payload: TrackAnalysisSnapshotPayload): Promise<TrackAnalysisSnapshot> {
-  const response = await apiClient.post<TrackAnalysisSnapshot>(`/api/track-discovery/tracks/${trackId}/analysis-snapshots`, payload);
+export async function createTrackTrendSnapshot(trackId: number, payload: TrackTrendSnapshotPayload): Promise<TrackTrendSnapshot> {
+  const response = await apiClient.post<TrackTrendSnapshot>(`/api/track-discovery/tracks/${trackId}/trend-snapshots`, payload);
   return response.data;
 }
 

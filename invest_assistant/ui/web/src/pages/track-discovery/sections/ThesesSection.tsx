@@ -7,7 +7,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Track } from "../../../types/api";
-import { ARCHIVED_STATUS, confidenceOptions, formatTime, stageOptions, StatusTag, thesisStatusOptions } from "./shared";
+import { ARCHIVED_STATUS, confidenceOptions, formatTime, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions } from "./shared";
 
 type TrackFormValues = {
   name: string;
@@ -65,9 +65,9 @@ export function TracksSection() {
       name: values.name,
       description: values.description || null,
       status: values.status,
-      track_score: null,
       current_view: null,
-      stage: null,
+      industry_phase: null,
+      market_phase: null,
       confidence_level: null
     };
     if (editing) {
@@ -115,8 +115,8 @@ export function TracksSection() {
   const columns: ColumnsType<Track> = [
     { title: "赛道", dataIndex: "name", render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
-    { title: "阶段", dataIndex: "stage", width: 100, render: (value) => stageOptions.find((item) => item.value === value)?.label || value || "-" },
-    { title: "评分", dataIndex: "track_score", width: 80, render: (value) => value ?? "-" },
+    { title: "产业阶段", dataIndex: "industry_phase", width: 100, render: (value) => industryPhaseLabel(value) },
+    { title: "市场阶段", dataIndex: "market_phase", width: 100, render: (value) => marketPhaseLabel(value) },
     { title: "置信", dataIndex: "confidence_level", width: 90, render: (value) => value || "-" },
     { title: "当前判断", dataIndex: "current_view", ellipsis: true, render: (value) => value || "-" },
     { title: "Tag ID", dataIndex: ["tag", "id"], width: 90, render: (value) => value || "-" },

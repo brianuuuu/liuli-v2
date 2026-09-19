@@ -7,56 +7,77 @@ MATERIAL_TYPES = {"source_item", "knowledge_note"}
 MATERIAL_DIRECTIONS = {"support", "weaken", "neutral", "noise"}
 MATERIAL_IMPORTANCE = {"high", "medium", "low"}
 MATERIAL_STATUSES = {"pending", "confirmed", "ignored"}
-TRACK_STAGES = {"concept", "validate", "growth", "overheat", "decline"}
 CONFIDENCE_LEVELS = {"low", "medium", "high"}
+# 枚举一律英文小写码，中文展示留给 Web 层：中文入库在 PG 下一个字占 3 字节，
+# 会把 VARCHAR(16) 撑爆，前端也得靠中文串做比较和筛选。
+TRACK_CYCLES = {"short", "mid", "long"}
+# 证据不足独立成值，不强行归进中或弱。
+TRACK_STRENGTHS = {"strong", "medium", "weak", "insufficient"}
+TRACK_DIRECTIONS = {"strengthening", "stable", "weakening"}
+RESEARCH_PRIORITIES = {"priority", "tracking", "deprioritized"}
+INDUSTRY_PHASES = {"intro", "expansion", "mature", "contraction"}
+MARKET_PHASES = {"latent", "start", "ferment", "accelerate", "climax", "divergence", "recede"}
+
+
+def _validate_choice(value: str | None, allowed: set[str], field: str) -> str | None:
+    if value is not None and value not in allowed:
+        raise ValueError(f"{field} must be one of: {', '.join(sorted(allowed))}")
+    return value
 
 
 class TrackCreate(BaseModel):
     name: str
     description: str | None = None
     status: str = "candidate"
-    track_score: float | None = None
     current_view: str | None = None
-    stage: str | None = None
+    industry_phase: str | None = None
+    market_phase: str | None = None
     confidence_level: str | None = None
 
-    @field_validator("stage")
+    @field_validator("industry_phase")
     @classmethod
-    def validate_stage(cls, value: str | None) -> str | None:
-        if value is not None and value not in TRACK_STAGES:
-            raise ValueError("stage must be concept, validate, growth, overheat, or decline")
-        return value
+    def validate_industry_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, INDUSTRY_PHASES, "industry_phase")
+
+    @field_validator("market_phase")
+    @classmethod
+    def validate_market_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, MARKET_PHASES, "market_phase")
 
     @field_validator("confidence_level")
     @classmethod
     def validate_confidence_level(cls, value: str | None) -> str | None:
-        if value is not None and value not in CONFIDENCE_LEVELS:
-            raise ValueError("confidence_level must be low, medium, or high")
-        return value
+        return _validate_choice(value, CONFIDENCE_LEVELS, "confidence_level")
 
 
 class TrackUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
-    track_score: float | None = None
     current_view: str | None = None
-    stage: str | None = None
+    industry_phase: str | None = None
+    market_phase: str | None = None
     confidence_level: str | None = None
 
-    @field_validator("stage")
+    @field_validator("industry_phase")
     @classmethod
-    def validate_stage(cls, value: str | None) -> str | None:
-        return TrackCreate.validate_stage(value)
+    def validate_industry_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, INDUSTRY_PHASES, "industry_phase")
+
+    @field_validator("market_phase")
+    @classmethod
+    def validate_market_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, MARKET_PHASES, "market_phase")
 
     @field_validator("confidence_level")
     @classmethod
     def validate_confidence_level(cls, value: str | None) -> str | None:
-        return TrackCreate.validate_confidence_level(value)
+        return _validate_choice(value, CONFIDENCE_LEVELS, "confidence_level")
 
 
 class TrackRead(TrackCreate):
     id: int
+    latest_snapshot_id: int | None = None
     tag: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -82,16 +103,12 @@ class TrackMaterialCreate(BaseModel):
     @field_validator("direction")
     @classmethod
     def validate_direction(cls, value: str | None) -> str | None:
-        if value is not None and value not in MATERIAL_DIRECTIONS:
-            raise ValueError("direction must be support, weaken, neutral, or noise")
-        return value
+        return _validate_choice(value, MATERIAL_DIRECTIONS, "direction")
 
     @field_validator("importance_level")
     @classmethod
     def validate_importance_level(cls, value: str | None) -> str | None:
-        if value is not None and value not in MATERIAL_IMPORTANCE:
-            raise ValueError("importance_level must be high, medium, or low")
-        return value
+        return _validate_choice(value, MATERIAL_IMPORTANCE, "importance_level")
 
     @field_validator("status")
     @classmethod
@@ -142,14 +159,20 @@ class TrackMaterialRead(TrackMaterialCreate):
 
 class TrackStatusChange(BaseModel):
     new_status: str
-    new_stage: str | None = None
+    new_industry_phase: str | None = None
+    new_market_phase: str | None = None
     reason: str | None = None
     changed_by: str = "manual"
 
-    @field_validator("new_stage")
+    @field_validator("new_industry_phase")
     @classmethod
-    def validate_new_stage(cls, value: str | None) -> str | None:
-        return TrackCreate.validate_stage(value)
+    def validate_new_industry_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, INDUSTRY_PHASES, "new_industry_phase")
+
+    @field_validator("new_market_phase")
+    @classmethod
+    def validate_new_market_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, MARKET_PHASES, "new_market_phase")
 
 
 class TrackStatusHistoryRead(BaseModel):
@@ -157,8 +180,10 @@ class TrackStatusHistoryRead(BaseModel):
     track_id: int
     old_status: str | None = None
     new_status: str
-    old_stage: str | None = None
-    new_stage: str | None = None
+    old_industry_phase: str | None = None
+    new_industry_phase: str | None = None
+    old_market_phase: str | None = None
+    new_market_phase: str | None = None
     reason: str | None = None
     changed_by: str
     changed_at: datetime
@@ -166,26 +191,95 @@ class TrackStatusHistoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TrackAnalysisSnapshotCreate(BaseModel):
-    analysis_date: date
-    market_space: str | None = None
-    market_size: str | None = None
-    growth_rate: str | None = None
-    heat_summary: str | None = None
-    ai_summary: str | None = None
-    opportunity_points: str | None = None
-    risk_points: str | None = None
-    watch_signals: str | None = None
-    score: float | None = None
+class TrackTrendSnapshotCreate(BaseModel):
+    """一份赛道趋势研究报告的结论。除身份和卡片三项外全部可空：
+    报告原文经 report_id 可回溯，不值得为少一个字段让整条快照落不了库。
+    """
+
+    research_date: date
+    headline_cycle: str
+    headline_strength: str
+    researcher_code: str | None = None
+    report_id: int | None = None
+    core_judgment: str | None = None
+    research_priority: str | None = None
+    priority_rank: int | None = None
     confidence_level: str | None = None
+
+    short_strength: str | None = None
+    short_direction: str | None = None
+    short_basis: str | None = None
+    mid_strength: str | None = None
+    mid_direction: str | None = None
+    mid_basis: str | None = None
+    long_strength: str | None = None
+    long_direction: str | None = None
+    long_basis: str | None = None
+
+    demand_space: str | None = None
+    supply_competition: str | None = None
+    profit_cashflow: str | None = None
+    policy_catalyst: str | None = None
+    market_capital: str | None = None
+    pricing_expectation_gap: str | None = None
+
+    key_contradiction: str | None = None
+    segments_json: str | None = None
+
+    industry_phase: str | None = None
+    market_phase: str | None = None
+    scenarios_json: str | None = None
+    next_verification: str | None = None
+
+    risk_falsification: str | None = None
+    change_vs_last: str | None = None
+    data_gaps: str | None = None
+    data_sources_json: str | None = None
+
+    @field_validator("headline_cycle")
+    @classmethod
+    def validate_headline_cycle(cls, value: str) -> str:
+        return _validate_choice(value, TRACK_CYCLES, "headline_cycle")
+
+    @field_validator("headline_strength", "short_strength", "mid_strength", "long_strength")
+    @classmethod
+    def validate_strength(cls, value: str | None) -> str | None:
+        return _validate_choice(value, TRACK_STRENGTHS, "strength")
+
+    @field_validator("short_direction", "mid_direction", "long_direction")
+    @classmethod
+    def validate_direction(cls, value: str | None) -> str | None:
+        return _validate_choice(value, TRACK_DIRECTIONS, "direction")
 
     @field_validator("confidence_level")
     @classmethod
     def validate_confidence_level(cls, value: str | None) -> str | None:
-        return TrackCreate.validate_confidence_level(value)
+        return _validate_choice(value, CONFIDENCE_LEVELS, "confidence_level")
+
+    @field_validator("research_priority")
+    @classmethod
+    def validate_research_priority(cls, value: str | None) -> str | None:
+        return _validate_choice(value, RESEARCH_PRIORITIES, "research_priority")
+
+    @field_validator("industry_phase")
+    @classmethod
+    def validate_industry_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, INDUSTRY_PHASES, "industry_phase")
+
+    @field_validator("market_phase")
+    @classmethod
+    def validate_market_phase(cls, value: str | None) -> str | None:
+        return _validate_choice(value, MARKET_PHASES, "market_phase")
+
+    @field_validator("priority_rank")
+    @classmethod
+    def validate_priority_rank(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("priority_rank must be a positive integer or null")
+        return value
 
 
-class TrackAnalysisSnapshotRead(TrackAnalysisSnapshotCreate):
+class TrackTrendSnapshotRead(TrackTrendSnapshotCreate):
     id: int
     track_id: int
     created_at: datetime
@@ -235,8 +329,8 @@ class TrackDetailRead(BaseModel):
     track: TrackRead
     summary: TrackDetailSummary
     heat_trends: list[TrackDetailHeatTrend] = Field(default_factory=list)
-    latest_snapshot: TrackAnalysisSnapshotRead | None = None
-    analysis_snapshots: list[TrackAnalysisSnapshotRead] = Field(default_factory=list)
+    latest_snapshot: TrackTrendSnapshotRead | None = None
+    trend_snapshots: list[TrackTrendSnapshotRead] = Field(default_factory=list)
     materials: list[TrackMaterialRead] = Field(default_factory=list)
     stocks: list[TrackDetailStockRelation] = Field(default_factory=list)
     tags: list[dict] = Field(default_factory=list)

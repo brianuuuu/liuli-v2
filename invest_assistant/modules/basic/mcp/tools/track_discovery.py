@@ -6,7 +6,7 @@ from invest_assistant.modules.track_discovery.service import ARCHIVED_STATUS
 
 TRACK_DETAIL_SECTIONS: dict[str, tuple[str, ...]] = {
     "materials": ("materials",),
-    "snapshots": ("analysis_snapshots",),
+    "snapshots": ("trend_snapshots",),
     "stocks": ("stocks",),
     "tags": ("tags",),
     "heat": ("heat_trends",),
@@ -55,7 +55,7 @@ def get_track_detail(
         state["truncated"] = any(
             [
                 trim_field(detail, "materials", list_limit),
-                trim_field(detail, "analysis_snapshots", list_limit),
+                trim_field(detail, "trend_snapshots", list_limit),
                 trim_field(detail, "stocks", list_limit),
                 trim_field(detail, "heat_trends", list_limit),
             ]

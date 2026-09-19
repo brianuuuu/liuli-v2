@@ -19,6 +19,7 @@ import { searchStockPool } from "../../api/stockAnalysis";
 import { searchTracks } from "../../api/trackDiscovery";
 import { useLiuliTheme } from "../../app/theme";
 import type { JobConfig, JobRunRequest, StockPoolItem, Track, UserMe } from "../../types/api";
+import { marketPhaseLabel } from "../../pages/track-discovery/sections/shared";
 import { getTaskStatus } from "./taskStatus";
 
 type PasswordFormValues = {
@@ -70,7 +71,7 @@ function trackOption(item: Track): GlobalSearchOption {
       <div className="global-search-option">
         <span className="global-search-option-type">赛道</span>
         <span className="global-search-option-main">{item.name}</span>
-        <span className="global-search-option-meta">{statusText(item.status)}{item.stage ? ` · ${item.stage}` : ""}</span>
+        <span className="global-search-option-meta">{statusText(item.status)}{item.market_phase ? ` · ${marketPhaseLabel(item.market_phase)}` : ""}</span>
       </div>
     )
   };

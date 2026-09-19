@@ -11,6 +11,7 @@
 - v32：对外 MCP 面向外部投研工具做接口收敛：标签热度趋势按 `window_type`（24h/7d/30d，默认 7d）过滤，不再返回混窗口序列；标的和赛道详情默认只返回精简集，材料、公告、笔记、标签和历史序列改为 `sections` 显式索取并按条数上限裁剪，裁剪信息通过 `{字段}_total` 和 `truncated` 回传；信息流查询增加 `start_time`/`end_time` 时间范围和正文截断 `content_chars`；日 K 单独放宽到 800 根；赛道列表补 `offset`，报告库列表补标题关键词和报告口径过滤；查不到对象统一抛错，错误消息带 `[FORBIDDEN]`/`[NOT_FOUND]`/`[INVALID_ARGUMENT]`/`[INTERNAL]` 前缀；研究回流写入校验 `source`、`status` 取值和 `researcher_code` 是否存在。返回裁剪只做在 MCP 包装层，业务 service 对 Web 和 H5 的返回结构不变。
 - v31：对外 MCP 增加只读工具 `stock_analysis.list_pool`，作为外部 client 获取 `stock_id` 的入口，按证券代码、名称、拼音、简称在标的池范围内模糊匹配，返回结果同时带出已绑定的 `track_ids`；`stock_analysis.get_stock_profile` 与 `get_daily_bars` 的工具描述改为指向该入口，不再要求 client 自行猜测 ID。
 - v30：知识库研究员从 researcher / soul / method 三表收敛为单张 `knowledge_researcher`，正文统一保存到 `external/researchers/{researcher_code}/profile.md`，文件带 `researcher_code/display_name` frontmatter，并由 `knowledge_base.get_researcher_profile` 一次性返回完整 profile 原文、简介、价值观和方法论。
+- v30：赛道快照重构为研究员报告回流产物：`track_analysis_snapshot` 改名 `track_trend_snapshot` 并重建，与 `stock_trend_snapshot` 同构，承接三周期判断、六项核心分析、主要矛盾、受益/承压环节、情景与证伪条件，含 `report_id`/`researcher_code` 溯源；枚举一律英文小写码，中文映射放在 Web 层；受益环节与情景以 `segments_json`/`scenarios_json` 存 TEXT，代表公司只作展示，可检索的标的绑定仍归 `stock_track_relation`；`track.stage` 拆为 `industry_phase` + `market_phase`，废弃 `track_score`，新增 `latest_snapshot_id` 指针；知识库新增可导入报告类型「赛道趋势研究」，末尾 JSON 为多赛道数组，赛道解析不到即整条失败且不自动建赛道。
 - v29：对外 MCP 增加知识库研究员只读工具 `knowledge_base.get_researcher_profile`，供 Codex 读取完整研究员 profile；工具仍走 `knowledge_base.service`，不直接 SQL，不读取任意路径。
 - v28：知识库子模块边界调整为“知识笔记 / 对内 Prompt / 对外 Skills / 研究员 / 研究回流”；不再建设琉璃内部执行编排；对外 Skills 管理外部 AI 执行器使用的 Skill 文件，研究员沉淀研究人格与方法论 profile，研究回流承接 MCP 返回的研究报告。
 - v27：对外 MCP 增加受控写入工具 `report_library.upload_markdown_report`，用于外部 client 上传 Markdown 报告到 `var/reports/{source_module}/YYYY-MM/` 并创建 `report` 索引；该工具必须显式加入 client `allowed_tools`，不允许任意路径或任意文件上传。
@@ -2109,10 +2110,11 @@ track
 - name              -- 赛道正式名称
 - description       -- 简要说明
 - status            -- candidate / active / paused / archived
-- track_score       -- 0-100，第一版人工维护
-- current_view      -- 当前核心判断
-- stage             -- concept / validate / growth / overheat / decline
+- current_view      -- 当前核心判断，导入回填
+- industry_phase    -- intro / expansion / mature / contraction
+- market_phase      -- latent / start / ferment / accelerate / climax / divergence / recede
 - confidence_level  -- low / medium / high
+- latest_snapshot_id -- 最新 track_trend_snapshot 指针，导入回填
 - archive_reason
 - created_at
 - updated_at
@@ -2121,10 +2123,17 @@ track
 说明：
 
 ```text
-track_score = 赛道评分
-current_view = 当前核心判断
-stage = 当前阶段
-confidence_level = 当前判断置信度
+产业阶段和市场阶段是两件事，必须分开：产业还在扩张期，市场可能已经进入退潮期。
+current_view / industry_phase / market_phase / confidence_level 是导入回填的派生缓存，
+结论的唯一真相在 track_trend_snapshot，不要反过来把 track 当输入源改写。
+latest_snapshot_id 只是看板排序的快捷指针，缺失时回落到按 track_id 查最新快照。
+```
+
+不再使用：
+
+```text
+track_score   -- 赛道结论是强/中/弱，不是分数，该字段没有产生方
+stage         -- 混了产业阶段和市场阶段两种语义，已拆成两列
 ```
 
 不再使用：
@@ -2195,29 +2204,76 @@ track_material 不保存原文标题和正文。
 标题和正文从 source_item 或 knowledge_note 读取。
 ```
 
-#### `track_analysis_snapshot`
+#### `track_trend_snapshot`
 
-`track_analysis_snapshot` 用于记录 AI / 人工对赛道的阶段性分析，主要服务于赛道看板和赛道对比。
+`track_trend_snapshot` 记录一份赛道趋势研究报告的结论，由知识库研究回流导入写入，纯追加，
+同一天允许多份。与 `stock_trend_snapshot` 同构：一份报告等于一条快照，原文经 `report_id` 回溯。
 
 ```sql
-track_analysis_snapshot
+track_trend_snapshot
 - id
 - track_id
-- analysis_date
+- research_date          -- 研究日期，导入时校验与报告标题日期一致
+- researcher_code
+- report_id              -- 报告原文回溯
 
-- market_space       -- 未来市场空间
-- market_size        -- 当前市场规模
-- growth_rate        -- 当前增长速度
-- heat_summary       -- 当前热度解释
+-- 卡片层：赛道卡上的"强 · 长期"直接读这两列，不从三周期二次推导
+- headline_cycle         -- short / mid / long，本次主导逻辑周期
+- headline_strength      -- strong / medium / weak / insufficient
+- core_judgment          -- 核心判断：未来变化、主驱动、当前定价
+- research_priority      -- priority / tracking / deprioritized
+- priority_rank          -- 同批多赛道排名，未排名为 NULL
+- confidence_level       -- low / medium / high
 
-- ai_summary         -- AI 总结
-- opportunity_points -- 机会点，JSON 或 TEXT
-- risk_points        -- 风险点，JSON 或 TEXT
-- watch_signals      -- 后续观察信号，JSON 或 TEXT
+-- 三周期判断，扁平 9 列
+- short_strength / short_direction / short_basis
+- mid_strength   / mid_direction   / mid_basis
+- long_strength  / long_direction  / long_basis
+   -- direction: strengthening / stable / weakening，首次研究为 NULL
 
-- score              -- AI / 系统评分，可选
-- confidence_level
+-- 六项核心分析
+- demand_space           -- 需求与产业空间
+- supply_competition     -- 供给与竞争格局
+- profit_cashflow        -- 盈利与现金兑现
+- policy_catalyst        -- 政策与催化
+- market_capital         -- 市场与资金认可
+- pricing_expectation_gap -- 定价与预期差
+
+- key_contradiction      -- 1—2 个关键变量及可验证因果链
+- segments_json          -- [{segment, stance: benefiting|pressured, reason, constraint, representative_stocks}]
+
+- industry_phase         -- intro / expansion / mature / contraction
+- market_phase           -- latent / start / ferment / accelerate / climax / divergence / recede
+- scenarios_json         -- [{name: base|bull|bear, key_variable, trigger, path, window}]
+- next_verification      -- 下一验证节点
+
+- risk_falsification     -- 风险与证伪条件
+- change_vs_last         -- 相对上次：验证 / 证伪 / 维持上调下调原因
+- data_gaps
+- data_sources_json      -- [{type, source, as_of}]，各类数据截止日写在每条来源上
 - created_at
+```
+
+约束：
+
+```text
+枚举一律英文小写码，中文映射放在 Web 层：中文入库在 PG 下一个字占 3 字节会撑爆 VARCHAR(16)，
+前端也得靠中文串做比较和筛选。
+
+判断描述一律 TEXT，只有枚举码用 VARCHAR：stock_trend_snapshot 就是因为把判断描述按
+VARCHAR(50) 建，PostgreSQL 直接拒收整条快照，才回头加宽的。
+
+segments_json / scenarios_json / data_sources_json 存 TEXT 不用 JSONB：SQLite 和 PG 跑同一套代码。
+代表公司只作报告原文留存，可检索的标的绑定归 stock_track_relation，这里不开第二个 owner。
+
+三周期用扁平列不用子表：周期恒定是 3 个、永远同写同读，子表只会让详情页和看板多一次 join。
+```
+
+不再使用：
+
+```text
+analysis_date / market_space / market_size / growth_rate / heat_summary / ai_summary
+opportunity_points / watch_signals / score
 ```
 
 赛道热度来源：
@@ -2240,8 +2296,10 @@ track_status_history
 - track_id
 - old_status
 - new_status
-- old_stage
-- new_stage
+- old_industry_phase
+- new_industry_phase
+- old_market_phase
+- new_market_phase
 - reason
 - changed_by        -- manual / system / ai
 - changed_at
@@ -4197,7 +4255,7 @@ disclosure_library.jobs 注册
 ```text
 track
 track_material
-track_analysis_snapshot
+track_trend_snapshot
 状态变化
 从 market_radar 引用热度数据
 从 disclosure_library 引用公告财报证据
@@ -4365,7 +4423,7 @@ track_tag_relation 维护赛道与多个 tag 的绑定；
 track                 赛道主表
 track_tag_relation    赛道-标签绑定
 track_material        赛道材料与赛道视角判断
-track_analysis_snapshot 赛道阶段性分析快照
+track_trend_snapshot   赛道趋势研究结论快照
 stock_track_relation  标的-赛道确认关系
 tag_edge_snapshot     市场自动共现信号
 ```
@@ -4539,8 +4597,8 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | GET | `/api/track-discovery/tracks/{track_id}/materials` | 某赛道材料列表 |
 | POST | `/api/track-discovery/tracks/{track_id}/materials` | 新增赛道引用材料 |
 | PUT | `/api/track-discovery/tracks/materials/{material_id}` | 更新赛道材料判断 |
-| GET | `/api/track-discovery/tracks/{track_id}/analysis-snapshots` | 赛道分析快照 |
-| POST | `/api/track-discovery/tracks/{track_id}/analysis-snapshots` | 新增赛道分析快照 |
+| GET | `/api/track-discovery/tracks/{track_id}/trend-snapshots` | 赛道趋势快照 |
+| POST | `/api/track-discovery/tracks/{track_id}/trend-snapshots` | 新增赛道趋势快照 |
 
 ### 33.11 标的分析 API
 
@@ -4873,7 +4931,7 @@ id, stock_tag_id, related_tag_id, related_tag_type, window_type, stat_time, cooc
 字段：
 
 ```text
-id, name, description, status, track_score, current_view, stage, confidence_level, created_at, updated_at
+id, name, description, status, current_view, industry_phase, market_phase, confidence_level, latest_snapshot_id, created_at, updated_at
 ```
 
 #### `track_material`：赛道材料表，保存赛道引用材料和赛道视角判断
@@ -4884,12 +4942,12 @@ id, name, description, status, track_score, current_view, stage, confidence_leve
 id, track_id, material_type, material_id, direction, importance_level, status, note, created_at, updated_at
 ```
 
-#### `track_analysis_snapshot`：赛道分析快照表，保存 AI / 人工阶段性分析
+#### `track_trend_snapshot`：赛道趋势快照表，保存研究员报告回流的赛道结论
 
 字段：
 
 ```text
-id, track_id, analysis_date, market_space, market_size, growth_rate, heat_summary, ai_summary, opportunity_points, risk_points, watch_signals, score, confidence_level, created_at
+id, track_id, research_date, researcher_code, report_id, headline_cycle, headline_strength, core_judgment, research_priority, priority_rank, confidence_level, short_strength, short_direction, short_basis, mid_strength, mid_direction, mid_basis, long_strength, long_direction, long_basis, demand_space, supply_competition, profit_cashflow, policy_catalyst, market_capital, pricing_expectation_gap, key_contradiction, segments_json, industry_phase, market_phase, scenarios_json, next_verification, risk_falsification, change_vs_last, data_gaps, data_sources_json, created_at
 ```
 
 #### `track_status_history`：赛道状态历史表，记录赛道状态和阶段变化
@@ -4897,7 +4955,7 @@ id, track_id, analysis_date, market_space, market_size, growth_rate, heat_summar
 字段：
 
 ```text
-id, track_id, old_status, new_status, old_stage, new_stage, reason, changed_by, changed_at
+id, track_id, old_status, new_status, old_industry_phase, new_industry_phase, old_market_phase, new_market_phase, reason, changed_by, changed_at
 ```
 
 ---

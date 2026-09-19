@@ -11,7 +11,7 @@ from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery import router, service
-from invest_assistant.modules.track_discovery.models import Track, TrackAnalysisSnapshot, TrackMaterial
+from invest_assistant.modules.track_discovery.models import Track, TrackMaterial, TrackTrendSnapshot
 
 
 def make_session() -> Session:
@@ -61,7 +61,7 @@ def test_track_detail_missing_track_returns_none_and_router_404():
 
 def test_track_detail_returns_stable_empty_structure():
     db = make_session()
-    track = Track(name="机器人", status="candidate", stage="concept", confidence_level="low")
+    track = Track(name="机器人", status="candidate", industry_phase="intro", market_phase="latent", confidence_level="low")
     db.add(track)
     db.commit()
 
@@ -79,7 +79,7 @@ def test_track_detail_returns_stable_empty_structure():
     }
     assert detail["heat_trends"] == []
     assert detail["latest_snapshot"] is None
-    assert detail["analysis_snapshots"] == []
+    assert detail["trend_snapshots"] == []
     assert detail["materials"] == []
     assert detail["stocks"] == []
     assert detail["tags"] == []
@@ -92,9 +92,9 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
         name="机器人",
         description="机器人产业链",
         status="active",
-        track_score=88,
         current_view="订单兑现预期提升",
-        stage="growth",
+        industry_phase="expansion",
+        market_phase="accelerate",
         confidence_level="high",
     )
     stock = Stock(stock_code="300001", stock_name="重点科技", symbol="300001.SZ")
@@ -146,9 +146,9 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
             ),
             StockTrackRelation(stock_id=stock.id, track_id=track.id, relation_type="core", conviction=0.9, reason="核心受益", status="active"),
             StockTrackRelation(stock_id=inactive_stock.id, track_id=track.id, relation_type="watch", conviction=0.3, status="disabled"),
-            TrackAnalysisSnapshot(track_id=track.id, analysis_date=date(2026, 5, 30), score=80, confidence_level="medium"),
-            TrackAnalysisSnapshot(track_id=track.id, analysis_date=date(2026, 5, 31), score=88, confidence_level="high"),
-            TrackAnalysisSnapshot(track_id=track.id, analysis_date=date(2026, 5, 31), score=91, confidence_level="high", heat_summary="热度继续提升"),
+            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 30), headline_cycle="mid", headline_strength="medium", confidence_level="medium"),
+            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 31), headline_cycle="long", headline_strength="medium", confidence_level="high"),
+            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 31), headline_cycle="long", headline_strength="strong", confidence_level="high", market_capital="执行器链条升温"),
         ]
     )
     db.commit()
@@ -168,7 +168,10 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     assert detail["stocks"][0]["stock_name"] == "重点科技"
     assert detail["stocks"][0]["stock_code"] == "300001"
     assert detail["stocks"][1]["stock_name"] == "观察制造"
-    assert detail["latest_snapshot"]["score"] == 91
-    assert [item["score"] for item in detail["analysis_snapshots"]] == [91, 88, 80]
+    assert detail["latest_snapshot"]["headline_strength"] == "strong"
+    assert detail["latest_snapshot"]["market_capital"] == "执行器链条升温"
+    # 同日多份按 id 倒序，最新一份排最前
+    assert [item["research_date"] for item in detail["trend_snapshots"]] == [date(2026, 5, 31), date(2026, 5, 31), date(2026, 5, 30)]
+    assert [item["headline_strength"] for item in detail["trend_snapshots"]] == ["strong", "medium", "medium"]
     heat_24h = next(item for item in detail["heat_trends"] if item["window_type"] == "24h")
     assert heat_24h["points"][0]["heat_score"] == 42

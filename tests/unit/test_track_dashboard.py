@@ -9,7 +9,7 @@ from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.service import WINDOWS, aggregate_heat
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
-from invest_assistant.modules.track_discovery.models import Track, TrackAnalysisSnapshot, TrackMaterial
+from invest_assistant.modules.track_discovery.models import Track, TrackMaterial, TrackTrendSnapshot
 from invest_assistant.modules.track_discovery.service import get_dashboard
 from invest_assistant.shared.time_utils import beijing_now
 
@@ -53,8 +53,8 @@ def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_sc
 def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     db = make_session()
     now = datetime(2026, 5, 31, 9, 30, tzinfo=timezone.utc)
-    robot = Track(name="机器人", status="active", track_score=86, current_view="订单兑现预期提升", stage="growth", confidence_level="high")
-    ai = Track(name="AI算力", status="active", track_score=82, current_view="需求侧持续验证", stage="validate", confidence_level="medium")
+    robot = Track(name="机器人", status="active", current_view="订单兑现预期提升", industry_phase="expansion", market_phase="accelerate", confidence_level="high")
+    ai = Track(name="AI算力", status="active", current_view="需求侧持续验证", industry_phase="expansion", market_phase="ferment", confidence_level="medium")
     db.add_all([robot, ai])
     db.flush()
     robot_tag_a = Tag(name="机器人", type="track", status="active")
@@ -88,17 +88,20 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
             TrackMaterial(track_id=robot.id, material_type="source_item", material_id=source.id, direction="support", importance_level="high", status="pending"),
             TrackMaterial(track_id=ai.id, material_type="knowledge_note", material_id=note.id, direction="neutral", importance_level="medium", status="confirmed"),
             StockTrackRelation(stock_id=stock.id, track_id=robot.id, conviction=80, status="active"),
-            TrackAnalysisSnapshot(
+            TrackTrendSnapshot(
                 track_id=robot.id,
-                analysis_date=date(2026, 5, 31),
-                market_space="长期空间大",
-                market_size="放量早期",
-                growth_rate="加速",
-                heat_summary="执行器链条升温",
-                opportunity_points="订单兑现",
-                risk_points="估值过热",
-                watch_signals="订单、核心零部件",
-                score=88,
+                research_date=date(2026, 5, 31),
+                headline_cycle="long",
+                headline_strength="strong",
+                core_judgment="订单兑现进入验证期",
+                research_priority="priority",
+                short_strength="medium",
+                mid_strength="strong",
+                long_strength="strong",
+                key_contradiction="核心零部件国产替代节奏",
+                next_verification="Q3 订单交付",
+                industry_phase="expansion",
+                market_phase="accelerate",
                 confidence_level="high",
             ),
         ]
@@ -123,15 +126,17 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert dashboard["latest_materials"][0]["track_name"] == "机器人"
     assert dashboard["latest_materials"][0]["material_type"] == "source_item"
     assert dashboard["analysis_summary"]["track_name"] == "机器人"
-    assert dashboard["analysis_summary"]["market_space"] == "长期空间大"
+    assert dashboard["analysis_summary"]["headline_strength"] == "strong"
+    assert dashboard["analysis_summary"]["headline_cycle"] == "long"
+    assert dashboard["analysis_summary"]["research_priority"] == "priority"
     assert "heat_trends" not in dashboard
 
 
 def test_track_dashboard_excludes_heat_trends_payload():
     db = make_session()
     base_time = datetime(2026, 6, 1, 9, 0)
-    target = Track(name="具身智能", status="active", track_score=90)
-    noisy = Track(name="噪声赛道", status="active", track_score=10)
+    target = Track(name="具身智能", status="active")
+    noisy = Track(name="噪声赛道", status="active")
     db.add_all([target, noisy])
     db.flush()
     target_tag_a = Tag(name="具身智能", type="track", status="active")
@@ -167,7 +172,7 @@ def test_track_dashboard_ranking_includes_today_material_status_counts():
     db = make_session()
     today = beijing_now()
     yesterday = today - timedelta(days=1)
-    track = Track(name="机器人", status="active", track_score=80)
+    track = Track(name="机器人", status="active")
     tag = Tag(name="机器人", type="track", status="active")
     db.add_all([track, tag])
     db.flush()
@@ -195,8 +200,8 @@ def test_track_dashboard_ranking_includes_today_material_status_counts():
 def test_track_dashboard_warming_summary_uses_7d_rank_change_by_default():
     db = make_session()
     now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
-    track = Track(name="机器人", status="active", track_score=80)
-    other_track = Track(name="AI算力", status="active", track_score=70)
+    track = Track(name="机器人", status="active")
+    other_track = Track(name="AI算力", status="active")
     tag = Tag(name="机器人", type="track", status="active")
     other_tag = Tag(name="AI算力", type="track", status="active")
     db.add_all([track, other_track, tag, other_tag])

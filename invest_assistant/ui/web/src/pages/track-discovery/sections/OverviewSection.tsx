@@ -8,18 +8,18 @@ import { Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { getTrackDashboard, listTrackAnalysisSnapshots } from "../../../api/trackDiscovery";
+import { getTrackDashboard, listTrackTrendSnapshots } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type {
-  TrackAnalysisSnapshot,
+  TrackTrendSnapshot,
   TrackDashboardAnalysisSummary,
   TrackDashboardFocusTrack,
   TrackDashboardMaterial,
   TrackHeatRanking
 } from "../../../types/api";
-import { DirectionTag, formatTime, stageOptions, StatusTag } from "./shared";
+import { DirectionTag, formatTime, industryPhaseLabel, marketPhaseLabel, researchPriorityLabel, StatusTag, StrengthCycleTag } from "./shared";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -38,10 +38,6 @@ const importanceLabel: Record<string, string> = {
   low: "低"
 };
 
-function stageLabel(value?: string | null) {
-  return stageOptions.find((item) => item.value === value)?.label || value || "-";
-}
-
 function rankChangeText(value?: number | null) {
   const next = Number(value || 0);
   if (!next) return "持平";
@@ -59,21 +55,22 @@ function countText(value?: number | null) {
   return Number(value || 0);
 }
 
-function snapshotToSummary(trackName: string, snapshot?: TrackAnalysisSnapshot | null): TrackDashboardAnalysisSummary | null {
+function snapshotToSummary(trackName: string, snapshot?: TrackTrendSnapshot | null): TrackDashboardAnalysisSummary | null {
   if (!snapshot) return null;
   return {
     track_id: snapshot.track_id,
     track_name: trackName,
-    analysis_date: snapshot.analysis_date,
-    market_space: snapshot.market_space,
-    market_size: snapshot.market_size,
-    growth_rate: snapshot.growth_rate,
-    heat_summary: snapshot.heat_summary,
-    opportunity_points: snapshot.opportunity_points,
-    risk_points: snapshot.risk_points,
-    watch_signals: snapshot.watch_signals,
-    score: snapshot.score,
-    confidence_level: snapshot.confidence_level
+    research_date: snapshot.research_date,
+    industry_phase: snapshot.industry_phase,
+    market_phase: snapshot.market_phase,
+    confidence_level: snapshot.confidence_level,
+    headline_cycle: snapshot.headline_cycle,
+    headline_strength: snapshot.headline_strength,
+    research_priority: snapshot.research_priority,
+    core_judgment: snapshot.core_judgment,
+    key_contradiction: snapshot.key_contradiction,
+    next_verification: snapshot.next_verification,
+    risk_falsification: snapshot.risk_falsification
   };
 }
 
@@ -103,9 +100,9 @@ export function OverviewSection() {
   const selectedSnapshots = useAsyncData(
     useCallback(async () => {
       if (!selectedTrackId) return [];
-      return listTrackAnalysisSnapshots(selectedTrackId);
+      return listTrackTrendSnapshots(selectedTrackId);
     }, [selectedTrackId]),
-    [] as TrackAnalysisSnapshot[]
+    [] as TrackTrendSnapshot[]
   );
 
   const selectedAnalysis = useMemo(() => {
@@ -127,8 +124,15 @@ export function OverviewSection() {
     { title: "24h", dataIndex: "rank_change_24h", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "7日", dataIndex: "rank_change_7d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "30日", dataIndex: "rank_change_30d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
-    { title: "阶段", dataIndex: "stage", width: 76, render: (value) => <Tag>{stageLabel(value)}</Tag> },
-    { title: "评分", dataIndex: "track_score", width: 56, render: (value) => value ?? "-" }
+    {
+      title: "主判断",
+      key: "headline",
+      width: 100,
+      render: (_, record) => <StrengthCycleTag strength={record.headline_strength} cycle={record.headline_cycle} />
+    },
+    { title: "优先级", dataIndex: "research_priority", width: 86, render: (value) => researchPriorityLabel(value) },
+    { title: "产业阶段", dataIndex: "industry_phase", width: 80, render: (value) => <Tag>{industryPhaseLabel(value)}</Tag> },
+    { title: "市场阶段", dataIndex: "market_phase", width: 80, render: (value) => <Tag>{marketPhaseLabel(value)}</Tag> }
   ];
 
   const materialColumns: ColumnsType<TrackDashboardMaterial> = [

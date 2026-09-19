@@ -12,16 +12,16 @@ from invest_assistant.modules.market_radar.service import bind_track_tag, list_t
 from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
-    TrackAnalysisSnapshot,
     TrackMaterial,
     TrackStatusHistory,
+    TrackTrendSnapshot,
 )
 from invest_assistant.modules.track_discovery.schemas import (
-    TrackAnalysisSnapshotCreate,
     TrackCreate,
     TrackMaterialCreate,
     TrackMaterialUpdate,
     TrackStatusChange,
+    TrackTrendSnapshotCreate,
     TrackUpdate,
 )
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
@@ -31,6 +31,45 @@ ARCHIVED_STATUS = "archived"
 DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
 DEFAULT_RANK_CHANGE_WINDOW = "7d"
 DASHBOARD_RANKING_LIMIT = 10
+# 看板排序用：优先研究排在最前，强度次之。赛道结论是强/中/弱而不是分数，
+# 原来的 track_score 没有产生方，排序改从最新快照的结论派生。
+RESEARCH_PRIORITY_ORDER = {"priority": 0, "tracking": 1, "deprioritized": 2}
+STRENGTH_ORDER = {"strong": 0, "medium": 1, "weak": 2, "insufficient": 3}
+
+
+def _priority_sort_key(snapshot: TrackTrendSnapshot | None) -> tuple[int, int, int]:
+    """没有快照的赛道排在有快照的之后，同优先级内按强度再按人工排名。"""
+    if snapshot is None:
+        return (len(RESEARCH_PRIORITY_ORDER), len(STRENGTH_ORDER), 10**6)
+    return (
+        RESEARCH_PRIORITY_ORDER.get(snapshot.research_priority or "", len(RESEARCH_PRIORITY_ORDER)),
+        STRENGTH_ORDER.get(snapshot.headline_strength or "", len(STRENGTH_ORDER)),
+        snapshot.priority_rank if snapshot.priority_rank is not None else 10**6,
+    )
+
+
+def _latest_snapshots_by_track(db: Session, tracks: list[Track]) -> dict[int, TrackTrendSnapshot]:
+    """一次性取回各赛道的最新快照，避免看板逐条子查询。
+
+    latest_snapshot_id 是导入回填的快捷指针，不是唯一真相：脚本直写或历史数据都可能没有它，
+    那时回落到按 track_id 查一次，否则看板会把有快照的赛道显示成"待研究"。
+    """
+    by_track: dict[int, TrackTrendSnapshot] = {}
+    snapshot_ids = [track.latest_snapshot_id for track in tracks if track.latest_snapshot_id]
+    if snapshot_ids:
+        for row in db.scalars(select(TrackTrendSnapshot).where(TrackTrendSnapshot.id.in_(snapshot_ids))):
+            by_track[row.track_id] = row
+
+    missing = [track.id for track in tracks if track.id not in by_track]
+    if missing:
+        stmt = (
+            select(TrackTrendSnapshot)
+            .where(TrackTrendSnapshot.track_id.in_(missing))
+            .order_by(TrackTrendSnapshot.research_date.desc(), TrackTrendSnapshot.id.desc())
+        )
+        for row in db.scalars(stmt):
+            by_track.setdefault(row.track_id, row)
+    return by_track
 
 
 def create_track(db: Session, payload: TrackCreate, enqueue_backfill: bool = True) -> dict:
@@ -142,9 +181,12 @@ def get_dashboard(db: Session) -> dict:
     )
     today_material_counts = _dashboard_today_material_counts_by_track(db, track_ids)
 
+    latest_snapshot_by_track = _latest_snapshots_by_track(db, tracks)
+
     rankings = []
     for track in tracks:
         material_count = today_material_counts.get(track.id, {})
+        snapshot = latest_snapshot_by_track.get(track.id)
         rankings.append(
             {
                 "track_id": track.id,
@@ -158,11 +200,14 @@ def get_dashboard(db: Session) -> dict:
                 "rank_change_24h": latest_rank_change(track.id, "24h"),
                 "rank_change_7d": latest_rank_change(track.id, "7d"),
                 "rank_change_30d": latest_rank_change(track.id, "30d"),
-                "stage": track.stage,
-                "track_score": track.track_score,
+                "industry_phase": track.industry_phase,
+                "market_phase": track.market_phase,
+                "headline_cycle": snapshot.headline_cycle if snapshot else None,
+                "headline_strength": snapshot.headline_strength if snapshot else None,
+                "research_priority": snapshot.research_priority if snapshot else None,
             }
         )
-    rankings.sort(key=lambda item: (-float(item["current_heat"] or 0), -float(item["track_score"] or 0), item["track_id"]))
+    rankings.sort(key=lambda item: (-float(item["current_heat"] or 0), _priority_sort_key(latest_snapshot_by_track.get(item["track_id"])), item["track_id"]))
     for index, item in enumerate(rankings, start=1):
         item["rank"] = index
 
@@ -171,17 +216,24 @@ def get_dashboard(db: Session) -> dict:
             {
                 "track_id": track.id,
                 "name": track.name,
-                "track_score": track.track_score,
                 "current_view": track.current_view,
-                "stage": track.stage,
+                "industry_phase": track.industry_phase,
+                "market_phase": track.market_phase,
                 "confidence_level": track.confidence_level,
+                "headline_cycle": latest_snapshot_by_track[track.id].headline_cycle if track.id in latest_snapshot_by_track else None,
+                "headline_strength": latest_snapshot_by_track[track.id].headline_strength if track.id in latest_snapshot_by_track else None,
+                "research_priority": latest_snapshot_by_track[track.id].research_priority if track.id in latest_snapshot_by_track else None,
                 "bound_stock_count": int(stock_counts.get(track.id, 0)),
                 "recent_material_count": int(material_counts.get(track.id, 0)),
                 "current_heat": latest_heat(track.id, "24h"),
             }
             for track in tracks
         ],
-        key=lambda item: (0 if track_by_id[item["track_id"]].status == "active" else 1, -float(item["track_score"] or 0), -float(item["current_heat"] or 0)),
+        key=lambda item: (
+            0 if track_by_id[item["track_id"]].status == "active" else 1,
+            _priority_sort_key(latest_snapshot_by_track.get(item["track_id"])),
+            -float(item["current_heat"] or 0),
+        ),
     )[:6]
 
     latest_materials = []
@@ -203,7 +255,7 @@ def get_dashboard(db: Session) -> dict:
         latest_materials.append(row)
 
     default_track_id = rankings[0]["track_id"] if rankings else tracks[0].id
-    analysis_summary = _latest_analysis_summary(db, track_by_id.get(default_track_id))
+    analysis_summary = _latest_snapshot_summary(track_by_id.get(default_track_id), latest_snapshot_by_track.get(default_track_id))
     top_heat = rankings[0] if rankings else None
     return {
         "summary": {
@@ -360,7 +412,7 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
 
     tags = [item for item in list_track_tag_bindings(db, track.id) if item.get("status") == "active"]
     materials = list_materials(db, track.id)
-    snapshots = [_analysis_snapshot_dict(item) for item in list_analysis_snapshots(db, track.id)]
+    snapshots = [_trend_snapshot_dict(item) for item in list_trend_snapshots(db, track.id)]
     stocks = _track_detail_stocks(db, track.id)
     heat_trends = _track_detail_heat_trends(db, [int(item["tag"]["id"]) for item in tags if item.get("tag")])
     active_stock_count = len([item for item in stocks if item["status"] == "active"])
@@ -386,7 +438,7 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
         },
         "heat_trends": heat_trends,
         "latest_snapshot": snapshots[0] if snapshots else None,
-        "analysis_snapshots": snapshots,
+        "trend_snapshots": snapshots,
         "materials": materials,
         "stocks": stocks,
         "tags": tags,
@@ -424,7 +476,7 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     db.execute(update(StockCompareGroup).where(StockCompareGroup.track_id == track_id).values(track_id=None))
     db.execute(delete(TrackStatusHistory).where(TrackStatusHistory.track_id == track_id))
     db.execute(delete(TrackMaterial).where(TrackMaterial.track_id == track_id))
-    db.execute(delete(TrackAnalysisSnapshot).where(TrackAnalysisSnapshot.track_id == track_id))
+    db.execute(delete(TrackTrendSnapshot).where(TrackTrendSnapshot.track_id == track_id))
     db.delete(track)
     db.commit()
     return True
@@ -539,77 +591,96 @@ def update_material(db: Session, material_id: int, payload: TrackMaterialUpdate)
     return item
 
 
-def create_analysis_snapshot(db: Session, track_id: int, payload: TrackAnalysisSnapshotCreate) -> TrackAnalysisSnapshot:
-    item = TrackAnalysisSnapshot(track_id=track_id, **payload.model_dump())
+SNAPSHOT_FIELDS = tuple(
+    column.name for column in TrackTrendSnapshot.__table__.columns if column.name not in {"id", "track_id"}
+)
+# 快照是赛道结论的唯一真相，这几项同时回填到 track 上只为列表和看板少一次 join，
+# 属于派生缓存，不要反过来当输入源改写。
+TRACK_BACKFILL_FIELDS = ("industry_phase", "market_phase", "confidence_level")
+
+
+def create_trend_snapshot(db: Session, track_id: int, payload: TrackTrendSnapshotCreate) -> TrackTrendSnapshot:
+    item = TrackTrendSnapshot(track_id=track_id, **payload.model_dump())
     db.add(item)
+    db.flush()
+    _backfill_track_from_snapshot(db, track_id, item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def list_analysis_snapshots(db: Session, track_id: int | None = None) -> list[TrackAnalysisSnapshot]:
-    stmt = select(TrackAnalysisSnapshot).order_by(TrackAnalysisSnapshot.analysis_date.desc(), TrackAnalysisSnapshot.id.desc())
+def _backfill_track_from_snapshot(db: Session, track_id: int, snapshot: TrackTrendSnapshot) -> None:
+    """只有比当前指针更新的快照才回填。
+
+    新旧比较用 (research_date, id) 而不是只看 research_date，因为这两种情况都存在：
+    - 修补报告：同一天追加的新记录，research_date 相同、id 更大，应当取代当天的上一份；
+    - 补录旧报告：research_date 更早，即使 id 更大也不能把最新结论盖掉。
+    """
+    track = db.get(Track, track_id)
+    if track is None:
+        return
+    current = db.get(TrackTrendSnapshot, track.latest_snapshot_id) if track.latest_snapshot_id else None
+    if current is not None and (snapshot.research_date, snapshot.id) < (current.research_date, current.id):
+        return
+    track.latest_snapshot_id = snapshot.id
+    if snapshot.core_judgment:
+        track.current_view = snapshot.core_judgment
+    for field in TRACK_BACKFILL_FIELDS:
+        value = getattr(snapshot, field)
+        if value is not None:
+            setattr(track, field, value)
+
+
+def list_trend_snapshots(db: Session, track_id: int | None = None) -> list[TrackTrendSnapshot]:
+    stmt = select(TrackTrendSnapshot).order_by(TrackTrendSnapshot.research_date.desc(), TrackTrendSnapshot.id.desc())
     if track_id is not None:
-        stmt = stmt.where(TrackAnalysisSnapshot.track_id == track_id)
+        stmt = stmt.where(TrackTrendSnapshot.track_id == track_id)
     return list(db.scalars(stmt))
 
 
-def _latest_analysis_summary(db: Session, track: Track | None) -> dict | None:
+def _latest_snapshot_summary(track: Track | None, snapshot: TrackTrendSnapshot | None) -> dict | None:
+    """看板顶部的赛道结论条：没有快照时退回 track 上的人工判断，不返回 None 让前端少一个分支。"""
     if track is None:
         return None
-    snapshot = db.scalar(
-        select(TrackAnalysisSnapshot)
-        .where(TrackAnalysisSnapshot.track_id == track.id)
-        .order_by(TrackAnalysisSnapshot.analysis_date.desc(), TrackAnalysisSnapshot.id.desc())
-    )
-    if snapshot is None:
-        return {
-            "track_id": track.id,
-            "track_name": track.name,
-            "analysis_date": None,
-            "market_space": None,
-            "market_size": None,
-            "growth_rate": None,
-            "heat_summary": None,
-            "opportunity_points": None,
-            "risk_points": None,
-            "watch_signals": None,
-            "score": track.track_score,
-            "confidence_level": track.confidence_level,
-        }
-    return {
+    summary = {
         "track_id": track.id,
         "track_name": track.name,
-        "analysis_date": snapshot.analysis_date.isoformat() if snapshot.analysis_date else None,
-        "market_space": snapshot.market_space,
-        "market_size": snapshot.market_size,
-        "growth_rate": snapshot.growth_rate,
-        "heat_summary": snapshot.heat_summary,
-        "opportunity_points": snapshot.opportunity_points,
-        "risk_points": snapshot.risk_points,
-        "watch_signals": snapshot.watch_signals,
-        "score": snapshot.score,
-        "confidence_level": snapshot.confidence_level,
+        "research_date": None,
+        "industry_phase": track.industry_phase,
+        "market_phase": track.market_phase,
+        "confidence_level": track.confidence_level,
+        "headline_cycle": None,
+        "headline_strength": None,
+        "research_priority": None,
+        "core_judgment": track.current_view,
+        "key_contradiction": None,
+        "next_verification": None,
+        "risk_falsification": None,
     }
+    if snapshot is None:
+        return summary
+    summary.update(
+        {
+            "research_date": snapshot.research_date.isoformat() if snapshot.research_date else None,
+            "industry_phase": snapshot.industry_phase or track.industry_phase,
+            "market_phase": snapshot.market_phase or track.market_phase,
+            "confidence_level": snapshot.confidence_level or track.confidence_level,
+            "headline_cycle": snapshot.headline_cycle,
+            "headline_strength": snapshot.headline_strength,
+            "research_priority": snapshot.research_priority,
+            "core_judgment": snapshot.core_judgment or track.current_view,
+            "key_contradiction": snapshot.key_contradiction,
+            "next_verification": snapshot.next_verification,
+            "risk_falsification": snapshot.risk_falsification,
+        }
+    )
+    return summary
 
 
-def _analysis_snapshot_dict(snapshot: TrackAnalysisSnapshot) -> dict:
-    return {
-        "id": snapshot.id,
-        "track_id": snapshot.track_id,
-        "analysis_date": snapshot.analysis_date,
-        "market_space": snapshot.market_space,
-        "market_size": snapshot.market_size,
-        "growth_rate": snapshot.growth_rate,
-        "heat_summary": snapshot.heat_summary,
-        "ai_summary": snapshot.ai_summary,
-        "opportunity_points": snapshot.opportunity_points,
-        "risk_points": snapshot.risk_points,
-        "watch_signals": snapshot.watch_signals,
-        "score": snapshot.score,
-        "confidence_level": snapshot.confidence_level,
-        "created_at": snapshot.created_at,
-    }
+def _trend_snapshot_dict(snapshot: TrackTrendSnapshot) -> dict:
+    row = {"id": snapshot.id, "track_id": snapshot.track_id}
+    row.update({field: getattr(snapshot, field) for field in SNAPSHOT_FIELDS})
+    return row
 
 
 def _isoformat(value: object) -> str | None:
@@ -708,17 +779,22 @@ def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) 
     if track is None:
         return None
     old_status = track.status
-    old_stage = track.stage
+    old_industry_phase = track.industry_phase
+    old_market_phase = track.market_phase
     track.status = payload.new_status
-    if payload.new_stage is not None:
-        track.stage = payload.new_stage
+    if payload.new_industry_phase is not None:
+        track.industry_phase = payload.new_industry_phase
+    if payload.new_market_phase is not None:
+        track.market_phase = payload.new_market_phase
     db.add(
         TrackStatusHistory(
             track_id=track.id,
             old_status=old_status,
             new_status=payload.new_status,
-            old_stage=old_stage,
-            new_stage=track.stage,
+            old_industry_phase=old_industry_phase,
+            new_industry_phase=track.industry_phase,
+            old_market_phase=old_market_phase,
+            new_market_phase=track.market_phase,
             reason=payload.reason,
             changed_by=payload.changed_by,
         )
@@ -759,10 +835,11 @@ def _track_dict(db: Session, track: Track) -> dict:
         "name": track.name,
         "description": track.description,
         "status": track.status,
-        "track_score": track.track_score,
         "current_view": track.current_view,
-        "stage": track.stage,
+        "industry_phase": track.industry_phase,
+        "market_phase": track.market_phase,
         "confidence_level": track.confidence_level,
+        "latest_snapshot_id": track.latest_snapshot_id,
         "created_at": track.created_at,
         "updated_at": track.updated_at,
         "tag": bindings[0]["tag"] if bindings else None,

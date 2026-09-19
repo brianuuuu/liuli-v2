@@ -311,7 +311,7 @@ function getTargetOptions(targetType: TargetType, hotwords: Hotword[], tracks: T
     return tracks.map((item) => ({
       value: item.id,
       label: item.name || "未命名赛道",
-      searchText: [item.name, item.description, item.stage, item.status].filter(Boolean).join(" ")
+      searchText: [item.name, item.description, item.industry_phase, item.market_phase, item.status].filter(Boolean).join(" ")
     }));
   }
   if (targetType === "stock") {

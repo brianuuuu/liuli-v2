@@ -8,14 +8,14 @@ import { useLiuliTheme } from "../../app/theme";
 import {
   bindStockFromTrack,
   changeTrackStatus,
-  createTrackAnalysisSnapshot,
+  createTrackTrendSnapshot,
   createTrackMaterial,
   getTrackDetail,
   listTracks,
   updateTrack,
   updateTrackMaterial
 } from "../../api/trackDiscovery";
-import type { TrackAnalysisSnapshotPayload, TrackMaterialPayload, TrackPayload, TrackTagStockBindingPayload } from "../../api/trackDiscovery";
+import type { TrackTrendSnapshotPayload, TrackMaterialPayload, TrackPayload, TrackTagStockBindingPayload } from "../../api/trackDiscovery";
 import { chartBackgroundColor, chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -24,13 +24,31 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type {
   TagBinding,
   Track,
-  TrackAnalysisSnapshot,
+  TrackTrendSnapshot,
   TrackDetail,
   TrackDetailHeatTrend,
   TrackDetailStockRelation,
   TrackMaterial
 } from "../../types/api";
-import { confidenceOptions, DirectionTag, formatTime, stageOptions, StatusTag, thesisStatusOptions } from "./sections/shared";
+import {
+  confidenceOptions,
+  cycleOptions,
+  DirectionTag,
+  formatTime,
+  industryPhaseLabel,
+  industryPhaseOptions,
+  marketPhaseLabel,
+  marketPhaseOptions,
+  researchPriorityLabel,
+  researchPriorityOptions,
+  StatusTag,
+  strengthLabel,
+  strengthOptions,
+  StrengthCycleTag,
+  thesisStatusOptions,
+  TrendDirectionTag,
+  trendDirectionOptions
+} from "./sections/shared";
 
 const materialTypeLabels: Record<string, string> = {
   source_item: "信息流",
@@ -47,9 +65,8 @@ function numberText(value?: number | null, suffix = "") {
   return value === null || value === undefined ? "-" : `${Number(value).toFixed(2).replace(/\.00$/, "")}${suffix}`;
 }
 
-function stageText(value?: string | null) {
-  return stageOptions.find((item) => item.value === value)?.label || value || "-";
-}
+/** 强度是序数不是分数：强 3 / 中 2 / 弱 1 / 证据不足 0，只为画出三周期的相对走势。 */
+const STRENGTH_LEVEL: Record<string, number> = { strong: 3, medium: 2, weak: 1, insufficient: 0 };
 
 function confidenceText(value?: string | null) {
   return confidenceOptions.find((item) => item.value === value)?.label || value || "-";
@@ -101,27 +118,37 @@ function heatTrendOption(trends: TrackDetailHeatTrend[], mode: "light" | "dark")
   };
 }
 
-function snapshotScoreOption(rows: TrackAnalysisSnapshot[], mode: "light" | "dark"): EChartsOption {
+function snapshotStrengthOption(rows: TrackTrendSnapshot[], mode: "light" | "dark"): EChartsOption {
   const textColor = chartTextColor(mode);
   const gridColor = chartGridColor(mode);
-  const ordered = [...rows].sort((a, b) => a.analysis_date.localeCompare(b.analysis_date));
+  const ordered = [...rows].sort((a, b) => a.research_date.localeCompare(b.research_date));
+  const level = (value?: string | null) => (value ? STRENGTH_LEVEL[value] ?? null : null);
   return {
     tooltip: { trigger: "axis" },
-    grid: { left: 42, right: 18, top: 24, bottom: 28 },
+    legend: { textStyle: { color: textColor } },
+    grid: { left: 60, right: 18, top: 36, bottom: 28 },
     xAxis: {
       type: "category",
-      data: ordered.map((item) => item.analysis_date),
+      data: ordered.map((item) => item.research_date),
       axisLabel: { color: textColor },
       axisLine: { lineStyle: { color: gridColor } }
     },
     yAxis: {
       type: "value",
       min: 0,
-      max: 100,
-      axisLabel: { color: textColor },
+      max: 3,
+      interval: 1,
+      axisLabel: {
+        color: textColor,
+        formatter: (value: number) => ["证据不足", "弱", "中", "强"][value] ?? ""
+      },
       splitLine: { lineStyle: { color: gridColor } }
     },
-    series: [{ name: "评分", type: "line", smooth: true, data: ordered.map((item) => item.score ?? null) }]
+    series: [
+      { name: "短期", type: "line", smooth: true, data: ordered.map((item) => level(item.short_strength)) },
+      { name: "中期", type: "line", smooth: true, data: ordered.map((item) => level(item.mid_strength)) },
+      { name: "长期", type: "line", smooth: true, data: ordered.map((item) => level(item.long_strength)) }
+    ]
   };
 }
 
@@ -137,10 +164,10 @@ export function TrackDetailPage() {
   const [stockOpen, setStockOpen] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [editForm] = Form.useForm<TrackPayload>();
-  const [statusForm] = Form.useForm<{ new_status: string; new_stage?: string; reason?: string }>();
+  const [statusForm] = Form.useForm<{ new_status: string; new_industry_phase?: string; new_market_phase?: string; reason?: string }>();
   const [materialForm] = Form.useForm<TrackMaterialPayload>();
   const [stockForm] = Form.useForm<TrackTagStockBindingPayload>();
-  const [snapshotForm] = Form.useForm<TrackAnalysisSnapshotPayload>();
+  const [snapshotForm] = Form.useForm<TrackTrendSnapshotPayload>();
 
   const trackSwitchOptions = useMemo(
     () =>
@@ -163,16 +190,20 @@ export function TrackDetailPage() {
       name: track.name,
       description: track.description || null,
       status: track.status,
-      track_score: track.track_score ?? null,
       current_view: track.current_view || null,
-      stage: track.stage || null,
+      industry_phase: track.industry_phase || null,
+      market_phase: track.market_phase || null,
       confidence_level: track.confidence_level || null
     });
     setEditOpen(true);
   }
 
   function openStatus(track: Track) {
-    statusForm.setFieldsValue({ new_status: track.status || "candidate", new_stage: track.stage || undefined });
+    statusForm.setFieldsValue({
+      new_status: track.status || "candidate",
+      new_industry_phase: track.industry_phase || undefined,
+      new_market_phase: track.market_phase || undefined
+    });
     setStatusOpen(true);
   }
 
@@ -187,7 +218,10 @@ export function TrackDetailPage() {
 
   async function submitStatus() {
     const values = await statusForm.validateFields();
-    await changeTrackStatus(trackId, values.new_status, values.reason || null, values.new_stage || null);
+    await changeTrackStatus(trackId, values.new_status, values.reason || null, {
+      industryPhase: values.new_industry_phase || null,
+      marketPhase: values.new_market_phase || null
+    });
     message.success("状态已变更");
     setStatusOpen(false);
     await detail.refresh();
@@ -227,8 +261,8 @@ export function TrackDetailPage() {
 
   async function submitSnapshot() {
     const values = await snapshotForm.validateFields();
-    await createTrackAnalysisSnapshot(trackId, values);
-    message.success("分析快照已新增");
+    await createTrackTrendSnapshot(trackId, values);
+    message.success("趋势快照已新增");
     snapshotForm.resetFields();
     setSnapshotOpen(false);
     await detail.refresh();
@@ -285,7 +319,7 @@ export function TrackDetailPage() {
                 },
                 { key: "stocks", label: "关联标的", children: <StocksTab data={data} onAdd={() => setStockOpen(true)} /> },
                 { key: "tags", label: "标签关系", children: <TagsTab data={data} /> },
-                { key: "snapshots", label: "分析快照", children: <SnapshotsTab data={data} onAdd={() => setSnapshotOpen(true)} /> }
+                { key: "snapshots", label: "趋势快照", children: <SnapshotsTab data={data} onAdd={() => setSnapshotOpen(true)} /> }
               ]}
             />
           </div>
@@ -297,8 +331,8 @@ export function TrackDetailPage() {
           <div className="track-detail-form-grid compact">
             <Form.Item name="name" label="赛道名称" rules={[{ required: true, message: "请输入赛道名称" }]}><Input /></Form.Item>
             <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}><Select options={thesisStatusOptions} /></Form.Item>
-            <Form.Item name="track_score" label="评分"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item name="stage" label="阶段"><Select allowClear options={stageOptions} /></Form.Item>
+            <Form.Item name="industry_phase" label="产业阶段"><Select allowClear options={industryPhaseOptions} /></Form.Item>
+            <Form.Item name="market_phase" label="市场阶段"><Select allowClear options={marketPhaseOptions} /></Form.Item>
             <Form.Item name="confidence_level" label="置信度"><Select allowClear options={confidenceOptions} /></Form.Item>
           </div>
           <Form.Item name="description" label="赛道说明"><Input.TextArea rows={2} /></Form.Item>
@@ -310,7 +344,8 @@ export function TrackDetailPage() {
         <Form form={statusForm} layout="vertical" preserve={false}>
           <div className="track-detail-form-grid compact">
             <Form.Item name="new_status" label="新状态" rules={[{ required: true, message: "请选择状态" }]}><Select options={thesisStatusOptions} /></Form.Item>
-            <Form.Item name="new_stage" label="新阶段"><Select allowClear options={stageOptions} /></Form.Item>
+            <Form.Item name="new_industry_phase" label="新产业阶段"><Select allowClear options={industryPhaseOptions} /></Form.Item>
+            <Form.Item name="new_market_phase" label="新市场阶段"><Select allowClear options={marketPhaseOptions} /></Form.Item>
           </div>
           <Form.Item name="reason" label="原因"><Input.TextArea rows={3} /></Form.Item>
         </Form>
@@ -341,22 +376,38 @@ export function TrackDetailPage() {
         </Form>
       </Modal>
 
-      <Modal title="新增分析快照" open={snapshotOpen} onCancel={() => setSnapshotOpen(false)} onOk={submitSnapshot} destroyOnHidden forceRender width={760}>
+      {/* 手工补录入口，正常路径是研究员报告经知识库回流导入；这里只放必填项和结论层，
+          六项分析、环节、情景这些长文本由报告导入写入，不在弹窗里逐个手敲。 */}
+      <Modal title="新增趋势快照" open={snapshotOpen} onCancel={() => setSnapshotOpen(false)} onOk={submitSnapshot} destroyOnHidden forceRender width={760}>
         <Form form={snapshotForm} layout="vertical" preserve={false}>
           <div className="track-detail-form-grid">
-            <Form.Item name="analysis_date" label="日期" rules={[{ required: true, message: "请选择日期" }]}><input className="ant-input" type="date" /></Form.Item>
-            <Form.Item name="score" label="评分"><InputNumber min={0} max={100} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="research_date" label="研究日期" rules={[{ required: true, message: "请选择研究日期" }]}><input className="ant-input" type="date" /></Form.Item>
+            <Form.Item name="headline_cycle" label="主导周期" rules={[{ required: true, message: "请选择主导周期" }]}><Select options={cycleOptions} /></Form.Item>
+            <Form.Item name="headline_strength" label="主判断强度" rules={[{ required: true, message: "请选择强度" }]}><Select options={strengthOptions} /></Form.Item>
             <Form.Item name="confidence_level" label="置信度"><Select allowClear options={confidenceOptions} /></Form.Item>
-            <Form.Item name="growth_rate" label="增长速度"><Input /></Form.Item>
           </div>
-          <Form.Item name="market_space" label="市场空间"><Input /></Form.Item>
-          <Form.Item name="market_size" label="当前规模"><Input /></Form.Item>
-          <Form.Item name="heat_summary" label="热度判断"><Input.TextArea rows={2} /></Form.Item>
-          <Form.Item name="ai_summary" label="AI / 人工分析"><Input.TextArea rows={2} /></Form.Item>
+          <div className="track-detail-form-grid">
+            <Form.Item name="research_priority" label="研究优先级"><Select allowClear options={researchPriorityOptions} /></Form.Item>
+            <Form.Item name="priority_rank" label="同批排名"><InputNumber min={1} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item name="industry_phase" label="产业阶段"><Select allowClear options={industryPhaseOptions} /></Form.Item>
+            <Form.Item name="market_phase" label="市场阶段"><Select allowClear options={marketPhaseOptions} /></Form.Item>
+          </div>
           <div className="track-detail-form-grid compact">
-            <Form.Item name="opportunity_points" label="机会"><Input.TextArea rows={2} /></Form.Item>
-            <Form.Item name="risk_points" label="风险"><Input.TextArea rows={2} /></Form.Item>
-            <Form.Item name="watch_signals" label="观察信号"><Input.TextArea rows={2} /></Form.Item>
+            <Form.Item name="short_strength" label="短期强度"><Select allowClear options={strengthOptions} /></Form.Item>
+            <Form.Item name="mid_strength" label="中期强度"><Select allowClear options={strengthOptions} /></Form.Item>
+            <Form.Item name="long_strength" label="长期强度"><Select allowClear options={strengthOptions} /></Form.Item>
+          </div>
+          <div className="track-detail-form-grid compact">
+            <Form.Item name="short_direction" label="短期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
+            <Form.Item name="mid_direction" label="中期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
+            <Form.Item name="long_direction" label="长期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
+          </div>
+          <Form.Item name="core_judgment" label="核心判断"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="key_contradiction" label="主要矛盾"><Input.TextArea rows={2} /></Form.Item>
+          <div className="track-detail-form-grid compact">
+            <Form.Item name="next_verification" label="下一验证节点"><Input.TextArea rows={2} /></Form.Item>
+            <Form.Item name="risk_falsification" label="风险与证伪条件"><Input.TextArea rows={2} /></Form.Item>
+            <Form.Item name="data_gaps" label="数据缺口"><Input.TextArea rows={2} /></Form.Item>
           </div>
         </Form>
       </Modal>
@@ -404,8 +455,9 @@ function TrackIdentityPanel({ data }: { data: TrackDetail }) {
         </div>
         <div className="track-detail-metrics">
           <Metric label="状态" value={<StatusTag status={data.track.status} />} />
-          <Metric label="阶段" value={stageText(data.track.stage)} />
-          <Metric label="评分" value={numberText(data.track.track_score)} />
+          <Metric label="主判断" value={<StrengthCycleTag strength={data.latest_snapshot?.headline_strength} cycle={data.latest_snapshot?.headline_cycle} />} />
+          <Metric label="产业阶段" value={industryPhaseLabel(data.track.industry_phase)} />
+          <Metric label="市场阶段" value={marketPhaseLabel(data.track.market_phase)} />
           <Metric label="置信度" value={confidenceText(data.track.confidence_level)} />
           <div className="track-detail-metric tags">
             <span>关联标签</span>
@@ -463,11 +515,11 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
             <Typography.Paragraph>{data.track.description || "暂无赛道说明"}</Typography.Paragraph>
           </div>
           <div className="detail-list track-detail-keyfacts">
-            <div className="detail-row"><span>最新快照</span><span>{latest?.analysis_date || "-"}</span></div>
-            <div className="detail-row"><span>快照评分</span><span>{numberText(latest?.score)}</span></div>
-            <div className="detail-row"><span>市场空间</span><span>{latest?.market_space || "-"}</span></div>
-            <div className="detail-row"><span>当前规模</span><span>{latest?.market_size || "-"}</span></div>
-            <div className="detail-row"><span>增长速度</span><span>{latest?.growth_rate || "-"}</span></div>
+            <div className="detail-row"><span>最新快照</span><span>{latest?.research_date || "-"}</span></div>
+            <div className="detail-row"><span>研究优先级</span><span>{researchPriorityLabel(latest?.research_priority)}</span></div>
+            <div className="detail-row"><span>短 / 中 / 长</span><span>{`${strengthLabel(latest?.short_strength)} / ${strengthLabel(latest?.mid_strength)} / ${strengthLabel(latest?.long_strength)}`}</span></div>
+            <div className="detail-row"><span>主要矛盾</span><span>{latest?.key_contradiction || "-"}</span></div>
+            <div className="detail-row"><span>下一验证节点</span><span>{latest?.next_verification || "-"}</span></div>
             <div className="detail-row"><span>待研判材料</span><span>{data.summary.pending_material_count}</span></div>
           </div>
         </div>
@@ -495,7 +547,7 @@ function HeatTab({ data }: { data: TrackDetail }) {
             <div className="detail-row"><span>当前热度</span><span>{numberText(data.summary.latest_heat_score)}</span></div>
             <div className="detail-row"><span>关联标签</span><span>{data.summary.tag_count}</span></div>
             <div className="detail-row"><span>热度窗口</span><span>{data.heat_trends.map((item) => item.window_type).join(" / ") || "-"}</span></div>
-            <div className="detail-row"><span>热度判断</span><span>{data.latest_snapshot?.heat_summary || "-"}</span></div>
+            <div className="detail-row"><span>市场与资金认可</span><span>{data.latest_snapshot?.market_capital || "-"}</span></div>
           </div>
         </div>
       </div>
@@ -600,25 +652,31 @@ function TagsTab({ data }: { data: TrackDetail }) {
 
 function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void }) {
   const { resolvedMode } = useLiuliTheme();
-  const columns: ColumnsType<TrackAnalysisSnapshot> = [
-    { title: "日期", dataIndex: "analysis_date", width: 110 },
-    { title: "评分", dataIndex: "score", width: 80, render: (value) => numberText(value) },
-    { title: "置信度", dataIndex: "confidence_level", width: 90, render: confidenceText },
-    { title: "市场空间", dataIndex: "market_space", ellipsis: true, render: (value) => value || "-" },
-    { title: "当前规模", dataIndex: "market_size", ellipsis: true, render: (value) => value || "-" },
-    { title: "增长速度", dataIndex: "growth_rate", width: 120, render: (value) => value || "-" },
-    { title: "热度判断", dataIndex: "heat_summary", ellipsis: true, render: (value) => value || "-" },
-    { title: "观察信号", dataIndex: "watch_signals", ellipsis: true, render: (value) => value || "-" }
+  const columns: ColumnsType<TrackTrendSnapshot> = [
+    { title: "研究日期", dataIndex: "research_date", width: 110 },
+    {
+      title: "主判断",
+      key: "headline",
+      width: 100,
+      render: (_, record) => <StrengthCycleTag strength={record.headline_strength} cycle={record.headline_cycle} />
+    },
+    { title: "优先级", dataIndex: "research_priority", width: 90, render: (value) => researchPriorityLabel(value) },
+    { title: "短期", key: "short", width: 110, render: (_, record) => <span>{strengthLabel(record.short_strength)} <TrendDirectionTag direction={record.short_direction} /></span> },
+    { title: "中期", key: "mid", width: 110, render: (_, record) => <span>{strengthLabel(record.mid_strength)} <TrendDirectionTag direction={record.mid_direction} /></span> },
+    { title: "长期", key: "long", width: 110, render: (_, record) => <span>{strengthLabel(record.long_strength)} <TrendDirectionTag direction={record.long_direction} /></span> },
+    { title: "置信度", dataIndex: "confidence_level", width: 80, render: confidenceText },
+    { title: "核心判断", dataIndex: "core_judgment", ellipsis: true, render: (value) => value || "-" },
+    { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" }
   ];
   return (
     <WorkbenchCard>
       <div className="track-detail-panel">
         <div className="track-detail-panel-toolbar">
-          <span>分析快照</span>
+          <span>趋势快照</span>
           <Button size="small" type="primary" onClick={onAdd}>新增快照</Button>
         </div>
-        {data.analysis_snapshots.length ? <InlineChart option={snapshotScoreOption(data.analysis_snapshots, resolvedMode)} height={220} /> : <EmptyAction description="暂无分析快照趋势" />}
-        <Table rowKey="id" size="small" dataSource={data.analysis_snapshots} columns={columns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 980 }} />
+        {data.trend_snapshots.length ? <InlineChart option={snapshotStrengthOption(data.trend_snapshots, resolvedMode)} height={220} /> : <EmptyAction description="暂无趋势快照" />}
+        <Table rowKey="id" size="small" dataSource={data.trend_snapshots} columns={columns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1180 }} />
       </div>
     </WorkbenchCard>
   );
