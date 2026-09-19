@@ -5,8 +5,8 @@ export type StockTabView = "materials" | "pool";
 export const DEFAULT_STOCK_TAB_VIEW: StockTabView = "materials";
 
 export const STOCK_TAB_VIEWS: { value: StockTabView; label: string }[] = [
-  { value: "materials", label: "标的材料" },
-  { value: "pool", label: "标的池" }
+  { value: "pool", label: "标的池" },
+  { value: "materials", label: "标的材料" }
 ];
 
 export type PoolStatusKey = "all" | "focused" | "watching" | "candidate" | "archived";
@@ -122,6 +122,43 @@ export function valuationSpaceTier(space: AnnualizedValuationSpace): BadgeTier {
 
 export function badgeTierClass(tier: BadgeTier | null): string {
   return tier ? `pool-card__badge--tier-${tier}` : "";
+}
+
+/** 评级从强到弱，和 INVESTMENT_LEVEL_TIERS 同一套口径，这里多出来的是档内次序。 */
+export const INVESTMENT_LEVELS = ["S", "A", "B", "C", "D"] as const;
+
+/** 估值空间从大到小。 */
+export const VALUATION_SPACES: readonly AnnualizedValuationSpace[] = ["大", "中", "小"];
+
+/** 认不出的值排在该维度所有已知档之后：未评级的标的不能混进最强的一批里。 */
+function rankIn<T>(order: readonly T[], value: T | null): number {
+  const index = value == null ? -1 : order.indexOf(value);
+  return index < 0 ? order.length : index;
+}
+
+/**
+ * 排序键与卡片角标同源：趋势 > 评级 > 估值空间，每一维都是强在前。
+ * 看到的三个角标就是排序依据，顺序和角标的横排顺序一致，不用再解释一遍。
+ */
+export function poolSortKey(item: StockPoolItem): [number, number, number] {
+  const { level, space, trend } = poolCardBadgeSet(item);
+  return [
+    rankIn(TREND_LEVELS, trend),
+    rankIn(INVESTMENT_LEVELS, (level?.toUpperCase() ?? null) as (typeof INVESTMENT_LEVELS)[number] | null),
+    rankIn(VALUATION_SPACES, space)
+  ];
+}
+
+/** 三个键全相同的保持后端返回的次序：Array.prototype.sort 是稳定排序。 */
+export function sortPoolByResearchRank(items: StockPoolItem[]): StockPoolItem[] {
+  return [...items].sort((left, right) => {
+    const leftKey = poolSortKey(left);
+    const rightKey = poolSortKey(right);
+    for (let index = 0; index < leftKey.length; index += 1) {
+      if (leftKey[index] !== rightKey[index]) return leftKey[index] - rightKey[index];
+    }
+    return 0;
+  });
 }
 
 export type PoolCardBadgeSet = {

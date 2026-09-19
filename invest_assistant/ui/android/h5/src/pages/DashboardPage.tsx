@@ -27,6 +27,7 @@ import {
   trendLevelTier,
   valuationSpaceTier,
   poolStatusCounts,
+  sortPoolByResearchRank,
   type PoolCardBadgeSet,
   type PoolStatusKey,
   type StockTabView
@@ -314,7 +315,8 @@ function StockPoolView() {
   });
   const items = query.data ?? [];
   const counts = poolStatusCounts(items, archivedView);
-  const visible = filterPoolByStatus(items, status);
+  // 排序在筛选之后、分页之前：分档计数走的是未排序的原始列表，两边互不影响。
+  const visible = sortPoolByResearchRank(filterPoolByStatus(items, status));
   const layout = poolPageLayout(visible, page);
   return (
     <SectionCard className="dashboard-flat-section">

@@ -16,7 +16,8 @@ import {
   poolStatusLabel,
   POOL_PAGE_CAPACITY,
   poolPageLayout,
-  nextPoolPage
+  nextPoolPage,
+  sortPoolByResearchRank
 } from "../src/pages/stockPoolGroups";
 import {
   lastDashboardTab,
@@ -38,9 +39,9 @@ const items = [
 ] as StockPoolItem[];
 
 describe("标的 tab 视图切换", () => {
-  it("默认展示最新材料，标的池是第二个可选项", () => {
+  it("标的池排在前，默认仍落在标的材料", () => {
     expect(DEFAULT_STOCK_TAB_VIEW).toBe("materials");
-    expect(STOCK_TAB_VIEWS.map((item) => item.label)).toEqual(["标的材料", "标的池"]);
+    expect(STOCK_TAB_VIEWS.map((item) => item.label)).toEqual(["标的池", "标的材料"]);
   });
 });
 
@@ -83,6 +84,43 @@ describe("看板视图记忆", () => {
     expect(lastStockView()).toBe("pool");
     expect(lastPoolStatus()).toBe("watching");
     resetDashboardViewState();
+  });
+});
+
+describe("标的池排序", () => {
+  // 三年空间 1.0 折成年化超过 20% 是"大"，0.5 是"中"，0.1 是"小"，与角标同一口径。
+  const entry = (id: number, trend: string | null, level: string | null, gap: number | null) =>
+    ({ id, stock_id: id, status: "focused", trend_level: trend, investment_level: level, expectation_gap_rate: gap }) as StockPoolItem;
+
+  it("先按趋势等级排，T0 最强排最前", () => {
+    const sorted = sortPoolByResearchRank([entry(1, "T4", "A", 1.0), entry(2, "T0", "D", 0.1), entry(3, "T2", "C", 0.5)]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
+  });
+
+  it("趋势相同再按评级排", () => {
+    const sorted = sortPoolByResearchRank([entry(1, "T3", "C", 1.0), entry(2, "T3", "S", 0.1), entry(3, "T3", "B", 1.0)]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
+  });
+
+  it("趋势与评级都相同再按估值空间排", () => {
+    const sorted = sortPoolByResearchRank([entry(1, "T3", "B", 0.1), entry(2, "T3", "B", 1.0), entry(3, "T3", "B", 0.5)]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
+  });
+
+  it("认不出的值排在该维度已知档之后，不混进最强的一批", () => {
+    const sorted = sortPoolByResearchRank([entry(1, null, "A", 1.0), entry(2, "T5", "A", 1.0), entry(3, "T1", null, 1.0), entry(4, "T1", "A", null)]);
+    expect(sorted.map((item) => item.id)).toEqual([4, 3, 2, 1]);
+  });
+
+  it("三个维度全相同时保持后端返回的次序", () => {
+    const sorted = sortPoolByResearchRank([entry(7, "T2", "A", 1.0), entry(3, "T2", "A", 1.0), entry(5, "T2", "A", 1.0)]);
+    expect(sorted.map((item) => item.id)).toEqual([7, 3, 5]);
+  });
+
+  it("不改动传入的数组", () => {
+    const source = [entry(1, "T4", "A", 1.0), entry(2, "T0", "D", 0.1)];
+    sortPoolByResearchRank(source);
+    expect(source.map((item) => item.id)).toEqual([1, 2]);
   });
 });
 
