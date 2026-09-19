@@ -1,11 +1,10 @@
 import fs from "node:fs";
-import path from "node:path";
 import vm from "node:vm";
 import { createRequire } from "node:module";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
-const helperPath = path.resolve("src/pages/dashboard/dashboardReports.ts");
+const helperPath = new URL("./dashboardReports.ts", import.meta.url);
 const source = fs.readFileSync(helperPath, "utf8");
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }

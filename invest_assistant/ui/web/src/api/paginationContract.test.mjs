@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const root = "invest_assistant/ui/web/src";
+const root = fileURLToPath(new URL("..", import.meta.url));
 
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -12,7 +13,12 @@ function walk(dir) {
 }
 
 const files = walk(root).filter((path) => /\.(ts|tsx)$/.test(path));
-const sourceByPath = new Map(files.map((path) => [path.replaceAll("\\", "/"), readFileSync(path, "utf8")]));
+const sourceByPath = new Map(
+  files.map((path) => [
+    `invest_assistant/ui/web/src/${path.slice(root.length).replaceAll("\\", "/").replace(/^\/+/, "")}`,
+    readFileSync(path, "utf8")
+  ])
+);
 const allSource = [...sourceByPath.values()].join("\n");
 
 assert.doesNotMatch(allSource, /limit:\s*200\b/, "growth list requests must not use limit: 200");

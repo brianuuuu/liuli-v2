@@ -874,7 +874,7 @@ export function PortfolioPage() {
             dataSource={cashFlows.data}
             columns={cashFlowColumns}
             locale={{ emptyText: <EmptyAction description="暂无出入金记录" /> }}
-            pagination={{ pageSize: 20 }}
+            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
           />
         </WorkbenchCard>
         <WorkbenchCard title="持仓调整">
@@ -885,7 +885,7 @@ export function PortfolioPage() {
             dataSource={positionChanges.data}
             columns={positionChangeColumns}
             locale={{ emptyText: <EmptyAction description="暂无调仓记录；在实盘持仓页调整股数后会自动留痕" /> }}
-            pagination={{ pageSize: 20 }}
+            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
           />
         </WorkbenchCard>
       </div>

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const section = readFileSync("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx", "utf8");
-const styles = readFileSync("invest_assistant/ui/web/src/styles/global.css", "utf8");
+const section = readFileSync(new URL("./CandidatesSection.tsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../../../styles/global.css", import.meta.url), "utf8");
 
-assert.match(section, /scroll=\{\{\s*x:/, "AI 推荐词表格需要保留横向滚动能力");
+// AI 推荐词表格已精简列宽，改用固定表格布局撑满容器，不再需要横向滚动
+assert.match(section, /tableLayout="fixed"/, "AI 推荐词表格使用固定表格布局");
+assert.doesNotMatch(section, /scroll=\{\{\s*x:/, "AI 推荐词表格不应重新引入横向滚动");
 assert.match(styles, /\.ant-table-measure-row/, "全局表格样式必须处理 Ant Table 横向滚动测量行");
 assert.match(
   styles,

@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import path from "node:path";
 
-const source = fs.readFileSync(path.resolve("src/pages/console/sections/JobCard.tsx"), "utf8");
+const source = fs.readFileSync(new URL("./JobCard.tsx", import.meta.url), "utf8");
 
 if (!source.includes("下次")) {
   throw new Error("JobCard should show the next scheduled run label");
