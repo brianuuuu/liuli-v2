@@ -1299,7 +1299,7 @@ def _normalize_score_import_payload(payload: dict) -> dict:
         "total_score",
     ]:
         normalized[field] = _score_import_float(payload.get(field), field)
-    normalized["company_code"] = str(payload.get("company_code") or "").strip()
+    normalized["company_code"] = _bare_company_code(payload.get("company_code"))
     normalized["investment_level"] = str(payload.get("investment_level") or "").strip()
     normalized["core_logic"] = str(payload.get("core_logic") or "").strip()
     normalized["primary_risk"] = str(payload.get("primary_risk") or "").strip()
@@ -1340,12 +1340,23 @@ def _normalize_valuation_import_payload(payload: dict, feedback: KnowledgeResear
     return normalized
 
 
+# 报告里的 company_code 可能带交易所后缀（601689.SH）：研究侧的书写习惯不统一，
+# 后缀只是同一只股票的另一种写法，不该在导入口被拒。落库和反查一律用纯数字代码。
+EXCHANGE_CODE_SUFFIXES = frozenset({"SH", "SZ", "BJ"})
+
+
+def _bare_company_code(value: Any) -> str:
+    code = str(value or "").strip().upper()
+    prefix, separator, suffix = code.partition(".")
+    return prefix if separator and suffix in EXCHANGE_CODE_SUFFIXES else code
+
+
 def _normalize_company_code(value: Any) -> str:
-    code = str(value or "").strip()
+    code = _bare_company_code(value)
     if not code:
         raise ValueError("估值导入缺少字段: company_code")
     if not code.isdigit():
-        raise ValueError("company_code 必须为纯数字")
+        raise ValueError("company_code 必须为纯数字，或纯数字加 .SH/.SZ/.BJ 后缀")
     return code
 
 
@@ -1401,7 +1412,7 @@ def _resolve_score_import_stock(db: Session, company_code: str) -> Stock:
 
 
 def _resolve_import_stock(db: Session, company_code: str, *, target: str) -> Stock:
-    code = str(company_code or "").strip()
+    code = _bare_company_code(company_code)
     if not code:
         raise ValueError(f"{target}导入缺少字段: company_code")
     rows = list(db.scalars(select(Stock).where(Stock.stock_code == code).order_by(Stock.id.asc())))

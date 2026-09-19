@@ -232,6 +232,27 @@ def test_import_research_feedback_rejects_valuation_error_json(tmp_path, monkeyp
         import_research_feedback(db, feedback.id)
 
 
+@pytest.mark.parametrize("supplied_code", ["600055.SH", "600055.sh", "600055"])
+def test_import_research_feedback_accepts_valuation_company_code_with_exchange_suffix(tmp_path, monkeypatch, supplied_code):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        valuation_markdown(company_code=supplied_code),
+        researcher_code="valuator_001",
+        skill_name="liuli-stock-valuator",
+    )
+
+    result = import_research_feedback(db, feedback.id)
+
+    # 后缀只是同一只股票的另一种写法：反查得中，落库统一成纯数字。
+    assert result["valuation"]["company_code"] == "600055"
+    assert db.query(StockValuationSnapshot).one().company_code == "600055"
+
+
 def test_import_research_feedback_rejects_non_numeric_valuation_company_code(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     db = make_session()
@@ -240,13 +261,26 @@ def test_import_research_feedback_rejects_non_numeric_valuation_company_code(tmp
     feedback = create_feedback(
         db,
         "万东医疗-2026-07-05-标的估值报告",
-        valuation_markdown(company_code="600055.SH"),
+        valuation_markdown(company_code="600055.HK"),
         researcher_code="valuator_001",
         skill_name="liuli-stock-valuator",
     )
 
+    # 不认识的后缀不剥：整串拿去做纯数字校验，错误信息才指得准。
     with pytest.raises(ValueError, match="company_code 必须为纯数字"):
         import_research_feedback(db, feedback.id)
+
+
+def test_import_score_report_accepts_company_code_with_exchange_suffix(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(db, "万东医疗-2026-07-05-标的评级报告", score_markdown(company_code="600055.SH"))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["target"] == "stock_score_snapshot"
 
 
 def test_import_research_feedback_rejects_unknown_report_type(tmp_path, monkeypatch):
@@ -472,6 +506,21 @@ def test_import_trend_report_falls_back_to_company_code(tmp_path, monkeypatch):
     db = make_session()
     seed_stocks(db)
     feedback = create_trend_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["trends"][0]["stock_id"] == 1
+
+
+def test_import_trend_report_falls_back_to_company_code_with_exchange_suffix(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed_stocks(db)
+    feedback = create_trend_feedback(
+        db,
+        "万东医疗-2026-07-05-趋势研究",
+        trend_markdown([trend_item(company_code="600055.SH")]),
+    )
 
     result = import_research_feedback(db, feedback.id)
 
