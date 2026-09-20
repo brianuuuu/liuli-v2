@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 内缩决定六边形在桌面图标里占多大：20% 时标记占画布 60%，在圆形遮罩里显得压边，
+     25% 后占 50%，四周留出呼吸。渐变、白线、底色都不动。 -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_liuli_logo"
-    android:inset="20%" />
+    android:inset="25%" />
