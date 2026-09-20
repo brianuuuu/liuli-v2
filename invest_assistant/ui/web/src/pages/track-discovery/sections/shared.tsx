@@ -15,10 +15,10 @@ export const trackWindowOptions = [
 /** 归档 = 软删除，等同回收站，不进任何默认列表。 */
 export const ARCHIVED_STATUS = "archived";
 
+// 跟踪中排在候选之前：列表最常看的是正在跟的那几条，候选是往里补的池子。
 export const thesisStatusOptions = [
-  { value: "candidate", label: "候选" },
   { value: "active", label: "跟踪中" },
-  { value: "paused", label: "暂停观察" },
+  { value: "candidate", label: "候选" },
   { value: ARCHIVED_STATUS, label: "归档" }
 ];
 
@@ -110,7 +110,7 @@ export function formatTime(value?: string | null) {
 }
 
 export function StatusTag({ status }: { status?: string | null }) {
-  const color = status === "active" ? "green" : status === "paused" ? "gold" : status === ARCHIVED_STATUS ? "default" : "blue";
+  const color = status === "active" ? "green" : status === ARCHIVED_STATUS ? "default" : "blue";
   const label = thesisStatusOptions.find((item) => item.value === status)?.label || status || "未知";
   return <Tag color={color}>{label}</Tag>;
 }

@@ -23,7 +23,7 @@ export function CompareSection() {
   const [viewingScore, setViewingScore] = useState<StockScoreComparisonItem | null>(null);
 
   const visibleTracks = useMemo(
-    () => tracks.data.filter((track) => ["candidate", "active", "paused"].includes(track.status)),
+    () => tracks.data.filter((track) => track.status !== "archived"),
     [tracks.data]
   );
 

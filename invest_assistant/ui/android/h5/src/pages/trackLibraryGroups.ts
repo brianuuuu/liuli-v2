@@ -23,13 +23,13 @@ export const DEFAULT_TRACK_STATUS: TrackStatusKey = "all";
 export const ARCHIVED_TRACK_STATUS = "archived";
 export const ALL_TRACK_STATUS = "all";
 
-export type TrackStatusKey = "all" | "candidate" | "active" | "paused" | "archived";
+export type TrackStatusKey = "all" | "active" | "candidate" | "archived";
 
+// 跟踪中排在候选之前：赛道库最常看的是正在跟的那几条，候选是往里补的池子。
 export const TRACK_STATUS_OPTIONS: { value: TrackStatusKey; label: string }[] = [
   { value: "all", label: "全部" },
-  { value: "candidate", label: "候选" },
   { value: "active", label: "跟踪中" },
-  { value: "paused", label: "暂停观察" },
+  { value: "candidate", label: "候选" },
   { value: ARCHIVED_TRACK_STATUS, label: "归档" }
 ];
 
@@ -149,9 +149,8 @@ export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
 export function trackStatusCounts(rows: TrackRowView[]): Record<TrackStatusKey, number> {
   const counts: Record<TrackStatusKey, number> = {
     all: 0,
-    candidate: 0,
     active: 0,
-    paused: 0,
+    candidate: 0,
     archived: 0
   };
   for (const row of rows) {
@@ -160,7 +159,8 @@ export function trackStatusCounts(rows: TrackRowView[]): Record<TrackStatusKey, 
       continue;
     }
     counts.all += 1;
-    if (row.status === "candidate" || row.status === "active" || row.status === "paused") {
+    // 历史数据里可能还有已下线的状态码，计入"全部"但不单独开一档
+    if (row.status === "active" || row.status === "candidate") {
       counts[row.status] += 1;
     }
   }

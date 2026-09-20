@@ -62,7 +62,7 @@ export function PoolSection() {
   );
   const trackOptions = useMemo(
     () => tracks.data
-      .filter((item) => ["candidate", "active", "paused"].includes(item.status))
+      .filter((item) => item.status !== "archived")
       .map((item) => ({ value: item.id, label: item.name })),
     [tracks.data]
   );

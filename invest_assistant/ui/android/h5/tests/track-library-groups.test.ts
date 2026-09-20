@@ -169,12 +169,21 @@ describe("trackStatusCounts", () => {
     const counts = trackStatusCounts([
       row({ id: 1, status: "active" }),
       row({ id: 2, status: "candidate" }),
-      row({ id: 3, status: "paused" }),
+      row({ id: 3, status: "candidate" }),
       row({ id: 4, status: ARCHIVED_TRACK_STATUS })
     ]);
     expect(counts.all).toBe(3);
     expect(counts.archived).toBe(1);
     expect(counts.active).toBe(1);
+    expect(counts.candidate).toBe(2);
+  });
+
+  it("已下线的状态码计入全部，但不单独开一档", () => {
+    // 库里可能还留着 paused 这类历史取值，漏进"全部"总数才不会让人对不上账
+    const counts = trackStatusCounts([row({ id: 1, status: "active" }), row({ id: 2, status: "paused" })]);
+    expect(counts.all).toBe(2);
+    expect(counts.active).toBe(1);
+    expect(counts.candidate).toBe(0);
   });
 });
 
