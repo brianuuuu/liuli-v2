@@ -22,6 +22,9 @@ describe("mobile navigation", () => {
     expect(sectionForPath("/tasks/alerts/8")).toBe("tasks");
     expect(sectionForPath("/notes/5")).toBe("notes");
     expect(sectionForPath("/reports/9")).toBe("dashboard");
+    // 标的和赛道详情都是从看板进去的，原生底栏要停在看板那一档
+    expect(sectionForPath("/stocks/7")).toBe("dashboard");
+    expect(sectionForPath("/tracks/7")).toBe("dashboard");
   });
 
   it("provides deterministic parents for directly opened detail routes", () => {
@@ -30,6 +33,9 @@ describe("mobile navigation", () => {
     expect(parentPathForDetail("/tasks/alerts/8")).toBe("/tasks");
     expect(parentPathForDetail("/tasks/suggestions/11")).toBe("/tasks");
     expect(parentPathForDetail("/reports/9")).toBe("/reports");
+    // 没有这两条，原生返回键拿不到兜底路径会直接不响应，用户退不出详情页
+    expect(parentPathForDetail("/stocks/7")).toBe("/dashboard");
+    expect(parentPathForDetail("/tracks/7")).toBe("/dashboard");
     expect(parentPathForDetail("/dashboard")).toBeNull();
   });
 });

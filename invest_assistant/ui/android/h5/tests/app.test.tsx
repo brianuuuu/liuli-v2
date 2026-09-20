@@ -2131,8 +2131,9 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      // 赛道详情
-      if (/\/api\/track-discovery\/tracks\/7$/.test(url)) {
+      // 赛道详情必须走 /detail：不带的那个路由只返回扁平 TrackRead，
+      // 少了 summary/stocks/materials，详情页会在渲染时抛异常整页白屏
+      if (/\/api\/track-discovery\/tracks\/7\/detail$/.test(url)) {
         return new Response(JSON.stringify({
           track: { id: 7, name: "AI算力", status: "active", industry_phase: "expansion", market_phase: "accelerate" },
           summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89 },
@@ -2183,5 +2184,38 @@ describe("mobile H5 app", () => {
     expect(await screen.findByRole("heading", { name: "AI算力" })).toBeInTheDocument();
     expect(screen.getByText("算力需求从训练转向推理")).toBeInTheDocument();
     expect(screen.getByText("先进封装产能是唯一瓶颈")).toBeInTheDocument();
+    // 必须打到 /detail：不带的那个路由只返回扁平 TrackRead，页面会缺字段。
+    // 光断言渲染结果抓不到这个错——兜底之后地址写错也只是显示 0，所以直接断言请求地址。
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/track-discovery/tracks/7/detail"),
+      expect.anything()
+    );
+  });
+
+  it("赛道详情拿到缺字段的响应也不白屏，返回按钮始终在", async () => {
+    // 回归：曾经把详情接口写成不带 /detail 的那个，返回的扁平 TrackRead 没有
+    // stocks/summary，渲染时抛异常把整个外壳连同返回按钮一起带走，用户退不出去。
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tracks/7";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/track-discovery/tracks/7")) {
+        // 故意只给扁平字段，模拟接口形状对不上
+        return new Response(JSON.stringify({ id: 7, name: "AI算力", status: "active" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 10, offset: 0, has_more: false }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "AI算力" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回" })).toBeInTheDocument();
+    // 计数降级成 0 而不是抛异常
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0);
   });
 });

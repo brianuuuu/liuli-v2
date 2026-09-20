@@ -200,6 +200,41 @@ export function parseTrackSegments(raw?: string | null): TrackSegmentView[] {
   }
 }
 
+/**
+ * 下面几个取数一律对缺字段做兜底。
+ * 这是 WebView：详情页渲染时抛一次异常会把整个外壳连同返回按钮一起带走，
+ * 用户既看不到内容也退不出去。接口形状对不上时宁可显示 0 和空列表。
+ */
 export function activeStockCount(detail: TrackDetail): number {
+  if (!Array.isArray(detail?.stocks)) return 0;
   return detail.stocks.filter((item) => item.status === "active").length;
+}
+
+/** track 本身也可能缺：详情接口路径写错时返回的是扁平对象，没有 track 这一层。 */
+export function detailTrack(detail: TrackDetail): Partial<TrackListItem> {
+  if (detail?.track && typeof detail.track === "object") return detail.track;
+  // 扁平响应里赛道字段就在顶层，尽量还原出名称，至少让页面有个标题
+  return (detail as unknown as Partial<TrackListItem>) ?? {};
+}
+
+export function detailStocks(detail: TrackDetail) {
+  return Array.isArray(detail?.stocks) ? detail.stocks : [];
+}
+
+export function detailMaterials(detail: TrackDetail) {
+  return Array.isArray(detail?.materials) ? detail.materials : [];
+}
+
+export function detailSnapshots(detail: TrackDetail) {
+  return Array.isArray(detail?.trend_snapshots) ? detail.trend_snapshots : [];
+}
+
+export function detailCount(detail: TrackDetail, key: "pending_material_count" | "bound_stock_count"): number {
+  const value = detail?.summary?.[key];
+  return typeof value === "number" ? value : 0;
+}
+
+export function detailHeat(detail: TrackDetail): number | null {
+  const value = detail?.summary?.latest_heat_score;
+  return typeof value === "number" ? value : null;
 }

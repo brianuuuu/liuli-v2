@@ -7,6 +7,12 @@ import { DetailFrame } from "./DetailPages";
 import {
   activeStockCount,
   buildDetailCycleRows,
+  detailCount,
+  detailHeat,
+  detailMaterials,
+  detailSnapshots,
+  detailStocks,
+  detailTrack,
   parseTrackSegments,
   trackLabel,
   TRACK_CYCLE_LABELS,
@@ -75,11 +81,12 @@ export function TrackDetailPage() {
 /** 档案头：赛道名、强度·周期、研究优先级和三项关键计数。 */
 function TrackProfile({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
+  const track = detailTrack(detail);
   return (
     <section className="track-profile">
       <div className="track-profile__head">
         <div>
-          <h2>{detail.track.name || "未命名赛道"}</h2>
+          <h2>{track.name || "未命名赛道"}</h2>
           {latest ? <p>{latest.research_date}{latest.researcher_code ? ` · ${latest.researcher_code}` : ""}</p> : <p>尚无研究结论</p>}
         </div>
         <span className={`track-strength track-strength--${strengthTone(latest?.headline_strength)}`}>
@@ -92,14 +99,14 @@ function TrackProfile({ detail }: { detail: TrackDetail }) {
         </span>
       </div>
       <div className="track-profile__phases">
-        <span>产业 {trackLabel(TRACK_INDUSTRY_PHASE_LABELS, latest?.industry_phase || detail.track.industry_phase)}</span>
-        <span>市场 {trackLabel(TRACK_MARKET_PHASE_LABELS, latest?.market_phase || detail.track.market_phase)}</span>
+        <span>产业 {trackLabel(TRACK_INDUSTRY_PHASE_LABELS, latest?.industry_phase || track.industry_phase)}</span>
+        <span>市场 {trackLabel(TRACK_MARKET_PHASE_LABELS, latest?.market_phase || track.market_phase)}</span>
         <span>{trackLabel(TRACK_PRIORITY_LABELS, latest?.research_priority)}</span>
       </div>
       <div className="track-profile__metrics">
         <div><span>关联标的</span><strong>{activeStockCount(detail)}</strong></div>
-        <div><span>待研判材料</span><strong>{detail.summary.pending_material_count}</strong></div>
-        <div><span>当前热度</span><strong>{detail.summary.latest_heat_score === null || detail.summary.latest_heat_score === undefined ? "-" : formatNumber(detail.summary.latest_heat_score, 0)}</strong></div>
+        <div><span>待研判材料</span><strong>{detailCount(detail, "pending_material_count")}</strong></div>
+        <div><span>当前热度</span><strong>{detailHeat(detail) === null ? "-" : formatNumber(detailHeat(detail), 0)}</strong></div>
       </div>
     </section>
   );
@@ -107,13 +114,14 @@ function TrackProfile({ detail }: { detail: TrackDetail }) {
 
 function OverviewSection({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
+  const track = detailTrack(detail);
   const cycles = buildDetailCycleRows(latest);
   const segments = parseTrackSegments(latest?.segments_json);
   const benefiting = segments.filter((item) => item.stance === "benefiting");
   return (
     <>
       <SectionCard title="核心判断">
-        <p className="track-paragraph">{latest?.core_judgment || detail.track.current_view || "尚无核心判断"}</p>
+        <p className="track-paragraph">{latest?.core_judgment || track.current_view || "尚无核心判断"}</p>
         {latest?.key_contradiction ? (
           <>
             <h4 className="track-subhead">主要矛盾</h4>
@@ -177,12 +185,13 @@ function OverviewSection({ detail }: { detail: TrackDetail }) {
 }
 
 function SnapshotsSection({ detail }: { detail: TrackDetail }) {
-  if (!detail.trend_snapshots.length) {
+  const snapshots = detailSnapshots(detail);
+  if (!snapshots.length) {
     return <SectionCard title="趋势快照"><EmptyState title="暂无趋势快照" detail="导入赛道趋势研究报告后显示" /></SectionCard>;
   }
   return (
     <SectionCard title="趋势快照">
-      {detail.trend_snapshots.map((snapshot) => <SnapshotRow key={snapshot.id} snapshot={snapshot} />)}
+      {snapshots.map((snapshot) => <SnapshotRow key={snapshot.id} snapshot={snapshot} />)}
     </SectionCard>
   );
 }
@@ -216,7 +225,7 @@ function SnapshotRow({ snapshot }: { snapshot: TrackTrendSnapshot }) {
 
 function StocksSection({ detail }: { detail: TrackDetail }) {
   const navigate = useNavigate();
-  const rows = detail.stocks.filter((item) => item.status === "active");
+  const rows = detailStocks(detail).filter((item) => item.status === "active");
   if (!rows.length) {
     return <SectionCard title="关联标的"><EmptyState title="暂无关联标的" detail="在 Web 端确认赛道与标的的绑定关系" /></SectionCard>;
   }
@@ -235,12 +244,13 @@ function StocksSection({ detail }: { detail: TrackDetail }) {
 }
 
 function MaterialsSection({ detail }: { detail: TrackDetail }) {
-  if (!detail.materials.length) {
+  const materials = detailMaterials(detail);
+  if (!materials.length) {
     return <SectionCard title="赛道材料"><EmptyState title="暂无材料" detail="材料来自信息流和知识笔记" /></SectionCard>;
   }
   return (
     <SectionCard title="赛道材料">
-      {detail.materials.map((item) => {
+      {materials.map((item) => {
         // 方向可能为空，presentation 这时返回 undefined，不能直接取 label
         const direction = materialDirectionPresentation(item.direction);
         return (

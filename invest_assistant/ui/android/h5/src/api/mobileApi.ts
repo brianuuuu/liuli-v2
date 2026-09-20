@@ -56,7 +56,8 @@ export const mobileApi = {
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
-  trackDetail: (trackId: number) => apiClient.get<TrackDetail>(`/api/track-discovery/tracks/${trackId}`),
+  // 必须带 /detail：不带的那个路由只返回扁平的 TrackRead，没有 summary/stocks/materials
+  trackDetail: (trackId: number) => apiClient.get<TrackDetail>(`/api/track-discovery/tracks/${trackId}/detail`),
   // 赛道总量是十几条量级，一次取回在端上排序分档，不做分页
   trackList: (limit = 50, status?: string) =>
     apiClient.get<TrackListItem[]>("/api/track-discovery/tracks", status ? { limit, status } : { limit }),
