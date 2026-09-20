@@ -37,14 +37,16 @@ import {
   TRACK_CYCLE_LABELS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
+  TRACK_SORT_OPTIONS,
   TRACK_STATUS_OPTIONS,
   TRACK_TAB_VIEWS,
   buildTrackRow,
   filterTracksByStatus,
-  sortTracksByGrade,
+  sortTracks,
   trackLabel,
   trackStatusCounts,
   type TrackHeatLookup,
+  type TrackSortKey,
   type TrackStatusKey,
   type TrackTabView
 } from "./trackLibraryGroups";
@@ -52,11 +54,13 @@ import {
   lastDashboardTab,
   lastPoolStatus,
   lastStockView,
+  lastTrackSort,
   lastTrackStatus,
   lastTrackView,
   rememberDashboardTab,
   rememberPoolStatus,
   rememberStockView,
+  rememberTrackSort,
   rememberTrackStatus,
   rememberTrackView
 } from "./dashboardViewState";
@@ -269,6 +273,7 @@ function TrackDashboard({ active }: { active: boolean }) {
 function TrackLibraryView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<TrackStatusKey>(lastTrackStatus);
+  const [sort, setSort] = useState<TrackSortKey>(lastTrackSort);
   // 赛道总量是十几条量级，一次取回在端上分档排序，不做分页。归档要显式请求。
   const archivedView = status === ARCHIVED_TRACK_STATUS;
   const listQuery = useQuery({
@@ -287,7 +292,7 @@ function TrackLibraryView() {
   );
   const rows = (listQuery.data ?? []).map((track) => buildTrackRow(track, undefined, heat));
   const counts = trackStatusCounts(rows);
-  const visible = sortTracksByGrade(filterTracksByStatus(rows, status));
+  const visible = sortTracks(filterTracksByStatus(rows, status), sort);
   return (
     <SectionCard className="dashboard-flat-section">
       <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="赛道状态分组">
@@ -300,6 +305,20 @@ function TrackLibraryView() {
             onClick={() => { rememberTrackStatus(option.value); setStatus(option.value); }}
           >
             {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
+          </button>
+        ))}
+      </div>
+      <div className="track-sort-bar" data-swipe-ignore="true" role="group" aria-label="赛道排序">
+        <span>排序</span>
+        {TRACK_SORT_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className={sort === option.value ? "is-active" : ""}
+            aria-pressed={sort === option.value}
+            onClick={() => { rememberTrackSort(option.value); setSort(option.value); }}
+          >
+            {option.label}
           </button>
         ))}
       </div>

@@ -1,7 +1,7 @@
 import type { PoolStatusKey, StockTabView } from "./stockPoolGroups";
 import { DEFAULT_POOL_STATUS, DEFAULT_STOCK_TAB_VIEW } from "./stockPoolGroups";
-import type { TrackStatusKey, TrackTabView } from "./trackLibraryGroups";
-import { DEFAULT_TRACK_STATUS, DEFAULT_TRACK_TAB_VIEW } from "./trackLibraryGroups";
+import type { TrackSortKey, TrackStatusKey, TrackTabView } from "./trackLibraryGroups";
+import { DEFAULT_TRACK_SORT, DEFAULT_TRACK_STATUS, DEFAULT_TRACK_TAB_VIEW } from "./trackLibraryGroups";
 
 /**
  * 看板的所在位置在离开页面时会被卸载，从标的详情返回时需要回到原来的位置，
@@ -13,6 +13,7 @@ type DashboardViewState = {
   poolStatus: PoolStatusKey;
   trackView: TrackTabView;
   trackStatus: TrackStatusKey;
+  trackSort: TrackSortKey;
 };
 
 const state: DashboardViewState = {
@@ -20,7 +21,8 @@ const state: DashboardViewState = {
   stockView: DEFAULT_STOCK_TAB_VIEW,
   poolStatus: DEFAULT_POOL_STATUS,
   trackView: DEFAULT_TRACK_TAB_VIEW,
-  trackStatus: DEFAULT_TRACK_STATUS
+  trackStatus: DEFAULT_TRACK_STATUS,
+  trackSort: DEFAULT_TRACK_SORT
 };
 
 export function rememberDashboardTab(tab: string) {
@@ -63,10 +65,19 @@ export function lastTrackStatus() {
   return state.trackStatus;
 }
 
+export function rememberTrackSort(sort: TrackSortKey) {
+  state.trackSort = sort;
+}
+
+export function lastTrackSort() {
+  return state.trackSort;
+}
+
 export function resetDashboardViewState() {
   state.tab = "today";
   state.stockView = DEFAULT_STOCK_TAB_VIEW;
   state.poolStatus = DEFAULT_POOL_STATUS;
   state.trackView = DEFAULT_TRACK_TAB_VIEW;
   state.trackStatus = DEFAULT_TRACK_STATUS;
+  state.trackSort = DEFAULT_TRACK_SORT;
 }

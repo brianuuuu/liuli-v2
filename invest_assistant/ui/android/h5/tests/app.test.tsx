@@ -2125,7 +2125,7 @@ describe("mobile H5 app", () => {
     ));
   });
 
-  it("赛道库按综合评级排序，点条目进赛道详情", async () => {
+  it("赛道库可在综合评分与当前热度之间切换排序，点条目进赛道详情", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
     vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
@@ -2156,7 +2156,11 @@ describe("mobile H5 app", () => {
       }
       if (url.includes("/api/track-discovery/dashboard")) {
         return new Response(JSON.stringify({
-          heat_rankings: [{ rank: 1, track_id: 7, track_name: "AI算力", current_heat: 89, today_material_count: 0 }]
+          heat_rankings: [
+            // 固态电池评级低但更热：两种排法的顺序因此是相反的
+            { rank: 1, track_id: 9, track_name: "固态电池", current_heat: 120, today_material_count: 0 },
+            { rank: 2, track_id: 7, track_name: "AI算力", current_heat: 89, today_material_count: 0 }
+          ]
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       if (url.includes("/api/console/workbench-today")) {
@@ -2183,10 +2187,17 @@ describe("mobile H5 app", () => {
     expect(screen.getByText("S")).toBeInTheDocument();
     expect(screen.getByText("T1")).toBeInTheDocument();
     // 评级高的排在前面，哪怕接口给的顺序是反的
-    const trackNames = screen.getAllByRole("button").map((item) => item.textContent || "");
-    expect(trackNames.findIndex((text) => text.includes("AI算力"))).toBeLessThan(
-      trackNames.findIndex((text) => text.includes("固态电池"))
-    );
+    const trackOrder = () => screen.getAllByRole("button").map((item) => item.textContent || "");
+    const rankOf = (name: string) => trackOrder().findIndex((text) => text.includes(name));
+    expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池"));
+
+    // 切到当前热度：固态电池评级更低但更热，顺序必须反过来
+    fireEvent.click(screen.getByRole("button", { name: "当前热度" }));
+    await waitFor(() => expect(rankOf("固态电池")).toBeLessThan(rankOf("AI算力")));
+
+    // 切回综合评分，顺序回到按评级排
+    fireEvent.click(screen.getByRole("button", { name: "综合评分" }));
+    await waitFor(() => expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池")));
 
     fireEvent.click(screen.getByText("AI算力"));
     await waitFor(() => expect(window.location.hash).toBe("#/tracks/7"));

@@ -553,6 +553,13 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 .stock-status--watching { background: #fff3e0; color: #b45309; }
 .stock-status--archived { color: var(--subtle); }
 :root[data-theme="dark"] .stock-status--watching { background: #2a2113; color: #f59e0b; }
+/* 排序切换：只有两种排法，摆成一行小字比下拉少一次点击。
+   靠右放是因为左边那行状态分档才是主筛选，排序是次一级的调整。 */
+.track-sort-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: -4px 0 10px; }
+.track-sort-bar > span { margin-right: 2px; color: var(--subtle); font-size: 11px; }
+.track-sort-bar button { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.track-sort-bar button.is-active { background: var(--blue-soft); color: var(--blue); font-weight: 650; }
+
 /* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
 .track-list { display: grid; gap: 8px; }
 .track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }

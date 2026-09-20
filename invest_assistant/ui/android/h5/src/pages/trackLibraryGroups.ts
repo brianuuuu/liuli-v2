@@ -37,6 +37,17 @@ export const TRACK_STATUS_OPTIONS: { value: TrackStatusKey; label: string }[] = 
 const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 };
 const GRADE_UNRESEARCHED = 5;
 
+export type TrackSortKey = "grade" | "heat";
+
+// 两种排法对应两个角标：评级看"值不值得配研究精力"，热度看"市场是不是已经在交易它"。
+// 两者经常背离，所以要能分别排，而不是只给一个综合序。
+export const TRACK_SORT_OPTIONS: { value: TrackSortKey; label: string }[] = [
+  { value: "grade", label: "综合评分" },
+  { value: "heat", label: "当前热度" }
+];
+
+export const DEFAULT_TRACK_SORT: TrackSortKey = "grade";
+
 export const TRACK_CYCLE_LABELS: Record<string, string> = { short: "短期", mid: "中期", long: "长期" };
 
 /** 六维评分的展示顺序和中文名，详情页按这个顺序渲染，换位置只改这里。 */
@@ -127,10 +138,14 @@ export function filterTracksByStatus(rows: TrackRowView[], status: TrackStatusKe
   return rows.filter((item) => item.status === status);
 }
 
+/** 名称兜底：让没有任何研究结论的赛道之间顺序稳定，不随请求抖动。 */
+function byName(a: TrackRowView, b: TrackRowView) {
+  return a.name.localeCompare(b.name, "zh-Hans-CN");
+}
+
 /**
- * 组内排序：评级 → 综合分 → 热度 → 名称。
+ * 按综合评分排：评级 → 综合分 → 热度 → 名称。
  * 综合分已经能完整定序，先按评级分档是为了和卡片角标看到的顺序一致。
- * 名称兜底是为了让没有任何研究结论的赛道之间顺序稳定，不随请求抖动。
  */
 export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
   return [...rows].sort((a, b) => {
@@ -141,8 +156,27 @@ export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
     if (score) return score;
     const heat = (b.heat ?? -1) - (a.heat ?? -1);
     if (heat) return heat;
-    return a.name.localeCompare(b.name, "zh-Hans-CN");
+    return byName(a, b);
   });
+}
+
+/**
+ * 按当前热度排：热度 → 综合分 → 名称。
+ * 热度取不到的排在有热度的之后，和"热度 0"区分开——看板热度是单独一条查询，
+ * 失败或未统计时是缺值，不能当成"没人关注"顶到最后一名之前。
+ */
+export function sortTracksByHeat(rows: TrackRowView[]): TrackRowView[] {
+  return [...rows].sort((a, b) => {
+    const heat = (b.heat ?? -1) - (a.heat ?? -1);
+    if (heat) return heat;
+    const score = (b.overallScore ?? -1) - (a.overallScore ?? -1);
+    if (score) return score;
+    return byName(a, b);
+  });
+}
+
+export function sortTracks(rows: TrackRowView[], key: TrackSortKey): TrackRowView[] {
+  return key === "heat" ? sortTracksByHeat(rows) : sortTracksByGrade(rows);
 }
 
 /** 各分档的条数，显示在分组按钮上。"全部"这一档不含归档。 */

@@ -5,7 +5,9 @@ import {
   buildTrackRow,
   filterTracksByStatus,
   parseTrackSegments,
+  sortTracks,
   sortTracksByGrade,
+  sortTracksByHeat,
   trackLabel,
   trackStatusCounts,
   TRACK_INDUSTRY_PHASE_LABELS,
@@ -161,6 +163,57 @@ describe("sortTracksByGrade", () => {
     const input = [row({ id: 1, grade: "B" }), row({ id: 2, grade: "S" })];
     sortTracksByGrade(input);
     expect(input.map((item) => item.id)).toEqual([1, 2]);
+  });
+});
+
+describe("sortTracksByHeat", () => {
+  it("热度高的排最前", () => {
+    const sorted = sortTracksByHeat([
+      row({ id: 1, heat: 12 }),
+      row({ id: 2, heat: 89 }),
+      row({ id: 3, heat: 45 })
+    ]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
+  });
+
+  it("热度缺失排在有热度的之后，包括热度为 0 的", () => {
+    // 看板热度是单独一条查询，失败或未统计时是缺值，不能当成"没人关注"
+    const sorted = sortTracksByHeat([row({ id: 1, heat: null }), row({ id: 2, heat: 0 })]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
+  });
+
+  it("热度相同时按综合分，再按名称兜底", () => {
+    const sorted = sortTracksByHeat([
+      row({ id: 1, heat: 30, overallScore: 6.1 }),
+      row({ id: 2, heat: 30, overallScore: 8.3 })
+    ]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
+  });
+
+  it("按热度排时不看评级：C 级的热赛道要能排到 S 级前面", () => {
+    const sorted = sortTracksByHeat([
+      row({ id: 1, grade: "S", overallScore: 8.4, heat: 3 }),
+      row({ id: 2, grade: "C", overallScore: 5.2, heat: 91 })
+    ]);
+    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
+  });
+
+  it("不改动入参数组", () => {
+    const input = [row({ id: 1, heat: 1 }), row({ id: 2, heat: 99 })];
+    sortTracksByHeat(input);
+    expect(input.map((item) => item.id)).toEqual([1, 2]);
+  });
+});
+
+describe("sortTracks", () => {
+  it("按键分派到两种排法，默认走综合评分", () => {
+    const rows = [
+      row({ id: 1, grade: "S", overallScore: 8.4, heat: 3 }),
+      row({ id: 2, grade: "C", overallScore: 5.2, heat: 91 })
+    ];
+    expect(sortTracks(rows, "grade").map((item) => item.id)).toEqual([1, 2]);
+    expect(sortTracks(rows, "heat").map((item) => item.id)).toEqual([2, 1]);
+    expect(sortTracks(rows, "grade")).toEqual(sortTracksByGrade(rows));
   });
 });
 
