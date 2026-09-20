@@ -35,6 +35,32 @@ def make_session() -> Session:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)()
 
 
+def trend_snapshot(
+    track_id: int,
+    research_date: date,
+    *,
+    grade: str,
+    heat_tier: str,
+    market_heat: float,
+    **overrides,
+) -> TrackTrendSnapshot:
+    """六维评分全部必填，用例只关心评级和热度档位时其余维度给一个固定值。"""
+    values = {
+        "market_heat_score": market_heat,
+        "growth_speed_score": 7.0,
+        "concentration_score": 7.0,
+        "cycle_resilience_score": 7.0,
+        "current_market_size_score": 7.0,
+        "future_market_size_score": 7.0,
+        "overall_score": 7.0,
+        "track_grade": grade,
+        "heat_tier": heat_tier,
+        "headline_cycle": "long",
+    }
+    values.update(overrides)
+    return TrackTrendSnapshot(track_id=track_id, research_date=research_date, **values)
+
+
 def add_heat(db: Session, tag_id: int, window: str, stat_time: datetime, heat_score: float) -> None:
     db.add(
         TagHeatSnapshot(
@@ -146,9 +172,9 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
             ),
             StockTrackRelation(stock_id=stock.id, track_id=track.id, relation_type="core", conviction=0.9, reason="核心受益", status="active"),
             StockTrackRelation(stock_id=inactive_stock.id, track_id=track.id, relation_type="watch", conviction=0.3, status="disabled"),
-            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 30), headline_cycle="mid", headline_strength="medium", confidence_level="medium"),
-            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 31), headline_cycle="long", headline_strength="medium", confidence_level="high"),
-            TrackTrendSnapshot(track_id=track.id, research_date=date(2026, 5, 31), headline_cycle="long", headline_strength="strong", confidence_level="high", market_capital="执行器链条升温"),
+            trend_snapshot(track.id, date(2026, 5, 30), grade="B", heat_tier="T2", market_heat=5.5),
+            trend_snapshot(track.id, date(2026, 5, 31), grade="A", heat_tier="T1", market_heat=7.5),
+            trend_snapshot(track.id, date(2026, 5, 31), grade="S", heat_tier="T0", market_heat=9.5, market_capital="执行器链条升温"),
         ]
     )
     db.commit()
@@ -168,10 +194,10 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     assert detail["stocks"][0]["stock_name"] == "重点科技"
     assert detail["stocks"][0]["stock_code"] == "300001"
     assert detail["stocks"][1]["stock_name"] == "观察制造"
-    assert detail["latest_snapshot"]["headline_strength"] == "strong"
+    assert detail["latest_snapshot"]["track_grade"] == "S"
     assert detail["latest_snapshot"]["market_capital"] == "执行器链条升温"
     # 同日多份按 id 倒序，最新一份排最前
     assert [item["research_date"] for item in detail["trend_snapshots"]] == [date(2026, 5, 31), date(2026, 5, 31), date(2026, 5, 30)]
-    assert [item["headline_strength"] for item in detail["trend_snapshots"]] == ["strong", "medium", "medium"]
+    assert [item["track_grade"] for item in detail["trend_snapshots"]] == ["S", "A", "B"]
     heat_24h = next(item for item in detail["heat_trends"] if item["window_type"] == "24h")
     assert heat_24h["points"][0]["heat_score"] == 42

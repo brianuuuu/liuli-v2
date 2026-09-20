@@ -33,16 +33,20 @@ import type {
 } from "../../types/api";
 import {
   buildAnalysisCells,
-  buildCycleRows,
+  buildScoreCells,
+  buildScoreRadarOption,
+  buildScoreTimelineOption,
   buildSnapshotSummary,
-  buildStrengthTimelineOption,
   hasResearchContent,
   orderScenarios,
   parseDataSources,
-  splitSegments
+  splitSegments,
+  SCORE_MAX,
+  TRACK_SCORE_DIMENSIONS
 } from "./trackTrendPresentation";
 import {
   confidenceOptions,
+  cycleLabel,
   cycleOptions,
   DirectionTag,
   formatTime,
@@ -50,16 +54,9 @@ import {
   industryPhaseOptions,
   marketPhaseLabel,
   marketPhaseOptions,
-  researchPriorityLabel,
-  researchPriorityOptions,
   StatusTag,
-  strengthLabel,
-  strengthOptions,
-  strengthTagColor,
-  StrengthCycleTag,
   thesisStatusOptions,
-  TrendDirectionTag,
-  trendDirectionOptions
+  TrackGradeTags
 } from "./sections/shared";
 
 const materialTypeLabels: Record<string, string> = {
@@ -75,6 +72,11 @@ const materialStatusLabels: Record<string, string> = {
 
 function numberText(value?: number | null, suffix = "") {
   return value === null || value === undefined ? "-" : `${Number(value).toFixed(2).replace(/\.00$/, "")}${suffix}`;
+}
+
+/** 分数列一律一位小数：表里六列宽度一致，扫一眼就能比出哪一维拖了后腿。 */
+function scoreText(value?: number | null) {
+  return typeof value === "number" ? value.toFixed(1) : "-";
 }
 
 function scenarioLabel(name?: string | null) {
@@ -363,24 +365,23 @@ export function TrackDetailPage() {
           <div className="track-detail-form-grid">
             <Form.Item name="research_date" label="研究日期" rules={[{ required: true, message: "请选择研究日期" }]}><input className="ant-input" type="date" /></Form.Item>
             <Form.Item name="headline_cycle" label="主导周期" rules={[{ required: true, message: "请选择主导周期" }]}><Select options={cycleOptions} /></Form.Item>
-            <Form.Item name="headline_strength" label="主判断强度" rules={[{ required: true, message: "请选择强度" }]}><Select options={strengthOptions} /></Form.Item>
-            <Form.Item name="confidence_level" label="置信度"><Select allowClear options={confidenceOptions} /></Form.Item>
-          </div>
-          <div className="track-detail-form-grid">
-            <Form.Item name="research_priority" label="研究优先级"><Select allowClear options={researchPriorityOptions} /></Form.Item>
-            <Form.Item name="priority_rank" label="同批排名"><InputNumber min={1} style={{ width: "100%" }} /></Form.Item>
             <Form.Item name="industry_phase" label="产业阶段"><Select allowClear options={industryPhaseOptions} /></Form.Item>
             <Form.Item name="market_phase" label="市场阶段"><Select allowClear options={marketPhaseOptions} /></Form.Item>
           </div>
+          {/* 六维评分必填：缺一项就算不出综合分和评级，这条快照在看板上等于不存在。
+              评级和热度档位由后端派生，表单里不出现。 */}
           <div className="track-detail-form-grid compact">
-            <Form.Item name="short_strength" label="短期强度"><Select allowClear options={strengthOptions} /></Form.Item>
-            <Form.Item name="mid_strength" label="中期强度"><Select allowClear options={strengthOptions} /></Form.Item>
-            <Form.Item name="long_strength" label="长期强度"><Select allowClear options={strengthOptions} /></Form.Item>
-          </div>
-          <div className="track-detail-form-grid compact">
-            <Form.Item name="short_direction" label="短期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
-            <Form.Item name="mid_direction" label="中期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
-            <Form.Item name="long_direction" label="长期方向"><Select allowClear options={trendDirectionOptions} /></Form.Item>
+            {TRACK_SCORE_DIMENSIONS.map((item) => (
+              <Form.Item
+                key={item.key}
+                name={item.key}
+                label={item.label}
+                tooltip={item.hint}
+                rules={[{ required: true, message: `请填写${item.label}` }]}
+              >
+                <InputNumber min={0} max={SCORE_MAX} step={0.5} style={{ width: "100%" }} />
+              </Form.Item>
+            ))}
           </div>
           <Form.Item name="core_judgment" label="核心判断"><Input.TextArea rows={3} /></Form.Item>
           <Form.Item name="key_contradiction" label="主要矛盾"><Input.TextArea rows={2} /></Form.Item>
@@ -435,7 +436,16 @@ function TrackIdentityPanel({ data }: { data: TrackDetail }) {
         </div>
         <div className="track-detail-metrics">
           <Metric label="状态" value={<StatusTag status={data.track.status} />} />
-          <Metric label="主判断" value={<StrengthCycleTag strength={data.latest_snapshot?.headline_strength} cycle={data.latest_snapshot?.headline_cycle} />} />
+          <Metric
+            label="评级"
+            value={
+              <TrackGradeTags
+                grade={data.latest_snapshot?.track_grade}
+                tier={data.latest_snapshot?.heat_tier}
+                score={data.latest_snapshot?.overall_score}
+              />
+            }
+          />
           <Metric label="产业阶段" value={industryPhaseLabel(data.track.industry_phase)} />
           <Metric label="市场阶段" value={marketPhaseLabel(data.track.market_phase)} />
           <Metric label="置信度" value={confidenceText(data.track.confidence_level)} />
@@ -500,15 +510,15 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
           <div className="detail-list track-detail-keyfacts">
             <div className="detail-row"><span>最新研究</span><span>{summary?.researchDate || "-"}</span></div>
             <div className="detail-row"><span>研究员</span><span>{summary?.researcherCode || "-"}</span></div>
-            <div className="detail-row"><span>研究优先级</span><span>{researchPriorityLabel(summary?.researchPriority)}{summary?.priorityRank ? ` · 第 ${summary.priorityRank} 位` : ""}</span></div>
-            <div className="detail-row"><span>置信度</span><span>{confidenceText(summary?.confidenceLevel)}</span></div>
+            <div className="detail-row"><span>综合分</span><span>{typeof summary?.overallScore === "number" ? `${summary.overallScore.toFixed(2)} · ${summary.trackGrade || "-"}` : "-"}</span></div>
+            <div className="detail-row"><span>主导周期</span><span>{cycleLabel(summary?.headlineCycle)}</span></div>
             <div className="detail-row"><span>下一验证节点</span><span>{summary?.nextVerification || "-"}</span></div>
             <div className="detail-row"><span>待研判材料</span><span>{data.summary.pending_material_count}</span></div>
           </div>
         </div>
         <div className="track-detail-panel-section">
-          <div className="track-detail-subtitle">三周期判断</div>
-          <CycleJudgmentTable snapshot={latest} />
+          <div className="track-detail-subtitle">六维评分</div>
+          <ScoreProfile snapshot={latest} />
         </div>
         <div className="track-detail-panel-section">
           <div className="track-detail-subtitle">最近重要材料</div>
@@ -520,31 +530,40 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
 }
 
 /**
- * 三周期判断表。主导周期那一行加重标注：卡片上的"强 · 长期"说的是这一行，
- * 不能理解成三个周期都是这个强度。
+ * 六维评分：左边雷达看形状，右边条形看具体分数。两个一起给是因为雷达读不出 7.5 和 8
+ * 的差别，而只有数字又看不出这条赛道是"全面均衡"还是"单项突出"。
  */
-function CycleJudgmentTable({ snapshot }: { snapshot?: TrackTrendSnapshot | null }) {
-  const rows = buildCycleRows(snapshot);
+function ScoreProfile({ snapshot }: { snapshot?: TrackTrendSnapshot | null }) {
+  const { resolvedMode } = useLiuliTheme();
+  const cells = buildScoreCells(snapshot);
+  if (!snapshot) return <EmptyAction description="尚无研究结论" />;
   return (
-    <div className="track-cycle-table">
-      <div className="track-cycle-row track-cycle-row--head">
-        <span>周期</span>
-        <span>强度</span>
-        <span>方向</span>
-        <span>主要依据</span>
-      </div>
-      {rows.map((row) => (
-        <div className={`track-cycle-row${row.isHeadline ? " is-headline" : ""}`} key={row.key}>
-          <span>
-            {row.label}
-            <i className="track-cycle-horizon">{row.horizon}</i>
-            {row.isHeadline ? <Tag color="blue">主导</Tag> : null}
+    <div className="track-score-profile">
+      <InlineChart
+        option={buildScoreRadarOption(snapshot, resolvedMode, {
+          text: chartTextColor(resolvedMode),
+          grid: chartGridColor(resolvedMode)
+        })}
+        height={260}
+      />
+      <div className="track-score-list">
+        {cells.map((cell) => (
+          <div className="track-score-row" key={cell.key}>
+            <span className="track-score-label" title={cell.hint}>{cell.label}</span>
+            <span className="track-score-bar">
+              <i style={{ width: `${((cell.value ?? 0) / SCORE_MAX) * 100}%` }} />
+            </span>
+            <strong>{cell.value === null ? "-" : cell.value.toFixed(1)}</strong>
+          </div>
+        ))}
+        <div className="track-score-row track-score-row--total">
+          <span className="track-score-label">综合分</span>
+          <span className="track-score-bar">
+            <i style={{ width: `${(snapshot.overall_score / SCORE_MAX) * 100}%` }} />
           </span>
-          <span><Tag color={strengthTagColor(row.strength)}>{strengthLabel(row.strength)}</Tag></span>
-          <span><TrendDirectionTag direction={row.direction} /></span>
-          <span className="track-cycle-basis">{row.basis || "-"}</span>
+          <strong>{snapshot.overall_score.toFixed(2)}</strong>
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -799,16 +818,18 @@ function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void })
   const columns: ColumnsType<TrackTrendSnapshot> = [
     { title: "研究日期", dataIndex: "research_date", width: 110 },
     {
-      title: "主判断",
-      key: "headline",
-      width: 100,
-      render: (_, record) => <StrengthCycleTag strength={record.headline_strength} cycle={record.headline_cycle} />
+      title: "评级",
+      key: "grade",
+      width: 126,
+      render: (_, record) => <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
     },
-    { title: "优先级", dataIndex: "research_priority", width: 90, render: (value) => researchPriorityLabel(value) },
-    { title: "短期", key: "short", width: 110, render: (_, record) => <span>{strengthLabel(record.short_strength)} <TrendDirectionTag direction={record.short_direction} /></span> },
-    { title: "中期", key: "mid", width: 110, render: (_, record) => <span>{strengthLabel(record.mid_strength)} <TrendDirectionTag direction={record.mid_direction} /></span> },
-    { title: "长期", key: "long", width: 110, render: (_, record) => <span>{strengthLabel(record.long_strength)} <TrendDirectionTag direction={record.long_direction} /></span> },
-    { title: "置信度", dataIndex: "confidence_level", width: 80, render: confidenceText },
+    { title: "主导周期", dataIndex: "headline_cycle", width: 86, render: (value) => cycleLabel(value) },
+    { title: "热度", dataIndex: "market_heat_score", width: 72, render: scoreText },
+    { title: "速度", dataIndex: "growth_speed_score", width: 72, render: scoreText },
+    { title: "集中度", dataIndex: "concentration_score", width: 78, render: scoreText },
+    { title: "周期韧性", dataIndex: "cycle_resilience_score", width: 86, render: scoreText },
+    { title: "当前规模", dataIndex: "current_market_size_score", width: 86, render: scoreText },
+    { title: "远期规模", dataIndex: "future_market_size_score", width: 86, render: scoreText },
     { title: "核心判断", dataIndex: "core_judgment", ellipsis: true, render: (value) => value || "-" },
     { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" }
   ];
@@ -819,7 +840,7 @@ function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void })
           <span>趋势快照</span>
           <Button size="small" type="primary" onClick={onAdd}>新增快照</Button>
         </div>
-        {data.trend_snapshots.length ? <InlineChart option={buildStrengthTimelineOption(data.trend_snapshots, resolvedMode, { text: chartTextColor(resolvedMode), grid: chartGridColor(resolvedMode) })} height={220} /> : <EmptyAction description="暂无趋势快照" />}
+        {data.trend_snapshots.length ? <InlineChart option={buildScoreTimelineOption(data.trend_snapshots, resolvedMode, { text: chartTextColor(resolvedMode), grid: chartGridColor(resolvedMode) })} height={220} /> : <EmptyAction description="暂无趋势快照" />}
         <Table rowKey="id" size="small" dataSource={data.trend_snapshots} columns={columns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1180 }} />
       </div>
     </WorkbenchCard>

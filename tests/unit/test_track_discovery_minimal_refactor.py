@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -229,33 +230,115 @@ def test_status_history_records_track_phase_change(db_session: Session):
     assert history.changed_by == "manual"
 
 
+def snapshot_payload(research_date: date, **overrides) -> TrackTrendSnapshotCreate:
+    """六维评分是必填项，用例只写自己关心的那几维，其余给中性分。"""
+    values = {
+        "research_date": research_date,
+        "headline_cycle": "long",
+        "market_heat_score": 5.0,
+        "growth_speed_score": 5.0,
+        "concentration_score": 5.0,
+        "cycle_resilience_score": 5.0,
+        "current_market_size_score": 5.0,
+        "future_market_size_score": 5.0,
+    }
+    values.update(overrides)
+    return TrackTrendSnapshotCreate(**values)
+
+
+def test_trend_snapshot_derives_overall_score_grade_and_heat_tier(db_session: Session):
+    """派生三项由服务端从六维算出：调用方传不进来，也不可能和分数对不上。"""
+    track = create_track(db_session, TrackCreate(name="AI算力"))
+
+    snapshot = create_trend_snapshot(
+        db_session,
+        track["id"],
+        snapshot_payload(
+            date(2026, 7, 5),
+            market_heat_score=9.5,
+            growth_speed_score=9.0,
+            concentration_score=8.0,
+            cycle_resilience_score=6.5,
+            current_market_size_score=7.5,
+            future_market_size_score=9.0,
+        ),
+    )
+
+    # (9.5 + 9 + 8 + 6.5 + 7.5 + 9) / 6 = 8.25 -> S；市场热度 9.5 -> T0
+    assert snapshot.overall_score == 8.25
+    assert snapshot.track_grade == "S"
+    assert snapshot.heat_tier == "T0"
+
+
+def test_trend_snapshot_grade_and_tier_move_with_scores(db_session: Session):
+    """评级看六维平均，热度档位只看市场热度：两者各自独立，经常背离。"""
+    track = create_track(db_session, TrackCreate(name="固态电池"))
+
+    # 基本面扎实但市场还没发现：S 级 T4
+    unnoticed = create_trend_snapshot(
+        db_session,
+        track["id"],
+        snapshot_payload(
+            date(2026, 7, 5),
+            market_heat_score=1.0,
+            growth_speed_score=9.5,
+            concentration_score=9.5,
+            cycle_resilience_score=9.5,
+            current_market_size_score=9.5,
+            future_market_size_score=9.5,
+        ),
+    )
+    assert unnoticed.track_grade == "S"
+    assert unnoticed.heat_tier == "T4"
+
+    # 正在被炒作但基本面一般：D 级 T0
+    hyped = create_trend_snapshot(
+        db_session,
+        track["id"],
+        snapshot_payload(
+            date(2026, 7, 6),
+            market_heat_score=10.0,
+            growth_speed_score=3.0,
+            concentration_score=3.0,
+            cycle_resilience_score=3.0,
+            current_market_size_score=3.0,
+            future_market_size_score=3.0,
+        ),
+    )
+    assert hyped.track_grade == "D"
+    assert hyped.heat_tier == "T0"
+
+
+def test_trend_snapshot_rejects_out_of_range_score(db_session: Session):
+    """越界分数当场报错：夹到边界会把量纲错误原样写进评级，人却看不出来。"""
+    with pytest.raises(ValidationError):
+        snapshot_payload(date(2026, 7, 5), market_heat_score=12)
+    with pytest.raises(ValidationError):
+        snapshot_payload(date(2026, 7, 5), market_heat_score=-1)
+
+
 def test_trend_snapshots_are_listed_latest_first_and_backfill_track(db_session: Session):
     track = create_track(db_session, TrackCreate(name="机器人", confidence_level="medium"))
 
     create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(
-            research_date=date(2026, 5, 26),
+        snapshot_payload(
+            date(2026, 5, 26),
             headline_cycle="mid",
-            headline_strength="medium",
             core_judgment="全球自动化仍在渗透",
             industry_phase="expansion",
             market_phase="ferment",
-            confidence_level="medium",
         ),
     )
     latest = create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(
-            research_date=date(2026, 5, 27),
-            headline_cycle="long",
-            headline_strength="strong",
+        snapshot_payload(
+            date(2026, 5, 27),
             core_judgment="人形机器人进入量产验证",
             industry_phase="expansion",
             market_phase="accelerate",
-            confidence_level="high",
         ),
     )
 
@@ -269,7 +352,6 @@ def test_trend_snapshots_are_listed_latest_first_and_backfill_track(db_session: 
     assert row.latest_snapshot_id == latest.id
     assert row.current_view == "人形机器人进入量产验证"
     assert row.market_phase == "accelerate"
-    assert row.confidence_level == "high"
 
 
 def test_same_day_correction_replaces_earlier_snapshot(db_session: Session):
@@ -278,10 +360,9 @@ def test_same_day_correction_replaces_earlier_snapshot(db_session: Session):
     create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(
-            research_date=date(2026, 5, 27),
+        snapshot_payload(
+            date(2026, 5, 27),
             headline_cycle="mid",
-            headline_strength="medium",
             core_judgment="装车进度待观察",
             market_phase="ferment",
         ),
@@ -289,12 +370,12 @@ def test_same_day_correction_replaces_earlier_snapshot(db_session: Session):
     correction = create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(
-            research_date=date(2026, 5, 27),
+        snapshot_payload(
+            date(2026, 5, 27),
             headline_cycle="mid",
-            headline_strength="strong",
             core_judgment="修正：装车节点提前，判断上调",
             market_phase="accelerate",
+            growth_speed_score=9.0,
         ),
     )
 
@@ -306,8 +387,8 @@ def test_same_day_correction_replaces_earlier_snapshot(db_session: Session):
     # 列表同样按 (research_date desc, id desc)，修补报告排在当天上一份之前
     rows = list_trend_snapshots(db_session, track["id"])
     assert rows[0].id == correction.id
-    assert rows[0].headline_strength == "strong"
-    assert rows[1].headline_strength == "medium"
+    assert rows[0].growth_speed_score == 9.0
+    assert rows[1].growth_speed_score == 5.0
 
 
 def test_backfill_skips_older_snapshot(db_session: Session):
@@ -316,12 +397,12 @@ def test_backfill_skips_older_snapshot(db_session: Session):
     latest = create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(research_date=date(2026, 5, 27), headline_cycle="long", headline_strength="strong", market_phase="accelerate"),
+        snapshot_payload(date(2026, 5, 27), market_phase="accelerate"),
     )
     create_trend_snapshot(
         db_session,
         track["id"],
-        TrackTrendSnapshotCreate(research_date=date(2026, 5, 20), headline_cycle="short", headline_strength="weak", market_phase="latent"),
+        snapshot_payload(date(2026, 5, 20), headline_cycle="short", market_phase="latent"),
     )
 
     row = db_session.get(Track, track["id"])
@@ -336,7 +417,22 @@ def test_candidate_delete_cleans_new_track_children_and_stock_bindings(db_sessio
     db_session.commit()
     db_session.add(StockTrackRelation(stock_id=stock.id, track_id=track["id"], status="active"))
     db_session.add(TrackMaterial(track_id=track["id"], material_type="knowledge_note", material_id=1, status="pending"))
-    db_session.add(TrackTrendSnapshot(track_id=track["id"], research_date=date(2026, 5, 27), headline_cycle="long", headline_strength="strong"))
+    db_session.add(
+        TrackTrendSnapshot(
+            track_id=track["id"],
+            research_date=date(2026, 5, 27),
+            headline_cycle="long",
+            market_heat_score=5.0,
+            growth_speed_score=5.0,
+            concentration_score=5.0,
+            cycle_resilience_score=5.0,
+            current_market_size_score=5.0,
+            future_market_size_score=5.0,
+            overall_score=5.0,
+            track_grade="C",
+            heat_tier="T2",
+        )
+    )
     db_session.add(TrackStatusHistory(track_id=track["id"], new_status="candidate"))
     db_session.commit()
 

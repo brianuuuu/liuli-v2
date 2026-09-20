@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v34：赛道结论从"强/中/弱"改为六维量化评分：`track_trend_snapshot` 新增 `market_heat_score`、`growth_speed_score`、`concentration_score`、`cycle_resilience_score`、`current_market_size_score`、`future_market_size_score` 六个 0—10 分，以及派生的 `overall_score`（六项等权平均）、`track_grade`（S/A/B/C/D）、`heat_tier`（T0—T4，T0 最热）。六维一律"分高=更有利"，`cycle_resilience_score` 存的是穿越周期的能力而非周期振幅，`concentration_score` 高表示格局收敛；口径与阈值只在 `track_discovery/scoring.py` 一份，派生三项由 service 在写入时算好，不接受调用方传值。同批删除 13 列：`headline_strength`、`research_priority`、`priority_rank`、`confidence_level` 以及三周期的 9 列，研究优先级改由评级推导，赛道卡角标从"强 · 长期"改为「评级 + 热度档位」两个角标，`headline_cycle` 保留作副标题。赛道列表接口随行下发评级、热度档位和综合分，看板与赛道库排序改走评级和综合分。
 - v33：组合管理新增 `portfolio_position_change` 调仓记录表，并通过只读工具 `portfolio.list_position_changes` 对外提供按时间段的调仓数据供复盘使用。调仓的定义是个股持仓数量的变动，不引入成交概念，不记买卖价格、方向和费用；持仓的新增、修改、删除都会自动留痕，调仓日期和调仓理由在调整股数时选填，现金仍由 `portfolio_cash_flow` 的现金校准单独维护。调仓记录页由该表驱动，替换原先的占位空状态，并补上组合选择器与实盘持仓页共用同一个当前组合。
 - v32：对外 MCP 面向外部投研工具做接口收敛：标签热度趋势按 `window_type`（24h/7d/30d，默认 7d）过滤，不再返回混窗口序列；标的和赛道详情默认只返回精简集，材料、公告、笔记、标签和历史序列改为 `sections` 显式索取并按条数上限裁剪，裁剪信息通过 `{字段}_total` 和 `truncated` 回传；信息流查询增加 `start_time`/`end_time` 时间范围和正文截断 `content_chars`；日 K 单独放宽到 800 根；赛道列表补 `offset`，报告库列表补标题关键词和报告口径过滤；查不到对象统一抛错，错误消息带 `[FORBIDDEN]`/`[NOT_FOUND]`/`[INVALID_ARGUMENT]`/`[INTERNAL]` 前缀；研究回流写入校验 `source`、`status` 取值和 `researcher_code` 是否存在。返回裁剪只做在 MCP 包装层，业务 service 对 Web 和 H5 的返回结构不变。
 - v31：对外 MCP 增加只读工具 `stock_analysis.list_pool`，作为外部 client 获取 `stock_id` 的入口，按证券代码、名称、拼音、简称在标的池范围内模糊匹配，返回结果同时带出已绑定的 `track_ids`；`stock_analysis.get_stock_profile` 与 `get_daily_bars` 的工具描述改为指向该入口，不再要求 client 自行猜测 ID。
@@ -2217,19 +2218,22 @@ track_trend_snapshot
 - researcher_code
 - report_id              -- 报告原文回溯
 
--- 卡片层：赛道卡上的"强 · 长期"直接读这两列，不从三周期二次推导
-- headline_cycle         -- short / mid / long，本次主导逻辑周期
-- headline_strength      -- strong / medium / weak / insufficient
-- core_judgment          -- 核心判断：未来变化、主驱动、当前定价
-- research_priority      -- priority / tracking / deprioritized
-- priority_rank          -- 同批多赛道排名，未排名为 NULL
-- confidence_level       -- low / medium / high
+-- 六维量化评分，全部 0—10，必填。一律"分高 = 更有利"，否则算术平均没有意义
+- market_heat_score         -- 市场热度：资金与叙事当前的关注程度
+- growth_speed_score        -- 发展速度：产业与需求的扩张斜率
+- concentration_score       -- 行业集中度：10 = 格局收敛、龙头有定价权
+- cycle_resilience_score    -- 周期韧性：10 = 弱周期、能穿越周期（不是周期振幅）
+- current_market_size_score -- 当前市场规模：已兑现的可寻址规模
+- future_market_size_score  -- 远期市场规模：3—5 年可兑现空间
 
--- 三周期判断，扁平 9 列
-- short_strength / short_direction / short_basis
-- mid_strength   / mid_direction   / mid_basis
-- long_strength  / long_direction  / long_basis
-   -- direction: strengthening / stable / weakening，首次研究为 NULL
+-- 派生三列，由 scoring.derive_track_scores 在写入时算好，不接受外部传值
+- overall_score          -- 六项等权平均
+- track_grade            -- S / A / B / C / D，由 overall_score 分档
+- heat_tier              -- T0 / T1 / T2 / T3 / T4，只由 market_heat_score 决定，T0 最热
+
+-- 卡片层：两个角标读 track_grade 和 heat_tier，副标题读主导周期
+- headline_cycle         -- short / mid / long，本次判断站在哪个时间尺度
+- core_judgment          -- 核心判断：未来变化、主驱动、当前定价
 
 -- 六项核心分析
 - demand_space           -- 需求与产业空间
@@ -2266,7 +2270,17 @@ VARCHAR(50) 建，PostgreSQL 直接拒收整条快照，才回头加宽的。
 segments_json / scenarios_json / data_sources_json 存 TEXT 不用 JSONB：SQLite 和 PG 跑同一套代码。
 代表公司只作报告原文留存，可检索的标的绑定归 stock_track_relation，这里不开第二个 owner。
 
-三周期用扁平列不用子表：周期恒定是 3 个、永远同写同读，子表只会让详情页和看板多一次 join。
+评分口径、评级和热度档位的阈值只在 track_discovery/scoring.py 一份。派生三列是冗余存储，
+存下来是为了看板按评级筛选排序走 SQL，不必把全部快照捞进内存再算；代价是改阈值要重算历史快照。
+
+六维必填：缺一维就算不出综合分和评级，赛道卡的两个角标会空着，这条快照在看板上等于不存在，
+因此不按"缺字段也先入库"处理。越界分数整条拒绝，不夹到边界。
+
+评级和热度档位必须并排展示，不合成一个角标：评级回答"值不值得配研究精力"，热度档位回答
+"市场是不是已经在交易它"。S 级 T4 是还没被发现的方向，C 级 T0 是正在被炒作的方向，背离本身就是结论。
+
+研究优先级不单独存字段：S/A 即优先研究，B 即持续跟踪，C/D 即降低关注。两套口径并存时，
+看板排序和报告结论必然打架。同批赛道的先后由综合分表达，不另开排名字段。
 ```
 
 不再使用：
@@ -2274,6 +2288,13 @@ segments_json / scenarios_json / data_sources_json 存 TEXT 不用 JSONB：SQLit
 ```text
 analysis_date / market_space / market_size / growth_rate / heat_summary / ai_summary
 opportunity_points / watch_signals / score
+
+headline_strength   -- 强/中/弱已由 track_grade 承接
+research_priority   -- 由评级推导，不再单独存
+priority_rank       -- 同批先后由 overall_score 表达
+confidence_level    -- 快照上不再保留，track.confidence_level 仍可人工维护
+short_* / mid_* / long_*   -- 三周期 9 列，量化后由发展速度和周期韧性承接，
+                           -- 三个尺度的判断写进 core_judgment 和六项分析
 ```
 
 赛道热度来源：
@@ -4947,7 +4968,7 @@ id, track_id, material_type, material_id, direction, importance_level, status, n
 字段：
 
 ```text
-id, track_id, research_date, researcher_code, report_id, headline_cycle, headline_strength, core_judgment, research_priority, priority_rank, confidence_level, short_strength, short_direction, short_basis, mid_strength, mid_direction, mid_basis, long_strength, long_direction, long_basis, demand_space, supply_competition, profit_cashflow, policy_catalyst, market_capital, pricing_expectation_gap, key_contradiction, segments_json, industry_phase, market_phase, scenarios_json, next_verification, risk_falsification, change_vs_last, data_gaps, data_sources_json, created_at
+id, track_id, research_date, researcher_code, report_id, market_heat_score, growth_speed_score, concentration_score, cycle_resilience_score, current_market_size_score, future_market_size_score, overall_score, track_grade, heat_tier, headline_cycle, core_judgment, demand_space, supply_competition, profit_cashflow, policy_catalyst, market_capital, pricing_expectation_gap, key_contradiction, segments_json, industry_phase, market_phase, scenarios_json, next_verification, risk_falsification, change_vs_last, data_gaps, data_sources_json, created_at
 ```
 
 #### `track_status_history`：赛道状态历史表，记录赛道状态和阶段变化

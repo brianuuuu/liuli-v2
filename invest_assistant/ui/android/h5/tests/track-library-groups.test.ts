@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   ARCHIVED_TRACK_STATUS,
-  buildDetailCycleRows,
+  buildDetailScoreRows,
   buildTrackRow,
   filterTracksByStatus,
   parseTrackSegments,
-  sortTracksByPriority,
+  sortTracksByGrade,
   trackLabel,
   trackStatusCounts,
-  TRACK_STRENGTH_LABELS,
+  TRACK_INDUSTRY_PHASE_LABELS,
   type TrackRowView
 } from "../src/pages/trackLibraryGroups";
 import type { TrackListItem, TrackTrendSnapshot } from "../src/types/api";
@@ -23,7 +23,15 @@ function snapshot(overrides: Partial<TrackTrendSnapshot> = {}): TrackTrendSnapsh
     track_id: 1,
     research_date: "2026-07-05",
     headline_cycle: "long",
-    headline_strength: "strong",
+    market_heat_score: 8.5,
+    growth_speed_score: 9,
+    concentration_score: 8,
+    cycle_resilience_score: 6.5,
+    current_market_size_score: 7.5,
+    future_market_size_score: 9,
+    overall_score: 8.08,
+    track_grade: "S",
+    heat_tier: "T1",
     ...overrides
   } as TrackTrendSnapshot;
 }
@@ -33,9 +41,10 @@ function row(overrides: Partial<TrackRowView> = {}): TrackRowView {
     id: 1,
     name: "赛道",
     status: "active",
-    headlineStrength: null,
+    grade: null,
+    heatTier: null,
+    overallScore: null,
     headlineCycle: null,
-    researchPriority: null,
     coreJudgment: "尚无研究结论",
     industryPhase: null,
     marketPhase: null,
@@ -56,7 +65,21 @@ describe("buildTrackRow", () => {
     const view = buildTrackRow(track({ current_view: "人工写的判断" }), undefined, {});
     expect(view.coreJudgment).toBe("人工写的判断");
     expect(view.researched).toBe(false);
-    expect(view.headlineStrength).toBeNull();
+    expect(view.grade).toBeNull();
+  });
+
+  it("列表项自带的评级也算研究过：赛道库列表不会带完整快照", () => {
+    const view = buildTrackRow(track({ track_grade: "A", heat_tier: "T2", overall_score: 7.2 }), undefined, {});
+    expect(view.grade).toBe("A");
+    expect(view.heatTier).toBe("T2");
+    expect(view.overallScore).toBe(7.2);
+    expect(view.researched).toBe(true);
+  });
+
+  it("两边都有时以快照为准", () => {
+    const view = buildTrackRow(track({ track_grade: "C", overall_score: 5.1 }), snapshot(), {});
+    expect(view.grade).toBe("S");
+    expect(view.overallScore).toBe(8.08);
   });
 
   it("两者都没有时给占位，不返回空串", () => {
@@ -96,30 +119,30 @@ describe("filterTracksByStatus", () => {
   });
 });
 
-describe("sortTracksByPriority", () => {
-  it("优先研究排最前，未研究的排最后", () => {
-    const sorted = sortTracksByPriority([
-      row({ id: 1, researchPriority: null }),
-      row({ id: 2, researchPriority: "deprioritized" }),
-      row({ id: 3, researchPriority: "priority" }),
-      row({ id: 4, researchPriority: "tracking" })
+describe("sortTracksByGrade", () => {
+  it("评级高的排最前，未研究的排最后", () => {
+    const sorted = sortTracksByGrade([
+      row({ id: 1, grade: null }),
+      row({ id: 2, grade: "C" }),
+      row({ id: 3, grade: "S" }),
+      row({ id: 4, grade: "A" })
     ]);
     expect(sorted.map((item) => item.id)).toEqual([3, 4, 2, 1]);
   });
 
-  it("同优先级内按强度排", () => {
-    const sorted = sortTracksByPriority([
-      row({ id: 1, researchPriority: "priority", headlineStrength: "weak" }),
-      row({ id: 2, researchPriority: "priority", headlineStrength: "strong" }),
-      row({ id: 3, researchPriority: "priority", headlineStrength: "medium" })
+  it("同评级内按综合分排", () => {
+    const sorted = sortTracksByGrade([
+      row({ id: 1, grade: "A", overallScore: 7.1 }),
+      row({ id: 2, grade: "A", overallScore: 7.9 }),
+      row({ id: 3, grade: "A", overallScore: 7.4 })
     ]);
     expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
   });
 
-  it("强度也相同时按热度，热度缺失排在有热度之后", () => {
-    const sorted = sortTracksByPriority([
-      row({ id: 1, researchPriority: "priority", headlineStrength: "strong", heat: null }),
-      row({ id: 2, researchPriority: "priority", headlineStrength: "strong", heat: 40 })
+  it("综合分也相同时按热度，热度缺失排在有热度之后", () => {
+    const sorted = sortTracksByGrade([
+      row({ id: 1, grade: "S", overallScore: 8.2, heat: null }),
+      row({ id: 2, grade: "S", overallScore: 8.2, heat: 40 })
     ]);
     expect(sorted.map((item) => item.id)).toEqual([2, 1]);
   });
@@ -128,15 +151,15 @@ describe("sortTracksByPriority", () => {
     // 只断言确定性，不断言具体字母序：localeCompare 的排序依赖 Node 的 ICU 数据，
     // 写死顺序会让这条用例在不同环境下飘。稳定才是名称兜底的目的。
     const names = ["机器人", "AI算力", "固态电池"];
-    const forward = sortTracksByPriority(names.map((name, index) => row({ id: index + 1, name })));
-    const reversed = sortTracksByPriority([...names].reverse().map((name, index) => row({ id: index + 1, name })));
+    const forward = sortTracksByGrade(names.map((name, index) => row({ id: index + 1, name })));
+    const reversed = sortTracksByGrade([...names].reverse().map((name, index) => row({ id: index + 1, name })));
     expect(forward.map((item) => item.name)).toEqual(reversed.map((item) => item.name));
     expect(new Set(forward.map((item) => item.name))).toEqual(new Set(names));
   });
 
   it("不改动入参数组", () => {
-    const input = [row({ id: 1, researchPriority: "tracking" }), row({ id: 2, researchPriority: "priority" })];
-    sortTracksByPriority(input);
+    const input = [row({ id: 1, grade: "B" }), row({ id: 2, grade: "S" })];
+    sortTracksByGrade(input);
     expect(input.map((item) => item.id)).toEqual([1, 2]);
   });
 });
@@ -155,15 +178,28 @@ describe("trackStatusCounts", () => {
   });
 });
 
-describe("buildDetailCycleRows", () => {
-  it("恒定三行，主导周期被标出来", () => {
-    const rows = buildDetailCycleRows(snapshot({ headline_cycle: "mid", mid_strength: "strong" }));
-    expect(rows.map((item) => item.key)).toEqual(["short", "mid", "long"]);
-    expect(rows.map((item) => item.isHeadline)).toEqual([false, true, false]);
+describe("buildDetailScoreRows", () => {
+  it("恒定六行，顺序固定", () => {
+    const rows = buildDetailScoreRows(snapshot({ market_heat_score: 6 }));
+    expect(rows.map((item) => item.key)).toEqual([
+      "market_heat_score",
+      "growth_speed_score",
+      "concentration_score",
+      "cycle_resilience_score",
+      "current_market_size_score",
+      "future_market_size_score"
+    ]);
+    expect(rows[0].value).toBe(6);
   });
 
-  it("没有快照也给三行骨架", () => {
-    expect(buildDetailCycleRows(null)).toHaveLength(3);
+  it("没有快照也给六行骨架，值是 null 不是 0", () => {
+    const rows = buildDetailScoreRows(null);
+    expect(rows).toHaveLength(6);
+    expect(rows.every((item) => item.value === null)).toBe(true);
+  });
+
+  it("0 分是真实分数，不被当成缺值", () => {
+    expect(buildDetailScoreRows(snapshot({ market_heat_score: 0 }))[0].value).toBe(0);
   });
 });
 
@@ -182,9 +218,9 @@ describe("parseTrackSegments", () => {
 
 describe("trackLabel", () => {
   it("认识的码翻成中文，不认识的原样返回", () => {
-    expect(trackLabel(TRACK_STRENGTH_LABELS, "strong")).toBe("强");
-    expect(trackLabel(TRACK_STRENGTH_LABELS, "insufficient")).toBe("证据不足");
-    expect(trackLabel(TRACK_STRENGTH_LABELS, "unknown-code")).toBe("unknown-code");
-    expect(trackLabel(TRACK_STRENGTH_LABELS, null)).toBe("—");
+    expect(trackLabel(TRACK_INDUSTRY_PHASE_LABELS, "expansion")).toBe("扩张");
+    expect(trackLabel(TRACK_INDUSTRY_PHASE_LABELS, "contraction")).toBe("收缩");
+    expect(trackLabel(TRACK_INDUSTRY_PHASE_LABELS, "unknown-code")).toBe("unknown-code");
+    expect(trackLabel(TRACK_INDUSTRY_PHASE_LABELS, null)).toBe("—");
   });
 });

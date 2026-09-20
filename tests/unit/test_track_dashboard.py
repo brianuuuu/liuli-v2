@@ -92,17 +92,20 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
                 track_id=robot.id,
                 research_date=date(2026, 5, 31),
                 headline_cycle="long",
-                headline_strength="strong",
                 core_judgment="订单兑现进入验证期",
-                research_priority="priority",
-                short_strength="medium",
-                mid_strength="strong",
-                long_strength="strong",
+                market_heat_score=8.0,
+                growth_speed_score=9.0,
+                concentration_score=7.0,
+                cycle_resilience_score=6.0,
+                current_market_size_score=6.5,
+                future_market_size_score=9.5,
+                overall_score=7.67,
+                track_grade="A",
+                heat_tier="T1",
                 key_contradiction="核心零部件国产替代节奏",
                 next_verification="Q3 订单交付",
                 industry_phase="expansion",
                 market_phase="accelerate",
-                confidence_level="high",
             ),
         ]
     )
@@ -126,9 +129,13 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert dashboard["latest_materials"][0]["track_name"] == "机器人"
     assert dashboard["latest_materials"][0]["material_type"] == "source_item"
     assert dashboard["analysis_summary"]["track_name"] == "机器人"
-    assert dashboard["analysis_summary"]["headline_strength"] == "strong"
+    assert dashboard["analysis_summary"]["track_grade"] == "A"
+    assert dashboard["analysis_summary"]["heat_tier"] == "T1"
+    assert dashboard["analysis_summary"]["overall_score"] == 7.67
     assert dashboard["analysis_summary"]["headline_cycle"] == "long"
-    assert dashboard["analysis_summary"]["research_priority"] == "priority"
+    # 两个角标同时下发：评级和热度档位经常背离，看板不能只给一个
+    assert dashboard["heat_rankings"][0]["track_grade"] == "A"
+    assert dashboard["heat_rankings"][0]["heat_tier"] == "T1"
     assert "heat_trends" not in dashboard
 
 

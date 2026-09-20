@@ -36,10 +36,18 @@ export type TrackMaterialListOptions = {
   offset?: number;
 };
 
-export type TrackTrendSnapshotPayload = Partial<Omit<TrackTrendSnapshot, "id" | "track_id" | "created_at">> & {
+// 综合分、评级、热度档位是后端派生的，请求体里带了也不会被采纳，所以从 payload 里排除。
+export type TrackTrendSnapshotPayload = Partial<
+  Omit<TrackTrendSnapshot, "id" | "track_id" | "created_at" | "overall_score" | "track_grade" | "heat_tier">
+> & {
   research_date: string;
   headline_cycle: TrackTrendSnapshot["headline_cycle"];
-  headline_strength: TrackTrendSnapshot["headline_strength"];
+  market_heat_score: number;
+  growth_speed_score: number;
+  concentration_score: number;
+  cycle_resilience_score: number;
+  current_market_size_score: number;
+  future_market_size_score: number;
 };
 
 export type TrackTagStockBindingPayload = {

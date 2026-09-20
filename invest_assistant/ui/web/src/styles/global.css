@@ -3008,46 +3008,74 @@ body {
   margin: 0;
 }
 
-/* 三周期判断表：主导周期那一行要一眼看出来，卡片上的"强 · 长期"说的就是它 */
-.track-cycle-table {
-  display: grid;
-  gap: 1px;
-  background: var(--ll-border-soft);
-  border: 1px solid var(--ll-border-soft);
-  border-radius: 6px;
-  overflow: hidden;
+/* 赛道卡的两个角标并排：评级在左，热度档位在右，中间不留多余间距 */
+.track-grade-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.track-cycle-row {
+.track-grade-tags .ant-tag {
+  margin-inline-end: 0;
+}
+
+/* 六维评分：左边雷达看形状，右边条形读具体分数，两个一起才读得出"均衡还是单项突出" */
+.track-score-profile {
   display: grid;
-  grid-template-columns: 150px 92px 92px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+
+.track-score-list {
+  display: grid;
+  gap: 10px;
+}
+
+.track-score-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 44px;
   gap: 12px;
   align-items: center;
-  padding: 9px 12px;
-  background: var(--ll-panel);
   font-size: 13px;
 }
 
-.track-cycle-row--head {
+.track-score-label {
+  overflow: hidden;
+  color: var(--ll-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-score-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
   background: var(--ll-panel-subtle);
-  color: var(--ll-muted);
-  font-size: 12px;
 }
 
-.track-cycle-row.is-headline {
-  background: var(--ll-accent-soft);
+.track-score-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--ll-accent);
 }
 
-.track-cycle-horizon {
-  margin-left: 6px;
-  color: var(--ll-muted);
-  font-size: 12px;
-  font-style: normal;
+.track-score-row strong {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
-.track-cycle-basis {
-  color: var(--ll-muted);
-  line-height: 1.6;
+.track-score-row--total {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.track-score-row--total .track-score-label {
+  color: var(--ll-text);
+  font-weight: 600;
 }
 
 /* 六项核心分析：固定六格，缺值也占位，同屏高度才不会参差 */
@@ -3272,8 +3300,13 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .track-cycle-row {
-    grid-template-columns: 120px 76px 76px minmax(0, 1fr);
+  /* 窄屏雷达和条形并排会把两边都压扁，改成上下堆叠 */
+  .track-score-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .track-score-row {
+    grid-template-columns: 80px minmax(0, 1fr) 40px;
     gap: 8px;
   }
 

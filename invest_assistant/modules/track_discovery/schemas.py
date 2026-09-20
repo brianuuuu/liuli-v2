@@ -2,6 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from invest_assistant.modules.track_discovery.scoring import SCORE_MAX, SCORE_MIN
+
 
 MATERIAL_TYPES = {"source_item", "knowledge_note"}
 MATERIAL_DIRECTIONS = {"support", "weaken", "neutral", "noise"}
@@ -11,10 +13,6 @@ CONFIDENCE_LEVELS = {"low", "medium", "high"}
 # 枚举一律英文小写码，中文展示留给 Web 层：中文入库在 PG 下一个字占 3 字节，
 # 会把 VARCHAR(16) 撑爆，前端也得靠中文串做比较和筛选。
 TRACK_CYCLES = {"short", "mid", "long"}
-# 证据不足独立成值，不强行归进中或弱。
-TRACK_STRENGTHS = {"strong", "medium", "weak", "insufficient"}
-TRACK_DIRECTIONS = {"strengthening", "stable", "weakening"}
-RESEARCH_PRIORITIES = {"priority", "tracking", "deprioritized"}
 INDUSTRY_PHASES = {"intro", "expansion", "mature", "contraction"}
 MARKET_PHASES = {"latent", "start", "ferment", "accelerate", "climax", "divergence", "recede"}
 
@@ -78,6 +76,12 @@ class TrackUpdate(BaseModel):
 class TrackRead(TrackCreate):
     id: int
     latest_snapshot_id: int | None = None
+    # 最新快照的两个角标 + 排序用的综合分，随列表一起下发，赛道卡不用再逐条查快照。
+    # 未研究的赛道三项都是 null，不要在这里补 0 分或 D 级。
+    track_grade: str | None = None
+    heat_tier: str | None = None
+    overall_score: float | None = None
+    headline_cycle: str | None = None
     tag: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -192,29 +196,27 @@ class TrackStatusHistoryRead(BaseModel):
 
 
 class TrackTrendSnapshotCreate(BaseModel):
-    """一份赛道趋势研究报告的结论。除身份和卡片三项外全部可空：
-    报告原文经 report_id 可回溯，不值得为少一个字段让整条快照落不了库。
+    """一份赛道趋势研究报告的结论。
+
+    必填是身份两项加六个评分：评分缺一项就算不出综合分、评级和热度档位，赛道卡的两个
+    角标会空着，这条快照在看板上等于不存在，所以不按"缺字段也先入库"处理。其余长文本
+    照旧可空，报告原文经 report_id 可回溯。
+
+    综合分、评级、热度档位是服务端派生的，不在这里接收：允许传值就会出现分数和评级对不上
+    的快照，而这两者对不上时没人知道该信哪个。
     """
 
     research_date: date
     headline_cycle: str
-    headline_strength: str
+    market_heat_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    growth_speed_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    concentration_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    cycle_resilience_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    current_market_size_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    future_market_size_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
     researcher_code: str | None = None
     report_id: int | None = None
     core_judgment: str | None = None
-    research_priority: str | None = None
-    priority_rank: int | None = None
-    confidence_level: str | None = None
-
-    short_strength: str | None = None
-    short_direction: str | None = None
-    short_basis: str | None = None
-    mid_strength: str | None = None
-    mid_direction: str | None = None
-    mid_basis: str | None = None
-    long_strength: str | None = None
-    long_direction: str | None = None
-    long_basis: str | None = None
 
     demand_space: str | None = None
     supply_competition: str | None = None
@@ -241,26 +243,6 @@ class TrackTrendSnapshotCreate(BaseModel):
     def validate_headline_cycle(cls, value: str) -> str:
         return _validate_choice(value, TRACK_CYCLES, "headline_cycle")
 
-    @field_validator("headline_strength", "short_strength", "mid_strength", "long_strength")
-    @classmethod
-    def validate_strength(cls, value: str | None) -> str | None:
-        return _validate_choice(value, TRACK_STRENGTHS, "strength")
-
-    @field_validator("short_direction", "mid_direction", "long_direction")
-    @classmethod
-    def validate_direction(cls, value: str | None) -> str | None:
-        return _validate_choice(value, TRACK_DIRECTIONS, "direction")
-
-    @field_validator("confidence_level")
-    @classmethod
-    def validate_confidence_level(cls, value: str | None) -> str | None:
-        return _validate_choice(value, CONFIDENCE_LEVELS, "confidence_level")
-
-    @field_validator("research_priority")
-    @classmethod
-    def validate_research_priority(cls, value: str | None) -> str | None:
-        return _validate_choice(value, RESEARCH_PRIORITIES, "research_priority")
-
     @field_validator("industry_phase")
     @classmethod
     def validate_industry_phase(cls, value: str | None) -> str | None:
@@ -271,17 +253,14 @@ class TrackTrendSnapshotCreate(BaseModel):
     def validate_market_phase(cls, value: str | None) -> str | None:
         return _validate_choice(value, MARKET_PHASES, "market_phase")
 
-    @field_validator("priority_rank")
-    @classmethod
-    def validate_priority_rank(cls, value: int | None) -> int | None:
-        if value is not None and value <= 0:
-            raise ValueError("priority_rank must be a positive integer or null")
-        return value
-
 
 class TrackTrendSnapshotRead(TrackTrendSnapshotCreate):
     id: int
     track_id: int
+    # 派生三项只读不写，写入端由 scoring 算好，见 TrackTrendSnapshotCreate 的说明。
+    overall_score: float
+    track_grade: str
+    heat_tier: str
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

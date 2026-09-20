@@ -2,11 +2,8 @@ import { Tag } from "antd";
 import type {
   TrackCandidate,
   TrackCycle,
-  TrackDirection,
   TrackIndustryPhase,
-  TrackMarketPhase,
-  TrackResearchPriority,
-  TrackStrength
+  TrackMarketPhase
 } from "../../../types/api";
 
 export const trackWindowOptions = [
@@ -44,29 +41,10 @@ export const marketPhaseOptions: { value: TrackMarketPhase; label: string }[] = 
   { value: "recede", label: "退潮" }
 ];
 
-export const strengthOptions: { value: TrackStrength; label: string }[] = [
-  { value: "strong", label: "强" },
-  { value: "medium", label: "中" },
-  { value: "weak", label: "弱" },
-  { value: "insufficient", label: "证据不足" }
-];
-
 export const cycleOptions: { value: TrackCycle; label: string }[] = [
   { value: "short", label: "短期" },
   { value: "mid", label: "中期" },
   { value: "long", label: "长期" }
-];
-
-export const trendDirectionOptions: { value: TrackDirection; label: string }[] = [
-  { value: "strengthening", label: "强化" },
-  { value: "stable", label: "平稳" },
-  { value: "weakening", label: "弱化" }
-];
-
-export const researchPriorityOptions: { value: TrackResearchPriority; label: string }[] = [
-  { value: "priority", label: "优先研究" },
-  { value: "tracking", label: "持续跟踪" },
-  { value: "deprioritized", label: "降低关注" }
 ];
 
 function optionLabel<T extends string>(options: { value: T; label: string }[], value?: string | null) {
@@ -76,33 +54,48 @@ function optionLabel<T extends string>(options: { value: T; label: string }[], v
 
 export const industryPhaseLabel = (value?: string | null) => optionLabel(industryPhaseOptions, value);
 export const marketPhaseLabel = (value?: string | null) => optionLabel(marketPhaseOptions, value);
-export const strengthLabel = (value?: string | null) => optionLabel(strengthOptions, value);
 export const cycleLabel = (value?: string | null) => optionLabel(cycleOptions, value);
-export const trendDirectionLabel = (value?: string | null) => optionLabel(trendDirectionOptions, value);
-export const researchPriorityLabel = (value?: string | null) => optionLabel(researchPriorityOptions, value);
 
-export function strengthTagColor(strength?: string | null) {
-  if (strength === "strong") return "red";
-  if (strength === "medium") return "orange";
-  if (strength === "weak") return "blue";
+// 评级越高越暖：S 红、A 橙、B 蓝、C/D 灰。和热度档位共用一套冷暖，两个角标并排时
+// 颜色差异表达的是"强弱"，不是"两个不同的维度"。
+export function gradeTagColor(grade?: string | null) {
+  if (grade === "S") return "red";
+  if (grade === "A") return "orange";
+  if (grade === "B") return "blue";
   return "default";
 }
 
-/** 赛道卡上的"强 · 长期"：强度对应的是 headline 周期，不代表另外两个周期也是这个强度。 */
-export function StrengthCycleTag({ strength, cycle }: { strength?: string | null; cycle?: string | null }) {
-  if (!strength) return <Tag color="default">待研究</Tag>;
-  return (
-    <Tag color={strengthTagColor(strength)}>
-      {strengthLabel(strength)}
-      {cycle ? ` · ${cycleLabel(cycle)}` : ""}
-    </Tag>
-  );
+export function heatTierTagColor(tier?: string | null) {
+  if (tier === "T0") return "red";
+  if (tier === "T1") return "orange";
+  if (tier === "T2") return "blue";
+  return "default";
 }
 
-export function TrendDirectionTag({ direction }: { direction?: string | null }) {
-  if (!direction) return <span>-</span>;
-  const color = direction === "strengthening" ? "green" : direction === "weakening" ? "red" : "default";
-  return <Tag color={color}>{trendDirectionLabel(direction)}</Tag>;
+/**
+ * 赛道卡的两个角标：评级说"值不值得配研究精力"，热度档位说"市场是不是已经在交易它"。
+ * 两者经常背离，S 级 T4 是还没被发现，C 级 T0 是正在被炒作，所以必须并排显示，
+ * 不能合成一个综合角标。
+ */
+export function TrackGradeTags({
+  grade,
+  tier,
+  score
+}: {
+  grade?: string | null;
+  tier?: string | null;
+  score?: number | null;
+}) {
+  if (!grade) return <Tag color="default">待研究</Tag>;
+  return (
+    <span className="track-grade-tags">
+      <Tag color={gradeTagColor(grade)}>
+        {grade}
+        {typeof score === "number" ? ` ${score.toFixed(1)}` : ""}
+      </Tag>
+      {tier ? <Tag color={heatTierTagColor(tier)}>{tier}</Tag> : null}
+    </span>
+  );
 }
 
 export const confidenceOptions = [

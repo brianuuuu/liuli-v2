@@ -2,7 +2,10 @@ import type { TrackDetail, TrackListItem, TrackTrendSnapshot } from "../types/ap
 
 /**
  * 赛道库的分组、排序与文案。
- * 上部按 track.status 分组（默认"全部"），组内按研究优先级分档排序。
+ * 上部按 track.status 分组（默认"全部"），组内按综合评级排序。
+ *
+ * 评级和热度档位的阈值只在后端 scoring.py 一份，这里一律读接口下发的 track_grade /
+ * heat_tier，不在前端按分数重算。
  */
 
 export type TrackTabView = "library" | "materials";
@@ -30,38 +33,24 @@ export const TRACK_STATUS_OPTIONS: { value: TrackStatusKey; label: string }[] = 
   { value: ARCHIVED_TRACK_STATUS, label: "归档" }
 ];
 
-/** 优先研究排最前，没有研究结论的排最后。数字越小越靠前。 */
-const PRIORITY_ORDER: Record<string, number> = {
-  priority: 0,
-  tracking: 1,
-  deprioritized: 2
-};
-const PRIORITY_UNRESEARCHED = 3;
-
-const STRENGTH_ORDER: Record<string, number> = {
-  strong: 0,
-  medium: 1,
-  weak: 2,
-  insufficient: 3
-};
+/** S 排最前，没有研究结论的排最后。数字越小越靠前。 */
+const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 };
+const GRADE_UNRESEARCHED = 5;
 
 export const TRACK_CYCLE_LABELS: Record<string, string> = { short: "短期", mid: "中期", long: "长期" };
-export const TRACK_STRENGTH_LABELS: Record<string, string> = {
-  strong: "强",
-  medium: "中",
-  weak: "弱",
-  insufficient: "证据不足"
-};
-export const TRACK_DIRECTION_LABELS: Record<string, string> = {
-  strengthening: "强化",
-  stable: "平稳",
-  weakening: "弱化"
-};
-export const TRACK_PRIORITY_LABELS: Record<string, string> = {
-  priority: "优先研究",
-  tracking: "持续跟踪",
-  deprioritized: "降低关注"
-};
+
+/** 六维评分的展示顺序和中文名，详情页按这个顺序渲染，换位置只改这里。 */
+export const TRACK_SCORE_DIMENSIONS = [
+  { key: "market_heat_score", label: "市场热度" },
+  { key: "growth_speed_score", label: "发展速度" },
+  { key: "concentration_score", label: "行业集中度" },
+  { key: "cycle_resilience_score", label: "周期韧性" },
+  { key: "current_market_size_score", label: "当前市场规模" },
+  { key: "future_market_size_score", label: "远期市场规模" }
+] as const;
+
+export const TRACK_SCORE_MAX = 10;
+
 export const TRACK_INDUSTRY_PHASE_LABELS: Record<string, string> = {
   intro: "导入",
   expansion: "扩张",
@@ -88,9 +77,12 @@ export type TrackRowView = {
   id: number;
   name: string;
   status: string;
-  headlineStrength?: string | null;
+  /** 卡片左角标：综合评级。没有研究结论时为 null，卡片显示"待研究"。 */
+  grade?: string | null;
+  /** 卡片右角标：市场热度档位，T0 最热。 */
+  heatTier?: string | null;
+  overallScore: number | null;
   headlineCycle?: string | null;
-  researchPriority?: string | null;
   coreJudgment: string;
   industryPhase?: string | null;
   marketPhase?: string | null;
@@ -100,24 +92,30 @@ export type TrackRowView = {
 
 export type TrackHeatLookup = Record<number, number>;
 
+/**
+ * 列表接口已经带上了最新快照的评级、热度档位和综合分，snapshot 只在详情页那种
+ * 手里已经有完整快照的场景传入；两边都有时以快照为准。
+ */
 export function buildTrackRow(
   track: TrackListItem,
   snapshot: TrackTrendSnapshot | undefined,
   heat: TrackHeatLookup
 ): TrackRowView {
+  const grade = snapshot?.track_grade ?? track.track_grade ?? null;
   return {
     id: track.id,
     name: track.name || "未命名赛道",
     status: track.status,
-    headlineStrength: snapshot?.headline_strength ?? null,
-    headlineCycle: snapshot?.headline_cycle ?? null,
-    researchPriority: snapshot?.research_priority ?? null,
+    grade,
+    heatTier: snapshot?.heat_tier ?? track.heat_tier ?? null,
+    overallScore: snapshot?.overall_score ?? track.overall_score ?? null,
+    headlineCycle: snapshot?.headline_cycle ?? track.headline_cycle ?? null,
     // 快照的核心判断优先，退回 track 上回填的当前判断，都没有才显示占位
     coreJudgment: snapshot?.core_judgment || track.current_view || "尚无研究结论",
     industryPhase: snapshot?.industry_phase || track.industry_phase || null,
     marketPhase: snapshot?.market_phase || track.market_phase || null,
     heat: heat[track.id] ?? null,
-    researched: Boolean(snapshot)
+    researched: Boolean(grade)
   };
 }
 
@@ -130,19 +128,17 @@ export function filterTracksByStatus(rows: TrackRowView[], status: TrackStatusKe
 }
 
 /**
- * 组内排序：研究优先级 → 强度 → 热度 → 名称。
+ * 组内排序：评级 → 综合分 → 热度 → 名称。
+ * 综合分已经能完整定序，先按评级分档是为了和卡片角标看到的顺序一致。
  * 名称兜底是为了让没有任何研究结论的赛道之间顺序稳定，不随请求抖动。
  */
-export function sortTracksByPriority(rows: TrackRowView[]): TrackRowView[] {
+export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
   return [...rows].sort((a, b) => {
-    const priority =
-      (PRIORITY_ORDER[a.researchPriority || ""] ?? PRIORITY_UNRESEARCHED) -
-      (PRIORITY_ORDER[b.researchPriority || ""] ?? PRIORITY_UNRESEARCHED);
-    if (priority) return priority;
-    const strength =
-      (STRENGTH_ORDER[a.headlineStrength || ""] ?? STRENGTH_ORDER.insufficient + 1) -
-      (STRENGTH_ORDER[b.headlineStrength || ""] ?? STRENGTH_ORDER.insufficient + 1);
-    if (strength) return strength;
+    const grade =
+      (GRADE_ORDER[a.grade || ""] ?? GRADE_UNRESEARCHED) - (GRADE_ORDER[b.grade || ""] ?? GRADE_UNRESEARCHED);
+    if (grade) return grade;
+    const score = (b.overallScore ?? -1) - (a.overallScore ?? -1);
+    if (score) return score;
     const heat = (b.heat ?? -1) - (a.heat ?? -1);
     if (heat) return heat;
     return a.name.localeCompare(b.name, "zh-Hans-CN");
@@ -171,13 +167,12 @@ export function trackStatusCounts(rows: TrackRowView[]): Record<TrackStatusKey, 
   return counts;
 }
 
-/** 详情页概览要的三周期行，与 Web 端同构。 */
-export function buildDetailCycleRows(snapshot?: TrackTrendSnapshot | null) {
-  return [
-    { key: "short", label: "短期", strength: snapshot?.short_strength, direction: snapshot?.short_direction, basis: snapshot?.short_basis },
-    { key: "mid", label: "中期", strength: snapshot?.mid_strength, direction: snapshot?.mid_direction, basis: snapshot?.mid_basis },
-    { key: "long", label: "长期", strength: snapshot?.long_strength, direction: snapshot?.long_direction, basis: snapshot?.long_basis }
-  ].map((row) => ({ ...row, isHeadline: snapshot?.headline_cycle === row.key }));
+/** 详情页的六维评分行，与 Web 端同构。缺值给 null 显示占位，不补 0。 */
+export function buildDetailScoreRows(snapshot?: TrackTrendSnapshot | null) {
+  return TRACK_SCORE_DIMENSIONS.map((item) => {
+    const value = snapshot?.[item.key];
+    return { key: item.key, label: item.label, value: typeof value === "number" ? value : null };
+  });
 }
 
 export type TrackSegmentView = {

@@ -37,13 +37,11 @@ import {
   TRACK_CYCLE_LABELS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
-  TRACK_PRIORITY_LABELS,
   TRACK_STATUS_OPTIONS,
-  TRACK_STRENGTH_LABELS,
   TRACK_TAB_VIEWS,
   buildTrackRow,
   filterTracksByStatus,
-  sortTracksByPriority,
+  sortTracksByGrade,
   trackLabel,
   trackStatusCounts,
   type TrackHeatLookup,
@@ -289,7 +287,7 @@ function TrackLibraryView() {
   );
   const rows = (listQuery.data ?? []).map((track) => buildTrackRow(track, undefined, heat));
   const counts = trackStatusCounts(rows);
-  const visible = sortTracksByPriority(filterTracksByStatus(rows, status));
+  const visible = sortTracksByGrade(filterTracksByStatus(rows, status));
   return (
     <SectionCard className="dashboard-flat-section">
       <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="赛道状态分组">
@@ -313,20 +311,23 @@ function TrackLibraryView() {
             <button type="button" className="track-list-row" key={row.id} onClick={() => navigate(`/tracks/${row.id}`)}>
               <div className="track-list-row__head">
                 <strong>{row.name}</strong>
-                <span className={`track-strength track-strength--${row.headlineStrength === "strong" ? "strong" : row.headlineStrength === "medium" ? "medium" : row.headlineStrength === "weak" ? "weak" : "unknown"}`}>
-                  {row.researched ? (
-                    <>
-                      {trackLabel(TRACK_STRENGTH_LABELS, row.headlineStrength)}
-                      <i>{trackLabel(TRACK_CYCLE_LABELS, row.headlineCycle)}</i>
-                    </>
-                  ) : "待研究"}
-                </span>
+                {/* 两个角标：评级说值不值得配研究精力，T 级说市场是不是已经在交易它。
+                    两者经常背离，所以并排显示，不合成一个。 */}
+                {row.researched ? (
+                  <span className="track-badges">
+                    <i className={`track-badge track-badge--grade-${row.grade}`}>{row.grade}</i>
+                    {row.heatTier ? <i className={`track-badge track-badge--tier-${row.heatTier}`}>{row.heatTier}</i> : null}
+                  </span>
+                ) : (
+                  <span className="track-badges"><i className="track-badge track-badge--empty">待研究</i></span>
+                )}
               </div>
               <p className="track-list-row__judgment">{row.coreJudgment}</p>
               <div className="track-list-row__meta">
                 <span>{trackLabel(TRACK_INDUSTRY_PHASE_LABELS, row.industryPhase)}</span>
                 <span>{trackLabel(TRACK_MARKET_PHASE_LABELS, row.marketPhase)}</span>
-                <span>{trackLabel(TRACK_PRIORITY_LABELS, row.researchPriority)}</span>
+                <span>{row.overallScore === null ? "综合分 —" : `综合分 ${row.overallScore.toFixed(1)}`}</span>
+                <span>{trackLabel(TRACK_CYCLE_LABELS, row.headlineCycle)}</span>
                 <em>{row.heat === null ? "热度 —" : `热度 ${Math.round(row.heat)}`}</em>
               </div>
             </button>

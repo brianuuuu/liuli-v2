@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,6 +54,9 @@ class TrackTrendSnapshot(Base):
     与 stock_trend_snapshot 同构：一份研究员报告等于一条快照，报告原文经 report_id 回溯。
     所有判断描述一律 Text，只有枚举码用 String——stock_trend_snapshot 就是因为把判断
     描述按 VARCHAR(50) 建，PostgreSQL 直接拒收整条快照，才回头加宽的。
+
+    结论层是六维量化评分：六个 0—10 分 + 派生的综合分、评级、热度档位。口径和阈值在
+    scoring.py，派生列由 service 在写入时算好，不接受调用方传值。
     """
 
     __tablename__ = "track_trend_snapshot"
@@ -65,25 +68,24 @@ class TrackTrendSnapshot(Base):
     researcher_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     report_id: Mapped[int | None] = mapped_column(ForeignKey("report.id"), nullable=True, index=True)
 
-    # 卡片层：赛道卡上的"强 · 长期"直接读这两列，不从三周期里二次推导。
-    headline_cycle: Mapped[str] = mapped_column(String(16), nullable=False)
-    headline_strength: Mapped[str] = mapped_column(String(16), nullable=False)
-    core_judgment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    research_priority: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
-    # 只在做过同批多赛道排名时才有值，未排名为 null。
-    priority_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    confidence_level: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 六维评分，全部 0—10 且一律"分高=更有利"：周期韧性 10=弱周期穿越周期，
+    # 行业集中度 10=格局收敛龙头有定价权。读反了平均分就没有意义，见 scoring.py。
+    market_heat_score: Mapped[float] = mapped_column(Float, nullable=False)
+    growth_speed_score: Mapped[float] = mapped_column(Float, nullable=False)
+    concentration_score: Mapped[float] = mapped_column(Float, nullable=False)
+    cycle_resilience_score: Mapped[float] = mapped_column(Float, nullable=False)
+    current_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
+    future_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # 三周期判断：周期恒定是 3 个、永远同写同读，扁平列比子表少一次 join。
-    short_strength: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
-    short_direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    short_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
-    mid_strength: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
-    mid_direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    mid_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
-    long_strength: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
-    long_direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    long_basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 派生列：六项平均、综合分评级、市场热度档位。冗余存一份是为了看板按评级筛选排序
+    # 走 SQL，不用把全部快照捞进内存再算。写入路径统一由 scoring.derive_track_scores 生成。
+    overall_score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    track_grade: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    heat_tier: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+
+    # 卡片副标题：本次判断的主导周期。强度已由评级承接，这里只说"结论站在哪个时间尺度"。
+    headline_cycle: Mapped[str] = mapped_column(String(16), nullable=False)
+    core_judgment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 六项核心分析，固定框架，Web 按六宫格渲染。
     demand_space: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -146,7 +148,41 @@ TRACK_STATUS_HISTORY_ADDED_COLUMNS = {
 }
 
 
+# 六维评分上线前的列，靠它判断本地 track_trend_snapshot 是不是旧结构。
+LEGACY_TRACK_TREND_COLUMN = "headline_strength"
+
+
+def _rebuild_legacy_track_trend_snapshot(engine: Engine) -> None:
+    """本地 SQLite 的旧快照表直接重建。
+
+    旧表的 headline_strength 是 NOT NULL，新代码不再写这一列，留着会让每一次插入都失败；
+    SQLite 又不能逐列 DROP，只能整表重建。表里一旦有数据就报错中止：那批研究结论没有
+    六维评分，重建等于丢掉，去向要人来定，不在启动路径上静默处理。
+
+    删表和建表在同一个事务里：分成两个事务时，建表失败会留下一个没有快照表的库。
+    """
+    # report_id 是指向 report 的外键且没写死类型，建表时要从 report 列上取。
+    # report 表没进 metadata 时，SQLAlchemy 只能拿到 NullType 并直接拒绝生成 DDL。
+    import invest_assistant.modules.basic.report_library.models  # noqa: F401
+
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.execute(text("PRAGMA table_info(track_trend_snapshot)")).all()}
+        if not columns or LEGACY_TRACK_TREND_COLUMN not in columns:
+            return
+        rows = int(conn.execute(text("SELECT count(*) FROM track_trend_snapshot")).scalar() or 0)
+        if rows:
+            raise RuntimeError(
+                f"track_trend_snapshot 还是六维评分之前的旧结构，且有 {rows} 行数据。"
+                "重建会丢掉这些研究结论，已中止。请先导出或迁移这批数据再启动。"
+            )
+        conn.execute(text("DROP TABLE track_trend_snapshot"))
+        TrackTrendSnapshot.__table__.create(bind=conn)
+
+
 def ensure_track_discovery_schema(engine: Engine) -> None:
+    if engine.dialect.name == "sqlite":
+        _rebuild_legacy_track_trend_snapshot(engine)
+
     for table in (TrackMaterial.__table__, TrackTrendSnapshot.__table__):
         for index in table.indexes:
             index.create(bind=engine, checkfirst=True)

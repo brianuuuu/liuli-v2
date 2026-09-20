@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../c
 import { DetailFrame } from "./DetailPages";
 import {
   activeStockCount,
-  buildDetailCycleRows,
+  buildDetailScoreRows,
   detailCount,
   detailHeat,
   detailMaterials,
@@ -16,11 +16,9 @@ import {
   parseTrackSegments,
   trackLabel,
   TRACK_CYCLE_LABELS,
-  TRACK_DIRECTION_LABELS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
-  TRACK_PRIORITY_LABELS,
-  TRACK_STRENGTH_LABELS
+  TRACK_SCORE_MAX
 } from "./trackLibraryGroups";
 import type { TrackDetail, TrackTrendSnapshot } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
@@ -35,12 +33,21 @@ const TRACK_DETAIL_SECTIONS: { value: TrackDetailSection; label: string }[] = [
   { value: "materials", label: "材料" }
 ];
 
-/** 强度决定颜色：强红、中橙、弱蓝、证据不足灰。和 Web 端同一套语义。 */
-function strengthTone(value?: string | null) {
-  if (value === "strong") return "strong";
-  if (value === "medium") return "medium";
-  if (value === "weak") return "weak";
-  return "unknown";
+/**
+ * 赛道卡的两个角标，和赛道库列表同一套样式。
+ * 评级为空表示这条赛道还没有研究结论，显示"待研究"而不是 D 级——没研究过和研究后
+ * 评了低分是两回事。
+ */
+function TrackBadges({ grade, tier }: { grade?: string | null; tier?: string | null }) {
+  if (!grade) {
+    return <span className="track-badges"><i className="track-badge track-badge--empty">待研究</i></span>;
+  }
+  return (
+    <span className="track-badges">
+      <i className={`track-badge track-badge--grade-${grade}`}>{grade}</i>
+      {tier ? <i className={`track-badge track-badge--tier-${tier}`}>{tier}</i> : null}
+    </span>
+  );
 }
 
 export function TrackDetailPage() {
@@ -78,7 +85,7 @@ export function TrackDetailPage() {
   );
 }
 
-/** 档案头：赛道名、强度·周期、研究优先级和三项关键计数。 */
+/** 档案头：赛道名、评级与热度档位两个角标、阶段和三项关键计数。 */
 function TrackProfile({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
   const track = detailTrack(detail);
@@ -89,19 +96,13 @@ function TrackProfile({ detail }: { detail: TrackDetail }) {
           <h2>{track.name || "未命名赛道"}</h2>
           {latest ? <p>{latest.research_date}{latest.researcher_code ? ` · ${latest.researcher_code}` : ""}</p> : <p>尚无研究结论</p>}
         </div>
-        <span className={`track-strength track-strength--${strengthTone(latest?.headline_strength)}`}>
-          {latest ? (
-            <>
-              {trackLabel(TRACK_STRENGTH_LABELS, latest.headline_strength)}
-              <i>{trackLabel(TRACK_CYCLE_LABELS, latest.headline_cycle)}</i>
-            </>
-          ) : "待研究"}
-        </span>
+        <TrackBadges grade={latest?.track_grade} tier={latest?.heat_tier} />
       </div>
       <div className="track-profile__phases">
         <span>产业 {trackLabel(TRACK_INDUSTRY_PHASE_LABELS, latest?.industry_phase || track.industry_phase)}</span>
         <span>市场 {trackLabel(TRACK_MARKET_PHASE_LABELS, latest?.market_phase || track.market_phase)}</span>
-        <span>{trackLabel(TRACK_PRIORITY_LABELS, latest?.research_priority)}</span>
+        <span>主导 {trackLabel(TRACK_CYCLE_LABELS, latest?.headline_cycle)}</span>
+        <span>综合 {latest ? latest.overall_score.toFixed(1) : "—"}</span>
       </div>
       <div className="track-profile__metrics">
         <div><span>关联标的</span><strong>{activeStockCount(detail)}</strong></div>
@@ -115,7 +116,7 @@ function TrackProfile({ detail }: { detail: TrackDetail }) {
 function OverviewSection({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
   const track = detailTrack(detail);
-  const cycles = buildDetailCycleRows(latest);
+  const scores = buildDetailScoreRows(latest);
   const segments = parseTrackSegments(latest?.segments_json);
   const benefiting = segments.filter((item) => item.stance === "benefiting");
   return (
@@ -130,21 +131,27 @@ function OverviewSection({ detail }: { detail: TrackDetail }) {
         ) : null}
       </SectionCard>
 
-      <SectionCard title="三周期判断">
-        <div className="track-cycle-list">
-          {cycles.map((row) => (
-            <div className={`track-cycle-item${row.isHeadline ? " is-headline" : ""}`} key={row.key}>
-              <div className="track-cycle-item__head">
-                <strong>{row.label}</strong>
-                {row.isHeadline ? <i className="track-cycle-item__flag">主导</i> : null}
-                <span className={`track-strength-dot track-strength-dot--${strengthTone(row.strength)}`}>
-                  {trackLabel(TRACK_STRENGTH_LABELS, row.strength)}
-                </span>
-                <span className="track-cycle-item__direction">{trackLabel(TRACK_DIRECTION_LABELS, row.direction)}</span>
-              </div>
-              {row.basis ? <p>{row.basis}</p> : null}
+      {/* 六维评分用条形而不是雷达：手机上雷达要画到能读，得占掉大半屏。 */}
+      <SectionCard title="六维评分">
+        <div className="track-score-list">
+          {scores.map((row) => (
+            <div className="track-score-row" key={row.key}>
+              <span className="track-score-label">{row.label}</span>
+              <span className="track-score-bar">
+                <i style={{ width: `${((row.value ?? 0) / TRACK_SCORE_MAX) * 100}%` }} />
+              </span>
+              <strong>{row.value === null ? "—" : row.value.toFixed(1)}</strong>
             </div>
           ))}
+          {latest ? (
+            <div className="track-score-row track-score-row--total">
+              <span className="track-score-label">综合分</span>
+              <span className="track-score-bar">
+                <i style={{ width: `${(latest.overall_score / TRACK_SCORE_MAX) * 100}%` }} />
+              </span>
+              <strong>{latest.overall_score.toFixed(2)}</strong>
+            </div>
+          ) : null}
         </div>
       </SectionCard>
 
@@ -197,26 +204,24 @@ function SnapshotsSection({ detail }: { detail: TrackDetail }) {
 }
 
 function SnapshotRow({ snapshot }: { snapshot: TrackTrendSnapshot }) {
-  const cycles = buildDetailCycleRows(snapshot);
+  const scores = buildDetailScoreRows(snapshot);
   return (
     <div className="track-snapshot-row">
       <div className="track-snapshot-row__head">
         <strong>{snapshot.research_date}</strong>
-        <span className={`track-strength track-strength--${strengthTone(snapshot.headline_strength)}`}>
-          {trackLabel(TRACK_STRENGTH_LABELS, snapshot.headline_strength)}
-          <i>{trackLabel(TRACK_CYCLE_LABELS, snapshot.headline_cycle)}</i>
-        </span>
+        <TrackBadges grade={snapshot.track_grade} tier={snapshot.heat_tier} />
       </div>
       <div className="track-snapshot-row__cycles">
-        {cycles.map((row) => (
+        {scores.map((row) => (
           <span key={row.key}>
-            {row.label} {trackLabel(TRACK_STRENGTH_LABELS, row.strength)}
+            {row.label} {row.value === null ? "—" : row.value.toFixed(1)}
           </span>
         ))}
       </div>
       {snapshot.core_judgment ? <p>{snapshot.core_judgment}</p> : null}
       <div className="track-snapshot-row__foot">
-        <span>{trackLabel(TRACK_PRIORITY_LABELS, snapshot.research_priority)}</span>
+        <span>综合 {snapshot.overall_score.toFixed(2)}</span>
+        <span>主导 {trackLabel(TRACK_CYCLE_LABELS, snapshot.headline_cycle)}</span>
         {snapshot.researcher_code ? <span>{snapshot.researcher_code}</span> : null}
       </div>
     </div>

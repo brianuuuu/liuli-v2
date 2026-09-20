@@ -6,12 +6,17 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Track, TrackTrendSnapshot } from "../../../types/api";
-import { industryPhaseLabel, marketPhaseLabel, StrengthCycleTag, researchPriorityLabel, strengthLabel } from "./shared";
+import { industryPhaseLabel, marketPhaseLabel, TrackGradeTags } from "./shared";
 
 type CompareRow = {
   track: Track;
   snapshot?: TrackTrendSnapshot;
 };
+
+/** 没选具体赛道时只有列表项，拿不到六维明细，显示占位而不是 0。 */
+function scoreText(value?: number | null) {
+  return typeof value === "number" ? value.toFixed(1) : "-";
+}
 
 export function CompareSection() {
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
@@ -30,18 +35,26 @@ export function CompareSection() {
     { title: "赛道", dataIndex: ["track", "name"], fixed: "left", width: 160 },
     { title: "状态", dataIndex: ["track", "status"], width: 90 },
     {
-      title: "主判断",
-      key: "headline",
-      width: 110,
-      render: (_, record) => <StrengthCycleTag strength={record.snapshot?.headline_strength} cycle={record.snapshot?.headline_cycle} />
+      title: "评级",
+      key: "grade",
+      width: 130,
+      render: (_, record) => (
+        <TrackGradeTags
+          grade={record.snapshot?.track_grade ?? record.track.track_grade}
+          tier={record.snapshot?.heat_tier ?? record.track.heat_tier}
+          score={record.snapshot?.overall_score ?? record.track.overall_score}
+        />
+      )
     },
-    { title: "优先级", dataIndex: ["snapshot", "research_priority"], width: 100, render: (value) => researchPriorityLabel(value) },
-    { title: "短期", dataIndex: ["snapshot", "short_strength"], width: 80, render: (value) => strengthLabel(value) },
-    { title: "中期", dataIndex: ["snapshot", "mid_strength"], width: 80, render: (value) => strengthLabel(value) },
-    { title: "长期", dataIndex: ["snapshot", "long_strength"], width: 80, render: (value) => strengthLabel(value) },
+    // 六维分数单列展示，对比页的用处就是横着看哪一维拉开了差距。
+    { title: "热度", dataIndex: ["snapshot", "market_heat_score"], width: 72, render: scoreText },
+    { title: "速度", dataIndex: ["snapshot", "growth_speed_score"], width: 72, render: scoreText },
+    { title: "集中度", dataIndex: ["snapshot", "concentration_score"], width: 78, render: scoreText },
+    { title: "周期韧性", dataIndex: ["snapshot", "cycle_resilience_score"], width: 86, render: scoreText },
+    { title: "当前规模", dataIndex: ["snapshot", "current_market_size_score"], width: 86, render: scoreText },
+    { title: "远期规模", dataIndex: ["snapshot", "future_market_size_score"], width: 86, render: scoreText },
     { title: "产业阶段", dataIndex: ["track", "industry_phase"], width: 100, render: (value) => industryPhaseLabel(value) },
     { title: "市场阶段", dataIndex: ["track", "market_phase"], width: 100, render: (value) => marketPhaseLabel(value) },
-    { title: "置信", dataIndex: ["track", "confidence_level"], width: 90, render: (value) => value || "-" },
     { title: "核心判断", dataIndex: ["snapshot", "core_judgment"], ellipsis: true, render: (value, record) => value || record.track.current_view || "-" },
     { title: "主要矛盾", dataIndex: ["snapshot", "key_contradiction"], ellipsis: true, render: (value) => value || "-" },
     { title: "风险与证伪", dataIndex: ["snapshot", "risk_falsification"], ellipsis: true, render: (value) => value || "-" }

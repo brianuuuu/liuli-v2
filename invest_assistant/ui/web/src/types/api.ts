@@ -237,9 +237,10 @@ export type Hotword = {
 };
 
 export type TrackCycle = 'short' | 'mid' | 'long';
-export type TrackStrength = 'strong' | 'medium' | 'weak' | 'insufficient';
-export type TrackDirection = 'strengthening' | 'stable' | 'weakening';
-export type TrackResearchPriority = 'priority' | 'tracking' | 'deprioritized';
+/** 综合评级，S 最高。由六维评分的平均分分档，后端算好下发。 */
+export type TrackGrade = 'S' | 'A' | 'B' | 'C' | 'D';
+/** 市场热度档位，T0 最热。只由 market_heat_score 决定，与评级各自独立。 */
+export type TrackHeatTier = 'T0' | 'T1' | 'T2' | 'T3' | 'T4';
 export type TrackIndustryPhase = 'intro' | 'expansion' | 'mature' | 'contraction';
 export type TrackMarketPhase = 'latent' | 'start' | 'ferment' | 'accelerate' | 'climax' | 'divergence' | 'recede';
 
@@ -253,6 +254,11 @@ export type Track = {
   market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
   latest_snapshot_id?: number | null;
+  // 最新快照的两个角标和排序用的综合分，随列表下发。未研究的赛道三项都是 null。
+  track_grade?: TrackGrade | null;
+  heat_tier?: TrackHeatTier | null;
+  overall_score?: number | null;
+  headline_cycle?: TrackCycle | null;
   tag?: MarketTag | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -308,20 +314,19 @@ export type TrackTrendSnapshot = {
   researcher_code?: string | null;
   report_id?: number | null;
   headline_cycle: TrackCycle;
-  headline_strength: TrackStrength;
   core_judgment?: string | null;
-  research_priority?: TrackResearchPriority | null;
-  priority_rank?: number | null;
-  confidence_level?: string | null;
-  short_strength?: TrackStrength | null;
-  short_direction?: TrackDirection | null;
-  short_basis?: string | null;
-  mid_strength?: TrackStrength | null;
-  mid_direction?: TrackDirection | null;
-  mid_basis?: string | null;
-  long_strength?: TrackStrength | null;
-  long_direction?: TrackDirection | null;
-  long_basis?: string | null;
+  // 六维评分，0—10，一律"分高=更有利"：cycle_resilience 10 表示弱周期能穿越周期，
+  // concentration 10 表示格局收敛龙头有定价权，读反了平均分就没有意义。
+  market_heat_score: number;
+  growth_speed_score: number;
+  concentration_score: number;
+  cycle_resilience_score: number;
+  current_market_size_score: number;
+  future_market_size_score: number;
+  // 派生三项，后端算好写库，前端只读不算。
+  overall_score: number;
+  track_grade: TrackGrade;
+  heat_tier: TrackHeatTier;
   demand_space?: string | null;
   supply_competition?: string | null;
   profit_cashflow?: string | null;
@@ -440,8 +445,9 @@ export type TrackHeatRanking = {
   industry_phase?: TrackIndustryPhase | null;
   market_phase?: TrackMarketPhase | null;
   headline_cycle?: TrackCycle | null;
-  headline_strength?: TrackStrength | null;
-  research_priority?: TrackResearchPriority | null;
+  track_grade?: TrackGrade | null;
+  heat_tier?: TrackHeatTier | null;
+  overall_score?: number | null;
 };
 
 export type TrackDashboardFocusTrack = {
@@ -452,8 +458,9 @@ export type TrackDashboardFocusTrack = {
   market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
   headline_cycle?: TrackCycle | null;
-  headline_strength?: TrackStrength | null;
-  research_priority?: TrackResearchPriority | null;
+  track_grade?: TrackGrade | null;
+  heat_tier?: TrackHeatTier | null;
+  overall_score?: number | null;
   bound_stock_count: number;
   recent_material_count: number;
   current_heat: number;
@@ -471,8 +478,9 @@ export type TrackDashboardAnalysisSummary = {
   market_phase?: TrackMarketPhase | null;
   confidence_level?: string | null;
   headline_cycle?: TrackCycle | null;
-  headline_strength?: TrackStrength | null;
-  research_priority?: TrackResearchPriority | null;
+  track_grade?: TrackGrade | null;
+  heat_tier?: TrackHeatTier | null;
+  overall_score?: number | null;
   core_judgment?: string | null;
   key_contradiction?: string | null;
   next_verification?: string | null;

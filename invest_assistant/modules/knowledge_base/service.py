@@ -45,12 +45,10 @@ from invest_assistant.modules.track_discovery.models import Track, TrackTrendSna
 from invest_assistant.modules.track_discovery.schemas import (
     INDUSTRY_PHASES,
     MARKET_PHASES,
-    RESEARCH_PRIORITIES,
     TRACK_CYCLES,
-    TRACK_DIRECTIONS,
-    TRACK_STRENGTHS,
     TrackTrendSnapshotCreate,
 )
+from invest_assistant.modules.track_discovery.scoring import SCORE_MAX, SCORE_MIN, TRACK_SCORE_FIELDS
 from invest_assistant.modules.stock_analysis.schemas import (
     StockScoreSnapshotCreate,
     StockTrendSnapshotCreate,
@@ -100,7 +98,7 @@ TREND_TEXT_FIELDS = [
 ]
 # 赛道趋势报告的最终 JSON 同样是数组，一份报告可覆盖多条赛道，元素字段与
 # track_trend_snapshot 一一对应。必填只有赛道身份（track_id 或 track_name）加下面三项。
-TRACK_TREND_REQUIRED_FIELDS = ["research_date", "headline_cycle", "headline_strength"]
+TRACK_TREND_REQUIRED_FIELDS = ["research_date", "headline_cycle", *TRACK_SCORE_FIELDS]
 TRACK_TREND_COLUMN_LIMITS = {
     column.name: column.type.length
     for column in TrackTrendSnapshot.__table__.columns
@@ -114,23 +112,11 @@ TRACK_TREND_JSON_FIELDS = {
 }
 TRACK_TREND_ENUM_FIELDS = {
     "headline_cycle": TRACK_CYCLES,
-    "headline_strength": TRACK_STRENGTHS,
-    "short_strength": TRACK_STRENGTHS,
-    "mid_strength": TRACK_STRENGTHS,
-    "long_strength": TRACK_STRENGTHS,
-    "short_direction": TRACK_DIRECTIONS,
-    "mid_direction": TRACK_DIRECTIONS,
-    "long_direction": TRACK_DIRECTIONS,
-    "research_priority": RESEARCH_PRIORITIES,
     "industry_phase": INDUSTRY_PHASES,
     "market_phase": MARKET_PHASES,
-    "confidence_level": {"low", "medium", "high"},
 }
 TRACK_TREND_TEXT_FIELDS = [
     "core_judgment",
-    "short_basis",
-    "mid_basis",
-    "long_basis",
     "demand_space",
     "supply_competition",
     "profit_cashflow",
@@ -1274,8 +1260,9 @@ def _normalize_track_trend_import_payload(payload: dict, feedback: KnowledgeRese
         "research_date": research_date,
         "researcher_code": _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
         "report_id": feedback.report_id,
-        "priority_rank": _trend_import_priority_rank(payload.get("priority_rank")),
     }
+    for field in TRACK_SCORE_FIELDS:
+        normalized[field] = _track_trend_import_score(payload.get(field), field)
     for field, allowed in TRACK_TREND_ENUM_FIELDS.items():
         value = str(payload.get(field) or "").strip().lower()
         if not value:
@@ -1297,6 +1284,21 @@ def _normalize_track_trend_import_payload(payload: dict, feedback: KnowledgeRese
         normalized[column] = _json_text(value)
     _assert_track_trend_field_lengths(normalized)
     return normalized
+
+
+def _track_trend_import_score(value: Any, field: str) -> float:
+    """六维评分必须是 0—10 的数字。
+
+    超范围直接报错而不是夹到边界：分数越界说明研究员用的是别的量纲，静默夹到 10 会把
+    这条误差原样写进评级和角标，人却看不出来。
+    """
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} 必须是 {SCORE_MIN:.0f}—{SCORE_MAX:.0f} 的数字，收到：{value!r}") from None
+    if not SCORE_MIN <= score <= SCORE_MAX:
+        raise ValueError(f"{field} 超出范围：{score}，应在 {SCORE_MIN:.0f}—{SCORE_MAX:.0f} 之间")
+    return round(score, 2)
 
 
 def _assert_track_trend_field_lengths(normalized: dict) -> None:

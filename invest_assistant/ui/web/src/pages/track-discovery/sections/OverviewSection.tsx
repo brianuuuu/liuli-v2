@@ -19,7 +19,7 @@ import type {
   TrackDashboardMaterial,
   TrackHeatRanking
 } from "../../../types/api";
-import { DirectionTag, formatTime, industryPhaseLabel, marketPhaseLabel, researchPriorityLabel, StatusTag, StrengthCycleTag } from "./shared";
+import { DirectionTag, formatTime, industryPhaseLabel, marketPhaseLabel, StatusTag, TrackGradeTags } from "./shared";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -63,10 +63,10 @@ function snapshotToSummary(trackName: string, snapshot?: TrackTrendSnapshot | nu
     research_date: snapshot.research_date,
     industry_phase: snapshot.industry_phase,
     market_phase: snapshot.market_phase,
-    confidence_level: snapshot.confidence_level,
     headline_cycle: snapshot.headline_cycle,
-    headline_strength: snapshot.headline_strength,
-    research_priority: snapshot.research_priority,
+    track_grade: snapshot.track_grade,
+    heat_tier: snapshot.heat_tier,
+    overall_score: snapshot.overall_score,
     core_judgment: snapshot.core_judgment,
     key_contradiction: snapshot.key_contradiction,
     next_verification: snapshot.next_verification,
@@ -125,12 +125,11 @@ export function OverviewSection() {
     { title: "7日", dataIndex: "rank_change_7d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "30日", dataIndex: "rank_change_30d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     {
-      title: "主判断",
-      key: "headline",
-      width: 100,
-      render: (_, record) => <StrengthCycleTag strength={record.headline_strength} cycle={record.headline_cycle} />
+      title: "评级",
+      key: "grade",
+      width: 126,
+      render: (_, record) => <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
     },
-    { title: "优先级", dataIndex: "research_priority", width: 86, render: (value) => researchPriorityLabel(value) },
     { title: "产业阶段", dataIndex: "industry_phase", width: 80, render: (value) => <Tag>{industryPhaseLabel(value)}</Tag> },
     { title: "市场阶段", dataIndex: "market_phase", width: 80, render: (value) => <Tag>{marketPhaseLabel(value)}</Tag> }
   ];

@@ -701,17 +701,13 @@ def track_trend_item(**overrides) -> dict:
         "track_name": "AI算力",
         "research_date": "2026-07-05",
         "headline_cycle": "long",
-        "headline_strength": "strong",
         "core_judgment": "算力需求仍在扩张，供给瓶颈决定利润分配",
-        "research_priority": "priority",
-        "confidence_level": "high",
-        "short_strength": "medium",
-        "short_direction": "strengthening",
-        "short_basis": "热点扩散仍集中在龙头",
-        "mid_strength": "strong",
-        "mid_direction": "stable",
-        "long_strength": "strong",
-        "long_direction": "strengthening",
+        "market_heat_score": 8.5,
+        "growth_speed_score": 9,
+        "concentration_score": 8,
+        "cycle_resilience_score": 6.5,
+        "current_market_size_score": 7.5,
+        "future_market_size_score": 9,
         "demand_space": "推理需求接棒训练需求",
         "market_capital": "成交持续性良好，拥挤度中等",
         "key_contradiction": "先进封装产能是当前唯一瓶颈",
@@ -748,14 +744,16 @@ def test_import_track_trend_report(tmp_path, monkeypatch):
     snapshot = result["snapshots"][0]
     assert snapshot["research_date"] == date(2026, 7, 5)
     assert snapshot["headline_cycle"] == "long"
-    assert snapshot["headline_strength"] == "strong"
-    assert snapshot["short_strength"] == "medium"
-    assert snapshot["short_direction"] == "strengthening"
+    assert snapshot["market_heat_score"] == 8.5
+    assert snapshot["cycle_resilience_score"] == 6.5
+    # 派生三项由服务端算：(8.5+9+8+6.5+7.5+9)/6 = 8.08 -> S，市场热度 8.5 -> T1
+    assert snapshot["overall_score"] == 8.08
+    assert snapshot["track_grade"] == "S"
+    assert snapshot["heat_tier"] == "T1"
     assert snapshot["industry_phase"] == "expansion"
     assert snapshot["market_phase"] == "accelerate"
     assert snapshot["researcher_code"] == "analyst_001"
     assert snapshot["report_id"] == feedback.report_id
-    assert snapshot["priority_rank"] is None
     # 数组落库成 TEXT，报告原文经 report_id 回溯，不用 JSONB
     assert "先进封装" in snapshot["segments_json"]
     assert "SEMI" in snapshot["data_sources_json"]
@@ -768,15 +766,26 @@ def test_import_track_trend_report_covers_multiple_tracks(tmp_path, monkeypatch)
     db.add_all([Track(name="AI算力"), Track(name="机器人")])
     db.commit()
     items = [
-        track_trend_item(priority_rank=1),
-        track_trend_item(track_name="机器人", headline_cycle="mid", headline_strength="medium", research_priority="tracking", priority_rank=2),
+        track_trend_item(),
+        track_trend_item(
+            track_name="机器人",
+            headline_cycle="mid",
+            market_heat_score=4,
+            growth_speed_score=6,
+            concentration_score=5,
+            cycle_resilience_score=6,
+            current_market_size_score=5,
+            future_market_size_score=7,
+        ),
     ]
     feedback = create_track_trend_feedback(db, "赛道池-2026-07-05-赛道趋势研究", track_trend_markdown(items))
 
     result = import_research_feedback(db, feedback.id)
 
     assert result["success_count"] == 2
-    assert [row["priority_rank"] for row in result["snapshots"]] == [1, 2]
+    # 同批赛道的先后由分数表达，不另开排名字段
+    assert [row["track_grade"] for row in result["snapshots"]] == ["S", "C"]
+    assert [row["heat_tier"] for row in result["snapshots"]] == ["T1", "T3"]
 
 
 def test_import_track_trend_report_prefers_track_id(tmp_path, monkeypatch):
@@ -809,10 +818,38 @@ def test_import_track_trend_report_rejects_bad_enum(tmp_path, monkeypatch):
     db.add(Track(name="AI算力"))
     db.commit()
     feedback = create_track_trend_feedback(
-        db, "AI算力-2026-07-05-赛道趋势研究", track_trend_markdown([track_trend_item(headline_strength="很强")])
+        db, "AI算力-2026-07-05-赛道趋势研究", track_trend_markdown([track_trend_item(headline_cycle="超长期")])
     )
 
-    with pytest.raises(ValueError, match="headline_strength"):
+    with pytest.raises(ValueError, match="headline_cycle"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_track_trend_report_rejects_out_of_range_score(tmp_path, monkeypatch):
+    """超范围的分数整条拒绝，不夹到边界：夹边界等于把量纲错误原样写进评级。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Track(name="AI算力"))
+    db.commit()
+    feedback = create_track_trend_feedback(
+        db, "AI算力-2026-07-05-赛道趋势研究", track_trend_markdown([track_trend_item(market_heat_score=85)])
+    )
+
+    with pytest.raises(ValueError, match="market_heat_score 超出范围"):
+        import_research_feedback(db, feedback.id)
+
+
+def test_import_track_trend_report_requires_all_six_scores(tmp_path, monkeypatch):
+    """缺一维就算不出综合分和评级，这条快照在看板上等于不存在，所以整条拒绝。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Track(name="AI算力"))
+    db.commit()
+    item = track_trend_item()
+    del item["concentration_score"]
+    feedback = create_track_trend_feedback(db, "AI算力-2026-07-05-赛道趋势研究", track_trend_markdown([item]))
+
+    with pytest.raises(ValueError, match="concentration_score"):
         import_research_feedback(db, feedback.id)
 
 

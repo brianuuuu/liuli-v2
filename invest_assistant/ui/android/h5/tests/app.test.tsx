@@ -2125,7 +2125,7 @@ describe("mobile H5 app", () => {
     ));
   });
 
-  it("赛道库按研究优先级排序，点条目进赛道详情", async () => {
+  it("赛道库按综合评级排序，点条目进赛道详情", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
     vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
@@ -2139,18 +2139,19 @@ describe("mobile H5 app", () => {
           summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89 },
           latest_snapshot: {
             id: 1, track_id: 7, research_date: "2026-07-05", researcher_code: "track_analyst_001",
-            headline_cycle: "long", headline_strength: "strong", research_priority: "priority",
-            core_judgment: "算力需求从训练转向推理", key_contradiction: "先进封装产能是唯一瓶颈",
-            short_strength: "medium", mid_strength: "strong", long_strength: "strong"
+            headline_cycle: "long", core_judgment: "算力需求从训练转向推理", key_contradiction: "先进封装产能是唯一瓶颈",
+            market_heat_score: 8.5, growth_speed_score: 9, concentration_score: 8,
+            cycle_resilience_score: 6.5, current_market_size_score: 7.5, future_market_size_score: 9,
+            overall_score: 8.08, track_grade: "S", heat_tier: "T1"
           },
           trend_snapshots: [], materials: [], stocks: [], tags: []
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
-      // 赛道列表：故意把优先级低的放前面，验证端上会重排
+      // 赛道列表：故意把评级低的放前面，验证端上会按评级重排
       if (url.includes("/api/track-discovery/tracks?")) {
         return new Response(JSON.stringify([
-          { id: 9, name: "固态电池", status: "active", current_view: "尚在验证" },
-          { id: 7, name: "AI算力", status: "active", current_view: "算力需求从训练转向推理" }
+          { id: 9, name: "固态电池", status: "active", current_view: "尚在验证", track_grade: "C", heat_tier: "T3", overall_score: 5.4 },
+          { id: 7, name: "AI算力", status: "active", current_view: "算力需求从训练转向推理", track_grade: "S", heat_tier: "T1", overall_score: 8.08 }
         ]), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       if (url.includes("/api/track-discovery/dashboard")) {
@@ -2178,6 +2179,14 @@ describe("mobile H5 app", () => {
     expect(screen.getByText("固态电池")).toBeInTheDocument();
     // 热度来自看板聚合，挂到对应赛道上
     expect(screen.getByText("热度 89")).toBeInTheDocument();
+    // 两个角标：评级在左、热度档位在右，列表接口直接带下来，不用等详情
+    expect(screen.getByText("S")).toBeInTheDocument();
+    expect(screen.getByText("T1")).toBeInTheDocument();
+    // 评级高的排在前面，哪怕接口给的顺序是反的
+    const trackNames = screen.getAllByRole("button").map((item) => item.textContent || "");
+    expect(trackNames.findIndex((text) => text.includes("AI算力"))).toBeLessThan(
+      trackNames.findIndex((text) => text.includes("固态电池"))
+    );
 
     fireEvent.click(screen.getByText("AI算力"));
     await waitFor(() => expect(window.location.hash).toBe("#/tracks/7"));
