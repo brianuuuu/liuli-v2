@@ -3008,6 +3008,190 @@ body {
   margin: 0;
 }
 
+/* 三周期判断表：主导周期那一行要一眼看出来，卡片上的"强 · 长期"说的就是它 */
+.track-cycle-table {
+  display: grid;
+  gap: 1px;
+  background: var(--ll-border-soft);
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.track-cycle-row {
+  display: grid;
+  grid-template-columns: 150px 92px 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  background: var(--ll-panel);
+  font-size: 13px;
+}
+
+.track-cycle-row--head {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.track-cycle-row.is-headline {
+  background: var(--ll-accent-soft);
+}
+
+.track-cycle-horizon {
+  margin-left: 6px;
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.track-cycle-basis {
+  color: var(--ll-muted);
+  line-height: 1.6;
+}
+
+/* 六项核心分析：固定六格，缺值也占位，同屏高度才不会参差 */
+.track-six-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.track-analysis-cell {
+  padding: 12px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 6px;
+  background: var(--ll-panel);
+}
+
+.track-analysis-cell__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.track-analysis-cell__head strong {
+  color: var(--ll-text);
+  font-size: 13px;
+}
+
+.track-analysis-cell__head i {
+  color: var(--ll-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.track-analysis-cell p {
+  margin: 0;
+  color: var(--ll-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.track-segment-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.track-segment-column {
+  padding: 12px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 6px;
+  background: var(--ll-panel);
+}
+
+.track-segment-column__head {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.track-segment-column--benefiting .track-segment-column__head {
+  color: #16a34a;
+}
+
+.track-segment-column--pressured .track-segment-column__head {
+  color: #dc2626;
+}
+
+.track-segment-item + .track-segment-item {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.track-segment-item strong {
+  font-size: 13px;
+}
+
+.track-segment-item p {
+  margin: 4px 0 0;
+  color: var(--ll-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.track-segment-item__constraint {
+  color: var(--ll-muted);
+  opacity: 0.85;
+}
+
+.track-segment-item__stocks {
+  margin-top: 6px;
+}
+
+.track-segment-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.track-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.track-scenario-card {
+  padding: 12px;
+  border: 1px solid var(--ll-border-soft);
+  border-radius: 6px;
+  background: var(--ll-panel);
+  border-top-width: 2px;
+}
+
+.track-scenario-card--base {
+  border-top-color: var(--ll-accent);
+}
+
+.track-scenario-card--bull {
+  border-top-color: #16a34a;
+}
+
+.track-scenario-card--bear {
+  border-top-color: #dc2626;
+}
+
+.track-scenario-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.track-scenario-card__head strong {
+  font-size: 13px;
+}
+
+.track-scenario-card__head i {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
 .track-detail-list {
   display: grid;
   gap: 8px;
@@ -3076,6 +3260,21 @@ body {
 
   .track-analysis-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 六宫格和三情景在窄屏降成两列/单列，情景卡里是整句话，挤成三列会全是断行 */
+  .track-six-analysis-grid,
+  .track-scenario-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-segment-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .track-cycle-row {
+    grid-template-columns: 120px 76px 76px minmax(0, 1fr);
+    gap: 8px;
   }
 
   .portfolio-review-metrics {

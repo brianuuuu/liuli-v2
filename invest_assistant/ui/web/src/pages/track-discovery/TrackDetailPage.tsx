@@ -24,12 +24,23 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type {
   TagBinding,
   Track,
+  TrackSegment,
   TrackTrendSnapshot,
   TrackDetail,
   TrackDetailHeatTrend,
   TrackDetailStockRelation,
   TrackMaterial
 } from "../../types/api";
+import {
+  buildAnalysisCells,
+  buildCycleRows,
+  buildSnapshotSummary,
+  buildStrengthTimelineOption,
+  hasResearchContent,
+  orderScenarios,
+  parseDataSources,
+  splitSegments
+} from "./trackTrendPresentation";
 import {
   confidenceOptions,
   cycleOptions,
@@ -44,6 +55,7 @@ import {
   StatusTag,
   strengthLabel,
   strengthOptions,
+  strengthTagColor,
   StrengthCycleTag,
   thesisStatusOptions,
   TrendDirectionTag,
@@ -65,8 +77,9 @@ function numberText(value?: number | null, suffix = "") {
   return value === null || value === undefined ? "-" : `${Number(value).toFixed(2).replace(/\.00$/, "")}${suffix}`;
 }
 
-/** 强度是序数不是分数：强 3 / 中 2 / 弱 1 / 证据不足 0，只为画出三周期的相对走势。 */
-const STRENGTH_LEVEL: Record<string, number> = { strong: 3, medium: 2, weak: 1, insufficient: 0 };
+function scenarioLabel(name?: string | null) {
+  return { base: "基准情景", bull: "乐观情景", bear: "不利情景" }[name || ""] || name || "-";
+}
 
 function confidenceText(value?: string | null) {
   return confidenceOptions.find((item) => item.value === value)?.label || value || "-";
@@ -115,40 +128,6 @@ function heatTrendOption(trends: TrackDetailHeatTrend[], mode: "light" | "dark")
         data: dates.map((date) => pointByTime.get(date) ?? null)
       };
     })
-  };
-}
-
-function snapshotStrengthOption(rows: TrackTrendSnapshot[], mode: "light" | "dark"): EChartsOption {
-  const textColor = chartTextColor(mode);
-  const gridColor = chartGridColor(mode);
-  const ordered = [...rows].sort((a, b) => a.research_date.localeCompare(b.research_date));
-  const level = (value?: string | null) => (value ? STRENGTH_LEVEL[value] ?? null : null);
-  return {
-    tooltip: { trigger: "axis" },
-    legend: { textStyle: { color: textColor } },
-    grid: { left: 60, right: 18, top: 36, bottom: 28 },
-    xAxis: {
-      type: "category",
-      data: ordered.map((item) => item.research_date),
-      axisLabel: { color: textColor },
-      axisLine: { lineStyle: { color: gridColor } }
-    },
-    yAxis: {
-      type: "value",
-      min: 0,
-      max: 3,
-      interval: 1,
-      axisLabel: {
-        color: textColor,
-        formatter: (value: number) => ["证据不足", "弱", "中", "强"][value] ?? ""
-      },
-      splitLine: { lineStyle: { color: gridColor } }
-    },
-    series: [
-      { name: "短期", type: "line", smooth: true, data: ordered.map((item) => level(item.short_strength)) },
-      { name: "中期", type: "line", smooth: true, data: ordered.map((item) => level(item.mid_strength)) },
-      { name: "长期", type: "line", smooth: true, data: ordered.map((item) => level(item.long_strength)) }
-    ]
   };
 }
 
@@ -301,6 +280,7 @@ export function TrackDetailPage() {
               className="track-detail-tabs"
               items={[
                 { key: "overview", label: "概览", children: <OverviewTab data={data} onEdit={() => openEdit(data.track)} onStatus={() => openStatus(data.track)} /> },
+                { key: "research", label: "研究结论", children: <ResearchTab data={data} /> },
                 { key: "heat", label: "热度", children: <HeatTab data={data} /> },
                 {
                   key: "materials",
@@ -497,6 +477,7 @@ function InlineChart({ option, height = 260 }: { option: EChartsOption; height?:
 function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: () => void; onStatus: () => void }) {
   const importantMaterials = data.materials.filter((item) => item.importance_level === "high").slice(0, 5);
   const latest = data.latest_snapshot;
+  const summary = buildSnapshotSummary(latest);
   return (
     <WorkbenchCard>
       <div className="track-detail-panel">
@@ -509,19 +490,25 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
         </div>
         <div className="track-detail-overview-main">
           <div>
-            <div className="track-detail-subtitle">当前判断</div>
-            <Typography.Paragraph>{data.track.current_view || "暂无当前判断"}</Typography.Paragraph>
+            <div className="track-detail-subtitle">核心判断</div>
+            <Typography.Paragraph>{summary?.coreJudgment || data.track.current_view || "暂无核心判断"}</Typography.Paragraph>
+            <div className="track-detail-subtitle">主要矛盾</div>
+            <Typography.Paragraph>{summary?.keyContradiction || "暂无主要矛盾"}</Typography.Paragraph>
             <div className="track-detail-subtitle">赛道说明</div>
             <Typography.Paragraph>{data.track.description || "暂无赛道说明"}</Typography.Paragraph>
           </div>
           <div className="detail-list track-detail-keyfacts">
-            <div className="detail-row"><span>最新快照</span><span>{latest?.research_date || "-"}</span></div>
-            <div className="detail-row"><span>研究优先级</span><span>{researchPriorityLabel(latest?.research_priority)}</span></div>
-            <div className="detail-row"><span>短 / 中 / 长</span><span>{`${strengthLabel(latest?.short_strength)} / ${strengthLabel(latest?.mid_strength)} / ${strengthLabel(latest?.long_strength)}`}</span></div>
-            <div className="detail-row"><span>主要矛盾</span><span>{latest?.key_contradiction || "-"}</span></div>
-            <div className="detail-row"><span>下一验证节点</span><span>{latest?.next_verification || "-"}</span></div>
+            <div className="detail-row"><span>最新研究</span><span>{summary?.researchDate || "-"}</span></div>
+            <div className="detail-row"><span>研究员</span><span>{summary?.researcherCode || "-"}</span></div>
+            <div className="detail-row"><span>研究优先级</span><span>{researchPriorityLabel(summary?.researchPriority)}{summary?.priorityRank ? ` · 第 ${summary.priorityRank} 位` : ""}</span></div>
+            <div className="detail-row"><span>置信度</span><span>{confidenceText(summary?.confidenceLevel)}</span></div>
+            <div className="detail-row"><span>下一验证节点</span><span>{summary?.nextVerification || "-"}</span></div>
             <div className="detail-row"><span>待研判材料</span><span>{data.summary.pending_material_count}</span></div>
           </div>
+        </div>
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">三周期判断</div>
+          <CycleJudgmentTable snapshot={latest} />
         </div>
         <div className="track-detail-panel-section">
           <div className="track-detail-subtitle">最近重要材料</div>
@@ -529,6 +516,158 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
         </div>
       </div>
     </WorkbenchCard>
+  );
+}
+
+/**
+ * 三周期判断表。主导周期那一行加重标注：卡片上的"强 · 长期"说的是这一行，
+ * 不能理解成三个周期都是这个强度。
+ */
+function CycleJudgmentTable({ snapshot }: { snapshot?: TrackTrendSnapshot | null }) {
+  const rows = buildCycleRows(snapshot);
+  return (
+    <div className="track-cycle-table">
+      <div className="track-cycle-row track-cycle-row--head">
+        <span>周期</span>
+        <span>强度</span>
+        <span>方向</span>
+        <span>主要依据</span>
+      </div>
+      {rows.map((row) => (
+        <div className={`track-cycle-row${row.isHeadline ? " is-headline" : ""}`} key={row.key}>
+          <span>
+            {row.label}
+            <i className="track-cycle-horizon">{row.horizon}</i>
+            {row.isHeadline ? <Tag color="blue">主导</Tag> : null}
+          </span>
+          <span><Tag color={strengthTagColor(row.strength)}>{strengthLabel(row.strength)}</Tag></span>
+          <span><TrendDirectionTag direction={row.direction} /></span>
+          <span className="track-cycle-basis">{row.basis || "-"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 六项分析 + 受益/承压环节 + 三情景 + 证伪条件，报告里最重的一段全在这里。 */
+function ResearchTab({ data }: { data: TrackDetail }) {
+  const latest = data.latest_snapshot;
+  const summary = buildSnapshotSummary(latest);
+  const cells = buildAnalysisCells(latest);
+  const { benefiting, pressured } = splitSegments(latest?.segments_json);
+  const scenarios = orderScenarios(latest?.scenarios_json);
+  const sources = parseDataSources(latest?.data_sources_json);
+  if (!hasResearchContent(latest)) {
+    return (
+      <WorkbenchCard>
+        <EmptyAction description="尚无研究结论，导入赛道趋势研究报告后显示" />
+      </WorkbenchCard>
+    );
+  }
+  return (
+    <WorkbenchCard>
+      <div className="track-detail-panel">
+        <div className="track-detail-panel-toolbar">
+          <span>研究结论</span>
+          <Typography.Text type="secondary">
+            {summary?.researchDate || "-"}
+            {summary?.researcherCode ? ` · ${summary.researcherCode}` : ""}
+          </Typography.Text>
+        </div>
+
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">六项核心分析</div>
+          <div className="track-six-analysis-grid">
+            {cells.map((cell) => (
+              <div className="track-analysis-cell" key={cell.key}>
+                <div className="track-analysis-cell__head">
+                  <strong>{cell.label}</strong>
+                  <i>{cell.hint}</i>
+                </div>
+                <p>{cell.value || "-"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">受益与承压环节</div>
+          <div className="track-segment-columns">
+            <SegmentColumn title="受益环节" tone="benefiting" rows={benefiting} />
+            <SegmentColumn title="承压环节" tone="pressured" rows={pressured} />
+          </div>
+          <Typography.Text type="secondary" className="track-segment-note">
+            代表公司来自研究报告，仅作线索；确认后的标的绑定在「关联标的」里维护。
+          </Typography.Text>
+        </div>
+
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">情景与时间窗口</div>
+          {scenarios.length ? (
+            <div className="track-scenario-grid">
+              {scenarios.map((item) => (
+                <div className={`track-scenario-card track-scenario-card--${item.name}`} key={item.name}>
+                  <div className="track-scenario-card__head">
+                    <strong>{scenarioLabel(item.name)}</strong>
+                    {item.window ? <i>{item.window}</i> : null}
+                  </div>
+                  <div className="detail-list">
+                    <div className="detail-row"><span>关键变量</span><span>{item.key_variable || "-"}</span></div>
+                    <div className="detail-row"><span>触发条件</span><span>{item.trigger || "-"}</span></div>
+                    <div className="detail-row"><span>演进方向</span><span>{item.path || "-"}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyAction description="暂无情景推演" />}
+          <div className="detail-list track-detail-keyfacts">
+            <div className="detail-row"><span>下一验证节点</span><span>{summary?.nextVerification || "-"}</span></div>
+          </div>
+        </div>
+
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">风险与证伪条件</div>
+          <Typography.Paragraph>{summary?.riskFalsification || "暂无证伪条件"}</Typography.Paragraph>
+          <div className="track-detail-subtitle">相对上次研究的变化</div>
+          <Typography.Paragraph>{summary?.changeVsLast || "无历史可比"}</Typography.Paragraph>
+        </div>
+
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">数据缺口与来源</div>
+          <Typography.Paragraph>{summary?.dataGaps || "未标注数据缺口"}</Typography.Paragraph>
+          {sources.length ? (
+            <div className="detail-list">
+              {sources.map((item, index) => (
+                <div className="detail-row" key={`${item.type}-${index}`}>
+                  <span>{item.type}</span>
+                  <span>{[item.source, item.as_of].filter(Boolean).join(" · ") || "-"}</span>
+                </div>
+              ))}
+            </div>
+          ) : <Typography.Text type="secondary">未附数据来源表</Typography.Text>}
+        </div>
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function SegmentColumn({ title, tone, rows }: { title: string; tone: "benefiting" | "pressured"; rows: TrackSegment[] }) {
+  return (
+    <div className={`track-segment-column track-segment-column--${tone}`}>
+      <div className="track-segment-column__head">{title}</div>
+      {rows.length ? rows.map((item, index) => (
+        <div className="track-segment-item" key={`${item.segment}-${index}`}>
+          <strong>{item.segment}</strong>
+          {item.reason ? <p>{item.reason}</p> : null}
+          {item.constraint ? <p className="track-segment-item__constraint">兑现约束：{item.constraint}</p> : null}
+          {item.representative_stocks?.length ? (
+            <div className="track-segment-item__stocks">
+              {item.representative_stocks.map((name) => <Tag key={name}>{name}</Tag>)}
+            </div>
+          ) : null}
+        </div>
+      )) : <EmptyAction description={`暂无${title}`} />}
+    </div>
   );
 }
 
@@ -675,7 +814,7 @@ function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void })
           <span>趋势快照</span>
           <Button size="small" type="primary" onClick={onAdd}>新增快照</Button>
         </div>
-        {data.trend_snapshots.length ? <InlineChart option={snapshotStrengthOption(data.trend_snapshots, resolvedMode)} height={220} /> : <EmptyAction description="暂无趋势快照" />}
+        {data.trend_snapshots.length ? <InlineChart option={buildStrengthTimelineOption(data.trend_snapshots, resolvedMode, { text: chartTextColor(resolvedMode), grid: chartGridColor(resolvedMode) })} height={220} /> : <EmptyAction description="暂无趋势快照" />}
         <Table rowKey="id" size="small" dataSource={data.trend_snapshots} columns={columns} pagination={{ defaultPageSize: 8 }} scroll={{ x: 1180 }} />
       </div>
     </WorkbenchCard>
