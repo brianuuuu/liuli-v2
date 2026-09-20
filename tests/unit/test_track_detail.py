@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -12,6 +12,7 @@ from invest_assistant.modules.market_radar.models import SourceItem, Tag, TagHea
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery import router, service
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial, TrackTrendSnapshot
+from invest_assistant.shared.time_utils import beijing_now
 
 
 def make_session() -> Session:
@@ -113,7 +114,9 @@ def test_track_detail_returns_stable_empty_structure():
 
 def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     db = make_session()
-    now = datetime(2026, 5, 31, 9, 30)
+    # 热度点必须落在详情接口的近 90 天窗口内，所以取当前时间而不是写死日期：
+    # 写死的那天迟早会滑出窗口，用例会在某天毫无征兆地变红。
+    now = beijing_now()
     track = Track(
         name="机器人",
         description="机器人产业链",
@@ -138,7 +141,7 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     )
     add_heat(db, active_tag.id, "24h", now, 42)
     add_heat(db, archived_tag.id, "24h", now, 999)
-    add_heat(db, active_tag.id, "7d", datetime(2026, 5, 30, 9, 30), 31)
+    add_heat(db, active_tag.id, "7d", now - timedelta(days=1), 31)
     add_heat(db, active_tag.id, "7d", now, 45)
 
     source = SourceItem(
