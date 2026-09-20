@@ -56,12 +56,15 @@ const CLICK_SUPPRESSION_MS = 500;
 const VELOCITY_WINDOW_MS = 100;
 const MIN_VELOCITY_SAMPLE_MS = 8;
 
+/**
+ * 起手时不猜「这是点还是滑」：8px 轴锁会判，误触的点击由 suppressClickUntil 吃掉。
+ * 可点区域一律放行——列表行、卡片本身就是整屏内容，按下就弃权等于横滑没法用。
+ * 只有自己要吃掉横向拖拽的元素才退出：输入控件、显式声明的区域、真正横向溢出的滚动容器。
+ */
 function shouldIgnoreSwipeTarget(target: EventTarget | null) {
   const element = target instanceof Element ? target : null;
   if (!element) return false;
-  if (element.closest("input, textarea, select, [data-swipe-ignore='true']")) return true;
-  const action = element.closest("button, a");
-  if (action && !action.matches("[data-swipe-allow='true']")) return true;
+  if (element.closest("input, textarea, select, [contenteditable], [data-swipe-ignore='true']")) return true;
   const horizontalScroller = element.closest<HTMLElement>("[data-horizontal-scroll='true']");
   return Boolean(horizontalScroller && horizontalScroller.scrollWidth > horizontalScroller.clientWidth);
 }
@@ -138,6 +141,12 @@ function HorizontalTabPagerInner<T extends string>(
     motionSink?.current?.setMotion(motion);
   }, [motionSink]);
 
+  // 手势现在会从可点区域起手，滑起来就得让按下态失效，否则横滑一路闪蓝。
+  const setDragging = useCallback((dragging: boolean) => {
+    pagerRef.current?.classList.toggle("is-dragging", dragging);
+    document.documentElement.classList.toggle("pager-dragging", dragging);
+  }, []);
+
   const writeDrag = useCallback((nextDragX: number, explicitTargetIndex?: number) => {
     dragXRef.current = nextDragX;
     pagerRef.current?.style.setProperty("--pager-drag-x", `${nextDragX}px`);
@@ -204,12 +213,12 @@ function HorizontalTabPagerInner<T extends string>(
     }
     dragXRef.current = 0;
     pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
-    pagerRef.current?.classList.remove("is-dragging");
+    setDragging(false);
     setSettling(false);
     setTransitionTargetIndex(null);
     transitionLocked.current = false;
     publishMotion(null);
-  }, [items, onChange, publishMotion]);
+  }, [items, onChange, publishMotion, setDragging]);
 
   const springBack = useCallback(() => {
     flushPendingDrag();
@@ -218,13 +227,13 @@ function HorizontalTabPagerInner<T extends string>(
       return;
     }
     transitionLocked.current = true;
-    pagerRef.current?.classList.remove("is-dragging");
+    setDragging(false);
     const duration = durationForDistance(Math.abs(dragXRef.current));
     setSettleDuration(duration);
     setSettling(true);
     writeDrag(0);
     settleTimer.current = window.setTimeout(() => finishSettle(null), duration);
-  }, [durationForDistance, finishSettle, flushPendingDrag, publishMotion, writeDrag]);
+  }, [durationForDistance, finishSettle, flushPendingDrag, publishMotion, setDragging, writeDrag]);
 
   const settleToIndex = useCallback((targetIndex: number) => {
     if (
@@ -237,7 +246,7 @@ function HorizontalTabPagerInner<T extends string>(
     }
     transitionLocked.current = true;
     flushPendingDrag();
-    pagerRef.current?.classList.remove("is-dragging");
+    setDragging(false);
     scrollPositions.current.set(activeKey, window.scrollY);
     const targetKey = items[targetIndex].key;
     setMountedKeys((keys) => touchPagerCache(keys, targetKey, [activeKey, targetKey]));
@@ -261,6 +270,7 @@ function HorizontalTabPagerInner<T extends string>(
     finishSettle,
     flushPendingDrag,
     items,
+    setDragging,
     writeDrag
   ]);
 
@@ -302,7 +312,7 @@ function HorizontalTabPagerInner<T extends string>(
       ) {
         if (Math.abs(deltaX) > Math.abs(deltaY) * AXIS_DOMINANCE_RATIO) {
           gesture.axis = "horizontal";
-          pager.classList.add("is-dragging");
+          setDragging(true);
           const targetIndex = deltaX < 0 ? activeIndex + 1 : activeIndex - 1;
           if (targetIndex >= 0 && targetIndex < items.length) {
             const targetKey = items[targetIndex].key;
@@ -372,6 +382,7 @@ function HorizontalTabPagerInner<T extends string>(
     document.addEventListener("pointercancel", onPointerCancel, true);
     return () => {
       document.documentElement.classList.remove("horizontal-tab-pager-document");
+      document.documentElement.classList.remove("pager-dragging");
       surface.classList.remove("horizontal-tab-pager-surface");
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("pointermove", onPointerMove, true);
@@ -384,6 +395,7 @@ function HorizontalTabPagerInner<T extends string>(
     flushPendingDrag,
     items,
     queueDrag,
+    setDragging,
     settleToIndex,
     springBack
   ]);

@@ -127,7 +127,6 @@ export function AiSuggestionsPanel() {
               type="button"
               className="suggestion-card"
               data-suggestion-id={item.id}
-              data-swipe-allow="true"
               key={item.id}
               onClick={() => openReview(item)}
             >

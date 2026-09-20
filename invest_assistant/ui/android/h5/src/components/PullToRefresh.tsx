@@ -12,7 +12,9 @@ const MAX_DISTANCE = 88;
 const AXIS_LOCK_DISTANCE = 8;
 const VERTICAL_BIAS = 1.2;
 const ERROR_DURATION = 1200;
-const INTERACTIVE_TARGETS = "button, input, textarea, select, a, [contenteditable], [data-swipe-ignore=\"true\"]";
+// 和横滑一个约定：可点区域照样能起手，点还是拉交给轴锁判，
+// 拉出来之后再把那一次误触的点击吃掉。只有自己要吃掉纵向拖拽的元素才退出。
+const INTERACTIVE_TARGETS = "input, textarea, select, [contenteditable], [data-swipe-ignore=\"true\"]";
 
 type PullStatus = "idle" | "pulling" | "ready" | "refreshing" | "error";
 type GestureAxis = "pending" | "vertical" | "horizontal";
@@ -52,6 +54,10 @@ export function PullToRefresh({
     deltaY: 0
   });
   const errorTimerRef = useRef<number | null>(null);
+  // 只记手势起手落在哪个元素上：要吃掉的是这一次下拉自己带出来的那个点击，
+  // 不是下拉之后用户另外点的任何东西，所以不能用时间窗一刀切。
+  const pullStartTarget = useRef<Element | null>(null);
+  const suppressClickFor = useRef<Element | null>(null);
   const mountedRef = useRef(true);
   const [status, setStatus] = useState<PullStatus>("idle");
   const [distance, setDistance] = useState(0);
@@ -109,6 +115,8 @@ export function PullToRefresh({
         return;
       }
       const touch = event.touches[0];
+      pullStartTarget.current = event.target instanceof Element ? event.target : null;
+      suppressClickFor.current = null;
       gestureRef.current = {
         tracking: true,
         axis: "pending",
@@ -135,6 +143,7 @@ export function PullToRefresh({
       if (gesture.axis !== "vertical") return;
 
       event.preventDefault();
+      suppressClickFor.current = pullStartTarget.current;
       const resistedDistance = Math.min(MAX_DISTANCE, Math.max(0, deltaY) * 0.55);
       setDistance(resistedDistance);
       const nextStatus: PullStatus = deltaY >= TRIGGER_DISTANCE ? "ready" : "pulling";
@@ -188,6 +197,13 @@ export function PullToRefresh({
     <div
       ref={rootRef}
       className={`pull-to-refresh pull-to-refresh--${status}`}
+      onClickCapture={(event) => {
+        const origin = suppressClickFor.current;
+        suppressClickFor.current = null;
+        if (!origin || !(event.target instanceof Node) || !event.target.contains(origin)) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       style={{ "--pull-distance": `${distance}px` } as CSSProperties}
       aria-label={ariaLabel}
     >

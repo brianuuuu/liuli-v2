@@ -490,7 +490,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
    居中排布下同一行的名称、代码、角标各自成一条直线。 */
 .pool-card { position: relative; display: flex; min-width: 0; min-height: 72px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease, transform .12s ease; }
 .dashboard-flat-section .pool-card { background: var(--panel); }
-.pool-card:active { background: var(--blue-soft); transform: scale(.97); }
+html:not(.pager-dragging) .pool-card:active { background: var(--blue-soft); transform: scale(.97); }
 /* 三层信息依次减弱：名称 > 代码 > 角标。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .pool-card span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
@@ -514,7 +514,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
    虚线本身就说明这一格不是数据。 */
 .pool-card--pager { align-items: center; justify-content: center; gap: 2px; border: 1px dashed var(--border); background: transparent; }
 .dashboard-flat-section .pool-card--pager { background: transparent; }
-.pool-card--pager:active { border-color: var(--blue); background: var(--blue-soft); }
+html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); background: var(--blue-soft); }
 .pool-card--pager strong { color: var(--blue); font-size: 12px; font-weight: 650; }
 .pool-card--pager span { color: var(--blue); font-size: 10px; opacity: .75; }
 .pool-limit-hint { margin: 8px 2px 0; color: var(--subtle); font-size: 11px; }
@@ -556,7 +556,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 /* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
 .track-list { display: grid; gap: 8px; }
 .track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
-.track-list-row:active { background: var(--blue-soft); }
+html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft); }
 .track-list-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .track-list-row__head strong { overflow: hidden; font-size: 15px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
 .track-list-row__judgment { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }

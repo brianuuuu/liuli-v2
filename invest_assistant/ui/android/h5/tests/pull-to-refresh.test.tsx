@@ -91,22 +91,64 @@ describe("PullToRefresh", () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
-  it("does not start from interactive or explicitly ignored content", () => {
+  it("does not start from an editor or explicitly ignored content", () => {
     const onRefresh = vi.fn(async () => undefined);
     render(
       <PullToRefresh onRefresh={onRefresh}>
-        <button type="button">操作</button>
+        <textarea aria-label="备注" />
         <div data-swipe-ignore="true">图表</div>
       </PullToRefresh>
     );
 
-    for (const target of [screen.getByRole("button", { name: "操作" }), screen.getByText("图表")]) {
+    for (const target of [screen.getByRole("textbox", { name: "备注" }), screen.getByText("图表")]) {
       touch(target, "touchStart", 100, 100);
       touch(target, "touchMove", 100, 210);
       touch(target, "touchEnd", 100, 210);
     }
 
     expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it("pulls from a tappable row and suppresses its accidental click", async () => {
+    const refresh = deferred<void>();
+    const onRefresh = vi.fn(() => refresh.promise);
+    const onRowClick = vi.fn();
+    render(
+      <PullToRefresh onRefresh={onRefresh}>
+        <button type="button" onClick={onRowClick}>列表行</button>
+      </PullToRefresh>
+    );
+    const row = screen.getByRole("button", { name: "列表行" });
+
+    touch(row, "touchStart", 100, 100);
+    touch(row, "touchMove", 100, 210);
+    touch(row, "touchEnd", 100, 210);
+    fireEvent.click(row);
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onRowClick).not.toHaveBeenCalled();
+    refresh.resolve();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(""));
+  });
+
+  it("keeps a plain tap on a tappable row working", () => {
+    const onRefresh = vi.fn(async () => undefined);
+    const onRowClick = vi.fn();
+    render(
+      <PullToRefresh onRefresh={onRefresh}>
+        <button type="button" onClick={onRowClick}>列表行</button>
+      </PullToRefresh>
+    );
+    const row = screen.getByRole("button", { name: "列表行" });
+
+    // 位移不到 8px 的轴锁阈值：这是点，不是拉
+    touch(row, "touchStart", 100, 100);
+    touch(row, "touchMove", 100, 103);
+    touch(row, "touchEnd", 100, 103);
+    fireEvent.click(row);
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onRowClick).toHaveBeenCalledTimes(1);
   });
 
   it("keeps content visible and reports a failed refresh briefly", async () => {

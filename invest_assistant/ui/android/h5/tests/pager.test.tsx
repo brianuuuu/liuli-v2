@@ -260,7 +260,7 @@ describe("horizontal tab pager", () => {
     expect(document.documentElement).not.toHaveClass("horizontal-tab-pager-document");
   });
 
-  it("does not take gestures from an action or an editor", () => {
+  it("does not take gestures from an editor or an explicitly ignored action", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
     render(
@@ -270,7 +270,7 @@ describe("horizontal tab pager", () => {
         onChange={onChange}
         renderPage={(key) => (
           <>
-            <button type="button">{key}</button>
+            <button type="button" data-swipe-ignore="true">{key}</button>
             <textarea aria-label={`编辑-${key}`} />
           </>
         )}
@@ -283,7 +283,7 @@ describe("horizontal tab pager", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("allows an explicitly swipeable card and suppresses its accidental click", () => {
+  it("swipes from a tappable card and suppresses its accidental click", () => {
     vi.useFakeTimers();
     const onChange = vi.fn();
     const onCardClick = vi.fn();
@@ -293,7 +293,7 @@ describe("horizontal tab pager", () => {
         activeKey="market"
         onChange={onChange}
         renderPage={(key) => (
-          <button type="button" data-swipe-allow="true" onClick={onCardClick}>{key}</button>
+          <button type="button" onClick={onCardClick}>{key}</button>
         )}
       />
     );
@@ -306,6 +306,30 @@ describe("horizontal tab pager", () => {
     act(() => vi.advanceTimersByTime(300));
     expect(onCardClick).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenCalledWith("track");
+  });
+
+  it("keeps a plain tap on a tappable card working", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const onCardClick = vi.fn();
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={onChange}
+        renderPage={(key) => (
+          <button type="button" onClick={onCardClick}>{key}</button>
+        )}
+      />
+    );
+
+    const card = screen.getByRole("button", { name: "market" });
+    // 位移不到 8px 的轴锁阈值：这是点，不是滑
+    pointerSwipe(card, { fromX: 300, toX: 297, fromY: 500, toY: 502 });
+    fireEvent.click(card);
+    act(() => vi.advanceTimersByTime(300));
+    expect(onCardClick).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("routes navigation clicks through the same settling transition", () => {
