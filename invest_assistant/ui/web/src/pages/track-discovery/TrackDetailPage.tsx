@@ -733,7 +733,12 @@ function MaterialsTab({
     <WorkbenchCard>
       <div className="track-detail-panel">
         <div className="track-detail-panel-toolbar">
-          <span>材料动态</span>
+          <span>
+            材料动态
+            {data.summary.material_count > data.materials.length
+              ? `（近 ${data.materials.length} 条 · 共 ${data.summary.material_count} 条）`
+              : ""}
+          </span>
           <Button size="small" type="primary" onClick={onAdd}>引用材料</Button>
         </div>
         <Table rowKey="id" size="small" dataSource={data.materials} columns={columns} pagination={{ defaultPageSize: 10 }} scroll={{ x: 980 }} />

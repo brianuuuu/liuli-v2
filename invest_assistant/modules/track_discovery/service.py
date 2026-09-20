@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
@@ -35,6 +35,11 @@ DASHBOARD_RANKING_LIMIT = 10
 # 原来的 track_score 没有产生方，排序改从最新快照的结论派生。
 RESEARCH_PRIORITY_ORDER = {"priority": 0, "tracking": 1, "deprioritized": 2}
 STRENGTH_ORDER = {"strong": 0, "medium": 1, "weak": 2, "insufficient": 3}
+# 赛道详情是移动端最重的一个响应，列表一律截断：材料和快照另有分页接口，
+# 热度只回最近窗口，避免把整段历史塞进一次请求里拖垮 WebView 和代理连接。
+TRACK_DETAIL_MATERIAL_LIMIT = 20
+TRACK_DETAIL_SNAPSHOT_LIMIT = 30
+TRACK_DETAIL_HEAT_TREND_DAYS = 90
 
 
 def _priority_sort_key(snapshot: TrackTrendSnapshot | None) -> tuple[int, int, int]:
@@ -411,15 +416,23 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
         return None
 
     tags = [item for item in list_track_tag_bindings(db, track.id) if item.get("status") == "active"]
-    materials = list_materials(db, track.id)
-    snapshots = [_trend_snapshot_dict(item) for item in list_trend_snapshots(db, track.id)]
+    material_stats = _track_material_stats(db, track.id)
+    materials = list_materials(db, track.id, limit=TRACK_DETAIL_MATERIAL_LIMIT)
+    snapshots = [
+        _trend_snapshot_dict(item)
+        for item in list_trend_snapshots(db, track.id, limit=TRACK_DETAIL_SNAPSHOT_LIMIT)
+    ]
     stocks = _track_detail_stocks(db, track.id)
-    heat_trends = _track_detail_heat_trends(db, [int(item["tag"]["id"]) for item in tags if item.get("tag")])
+    heat_trends = _track_detail_heat_trends(
+        db,
+        [int(item["tag"]["id"]) for item in tags if item.get("tag")],
+        since=beijing_now() - timedelta(days=TRACK_DETAIL_HEAT_TREND_DAYS),
+    )
     active_stock_count = len([item for item in stocks if item["status"] == "active"])
     latest_heat_score = _latest_heat_score(heat_trends)
     last_updated_candidates = [
         track.updated_at,
-        *(item.get("updated_at") for item in materials),
+        material_stats["last_updated_at"],
         *(item.get("created_at") for item in snapshots),
         *(item.get("updated_at") for item in stocks),
         *(item.get("updated_at") for item in tags),
@@ -429,9 +442,9 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
         "track": _track_dict(db, track),
         "summary": {
             "tag_count": len(tags),
-            "material_count": len(materials),
-            "pending_material_count": len([item for item in materials if item["status"] == "pending"]),
-            "high_importance_material_count": len([item for item in materials if item.get("importance_level") == "high"]),
+            "material_count": material_stats["total"],
+            "pending_material_count": material_stats["pending"],
+            "high_importance_material_count": material_stats["high_importance"],
             "bound_stock_count": active_stock_count,
             "latest_heat_score": latest_heat_score,
             "last_updated_at": _max_datetime(last_updated_candidates),
@@ -631,10 +644,16 @@ def _backfill_track_from_snapshot(db: Session, track_id: int, snapshot: TrackTre
             setattr(track, field, value)
 
 
-def list_trend_snapshots(db: Session, track_id: int | None = None) -> list[TrackTrendSnapshot]:
+def list_trend_snapshots(
+    db: Session,
+    track_id: int | None = None,
+    limit: int | None = None,
+) -> list[TrackTrendSnapshot]:
     stmt = select(TrackTrendSnapshot).order_by(TrackTrendSnapshot.research_date.desc(), TrackTrendSnapshot.id.desc())
     if track_id is not None:
         stmt = stmt.where(TrackTrendSnapshot.track_id == track_id)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return list(db.scalars(stmt))
 
 
@@ -697,6 +716,24 @@ def _max_datetime(values) -> object | None:
     return max(items, key=lambda item: item.timestamp())
 
 
+def _track_material_stats(db: Session, track_id: int) -> dict:
+    """详情只回最近若干条材料，计数必须走聚合，否则会跟着截断一起变小。"""
+    row = db.execute(
+        select(
+            func.count(TrackMaterial.id),
+            func.sum(case((TrackMaterial.status == "pending", 1), else_=0)),
+            func.sum(case((TrackMaterial.importance_level == "high", 1), else_=0)),
+            func.max(TrackMaterial.updated_at),
+        ).where(TrackMaterial.track_id == track_id)
+    ).one()
+    return {
+        "total": int(row[0] or 0),
+        "pending": int(row[1] or 0),
+        "high_importance": int(row[2] or 0),
+        "last_updated_at": row[3],
+    }
+
+
 def _track_detail_stocks(db: Session, track_id: int) -> list[dict]:
     rows = db.execute(
         select(StockTrackRelation, Stock)
@@ -727,16 +764,21 @@ def _track_detail_stocks(db: Session, track_id: int) -> list[dict]:
     ]
 
 
-def _track_detail_heat_trends(db: Session, active_tag_ids: list[int]) -> list[dict]:
+def _track_detail_heat_trends(
+    db: Session,
+    active_tag_ids: list[int],
+    since: datetime | None = None,
+) -> list[dict]:
     if not active_tag_ids:
         return []
-    rows = list(
-        db.scalars(
-            select(TagHeatSnapshot)
-            .where(TagHeatSnapshot.tag_id.in_(active_tag_ids))
-            .order_by(TagHeatSnapshot.window_type.asc(), TagHeatSnapshot.stat_time.asc(), TagHeatSnapshot.id.asc())
-        )
+    stmt = (
+        select(TagHeatSnapshot)
+        .where(TagHeatSnapshot.tag_id.in_(active_tag_ids))
+        .order_by(TagHeatSnapshot.window_type.asc(), TagHeatSnapshot.stat_time.asc(), TagHeatSnapshot.id.asc())
     )
+    if since is not None:
+        stmt = stmt.where(TagHeatSnapshot.stat_time >= since)
+    rows = list(db.scalars(stmt))
     grouped: dict[tuple[str, object], dict] = {}
     for row in rows:
         key = (row.window_type, row.stat_time)

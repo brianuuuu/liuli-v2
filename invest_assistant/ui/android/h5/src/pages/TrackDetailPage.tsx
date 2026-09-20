@@ -245,11 +245,17 @@ function StocksSection({ detail }: { detail: TrackDetail }) {
 
 function MaterialsSection({ detail }: { detail: TrackDetail }) {
   const materials = detailMaterials(detail);
+  // 详情接口只回最近若干条材料，总数走 summary，截断时要说清楚，否则会被当成材料丢了。
+  const total = detail?.summary?.material_count;
+  const truncated = typeof total === "number" && total > materials.length;
   if (!materials.length) {
     return <SectionCard title="赛道材料"><EmptyState title="暂无材料" detail="材料来自信息流和知识笔记" /></SectionCard>;
   }
   return (
-    <SectionCard title="赛道材料">
+    <SectionCard
+      title="赛道材料"
+      action={truncated ? <span className="section-card__hint">近 {materials.length} 条 · 共 {total} 条</span> : undefined}
+    >
       {materials.map((item) => {
         // 方向可能为空，presentation 这时返回 undefined，不能直接取 label
         const direction = materialDirectionPresentation(item.direction);

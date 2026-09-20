@@ -201,6 +201,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .dashboard-flat-section { padding: 0 var(--dashboard-flat-inset); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .section-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .section-card__header h2 { margin: 0; font-size: 15px; font-weight: 680; }
+.section-card__hint { color: var(--muted); font-size: 11px; }
 .market-ranking-card { min-width: 0; }
 .market-ranking-content { min-width: 0; }
 .market-ranking-filters {

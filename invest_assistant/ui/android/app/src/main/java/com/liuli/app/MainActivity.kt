@@ -5,7 +5,9 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -154,7 +156,9 @@ private fun HybridApp(
     var loadFailed by remember(server) { mutableStateOf(false) }
     var loading by remember(server) { mutableStateOf(true) }
     var serverDraft by remember(server) { mutableStateOf(server) }
-    var webView by remember(server) { mutableStateOf<WebView?>(null) }
+    // 渲染进程被系统回收后，只能整块重建 WebView，所以用一个自增的代数作为重建信号。
+    var rendererGeneration by remember(server) { mutableStateOf(0) }
+    var webView by remember(server, rendererGeneration) { mutableStateOf<WebView?>(null) }
 
     LiuliTheme(themeMode) {
         val systemChromeBackground = if (MaterialTheme.colorScheme.surface == Color.White) Color.White else Color.Black
@@ -211,7 +215,7 @@ private fun HybridApp(
                         },
                     )
                 } else {
-                    key(server) {
+                    key(server, rendererGeneration) {
                         AndroidView(
                             factory = { context ->
                                 WebView(context).apply {
@@ -256,6 +260,14 @@ private fun HybridApp(
                                         loadFailed = true
                                         showBottomNavigation = false
                                         canHandleBack = false
+                                    },
+                                    onRendererGone = {
+                                        // 不重建的话页面会永久空白，原地重来一次比留个死壳子好。
+                                        loading = true
+                                        loadFailed = false
+                                        showBottomNavigation = false
+                                        canHandleBack = false
+                                        rendererGeneration += 1
                                     },
                                 )
                                 loadUrl(mobileAppUrl(server))
@@ -315,6 +327,7 @@ private class LiuliWebViewClient(
     private val server: String,
     private val onLoading: (Boolean) -> Unit,
     private val onFailure: () -> Unit,
+    private val onRendererGone: () -> Unit,
 ) : WebViewClient() {
     private val serverUri = Uri.parse(server)
 
@@ -328,6 +341,13 @@ private class LiuliWebViewClient(
 
     override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
         if (request?.isForMainFrame == true) onFailure()
+    }
+
+    /** 返回 false 等于让系统连 app 进程一起杀掉，必须自己接管，否则大页面 OOM 直接表现为闪退。 */
+    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+        Log.w("LiuliWebView", "渲染进程退出：didCrash=${detail?.didCrash()}")
+        onRendererGone()
+        return true
     }
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {

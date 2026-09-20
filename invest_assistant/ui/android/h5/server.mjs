@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from "node:zlib";
 
 const args = process.argv.slice(2);
@@ -25,6 +26,12 @@ const mimeTypes = new Map([
   [".webp", "image/webp"],
   [".woff2", "font/woff2"]
 ]);
+/** 后端回收 keep-alive 空闲连接时 undici 抛这些错，幂等请求重发一次即可。 */
+const RETRYABLE_CODES = new Set(["UND_ERR_SOCKET", "ECONNRESET", "EPIPE"]);
+
+function errorCode(error) {
+  return error?.code || error?.cause?.code || null;
+}
 
 function requestBody(request) {
   return new Promise((resolveBody, reject) => {
@@ -33,6 +40,16 @@ function requestBody(request) {
     request.on("end", () => resolveBody(Buffer.concat(chunks)));
     request.on("error", reject);
   });
+}
+
+async function fetchUpstream(target, init, retryable) {
+  try {
+    return await fetch(target, init);
+  } catch (error) {
+    if (!retryable || !RETRYABLE_CODES.has(errorCode(error))) throw error;
+    console.warn(`[proxy] 上游连接已被回收，重试一次：${init.method} ${target}`);
+    return fetch(target, init);
+  }
 }
 
 async function proxyApi(request, response, url) {
@@ -47,13 +64,13 @@ async function proxyApi(request, response, url) {
   }
   headers.set("accept-encoding", "identity");
   const method = request.method || "GET";
-  const body = method === "GET" || method === "HEAD" ? undefined : await requestBody(request);
-  const upstream = await fetch(`${apiTarget}${url.pathname}${url.search}`, {
-    method,
-    headers,
-    body,
-    redirect: "manual"
-  });
+  const idempotent = method === "GET" || method === "HEAD";
+  const body = idempotent ? undefined : await requestBody(request);
+  const upstream = await fetchUpstream(
+    `${apiTarget}${url.pathname}${url.search}`,
+    { method, headers, body, redirect: "manual" },
+    idempotent
+  );
   response.statusCode = upstream.status;
   for (const [name, value] of upstream.headers) {
     if (!["connection", "content-encoding", "content-length", "transfer-encoding"].includes(name)) {
@@ -64,7 +81,13 @@ async function proxyApi(request, response, url) {
     response.end();
     return;
   }
-  Readable.fromWeb(upstream.body).pipe(response);
+  try {
+    await pipeline(Readable.fromWeb(upstream.body), response);
+  } catch (error) {
+    // 响应头已经发出，只能断掉这一条连接。上游断流或客户端提前离开都不允许拖垮整个 H5 服务。
+    console.error(`[proxy] ${method} ${url.pathname} 响应中断：${errorCode(error) || error?.message}`);
+    response.destroy();
+  }
 }
 
 function compressedBody(filePath, source, acceptEncoding) {
@@ -137,9 +160,22 @@ const server = createServer(async (request, response) => {
     }
   } catch (error) {
     console.error(error);
+    if (response.writableEnded || response.destroyed) return;
     if (!response.headersSent) response.writeHead(502);
     response.end("Bad Gateway");
   }
+});
+
+server.on("clientError", (error, socket) => {
+  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+});
+
+// 兜底：任何漏网的异步异常都只记日志。H5 进程一退出，安卓端整个 app 都打不开。
+process.on("uncaughtException", (error) => {
+  console.error("[fatal] 未捕获异常，服务继续运行：", error);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[fatal] 未处理的 Promise 拒绝：", reason);
 });
 
 server.listen(port, host, () => {
