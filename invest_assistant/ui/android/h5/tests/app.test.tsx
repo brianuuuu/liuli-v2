@@ -1083,13 +1083,13 @@ describe("mobile H5 app", () => {
 
     const positive = await screen.findByText("利好");
     expect(positive).toHaveClass("material-direction--positive");
-    expect(positive.closest(".stock-detail-material")).toHaveTextContent("订单超预期");
+    expect(positive.closest(".detail-material")).toHaveTextContent("订单超预期");
     expect(screen.getByText("利空")).toHaveClass("material-direction--negative");
     expect(screen.getByText("中性")).toHaveClass("material-direction--neutral");
     expect(screen.queryByText("无关快讯")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "看全部" }));
-    const noiseCard = (await screen.findByText("无关快讯")).closest(".stock-detail-material");
+    const noiseCard = (await screen.findByText("无关快讯")).closest(".detail-material");
     expect(noiseCard?.querySelector(".material-direction")).toBeNull();
   });
 
@@ -2125,7 +2125,7 @@ describe("mobile H5 app", () => {
     ));
   });
 
-  it("赛道库可在综合评分与当前热度之间切换排序，点条目进赛道详情", async () => {
+  it("赛道库可在评分与热度之间切换排序，点条目进赛道详情", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
     vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
@@ -2133,7 +2133,8 @@ describe("mobile H5 app", () => {
       const url = String(input);
       // 赛道详情必须走 /detail：不带的那个路由只返回扁平 TrackRead，
       // 少了 summary/stocks/materials，详情页会在渲染时抛异常整页白屏
-      if (/\/api\/track-discovery\/tracks\/7\/detail$/.test(url)) {
+      // 结尾允许带查询串：移动端会加 include_heat_trends=false 跳过 90 天热度序列
+      if (/\/api\/track-discovery\/tracks\/7\/detail(\?|$)/.test(url)) {
         return new Response(JSON.stringify({
           track: { id: 7, name: "AI算力", status: "active", industry_phase: "expansion", market_phase: "accelerate" },
           summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89 },
@@ -2144,7 +2145,13 @@ describe("mobile H5 app", () => {
             cycle_resilience_score: 6.5, current_market_size_score: 7.5, future_market_size_score: 9,
             overall_score: 8.08, track_grade: "S", heat_tier: "T1"
           },
-          trend_snapshots: [], materials: [], stocks: [], tags: []
+          trend_snapshots: [],
+          materials: [{
+            id: 1, track_id: 7, direction: "support", material_title: "先进封装扩产落地",
+            material_summary: "产能紧张带来议价权", material_source_name: "SEMI",
+            material_url: "https://example.com/packaging", material_time: "2026-07-04T10:00:00"
+          }],
+          stocks: [], tags: []
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       // 赛道列表：故意把评级低的放前面，验证端上会按评级重排
@@ -2180,6 +2187,8 @@ describe("mobile H5 app", () => {
     // 默认停在材料流，赛道库要显式切过去
     fireEvent.click(await screen.findByRole("button", { name: "赛道库" }));
     expect(await screen.findByText("AI算力")).toBeInTheDocument();
+    // 归档等同软删除，移动端不做回收站，分档里不该出现
+    expect(screen.queryByRole("button", { name: /归档/ })).not.toBeInTheDocument();
     expect(screen.getByText("固态电池")).toBeInTheDocument();
     // 热度来自看板聚合，挂到对应赛道上
     expect(screen.getByText("热度 89")).toBeInTheDocument();
@@ -2192,11 +2201,11 @@ describe("mobile H5 app", () => {
     expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池"));
 
     // 切到当前热度：固态电池评级更低但更热，顺序必须反过来
-    fireEvent.click(screen.getByRole("button", { name: "当前热度" }));
+    fireEvent.click(screen.getByRole("button", { name: "热度" }));
     await waitFor(() => expect(rankOf("固态电池")).toBeLessThan(rankOf("AI算力")));
 
     // 切回综合评分，顺序回到按评级排
-    fireEvent.click(screen.getByRole("button", { name: "综合评分" }));
+    fireEvent.click(screen.getByRole("button", { name: "评分" }));
     await waitFor(() => expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池")));
 
     fireEvent.click(screen.getByText("AI算力"));
@@ -2204,6 +2213,15 @@ describe("mobile H5 app", () => {
     expect(await screen.findByRole("heading", { name: "AI算力" })).toBeInTheDocument();
     expect(screen.getByText("算力需求从训练转向推理")).toBeInTheDocument();
     expect(screen.getByText("先进封装产能是唯一瓶颈")).toBeInTheDocument();
+
+    // 材料卡与标的详情同构：标题、方向标、摘要、来源时间和原文链接
+    fireEvent.click(screen.getByRole("button", { name: "材料" }));
+    const materialCard = (await screen.findByText("先进封装扩产落地")).closest(".detail-material");
+    expect(materialCard).not.toBeNull();
+    // 方向标沿用两端共用的口径：support 和 positive 都显示利好
+    expect(materialCard?.querySelector(".material-direction")).toHaveTextContent("利好");
+    expect(materialCard).toHaveTextContent("产能紧张带来议价权");
+    expect(materialCard?.querySelector("a")).toHaveAttribute("href", "https://example.com/packaging");
     // 必须打到 /detail：不带的那个路由只返回扁平 TrackRead，页面会缺字段。
     // 光断言渲染结果抓不到这个错——兜底之后地址写错也只是显示 0，所以直接断言请求地址。
     expect(fetchMock).toHaveBeenCalledWith(

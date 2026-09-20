@@ -1,4 +1,4 @@
-import type { TrackDetail, TrackListItem, TrackTrendSnapshot } from "../types/api";
+import type { TrackDetail, TrackListItem, TrackTrendSnapshot, TrackTrendSnapshotBrief } from "../types/api";
 
 /**
  * 赛道库的分组、排序与文案。
@@ -23,14 +23,14 @@ export const DEFAULT_TRACK_STATUS: TrackStatusKey = "all";
 export const ARCHIVED_TRACK_STATUS = "archived";
 export const ALL_TRACK_STATUS = "all";
 
-export type TrackStatusKey = "all" | "active" | "candidate" | "archived";
+export type TrackStatusKey = "all" | "active" | "candidate";
 
 // 跟踪中排在候选之前：赛道库最常看的是正在跟的那几条，候选是往里补的池子。
+// 归档不在这里出现：它等同软删除，移动端不做回收站，要翻归档去 Web 端。
 export const TRACK_STATUS_OPTIONS: { value: TrackStatusKey; label: string }[] = [
   { value: "all", label: "全部" },
   { value: "active", label: "跟踪中" },
-  { value: "candidate", label: "候选" },
-  { value: ARCHIVED_TRACK_STATUS, label: "归档" }
+  { value: "candidate", label: "候选" }
 ];
 
 /** S 排最前，没有研究结论的排最后。数字越小越靠前。 */
@@ -42,8 +42,8 @@ export type TrackSortKey = "grade" | "heat";
 // 两种排法对应两个角标：评级看"值不值得配研究精力"，热度看"市场是不是已经在交易它"。
 // 两者经常背离，所以要能分别排，而不是只给一个综合序。
 export const TRACK_SORT_OPTIONS: { value: TrackSortKey; label: string }[] = [
-  { value: "grade", label: "综合评分" },
-  { value: "heat", label: "当前热度" }
+  { value: "grade", label: "评分" },
+  { value: "heat", label: "热度" }
 ];
 
 export const DEFAULT_TRACK_SORT: TrackSortKey = "grade";
@@ -131,11 +131,11 @@ export function buildTrackRow(
 }
 
 export function filterTracksByStatus(rows: TrackRowView[], status: TrackStatusKey): TrackRowView[] {
-  if (status === ALL_TRACK_STATUS) {
-    // "全部"是默认视图，归档等同软删除，不该混进来
-    return rows.filter((item) => item.status !== ARCHIVED_TRACK_STATUS);
-  }
-  return rows.filter((item) => item.status === status);
+  // 归档等同软删除，任何分档都不显示。列表接口默认也不返回归档，这里是第二道：
+  // 接口口径一旦变化，端上不至于悄悄把回收站里的赛道混进"全部"。
+  const visible = rows.filter((item) => item.status !== ARCHIVED_TRACK_STATUS);
+  if (status === ALL_TRACK_STATUS) return visible;
+  return visible.filter((item) => item.status === status);
 }
 
 /** 名称兜底：让没有任何研究结论的赛道之间顺序稳定，不随请求抖动。 */
@@ -179,19 +179,15 @@ export function sortTracks(rows: TrackRowView[], key: TrackSortKey): TrackRowVie
   return key === "heat" ? sortTracksByHeat(rows) : sortTracksByGrade(rows);
 }
 
-/** 各分档的条数，显示在分组按钮上。"全部"这一档不含归档。 */
+/** 各分档的条数，显示在分组按钮上。归档不计入任何一档。 */
 export function trackStatusCounts(rows: TrackRowView[]): Record<TrackStatusKey, number> {
   const counts: Record<TrackStatusKey, number> = {
     all: 0,
     active: 0,
-    candidate: 0,
-    archived: 0
+    candidate: 0
   };
   for (const row of rows) {
-    if (row.status === ARCHIVED_TRACK_STATUS) {
-      counts.archived += 1;
-      continue;
-    }
+    if (row.status === ARCHIVED_TRACK_STATUS) continue;
     counts.all += 1;
     // 历史数据里可能还有已下线的状态码，计入"全部"但不单独开一档
     if (row.status === "active" || row.status === "candidate") {
@@ -201,8 +197,11 @@ export function trackStatusCounts(rows: TrackRowView[]): Record<TrackStatusKey, 
   return counts;
 }
 
-/** 详情页的六维评分行，与 Web 端同构。缺值给 null 显示占位，不补 0。 */
-export function buildDetailScoreRows(snapshot?: TrackTrendSnapshot | null) {
+/**
+ * 详情页的六维评分行，与 Web 端同构。缺值给 null 显示占位，不补 0。
+ * 简表和完整快照都能传：这里只读六个分数列，两者都有。
+ */
+export function buildDetailScoreRows(snapshot?: TrackTrendSnapshotBrief | TrackTrendSnapshot | null) {
   return TRACK_SCORE_DIMENSIONS.map((item) => {
     const value = snapshot?.[item.key];
     return { key: item.key, label: item.label, value: typeof value === "number" ? value : null };

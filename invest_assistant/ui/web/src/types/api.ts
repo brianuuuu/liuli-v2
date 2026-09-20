@@ -407,12 +407,37 @@ export type TrackDetailStockRelation = {
   updated_at?: string | null;
 };
 
+/**
+ * 详情页历史快照列表只回这些列。完整快照有近二十列长文本，一次回 30 份能到几百 KB，
+ * 而列表只显示日期、角标、六维分数和核心判断一句话。正文看 latest_snapshot，
+ * 要翻某一份历史原文走 /trend-snapshots。
+ */
+export type TrackTrendSnapshotBrief = Pick<
+  TrackTrendSnapshot,
+  | 'id'
+  | 'track_id'
+  | 'research_date'
+  | 'researcher_code'
+  | 'report_id'
+  | 'headline_cycle'
+  | 'core_judgment'
+  | 'market_heat_score'
+  | 'growth_speed_score'
+  | 'concentration_score'
+  | 'cycle_resilience_score'
+  | 'current_market_size_score'
+  | 'future_market_size_score'
+  | 'overall_score'
+  | 'track_grade'
+  | 'heat_tier'
+>;
+
 export type TrackDetail = {
   track: Track;
   summary: TrackDetailSummary;
   heat_trends: TrackDetailHeatTrend[];
   latest_snapshot?: TrackTrendSnapshot | null;
-  trend_snapshots: TrackTrendSnapshot[];
+  trend_snapshots: TrackTrendSnapshotBrief[];
   materials: TrackMaterial[];
   stocks: TrackDetailStockRelation[];
   tags: TagBinding[];

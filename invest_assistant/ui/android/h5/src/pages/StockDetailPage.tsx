@@ -291,7 +291,7 @@ function MaterialsSection({ detail }: { detail: StockDetail }) {
         {visible.length ? visible.map((item) => {
           const direction = materialDirectionPresentation(item.impact_direction);
           return (
-            <article className="stock-detail-material" key={item.id}>
+            <article className="detail-material" key={item.id}>
               <h3>
                 <span>{item.material_title?.trim() || "--"}</span>
                 {direction ? <em className={`material-direction material-direction--${direction.tone}`}>{direction.label}</em> : null}

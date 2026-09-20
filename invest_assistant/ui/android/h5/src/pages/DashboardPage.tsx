@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowUpDown } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -33,7 +34,6 @@ import {
   type StockTabView
 } from "./stockPoolGroups";
 import {
-  ARCHIVED_TRACK_STATUS,
   TRACK_CYCLE_LABELS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
@@ -274,11 +274,11 @@ function TrackLibraryView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<TrackStatusKey>(lastTrackStatus);
   const [sort, setSort] = useState<TrackSortKey>(lastTrackSort);
-  // 赛道总量是十几条量级，一次取回在端上分档排序，不做分页。归档要显式请求。
-  const archivedView = status === ARCHIVED_TRACK_STATUS;
+  // 赛道总量是十几条量级，一次取回在端上分档排序，不做分页。
+  // 归档不在移动端出现，接口默认就不返回，这里也不再按状态分别取数。
   const listQuery = useQuery({
-    queryKey: ["track-library", archivedView ? ARCHIVED_TRACK_STATUS : "active"],
-    queryFn: () => mobileApi.trackList(50, archivedView ? ARCHIVED_TRACK_STATUS : undefined),
+    queryKey: ["track-library"],
+    queryFn: () => mobileApi.trackList(50),
     staleTime: 300_000
   });
   // 热度来自看板聚合，取不到不影响列表主体，所以单独一条查询、失败不阻塞
@@ -295,32 +295,36 @@ function TrackLibraryView() {
   const visible = sortTracks(filterTracksByStatus(rows, status), sort);
   return (
     <SectionCard className="dashboard-flat-section">
-      <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="赛道状态分组">
-        {TRACK_STATUS_OPTIONS.map((option) => (
-          <button
-            type="button"
-            key={option.value}
-            className={`${status === option.value ? "is-active" : ""}${option.value === ARCHIVED_TRACK_STATUS ? " is-archived" : ""}`.trim()}
-            aria-pressed={status === option.value}
-            onClick={() => { rememberTrackStatus(option.value); setStatus(option.value); }}
-          >
-            {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
-          </button>
-        ))}
-      </div>
-      <div className="track-sort-bar" data-swipe-ignore="true" role="group" aria-label="赛道排序">
-        <span>排序</span>
-        {TRACK_SORT_OPTIONS.map((option) => (
-          <button
-            type="button"
-            key={option.value}
-            className={sort === option.value ? "is-active" : ""}
-            aria-pressed={sort === option.value}
-            onClick={() => { rememberTrackSort(option.value); setSort(option.value); }}
-          >
-            {option.label}
-          </button>
-        ))}
+      {/* 状态分档和排序共一行：赛道只有三档状态，两组并排还有余量，省掉一整行高度。 */}
+      <div className="track-filter-bar" data-swipe-ignore="true">
+        <div className="pill-segments pill-segments--compact" role="group" aria-label="赛道状态分组">
+          {TRACK_STATUS_OPTIONS.map((option) => (
+            <button
+              type="button"
+              key={option.value}
+              className={status === option.value ? "is-active" : ""}
+              aria-pressed={status === option.value}
+              onClick={() => { rememberTrackStatus(option.value); setStatus(option.value); }}
+            >
+              {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
+            </button>
+          ))}
+        </div>
+        <div className="track-sort-group" role="group" aria-label="赛道排序">
+          {/* 图标代替"排序"两个字，同一行里省出的宽度留给状态分档 */}
+          <ArrowUpDown size={13} aria-hidden="true" />
+          {TRACK_SORT_OPTIONS.map((option) => (
+            <button
+              type="button"
+              key={option.value}
+              className={sort === option.value ? "is-active" : ""}
+              aria-pressed={sort === option.value}
+              onClick={() => { rememberTrackSort(option.value); setSort(option.value); }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       {listQuery.isLoading ? <LoadingState /> : listQuery.isError ? (
         <ErrorState message="赛道库加载失败" onRetry={() => void listQuery.refetch()} />

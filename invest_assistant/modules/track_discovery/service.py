@@ -16,7 +16,7 @@ from invest_assistant.modules.track_discovery.models import (
     TrackStatusHistory,
     TrackTrendSnapshot,
 )
-from invest_assistant.modules.track_discovery.scoring import GRADE_ORDER, TRACK_GRADES, derive_track_scores
+from invest_assistant.modules.track_discovery.scoring import GRADE_ORDER, TRACK_GRADES, TRACK_SCORE_FIELDS, derive_track_scores
 from invest_assistant.modules.track_discovery.schemas import (
     TrackCreate,
     TrackMaterialCreate,
@@ -409,7 +409,17 @@ def get_track(db: Session, track_id: int) -> dict | None:
     return _track_dict(db, track)
 
 
-def get_track_detail(db: Session, track_id: int) -> dict | None:
+def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = True) -> dict | None:
+    """赛道详情。
+
+    这是移动端最重的一个响应，两处刻意的裁剪：
+
+    - 历史快照只回列表要用的那几列。一份快照有近二十列长文本，30 份全量下发能到几百 KB，
+      而两端的历史列表只显示日期、角标、六维分数和核心判断一句话。完整正文在
+      latest_snapshot 里，够渲染详情页正文；要翻某一份历史原文走 /trend-snapshots。
+    - include_heat_trends=False 时不查 90 天热度序列。H5 只用 summary.latest_heat_score，
+      整段序列纯属白搬；这时改用一条 limit 1 的查询取最新热度。
+    """
     track = db.get(Track, track_id)
     if track is None:
         return None
@@ -417,18 +427,21 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
     tags = [item for item in list_track_tag_bindings(db, track.id) if item.get("status") == "active"]
     material_stats = _track_material_stats(db, track.id)
     materials = list_materials(db, track.id, limit=TRACK_DETAIL_MATERIAL_LIMIT)
-    snapshots = [
-        _trend_snapshot_dict(item)
-        for item in list_trend_snapshots(db, track.id, limit=TRACK_DETAIL_SNAPSHOT_LIMIT)
-    ]
+    snapshot_rows = list_trend_snapshots(db, track.id, limit=TRACK_DETAIL_SNAPSHOT_LIMIT)
+    snapshots = [_trend_snapshot_brief(item) for item in snapshot_rows]
     stocks = _track_detail_stocks(db, track.id)
-    heat_trends = _track_detail_heat_trends(
-        db,
-        [int(item["tag"]["id"]) for item in tags if item.get("tag")],
-        since=beijing_now() - timedelta(days=TRACK_DETAIL_HEAT_TREND_DAYS),
-    )
+    active_tag_ids = [int(item["tag"]["id"]) for item in tags if item.get("tag")]
+    if include_heat_trends:
+        heat_trends = _track_detail_heat_trends(
+            db,
+            active_tag_ids,
+            since=beijing_now() - timedelta(days=TRACK_DETAIL_HEAT_TREND_DAYS),
+        )
+        latest_heat_score = _latest_heat_score(heat_trends)
+    else:
+        heat_trends = []
+        latest_heat_score = _latest_heat_score_for_tags(db, active_tag_ids)
     active_stock_count = len([item for item in stocks if item["status"] == "active"])
-    latest_heat_score = _latest_heat_score(heat_trends)
     last_updated_candidates = [
         track.updated_at,
         material_stats["last_updated_at"],
@@ -449,7 +462,7 @@ def get_track_detail(db: Session, track_id: int) -> dict | None:
             "last_updated_at": _max_datetime(last_updated_candidates),
         },
         "heat_trends": heat_trends,
-        "latest_snapshot": snapshots[0] if snapshots else None,
+        "latest_snapshot": _trend_snapshot_dict(snapshot_rows[0]) if snapshot_rows else None,
         "trend_snapshots": snapshots,
         "materials": materials,
         "stocks": stocks,
@@ -719,6 +732,28 @@ def _trend_snapshot_dict(snapshot: TrackTrendSnapshot) -> dict:
     return row
 
 
+# 历史快照列表要用的列。两端的列表都只显示日期、角标、六维分数和核心判断一句话，
+# 六项分析、环节、情景这些长文本不进列表——它们占了一份快照九成以上的体积。
+SNAPSHOT_BRIEF_FIELDS = (
+    "research_date",
+    "researcher_code",
+    "report_id",
+    "headline_cycle",
+    "core_judgment",
+    *TRACK_SCORE_FIELDS,
+    "overall_score",
+    "track_grade",
+    "heat_tier",
+    "created_at",
+)
+
+
+def _trend_snapshot_brief(snapshot: TrackTrendSnapshot) -> dict:
+    row = {"id": snapshot.id, "track_id": snapshot.track_id}
+    row.update({field: getattr(snapshot, field) for field in SNAPSHOT_BRIEF_FIELDS})
+    return row
+
+
 def _isoformat(value: object) -> str | None:
     if value is None:
         return None
@@ -823,6 +858,32 @@ def _track_detail_heat_trends(
         points = sorted(points_by_window[window_type], key=lambda item: item["stat_time"])
         trends.append({"window_type": window_type, "points": points})
     return trends
+
+
+def _latest_heat_score_for_tags(db: Session, active_tag_ids: list[int]) -> float | None:
+    """不需要整段序列时，只取最新一个 24h 热度点。
+
+    多个标签的同一时刻要相加，所以先定位最新时刻再按该时刻汇总，
+    不能直接 order by limit 1——那样只拿到其中一个标签的分数。
+    """
+    if not active_tag_ids:
+        return None
+    latest_stat_time = db.scalar(
+        select(func.max(TagHeatSnapshot.stat_time)).where(
+            TagHeatSnapshot.tag_id.in_(active_tag_ids),
+            TagHeatSnapshot.window_type == "24h",
+        )
+    )
+    if latest_stat_time is None:
+        return None
+    total = db.scalar(
+        select(func.sum(TagHeatSnapshot.heat_score)).where(
+            TagHeatSnapshot.tag_id.in_(active_tag_ids),
+            TagHeatSnapshot.window_type == "24h",
+            TagHeatSnapshot.stat_time == latest_stat_time,
+        )
+    )
+    return None if total is None else round(float(total), 2)
 
 
 def _latest_heat_score(heat_trends: list[dict]) -> float | None:

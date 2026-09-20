@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -20,7 +21,7 @@ import {
   TRACK_MARKET_PHASE_LABELS,
   TRACK_SCORE_MAX
 } from "./trackLibraryGroups";
-import type { TrackDetail, TrackTrendSnapshot } from "../types/api";
+import type { TrackDetail, TrackTrendSnapshotBrief } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
 import { materialDirectionPresentation } from "../utils/materialDirection";
 
@@ -203,7 +204,7 @@ function SnapshotsSection({ detail }: { detail: TrackDetail }) {
   );
 }
 
-function SnapshotRow({ snapshot }: { snapshot: TrackTrendSnapshot }) {
+function SnapshotRow({ snapshot }: { snapshot: TrackTrendSnapshotBrief }) {
   const scores = buildDetailScoreRows(snapshot);
   return (
     <div className="track-snapshot-row">
@@ -265,13 +266,17 @@ function MaterialsSection({ detail }: { detail: TrackDetail }) {
         // 方向可能为空，presentation 这时返回 undefined，不能直接取 label
         const direction = materialDirectionPresentation(item.direction);
         return (
-          <ListRow
-            key={item.id}
-            title={item.material_title?.trim() || "未命名材料"}
-            meta={[direction?.label, item.material_source_name, formatDateTime(item.material_time), item.material_summary]
-              .filter(Boolean)
-              .join(" · ")}
-          />
+          <article className="detail-material" key={item.id}>
+            <h3>
+              <span>{item.material_title?.trim() || "未命名材料"}</span>
+              {direction ? <em className={`material-direction material-direction--${direction.tone}`}>{direction.label}</em> : null}
+            </h3>
+            {item.material_summary?.trim() ? <p>{item.material_summary}</p> : null}
+            <footer>
+              {[item.material_source_name?.trim(), item.material_time ? formatDateTime(item.material_time) : null].filter(Boolean).join(" · ") || "--"}
+              {item.material_url ? <a href={item.material_url} target="_blank" rel="noreferrer">原文 <ExternalLink size={13} /></a> : null}
+            </footer>
+          </article>
         );
       })}
     </SectionCard>

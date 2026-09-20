@@ -28,6 +28,7 @@ import type {
   TrackTrendSnapshot,
   TrackDetail,
   TrackDetailHeatTrend,
+  TrackTrendSnapshotBrief,
   TrackDetailStockRelation,
   TrackMaterial
 } from "../../types/api";
@@ -815,7 +816,8 @@ function TagsTab({ data }: { data: TrackDetail }) {
 
 function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void }) {
   const { resolvedMode } = useLiuliTheme();
-  const columns: ColumnsType<TrackTrendSnapshot> = [
+  // 历史列表走简表：详情接口不回六项分析、环节、情景这些长文本，要看正文点进报告。
+  const columns: ColumnsType<TrackTrendSnapshotBrief> = [
     { title: "研究日期", dataIndex: "research_date", width: 110 },
     {
       title: "评级",

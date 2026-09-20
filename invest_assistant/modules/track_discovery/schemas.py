@@ -266,6 +266,36 @@ class TrackTrendSnapshotRead(TrackTrendSnapshotCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TrackTrendSnapshotBrief(BaseModel):
+    """详情页历史快照列表用的简表。
+
+    完整快照有近二十列长文本，一次回 30 份能到几百 KB，而列表只显示日期、角标、
+    六维分数和核心判断一句话。要看某一份的正文走 /trend-snapshots。
+    """
+
+    id: int
+    track_id: int
+    research_date: date
+    researcher_code: str | None = None
+    report_id: int | None = None
+    headline_cycle: str
+    core_judgment: str | None = None
+
+    market_heat_score: float
+    growth_speed_score: float
+    concentration_score: float
+    cycle_resilience_score: float
+    current_market_size_score: float
+    future_market_size_score: float
+
+    overall_score: float
+    track_grade: str
+    heat_tier: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TrackDetailSummary(BaseModel):
     tag_count: int = 0
     material_count: int = 0
@@ -309,7 +339,7 @@ class TrackDetailRead(BaseModel):
     summary: TrackDetailSummary
     heat_trends: list[TrackDetailHeatTrend] = Field(default_factory=list)
     latest_snapshot: TrackTrendSnapshotRead | None = None
-    trend_snapshots: list[TrackTrendSnapshotRead] = Field(default_factory=list)
+    trend_snapshots: list[TrackTrendSnapshotBrief] = Field(default_factory=list)
     materials: list[TrackMaterialRead] = Field(default_factory=list)
     stocks: list[TrackDetailStockRelation] = Field(default_factory=list)
     tags: list[dict] = Field(default_factory=list)

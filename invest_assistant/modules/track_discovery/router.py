@@ -86,8 +86,15 @@ def get_track(track_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/tracks/{track_id}/detail", response_model=TrackDetailRead)
-def get_track_detail(track_id: int, db: Session = Depends(get_db)):
-    detail = service.get_track_detail(db, track_id)
+def get_track_detail(
+    track_id: int,
+    db: Session = Depends(get_db),
+    # 移动端只用 summary.latest_heat_score，不画热度曲线，带上 false 可以省掉
+    # 90 天序列的查询和传输。Web 要画图，默认仍然返回。
+    # db 保持在第二位：这个函数也被直接按位置调用，新参数插到它前面会把 Session 顶掉。
+    include_heat_trends: bool = Query(True),
+):
+    detail = service.get_track_detail(db, track_id, include_heat_trends=include_heat_trends)
     if detail is None:
         raise HTTPException(status_code=404, detail="track not found")
     return detail

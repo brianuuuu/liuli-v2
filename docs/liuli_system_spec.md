@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v35：赛道详情接口收敛体积：`trend_snapshots` 只回简表（身份、主导周期、核心判断、六维评分与派生三项），六项分析、环节、情景等长文本仅保留在 `latest_snapshot`，要翻历史原文走 `/trend-snapshots`；新增 `include_heat_trends` 查询参数，移动端传 `false` 跳过 90 天热度序列，此时 `latest_heat_score` 改由一条聚合查询取最新 24h 热度。安卓赛道库去掉归档分档（归档只在 Web 端可见），状态分档与排序合并为一行，排序提供「评分 / 热度」两种；赛道详情的材料卡与标的详情统一为 `.detail-material` 一套样式。
 - v34：赛道状态去掉 `paused`（暂停观察），只留 `active` 跟踪中 / `candidate` 候选 / `archived` 归档，列表与筛选一律把跟踪中排在候选之前。不再跟踪的赛道退回候选，归档仍等同软删除。存量 `paused` 赛道由迁移脚本统一改判为 `candidate`。
 - v34：赛道结论从"强/中/弱"改为六维量化评分：`track_trend_snapshot` 新增 `market_heat_score`、`growth_speed_score`、`concentration_score`、`cycle_resilience_score`、`current_market_size_score`、`future_market_size_score` 六个 0—10 分，以及派生的 `overall_score`（六项等权平均）、`track_grade`（S/A/B/C/D）、`heat_tier`（T0—T4，T0 最热）。六维一律"分高=更有利"，`cycle_resilience_score` 存的是穿越周期的能力而非周期振幅，`concentration_score` 高表示格局收敛；口径与阈值只在 `track_discovery/scoring.py` 一份，派生三项由 service 在写入时算好，不接受调用方传值。同批删除 13 列：`headline_strength`、`research_priority`、`priority_rank`、`confidence_level` 以及三周期的 9 列，研究优先级改由评级推导，赛道卡角标从"强 · 长期"改为「评级 + 热度档位」两个角标，`headline_cycle` 保留作副标题。赛道列表接口随行下发评级、热度档位和综合分，看板与赛道库排序改走评级和综合分。
 - v33：组合管理新增 `portfolio_position_change` 调仓记录表，并通过只读工具 `portfolio.list_position_changes` 对外提供按时间段的调仓数据供复盘使用。调仓的定义是个股持仓数量的变动，不引入成交概念，不记买卖价格、方向和费用；持仓的新增、修改、删除都会自动留痕，调仓日期和调仓理由在调整股数时选填，现金仍由 `portfolio_cash_flow` 的现金校准单独维护。调仓记录页由该表驱动，替换原先的占位空状态，并补上组合选择器与实盘持仓页共用同一个当前组合。
@@ -4607,7 +4608,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | GET | `/api/track-discovery/materials` | 赛道材料全局列表 |
 | POST | `/api/track-discovery/tracks` | 新增赛道 |
 | GET | `/api/track-discovery/tracks/{track_id}` | 赛道详情 |
-| GET | `/api/track-discovery/tracks/{track_id}/detail` | 赛道详情聚合视图 |
+| GET | `/api/track-discovery/tracks/{track_id}/detail` | 赛道详情聚合视图；历史快照只回简表，`include_heat_trends=false` 可跳过 90 天热度序列 |
 | PUT | `/api/track-discovery/tracks/{track_id}` | 更新赛道 |
 | DELETE | `/api/track-discovery/tracks/{track_id}` | 删除赛道 |
 | POST | `/api/track-discovery/tracks/{track_id}/status` | 更新赛道状态/阶段 |

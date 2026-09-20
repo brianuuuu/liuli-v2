@@ -108,12 +108,14 @@ describe("filterTracksByStatus", () => {
     row({ id: 3, status: ARCHIVED_TRACK_STATUS })
   ];
 
-  it("默认的全部视图不含归档：归档等同软删除", () => {
+  it("全部视图不含归档：归档等同软删除", () => {
     expect(filterTracksByStatus(rows, "all").map((item) => item.id)).toEqual([1, 2]);
   });
 
-  it("只有显式切到归档才看得到", () => {
-    expect(filterTracksByStatus(rows, ARCHIVED_TRACK_STATUS).map((item) => item.id)).toEqual([3]);
+  it("归档在任何分档下都不出现：移动端不做回收站", () => {
+    // 接口默认就不返回归档，这里是第二道防线，口径变了也不会把回收站混进列表
+    expect(filterTracksByStatus(rows, "active").map((item) => item.id)).toEqual([1]);
+    expect(filterTracksByStatus([row({ id: 3, status: ARCHIVED_TRACK_STATUS })], "all")).toEqual([]);
   });
 
   it("其余分组按状态精确匹配", () => {
@@ -218,7 +220,7 @@ describe("sortTracks", () => {
 });
 
 describe("trackStatusCounts", () => {
-  it("全部这一档不含归档", () => {
+  it("归档不计入任何一档", () => {
     const counts = trackStatusCounts([
       row({ id: 1, status: "active" }),
       row({ id: 2, status: "candidate" }),
@@ -226,7 +228,6 @@ describe("trackStatusCounts", () => {
       row({ id: 4, status: ARCHIVED_TRACK_STATUS })
     ]);
     expect(counts.all).toBe(3);
-    expect(counts.archived).toBe(1);
     expect(counts.active).toBe(1);
     expect(counts.candidate).toBe(2);
   });
