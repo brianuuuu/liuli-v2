@@ -552,6 +552,74 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .stock-status--watching { background: #fff3e0; color: #b45309; }
 .stock-status--archived { color: var(--subtle); }
 :root[data-theme="dark"] .stock-status--watching { background: #2a2113; color: #f59e0b; }
+/* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
+.track-list { display: grid; gap: 8px; }
+.track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
+.track-list-row:active { background: var(--blue-soft); }
+.track-list-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.track-list-row__head strong { overflow: hidden; font-size: 15px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
+.track-list-row__judgment { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.track-list-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--subtle); font-size: 11px; }
+.track-list-row__meta em { margin-left: auto; font-style: normal; font-variant-numeric: tabular-nums; }
+
+/* 强度徽章：强红、中橙、弱蓝、待研究灰，与 Web 端同一套语义 */
+.track-strength { display: inline-flex; flex: 0 0 auto; align-items: baseline; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 620; line-height: 1.35; white-space: nowrap; }
+.track-strength i { font-size: 10px; font-style: normal; opacity: .78; }
+.track-strength--strong { background: #fee2e2; color: #b91c1c; }
+.track-strength--medium { background: #fff3e0; color: #b45309; }
+.track-strength--weak { background: var(--blue-soft); color: var(--blue); }
+.track-strength--unknown { color: var(--subtle); }
+:root[data-theme="dark"] .track-strength--strong { background: #4a1a1f; color: #fca5a5; }
+:root[data-theme="dark"] .track-strength--medium { background: #2a2113; color: #f59e0b; }
+
+/* 赛道详情档案头，结构与 stock-profile 对齐 */
+.track-profile { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.track-profile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.track-profile__head > div { min-width: 0; }
+.track-profile__head h2 { overflow: hidden; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .2px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.track-profile__head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.track-profile__phases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.track-profile__phases span { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
+.track-profile__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.track-profile__metrics div { display: grid; min-width: 0; gap: 4px; padding-left: 12px; border-left: 1px solid var(--border); }
+.track-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
+.track-profile__metrics span { color: var(--muted); font-size: 11px; }
+.track-profile__metrics strong { overflow: hidden; font-size: 17px; font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 三周期：主导周期左侧加蓝条，卡片上的"强 · 长期"说的是这一行 */
+.track-cycle-list { display: grid; gap: 10px; }
+.track-cycle-item { padding-left: 10px; border-left: 2px solid var(--border); }
+.track-cycle-item.is-headline { border-left-color: var(--blue); }
+.track-cycle-item__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.track-cycle-item__head strong { font-size: 13px; }
+.track-cycle-item__flag { padding: 1px 6px; border-radius: 4px; background: var(--blue-soft); color: var(--blue); font-size: 10px; font-style: normal; }
+.track-cycle-item__direction { color: var(--subtle); font-size: 11px; }
+.track-cycle-item p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.track-strength-dot { padding: 1px 7px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 620; }
+.track-strength-dot--strong { background: #fee2e2; color: #b91c1c; }
+.track-strength-dot--medium { background: #fff3e0; color: #b45309; }
+.track-strength-dot--weak { background: var(--blue-soft); color: var(--blue); }
+:root[data-theme="dark"] .track-strength-dot--strong { background: #4a1a1f; color: #fca5a5; }
+:root[data-theme="dark"] .track-strength-dot--medium { background: #2a2113; color: #f59e0b; }
+
+.track-subhead { margin: 12px 0 0; color: var(--muted); font-size: 12px; font-weight: 620; }
+.track-paragraph { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
+.track-segment-row + .track-segment-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.track-segment-row strong { font-size: 13px; }
+.track-segment-row p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.track-segment-row__stocks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.track-segment-row__stocks span { padding: 2px 7px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
+
+.track-snapshot-row + .track-snapshot-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.track-snapshot-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.track-snapshot-row__head strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.track-snapshot-row__cycles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; color: var(--subtle); font-size: 11px; }
+.track-snapshot-row p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.track-snapshot-row__foot { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; color: var(--subtle); font-size: 11px; }
+
+/* 底部分段器是 fixed 的，列表尾部要留出它的高度，否则最后一条被压住 */
+.track-view-stack { padding-bottom: 54px; }
+
 .stock-detail-chart { width: 100%; }
 .stock-detail-chart.is-loading { border-radius: 8px; background: var(--panel-soft); }
 .stock-detail-copy { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--blue); }

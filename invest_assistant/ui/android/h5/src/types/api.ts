@@ -127,6 +127,89 @@ export type TrackDashboard = {
     material_time?: string;
   }>;
 };
+export type TrackCycle = "short" | "mid" | "long";
+export type TrackStrength = "strong" | "medium" | "weak" | "insufficient";
+export type TrackDirection = "strengthening" | "stable" | "weakening";
+export type TrackResearchPriority = "priority" | "tracking" | "deprioritized";
+
+/** 与后端 track_trend_snapshot 一一对应；JSON 三列在移动端只解析展示用的字段。 */
+export type TrackTrendSnapshot = {
+  id: number;
+  track_id: number;
+  research_date: string;
+  researcher_code?: string | null;
+  headline_cycle: TrackCycle;
+  headline_strength: TrackStrength;
+  core_judgment?: string | null;
+  research_priority?: TrackResearchPriority | null;
+  priority_rank?: number | null;
+  confidence_level?: string | null;
+  short_strength?: TrackStrength | null;
+  short_direction?: TrackDirection | null;
+  short_basis?: string | null;
+  mid_strength?: TrackStrength | null;
+  mid_direction?: TrackDirection | null;
+  mid_basis?: string | null;
+  long_strength?: TrackStrength | null;
+  long_direction?: TrackDirection | null;
+  long_basis?: string | null;
+  demand_space?: string | null;
+  supply_competition?: string | null;
+  profit_cashflow?: string | null;
+  policy_catalyst?: string | null;
+  market_capital?: string | null;
+  pricing_expectation_gap?: string | null;
+  key_contradiction?: string | null;
+  segments_json?: string | null;
+  industry_phase?: string | null;
+  market_phase?: string | null;
+  scenarios_json?: string | null;
+  next_verification?: string | null;
+  risk_falsification?: string | null;
+  change_vs_last?: string | null;
+  data_gaps?: string | null;
+  data_sources_json?: string | null;
+};
+
+export type TrackListItem = {
+  id: number;
+  name: string;
+  description?: string | null;
+  status: string;
+  current_view?: string | null;
+  industry_phase?: string | null;
+  market_phase?: string | null;
+  confidence_level?: string | null;
+  latest_snapshot_id?: number | null;
+};
+
+export type TrackDetail = {
+  track: TrackListItem;
+  summary: {
+    tag_count: number;
+    material_count: number;
+    pending_material_count: number;
+    high_importance_material_count: number;
+    bound_stock_count: number;
+    latest_heat_score?: number | null;
+    last_updated_at?: string | null;
+  };
+  latest_snapshot?: TrackTrendSnapshot | null;
+  trend_snapshots: TrackTrendSnapshot[];
+  materials: TrackMaterial[];
+  stocks: Array<{
+    id: number;
+    stock_id: number;
+    stock_name?: string | null;
+    stock_code?: string | null;
+    relation_type?: string | null;
+    conviction: number;
+    reason?: string | null;
+    status: string;
+  }>;
+  tags: Array<{ tag?: { id?: number; name?: string | null } | null; status?: string }>;
+};
+
 export type TrackMaterial = {
   id: number;
   track_id: number;

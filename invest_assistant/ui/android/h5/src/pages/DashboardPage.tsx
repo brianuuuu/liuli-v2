@@ -33,12 +33,34 @@ import {
   type StockTabView
 } from "./stockPoolGroups";
 import {
+  ARCHIVED_TRACK_STATUS,
+  TRACK_CYCLE_LABELS,
+  TRACK_INDUSTRY_PHASE_LABELS,
+  TRACK_MARKET_PHASE_LABELS,
+  TRACK_PRIORITY_LABELS,
+  TRACK_STATUS_OPTIONS,
+  TRACK_STRENGTH_LABELS,
+  TRACK_TAB_VIEWS,
+  buildTrackRow,
+  filterTracksByStatus,
+  sortTracksByPriority,
+  trackLabel,
+  trackStatusCounts,
+  type TrackHeatLookup,
+  type TrackStatusKey,
+  type TrackTabView
+} from "./trackLibraryGroups";
+import {
   lastDashboardTab,
   lastPoolStatus,
   lastStockView,
+  lastTrackStatus,
+  lastTrackView,
   rememberDashboardTab,
   rememberPoolStatus,
-  rememberStockView
+  rememberStockView,
+  rememberTrackStatus,
+  rememberTrackView
 } from "./dashboardViewState";
 import type { TagHeat } from "../types/api";
 import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
@@ -65,7 +87,7 @@ export function DashboardPage() {
       <HorizontalTabPager ref={pager} items={dashboardTabs} activeKey={tab} onChange={(key) => { rememberDashboardTab(key); setTab(key); }} motionSink={navigationMotion} renderPage={(key) => {
         if (key === "today") return <TodayDashboard />;
         if (key === "market") return <MarketDashboard active={key === tab} />;
-        if (key === "track") return <TrackDashboard />;
+        if (key === "track") return <TrackDashboard active={key === tab} />;
         if (key === "stock") return <StockDashboard active={key === tab} />;
         return <PortfolioDashboard />;
       }} />
@@ -199,7 +221,123 @@ function MarketDashboard({ active }: { active: boolean }) {
   );
 }
 
-function TrackDashboard() {
+/**
+ * 赛道页和标的页同构：底部分段器切「赛道库 / 赛道材料」，分段器 portal 到 body，
+ * 原因见下面 StockDashboard 的注释——横滑容器的 transform 会让页内 fixed 失效。
+ */
+function TrackDashboard({ active }: { active: boolean }) {
+  const [view, setView] = useState<TrackTabView>(lastTrackView);
+  const client = useQueryClient();
+  const refresh = async () => {
+    const queryKey = view === "materials" ? ["track-materials"] : ["track-library"];
+    if (view === "materials") {
+      client.setQueryData<{ pages: unknown[]; pageParams: unknown[] }>(queryKey, (current) => current ? {
+        ...current,
+        pages: current.pages.slice(0, 1),
+        pageParams: current.pageParams.slice(0, 1)
+      } : current);
+    }
+    await client.refetchQueries({ queryKey, exact: view === "materials" });
+    const failed = client.getQueryCache().findAll({ queryKey }).find((entry) => entry.state.status === "error");
+    if (failed) throw failed.state.error;
+  };
+  return (
+    <PullToRefresh ariaLabel="赛道页下拉刷新" onRefresh={refresh}>
+      <div className="page-stack track-view-stack">
+        {view === "materials" ? <TrackMaterialsView /> : <TrackLibraryView />}
+        {active ? createPortal(
+          <div className="stock-view-bar" data-swipe-ignore="true">
+            <div className="pill-segments" role="group" aria-label="赛道视图">
+              {TRACK_TAB_VIEWS.map((item) => (
+                <button
+                  type="button"
+                  key={item.value}
+                  className={view === item.value ? "is-active" : ""}
+                  aria-pressed={view === item.value}
+                  onClick={() => { rememberTrackView(item.value); setView(item.value); }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body
+        ) : null}
+      </div>
+    </PullToRefresh>
+  );
+}
+
+function TrackLibraryView() {
+  const navigate = useNavigate();
+  const [status, setStatus] = useState<TrackStatusKey>(lastTrackStatus);
+  // 赛道总量是十几条量级，一次取回在端上分档排序，不做分页。归档要显式请求。
+  const archivedView = status === ARCHIVED_TRACK_STATUS;
+  const listQuery = useQuery({
+    queryKey: ["track-library", archivedView ? ARCHIVED_TRACK_STATUS : "active"],
+    queryFn: () => mobileApi.trackList(50, archivedView ? ARCHIVED_TRACK_STATUS : undefined),
+    staleTime: 300_000
+  });
+  // 热度来自看板聚合，取不到不影响列表主体，所以单独一条查询、失败不阻塞
+  const heatQuery = useQuery({
+    queryKey: ["track-dashboard-heat"],
+    queryFn: () => mobileApi.trackDashboard(),
+    staleTime: 300_000
+  });
+  const heat: TrackHeatLookup = Object.fromEntries(
+    (heatQuery.data?.heat_rankings ?? []).map((item) => [item.track_id, item.current_heat])
+  );
+  const rows = (listQuery.data ?? []).map((track) => buildTrackRow(track, undefined, heat));
+  const counts = trackStatusCounts(rows);
+  const visible = sortTracksByPriority(filterTracksByStatus(rows, status));
+  return (
+    <SectionCard className="dashboard-flat-section">
+      <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="赛道状态分组">
+        {TRACK_STATUS_OPTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className={`${status === option.value ? "is-active" : ""}${option.value === ARCHIVED_TRACK_STATUS ? " is-archived" : ""}`.trim()}
+            aria-pressed={status === option.value}
+            onClick={() => { rememberTrackStatus(option.value); setStatus(option.value); }}
+          >
+            {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
+          </button>
+        ))}
+      </div>
+      {listQuery.isLoading ? <LoadingState /> : listQuery.isError ? (
+        <ErrorState message="赛道库加载失败" onRetry={() => void listQuery.refetch()} />
+      ) : visible.length ? (
+        <div className="track-list">
+          {visible.map((row) => (
+            <button type="button" className="track-list-row" key={row.id} onClick={() => navigate(`/tracks/${row.id}`)}>
+              <div className="track-list-row__head">
+                <strong>{row.name}</strong>
+                <span className={`track-strength track-strength--${row.headlineStrength === "strong" ? "strong" : row.headlineStrength === "medium" ? "medium" : row.headlineStrength === "weak" ? "weak" : "unknown"}`}>
+                  {row.researched ? (
+                    <>
+                      {trackLabel(TRACK_STRENGTH_LABELS, row.headlineStrength)}
+                      <i>{trackLabel(TRACK_CYCLE_LABELS, row.headlineCycle)}</i>
+                    </>
+                  ) : "待研究"}
+                </span>
+              </div>
+              <p className="track-list-row__judgment">{row.coreJudgment}</p>
+              <div className="track-list-row__meta">
+                <span>{trackLabel(TRACK_INDUSTRY_PHASE_LABELS, row.industryPhase)}</span>
+                <span>{trackLabel(TRACK_MARKET_PHASE_LABELS, row.marketPhase)}</span>
+                <span>{trackLabel(TRACK_PRIORITY_LABELS, row.researchPriority)}</span>
+                <em>{row.heat === null ? "热度 —" : `热度 ${Math.round(row.heat)}`}</em>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : <EmptyState title="该分组下暂无赛道" detail="切换上方分组查看其他赛道" />}
+    </SectionCard>
+  );
+}
+
+function TrackMaterialsView() {
   const client = useQueryClient();
   const query = useInfiniteQuery({
     queryKey: ["track-materials"],
@@ -218,34 +356,21 @@ function TrackDashboard() {
     sourceName: item.material_source_name,
     materialTime: item.material_time
   }))) ?? [];
-  /** 材料流按页累加，下拉时先把分页收回第一页，否则已加载的每一页都会被重拉一遍。 */
-  const refresh = async () => {
-    client.setQueryData<{ pages: unknown[]; pageParams: unknown[] }>(["track-materials"], (current) => current ? {
-      ...current,
-      pages: current.pages.slice(0, 1),
-      pageParams: current.pageParams.slice(0, 1)
-    } : current);
-    const result = await query.refetch();
-    if (result.isError) throw result.error;
-  };
+  void client;
   return (
-    <PullToRefresh ariaLabel="赛道页下拉刷新" onRefresh={refresh}>
-      <div className="page-stack">
-        <SectionCard className="dashboard-flat-section">
-          {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
-            <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
-          ) : (
-            <DashboardMaterialFeed
-              items={items}
-              hasNextPage={query.hasNextPage}
-              isFetchingNextPage={query.isFetchingNextPage}
-              isFetchNextPageError={query.isFetchNextPageError}
-              onLoadMore={() => void query.fetchNextPage()}
-            />
-          )}
-        </SectionCard>
-      </div>
-    </PullToRefresh>
+    <SectionCard className="dashboard-flat-section">
+      {query.isLoading ? <LoadingState /> : query.isError && !query.data ? (
+        <ErrorState message="最新材料加载失败" onRetry={() => void query.refetch()} />
+      ) : (
+        <DashboardMaterialFeed
+          items={items}
+          hasNextPage={query.hasNextPage}
+          isFetchingNextPage={query.isFetchingNextPage}
+          isFetchNextPageError={query.isFetchNextPageError}
+          onLoadMore={() => void query.fetchNextPage()}
+        />
+      )}
+    </SectionCard>
   );
 }
 

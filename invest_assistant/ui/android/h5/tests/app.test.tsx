@@ -2124,4 +2124,64 @@ describe("mobile H5 app", () => {
       expect.objectContaining({ method })
     ));
   });
+
+  it("赛道库按研究优先级排序，点条目进赛道详情", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      // 赛道详情
+      if (/\/api\/track-discovery\/tracks\/7$/.test(url)) {
+        return new Response(JSON.stringify({
+          track: { id: 7, name: "AI算力", status: "active", industry_phase: "expansion", market_phase: "accelerate" },
+          summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89 },
+          latest_snapshot: {
+            id: 1, track_id: 7, research_date: "2026-07-05", researcher_code: "track_analyst_001",
+            headline_cycle: "long", headline_strength: "strong", research_priority: "priority",
+            core_judgment: "算力需求从训练转向推理", key_contradiction: "先进封装产能是唯一瓶颈",
+            short_strength: "medium", mid_strength: "strong", long_strength: "strong"
+          },
+          trend_snapshots: [], materials: [], stocks: [], tags: []
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      // 赛道列表：故意把优先级低的放前面，验证端上会重排
+      if (url.includes("/api/track-discovery/tracks?")) {
+        return new Response(JSON.stringify([
+          { id: 9, name: "固态电池", status: "active", current_view: "尚在验证" },
+          { id: 7, name: "AI算力", status: "active", current_view: "算力需求从训练转向推理" }
+        ]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/track-discovery/dashboard")) {
+        return new Response(JSON.stringify({
+          heat_rankings: [{ rank: 1, track_id: 7, track_name: "AI算力", current_heat: 89, today_material_count: 0 }]
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/console/workbench-today")) {
+        return new Response(JSON.stringify({ market_indices: { items: [] } }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 10, offset: 0, has_more: false }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+    const trackTab = await screen.findByRole("tab", { name: "赛道" });
+    fireEvent.click(trackTab);
+    await waitFor(() => expect(trackTab).toHaveAttribute("aria-selected", "true"));
+
+    // 默认停在材料流，赛道库要显式切过去
+    fireEvent.click(await screen.findByRole("button", { name: "赛道库" }));
+    expect(await screen.findByText("AI算力")).toBeInTheDocument();
+    expect(screen.getByText("固态电池")).toBeInTheDocument();
+    // 热度来自看板聚合，挂到对应赛道上
+    expect(screen.getByText("热度 89")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("AI算力"));
+    await waitFor(() => expect(window.location.hash).toBe("#/tracks/7"));
+    expect(await screen.findByRole("heading", { name: "AI算力" })).toBeInTheDocument();
+    expect(screen.getByText("算力需求从训练转向推理")).toBeInTheDocument();
+    expect(screen.getByText("先进封装产能是唯一瓶颈")).toBeInTheDocument();
+  });
 });

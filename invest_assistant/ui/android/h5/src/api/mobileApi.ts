@@ -23,6 +23,8 @@ import type {
   Tag,
   TagHeat,
   TrackDashboard,
+  TrackDetail,
+  TrackListItem,
   TrackMaterial,
   TrackOption,
   UserMe,
@@ -54,6 +56,10 @@ export const mobileApi = {
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
+  trackDetail: (trackId: number) => apiClient.get<TrackDetail>(`/api/track-discovery/tracks/${trackId}`),
+  // 赛道总量是十几条量级，一次取回在端上排序分档，不做分页
+  trackList: (limit = 50, status?: string) =>
+    apiClient.get<TrackListItem[]>("/api/track-discovery/tracks", status ? { limit, status } : { limit }),
   trackMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { status: "confirmed", offset, limit }),
   // 后端 /pool 只支持 q + limit（上限 50）+ 单个 status，没有分页，
