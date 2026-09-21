@@ -605,6 +605,30 @@ def list_all_materials_page(
     return make_page(_material_dicts(db, items, track_by_id=track_by_id), total, safe_limit, safe_offset)
 
 
+def get_material_detail(db: Session, material_id: int) -> dict | None:
+    """材料详情页的数据源：在列表字段基础上补一份未截断的正文。
+
+    列表里的 material_summary 是 _summary 截断过的，详情页要读全文，所以正文单独取一次。
+    """
+    item = db.get(TrackMaterial, material_id)
+    if item is None:
+        return None
+    track = db.get(Track, item.track_id)
+    material = _material_dicts(db, [item], track_by_id={track.id: track} if track is not None else {})[0]
+    material["material_content"] = _material_content(db, item)
+    return material
+
+
+def _material_content(db: Session, item: TrackMaterial) -> str | None:
+    if item.material_type == "source_item":
+        source = db.get(SourceItem, item.material_id)
+        return source.content if source is not None else None
+    if item.material_type == "knowledge_note":
+        note = db.get(KnowledgeNote, item.material_id)
+        return note.content if note is not None else None
+    return None
+
+
 def update_material(db: Session, material_id: int, payload: TrackMaterialUpdate) -> TrackMaterial | None:
     item = db.get(TrackMaterial, material_id)
     if item is None:

@@ -204,3 +204,52 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     assert [item["track_grade"] for item in detail["trend_snapshots"]] == ["S", "A", "B"]
     heat_24h = next(item for item in detail["heat_trends"] if item["window_type"] == "24h")
     assert heat_24h["points"][0]["heat_score"] == 42
+
+
+def test_get_material_detail_returns_full_content_and_track_name():
+    """材料详情要给未截断的正文：列表里的 material_summary 只有 120 字，卡片点进来要看全文。"""
+    db = make_session()
+    track = Track(name="创新药", status="active")
+    db.add(track)
+    db.flush()
+    long_body = "创新药出海授权持续放量。" * 40
+    source = SourceItem(
+        source_type="news",
+        source_name="富途牛牛",
+        title="创新药板块集体爆发",
+        content=long_body,
+        source_url="https://example.com/pharma",
+        publish_time=beijing_now(),
+    )
+    note = KnowledgeNote(title="创新药复盘", content="## 复盘\n\n授权节奏比预期快", note_type="review")
+    db.add_all([source, note])
+    db.flush()
+    from_source = TrackMaterial(
+        track_id=track.id,
+        material_type="source_item",
+        material_id=source.id,
+        direction="support",
+        importance_level="high",
+        status="confirmed",
+        note="等三季度授权落地",
+    )
+    from_note = TrackMaterial(
+        track_id=track.id, material_type="knowledge_note", material_id=note.id, status="pending"
+    )
+    db.add_all([from_source, from_note])
+    db.commit()
+
+    detail = service.get_material_detail(db, from_source.id)
+
+    assert detail["track_name"] == "创新药"
+    assert detail["material_title"] == "创新药板块集体爆发"
+    assert detail["material_url"] == "https://example.com/pharma"
+    assert detail["note"] == "等三季度授权落地"
+    # 列表字段仍然是截断过的，正文是完整的，两者不能混为一谈
+    assert detail["material_summary"].endswith("...")
+    assert detail["material_content"] == long_body
+
+    note_detail = service.get_material_detail(db, from_note.id)
+    assert note_detail["material_content"] == "## 复盘\n\n授权节奏比预期快"
+
+    assert service.get_material_detail(db, 9999) is None

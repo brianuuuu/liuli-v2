@@ -215,14 +215,16 @@ describe("mobile card elevation", () => {
     expect(styles).not.toMatch(/\.stock-detail-score-head\s*\{/s);
   });
 
-  it("renders dashboard materials as a compact continuous list", () => {
+  it("renders material cards as one compact continuous list everywhere", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.dashboard-material-list\s*\{[^}]*display:\s*grid;[^}]*gap:\s*0;/s);
-    expect(styles).toMatch(/\.dashboard-material-item \+ \.dashboard-material-item\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
-    expect(styles).toMatch(/\.dashboard-material-item__entity\s*\{[^}]*min-width:\s*0;/s);
-    expect(styles).toMatch(/\.dashboard-material-item__entity strong\s*\{[^}]*min-width:\s*0;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
-    expect(styles).toMatch(/\.dashboard-material-item p\s*\{[^}]*-webkit-line-clamp:\s*2;/s);
+    expect(styles).toMatch(/\.material-list\s*\{[^}]*display:\s*grid;[^}]*gap:\s*0;/s);
+    expect(styles).toMatch(/\.material-card \+ \.material-card\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
+    expect(styles).toMatch(/\.material-card__entity\s*\{[^}]*min-width:\s*0;/s);
+    expect(styles).toMatch(/\.material-card__entity strong\s*\{[^}]*min-width:\s*0;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+    // 看板和两个详情页共用同一条摘要截断规则，详情页不再整段铺开。
+    expect(styles).toMatch(/\.material-card p\s*\{[^}]*-webkit-line-clamp:\s*2;/s);
+    expect(styles).not.toMatch(/\.detail-material\s*\{/s);
     expect(styles).toMatch(/\.material-direction--positive\s*\{[^}]*color:\s*#dc2626;/s);
     expect(styles).toMatch(/\.material-direction--negative\s*\{[^}]*color:\s*#16a34a;/s);
     expect(styles).toMatch(/\.material-direction--neutral\s*\{[^}]*color:\s*var\(--muted\);/s);

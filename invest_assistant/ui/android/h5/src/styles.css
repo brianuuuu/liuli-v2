@@ -238,20 +238,24 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .market-ranking-movement--up { color: #dc2626; }
 .market-ranking-movement--down { color: #16a34a; }
 .market-ranking-movement--neutral { color: var(--muted); }
-.dashboard-material-list { display: grid; min-width: 0; gap: 0; }
-.dashboard-material-item { min-width: 0; padding: 12px 0; }
-.dashboard-material-item + .dashboard-material-item { border-top: 1px solid var(--border); }
-.dashboard-material-item__entity { display: flex; min-width: 0; align-items: center; gap: 7px; }
-.dashboard-material-item__entity strong { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
-.dashboard-material-item__entity > span { flex: 0 0 auto; color: var(--subtle); font-size: 11px; }
+/* 材料卡：看板信息流、赛道详情、标的详情共用一套。三处都是"标题 + 方向标 / 两行摘要 /
+   来源时间"，整卡点进材料详情，样式分家只会让三个页面慢慢长歪。 */
+.material-list { display: grid; min-width: 0; gap: 0; }
+.material-card { display: block; width: 100%; min-width: 0; padding: 12px 0; text-align: left; }
+.material-card + .material-card { border-top: 1px solid var(--border); }
+.material-card__entity { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.material-card__entity strong { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+.material-card__entity > span { flex: 0 0 auto; color: var(--subtle); font-size: 11px; }
 .material-direction { flex: 0 0 auto; margin-left: auto; padding: 2px 6px; border-radius: 5px; font-size: 10px; font-style: normal; font-weight: 650; }
 .material-direction--positive { background: rgba(220, 38, 38, .08); color: #dc2626; }
 .material-direction--negative { background: rgba(22, 163, 74, .08); color: #16a34a; }
 .material-direction--neutral { background: var(--panel-soft); color: var(--muted); }
-.dashboard-material-item h3 { min-width: 0; margin: 7px 0 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
-.dashboard-material-item p { display: -webkit-box; overflow: hidden; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.dashboard-material-item footer { margin-top: 7px; color: var(--subtle); font-size: 11px; }
-.dashboard-material-load { display: flex; min-height: 42px; align-items: center; justify-content: center; border-top: 1px solid var(--border); color: var(--subtle); font-size: 11px; }
+.material-card h3 { display: flex; min-width: 0; align-items: baseline; gap: 8px; margin: 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; }
+.material-card h3 > span { min-width: 0; flex: 1; overflow-wrap: anywhere; word-break: break-word; }
+.material-card__entity + h3 { margin-top: 7px; }
+.material-card p { display: -webkit-box; overflow: hidden; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.material-card footer { margin-top: 7px; color: var(--subtle); font-size: 11px; }
+.material-load { display: flex; min-height: 42px; align-items: center; justify-content: center; border-top: 1px solid var(--border); color: var(--subtle); font-size: 11px; }
 .text-button { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); font-size: 12px; }
 .primary-button {
   display: inline-flex;
@@ -535,7 +539,6 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 .logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 
-.dashboard-material-item__entity-link { min-width: 0; overflow: hidden; padding: 0; color: var(--text); font-size: 13px; font-weight: 680; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .stock-profile { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .stock-profile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .stock-profile__head > div { min-width: 0; }
@@ -646,15 +649,22 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .detail-facts div + div { border-top: 1px solid var(--border); }
 .detail-facts span { color: var(--muted); font-size: 12px; }
 .detail-facts b { font-size: 14px; font-weight: 560; }
-/* 材料卡：标的详情和赛道详情共用一套。两边都是"标题 + 方向标 / 摘要 / 来源时间 + 原文"，
-   样式分家只会让两个页面慢慢长歪。 */
-.detail-material { padding: 12px 0; }
-.detail-material + .detail-material { border-top: 1px solid var(--border); }
-.detail-material h3 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: var(--content-font-size); font-weight: 620; line-height: 1.5; }
-.detail-material h3 > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.detail-material p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
-.detail-material footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--subtle); font-size: 11px; }
-.detail-material footer a { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); }
+/* 材料详情：卡片只留标题和两行摘要，全文、原文外链和研判信息都在这一页。 */
+.material-detail { min-width: 0; max-width: 100%; padding: 2px 2px 20px; }
+.material-detail__entity { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.material-detail__entity strong { font-size: 13px; font-weight: 680; }
+.material-detail__entity button { display: inline-flex; min-width: 0; align-items: baseline; gap: 6px; padding: 0; color: var(--blue); font-size: 13px; font-weight: 680; }
+.material-detail__entity button > span { color: var(--subtle); font-size: 11px; font-weight: 500; }
+.material-detail h2 { margin: 12px 0 8px; font-size: var(--content-font-size); font-weight: 650; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word; }
+.material-detail__meta { margin: 0; color: var(--subtle); font-size: 11px; }
+.material-detail__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.material-detail__tags span { padding: 2px 7px; border-radius: 5px; background: var(--panel-soft); color: var(--muted); font-size: 11px; }
+.material-detail__content { margin: 16px 0 0; font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.material-detail__content--empty { color: var(--subtle); font-size: 12px; }
+.material-detail__note { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+.material-detail__note h3 { margin: 0; color: var(--muted); font-size: 12px; font-weight: 620; }
+.material-detail__note p { margin: 6px 0 0; font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.material-detail__source { display: inline-flex; align-items: center; gap: 4px; margin-top: 20px; color: var(--blue); font-size: 13px; }
 .stock-detail-note { padding: 12px 0; }
 .stock-detail-note + .stock-detail-note { border-top: 1px solid var(--border); }
 .stock-detail-note h3 { margin: 0; font-size: var(--content-font-size); font-weight: 650; }

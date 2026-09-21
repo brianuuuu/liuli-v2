@@ -18,6 +18,7 @@ import type {
   StockDashboard,
   StockDetail,
   StockMaterial,
+  StockMaterialDetail,
   StockOption,
   StockPoolItem,
   Tag,
@@ -26,6 +27,7 @@ import type {
   TrackDetail,
   TrackListItem,
   TrackMaterial,
+  TrackMaterialDetail,
   TrackOption,
   UserMe,
   WorkbenchToday
@@ -65,6 +67,9 @@ export const mobileApi = {
     apiClient.get<TrackListItem[]>("/api/track-discovery/tracks", status ? { limit, status } : { limit }),
   trackMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<TrackMaterial>>("/api/track-discovery/materials", { status: "confirmed", offset, limit }),
+  // 材料详情按关联记录 id 取，不是 source_item / note 的 id：同一条资讯挂到两条赛道就是两条材料。
+  trackMaterialDetail: (materialId: number) =>
+    apiClient.get<TrackMaterialDetail>(`/api/track-discovery/materials/${materialId}`),
   // 后端 /pool 只支持 q + limit（上限 50）+ 单个 status，没有分页，
   // 状态分组和计数在端上完成；标的池超过 50 条时需要后端补分页。
   // status 只在回收站视图传 archived：不传时后端本来就不返归档。
@@ -73,6 +78,8 @@ export const mobileApi = {
     apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit, status }),
   stockMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { status: "confirmed", offset, limit }),
+  stockMaterialDetail: (materialId: number) =>
+    apiClient.get<StockMaterialDetail>(`/api/stock-analysis/materials/${materialId}`),
   portfolioOverview: (portfolioId?: number | null) =>
     apiClient.get<PortfolioOverview>("/api/portfolios/overview", { portfolio_id: portfolioId }),
   portfolioSnapshots: (portfolioId?: number | null) =>

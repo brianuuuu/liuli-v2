@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
+import { MaterialCard, materialDetailPath } from "../components/MaterialCard";
 import { DetailFrame } from "./DetailPages";
 import {
   activeStockCount,
@@ -22,8 +22,7 @@ import {
   TRACK_SCORE_MAX
 } from "./trackLibraryGroups";
 import type { TrackDetail, TrackTrendSnapshotBrief } from "../types/api";
-import { formatDateTime, formatNumber } from "../utils/format";
-import { materialDirectionPresentation } from "../utils/materialDirection";
+import { formatNumber } from "../utils/format";
 
 type TrackDetailSection = "overview" | "snapshots" | "stocks" | "materials";
 
@@ -250,6 +249,7 @@ function StocksSection({ detail }: { detail: TrackDetail }) {
 }
 
 function MaterialsSection({ detail }: { detail: TrackDetail }) {
+  const navigate = useNavigate();
   const materials = detailMaterials(detail);
   // 详情接口只回最近若干条材料，总数走 summary，截断时要说清楚，否则会被当成材料丢了。
   const total = detail?.summary?.material_count;
@@ -262,23 +262,23 @@ function MaterialsSection({ detail }: { detail: TrackDetail }) {
       title="赛道材料"
       action={truncated ? <span className="section-card__hint">近 {materials.length} 条 · 共 {total} 条</span> : undefined}
     >
-      {materials.map((item) => {
-        // 方向可能为空，presentation 这时返回 undefined，不能直接取 label
-        const direction = materialDirectionPresentation(item.direction);
-        return (
-          <article className="detail-material" key={item.id}>
-            <h3>
-              <span>{item.material_title?.trim() || "未命名材料"}</span>
-              {direction ? <em className={`material-direction material-direction--${direction.tone}`}>{direction.label}</em> : null}
-            </h3>
-            {item.material_summary?.trim() ? <p>{item.material_summary}</p> : null}
-            <footer>
-              {[item.material_source_name?.trim(), item.material_time ? formatDateTime(item.material_time) : null].filter(Boolean).join(" · ") || "--"}
-              {item.material_url ? <a href={item.material_url} target="_blank" rel="noreferrer">原文 <ExternalLink size={13} /></a> : null}
-            </footer>
-          </article>
-        );
-      })}
+      <div className="material-list">
+        {materials.map((item) => (
+          <MaterialCard
+            key={item.id}
+            item={{
+              id: item.id,
+              owner: "track",
+              direction: item.direction,
+              title: item.material_title || "未命名材料",
+              summary: item.material_summary,
+              sourceName: item.material_source_name,
+              materialTime: item.material_time
+            }}
+            onOpen={(card) => navigate(materialDetailPath(card))}
+          />
+        ))}
+      </div>
     </SectionCard>
   );
 }

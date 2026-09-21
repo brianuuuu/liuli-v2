@@ -1,18 +1,9 @@
 import { useEffect, useRef } from "react";
 import { EmptyState } from "./Ui";
-import { formatDateTime } from "../utils/format";
-import { materialDirectionPresentation } from "../utils/materialDirection";
+import { MaterialCard, type MaterialCardItem } from "./MaterialCard";
 
-export type DashboardMaterialItem = {
-  id: number;
+export type DashboardMaterialItem = MaterialCardItem & {
   entityId?: number | null;
-  entityName: string;
-  entityCode?: string | null;
-  direction?: string | null;
-  title?: string | null;
-  summary?: string | null;
-  sourceName?: string | null;
-  materialTime?: string | null;
 };
 
 type Props = {
@@ -21,8 +12,8 @@ type Props = {
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
   onLoadMore: () => void;
-  /** 只有标的信息流会传：点击公司名进入标的详情。赛道信息流不传，保持不可点。 */
-  onEntityClick?: (item: DashboardMaterialItem) => void;
+  /** 整卡点击：进材料详情。实体入口收到材料详情页里，卡片上不再单独挂可点的实体名。 */
+  onOpen: (item: DashboardMaterialItem) => void;
 };
 
 export function DashboardMaterialFeed({
@@ -31,7 +22,7 @@ export function DashboardMaterialFeed({
   isFetchingNextPage,
   isFetchNextPageError,
   onLoadMore,
-  onEntityClick
+  onOpen
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const requestPendingRef = useRef(false);
@@ -63,35 +54,11 @@ export function DashboardMaterialFeed({
   if (!items.length) return <EmptyState title="暂无最新材料" />;
 
   return (
-    <div className="dashboard-material-list">
-      {items.map((item) => {
-        const direction = materialDirectionPresentation(item.direction);
-        const metadata = [
-          item.sourceName?.trim(),
-          item.materialTime ? formatDateTime(item.materialTime) : undefined
-        ].filter(Boolean).join(" · ") || "--";
-        return (
-          <article className="dashboard-material-item" key={item.id}>
-            <header className="dashboard-material-item__entity">
-              {onEntityClick ? (
-                <button type="button" className="dashboard-material-item__entity-link" onClick={() => onEntityClick(item)}>
-                  {item.entityName?.trim() || "--"}
-                </button>
-              ) : <strong>{item.entityName?.trim() || "--"}</strong>}
-              {item.entityCode ? <span>{item.entityCode}</span> : null}
-              {direction ? (
-                <em className={`material-direction material-direction--${direction.tone}`}>
-                  {direction.label}
-                </em>
-              ) : null}
-            </header>
-            <h3>{item.title?.trim() || "--"}</h3>
-            {item.summary?.trim() ? <p>{item.summary}</p> : null}
-            <footer>{metadata}</footer>
-          </article>
-        );
-      })}
-      <div className="dashboard-material-load" ref={sentinelRef}>
+    <div className="material-list">
+      {items.map((item) => (
+        <MaterialCard key={item.id} item={item} onOpen={() => onOpen(item)} />
+      ))}
+      <div className="material-load" ref={sentinelRef}>
         {isFetchNextPageError ? (
           <button type="button" className="load-more" onClick={onLoadMore}>重试加载</button>
         ) : isFetchingNextPage ? (

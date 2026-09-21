@@ -24,6 +24,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockValuationComparisonRead,
     StockMaterialCreate,
     StockMaterialUpdate,
+    StockMaterialDetailRead,
     StockMaterialRead,
     StockDashboardRead,
     StockDetailRead,
@@ -254,6 +255,14 @@ def list_all_stock_materials(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/materials/{material_id}", response_model=StockMaterialDetailRead)
+def get_stock_material(material_id: int, db: Session = Depends(get_db)) -> dict:
+    material = service.get_stock_material_detail(db, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="material not found")
+    return material
 
 
 @router.get("/stocks/{stock_id}/materials", response_model=Page[StockMaterialRead])

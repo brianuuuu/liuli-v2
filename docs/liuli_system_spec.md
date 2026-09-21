@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v36：材料卡在安卓端收敛成一套：看板信息流、赛道详情、标的详情共用 `MaterialCard` 和 `.material-card` 样式，摘要统一两行截断，原 `.detail-material` 与 `.dashboard-material-item` 两套样式合并删除。列表态不再挂「原文」外链，整张卡点进新增的材料详情页 `/materials/{track|stock}/{material_id}`，全文、原文外链、重要度与研判备注都收在这一页；实体入口也从信息流卡片移到材料详情页，看板卡片上的公司名不再单独可点。后端为此新增两个只读接口 `GET /api/track-discovery/materials/{material_id}` 和 `GET /api/stock-analysis/materials/{material_id}`，在列表字段之外补一个未截断的 `material_content`；列表接口维持原样，不带正文。公告类材料正文不入库（只落 `parsed_text_path`），`material_content` 恒为 None，详情页靠标题和原文链接兜底。
 - v35：赛道详情接口收敛体积：`trend_snapshots` 只回简表（身份、主导周期、核心判断、六维评分与派生三项），六项分析、环节、情景等长文本仅保留在 `latest_snapshot`，要翻历史原文走 `/trend-snapshots`；新增 `include_heat_trends` 查询参数，移动端传 `false` 跳过 90 天热度序列，此时 `latest_heat_score` 改由一条聚合查询取最新 24h 热度。安卓赛道库去掉归档分档（归档只在 Web 端可见），状态分档与排序合并为一行，排序提供「评分 / 热度」两种；赛道详情的材料卡与标的详情统一为 `.detail-material` 一套样式。
 - v34：赛道状态去掉 `paused`（暂停观察），只留 `active` 跟踪中 / `candidate` 候选 / `archived` 归档，列表与筛选一律把跟踪中排在候选之前。不再跟踪的赛道退回候选，归档仍等同软删除。存量 `paused` 赛道由迁移脚本统一改判为 `candidate`。
 - v34：赛道结论从"强/中/弱"改为六维量化评分：`track_trend_snapshot` 新增 `market_heat_score`、`growth_speed_score`、`concentration_score`、`cycle_resilience_score`、`current_market_size_score`、`future_market_size_score` 六个 0—10 分，以及派生的 `overall_score`（六项等权平均）、`track_grade`（S/A/B/C/D）、`heat_tier`（T0—T4，T0 最热）。六维一律"分高=更有利"，`cycle_resilience_score` 存的是穿越周期的能力而非周期振幅，`concentration_score` 高表示格局收敛；口径与阈值只在 `track_discovery/scoring.py` 一份，派生三项由 service 在写入时算好，不接受调用方传值。同批删除 13 列：`headline_strength`、`research_priority`、`priority_rank`、`confidence_level` 以及三周期的 9 列，研究优先级改由评级推导，赛道卡角标从"强 · 长期"改为「评级 + 热度档位」两个角标，`headline_cycle` 保留作副标题。赛道列表接口随行下发评级、热度档位和综合分，看板与赛道库排序改走评级和综合分。
@@ -4606,6 +4607,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | GET | `/api/track-discovery/tracks` | 赛道库列表 |
 | GET | `/api/track-discovery/dashboard` | 赛道看板 |
 | GET | `/api/track-discovery/materials` | 赛道材料全局列表 |
+| GET | `/api/track-discovery/materials/{material_id}` | 赛道材料详情，含未截断正文 |
 | POST | `/api/track-discovery/tracks` | 新增赛道 |
 | GET | `/api/track-discovery/tracks/{track_id}` | 赛道详情 |
 | GET | `/api/track-discovery/tracks/{track_id}/detail` | 赛道详情聚合视图；历史快照只回简表，`include_heat_trends=false` 可跳过 90 天热度序列 |
@@ -4653,6 +4655,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/stock-analysis/stocks/{stock_id}/tags` | 新增标的标签绑定 |
 | DELETE | `/api/stock-analysis/stocks/tag-relations/{relation_id}` | 删除标的标签绑定 |
 | GET | `/api/stock-analysis/materials` | 标的事件材料列表 |
+| GET | `/api/stock-analysis/materials/{material_id}` | 标的材料详情，含未截断正文 |
 | GET | `/api/stock-analysis/stocks/{stock_id}/materials` | 某标的材料列表 |
 | POST | `/api/stock-analysis/stocks/{stock_id}/materials` | 新增标的引用材料 |
 | PUT | `/api/stock-analysis/materials/{material_id}` | 更新标的材料判断 |

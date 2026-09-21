@@ -242,6 +242,10 @@ export type TrackMaterial = {
   id: number;
   track_id: number;
   track_name?: string | null;
+  // material_type + material_id 指向材料本体（source_item / knowledge_note）；
+  // 列表里的 id 是关联记录 id，材料详情接口按它取。
+  material_type: string;
+  material_id: number;
   direction?: string | null;
   material_title?: string | null;
   material_summary?: string | null;
@@ -254,12 +258,42 @@ export type StockMaterial = {
   stock_id: number;
   stock_name?: string | null;
   stock_code?: string | null;
+  material_type: string;
+  material_id: number;
   impact_direction?: string | null;
   material_title?: string | null;
   material_summary?: string | null;
   material_source_name?: string | null;
   material_time?: string | null;
 };
+/** 材料详情：在列表字段基础上多一份未截断的正文，公告类材料正文为空。 */
+type MaterialDetailBase = {
+  id: number;
+  material_type: string;
+  material_id: number;
+  material_title?: string | null;
+  material_source_name?: string | null;
+  material_url?: string | null;
+  material_time?: string | null;
+  material_content?: string | null;
+  importance_level?: string | null;
+  status: string;
+  note?: string | null;
+};
+export type TrackMaterialDetail = MaterialDetailBase & {
+  track_id: number;
+  track_name?: string | null;
+  direction?: string | null;
+};
+export type StockMaterialDetail = MaterialDetailBase & {
+  stock_id: number;
+  stock_name?: string | null;
+  stock_code?: string | null;
+  impact_direction?: string | null;
+  disclosure_type?: string | null;
+  report_period?: string | null;
+};
+
 export type StockScoreSnapshot = {
   id: number;
   report_time: string;
@@ -314,6 +348,8 @@ export type StockTrendSnapshot = {
 
 export type StockDetailMaterial = {
   id: number;
+  material_type: string;
+  material_id: number;
   impact_direction?: string | null;
   importance_level?: string | null;
   status: string;

@@ -279,6 +279,12 @@ class StockMaterialRead(StockMaterialCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StockMaterialDetailRead(StockMaterialRead):
+    # 详情页专用：material_content 是未截断的正文，列表接口不带，避免把全文塞进信息流。
+    # 公告类材料正文不入库，这里恒为 None。
+    material_content: str | None = None
+
+
 class StockDetailStock(BaseModel):
     id: int
     symbol: str | None = None

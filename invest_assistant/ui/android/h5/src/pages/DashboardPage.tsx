@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
 import { DashboardMaterialFeed, type DashboardMaterialItem } from "../components/DashboardMaterialFeed";
+import { materialDetailPath } from "../components/MaterialCard";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import { PORTFOLIO_ALLOCATION_COLORS } from "../components/chartPalette";
@@ -363,6 +364,7 @@ function TrackLibraryView() {
 
 function TrackMaterialsView() {
   const client = useQueryClient();
+  const navigate = useNavigate();
   const query = useInfiniteQuery({
     queryKey: ["track-materials"],
     initialPageParam: 0,
@@ -373,6 +375,8 @@ function TrackMaterialsView() {
   });
   const items: DashboardMaterialItem[] = query.data?.pages.flatMap((page) => page.items.map((item) => ({
     id: item.id,
+    owner: "track" as const,
+    entityId: item.track_id,
     entityName: item.track_name ?? "赛道",
     direction: item.direction,
     title: item.material_title,
@@ -392,6 +396,7 @@ function TrackMaterialsView() {
           isFetchingNextPage={query.isFetchingNextPage}
           isFetchNextPageError={query.isFetchNextPageError}
           onLoadMore={() => void query.fetchNextPage()}
+          onOpen={(item) => navigate(materialDetailPath(item))}
         />
       )}
     </SectionCard>
@@ -547,6 +552,7 @@ function StockMaterialsView() {
   });
   const items: DashboardMaterialItem[] = query.data?.pages.flatMap((page) => page.items.map((item) => ({
     id: item.id,
+    owner: "stock" as const,
     entityId: item.stock_id,
     entityName: item.stock_name ?? "标的",
     entityCode: item.stock_code,
@@ -567,7 +573,7 @@ function StockMaterialsView() {
           isFetchingNextPage={query.isFetchingNextPage}
           isFetchNextPageError={query.isFetchNextPageError}
           onLoadMore={() => void query.fetchNextPage()}
-          onEntityClick={(item) => { if (item.entityId) navigate(`/stocks/${item.entityId}`); }}
+          onOpen={(item) => navigate(materialDetailPath(item))}
         />
       )}
     </SectionCard>

@@ -2030,6 +2030,31 @@ def create_stock_material(db: Session, stock_id: int, payload: "StockMaterialCre
     return _stock_material_dict(db, item)
 
 
+def get_stock_material_detail(db: Session, material_id: int) -> dict | None:
+    """材料详情页的数据源：在列表字段基础上补一份未截断的正文。
+
+    列表里的 material_summary 走 _summary 截断，详情页要读全文，所以正文单独取一次。
+    公告没有入库正文（只落了 parsed_text_path），正文为空，详情页靠标题和原文链接兜底。
+    """
+    item = db.get(StockMaterial, material_id)
+    if item is None:
+        return None
+    stock = db.get(Stock, item.stock_id)
+    material = _stock_material_dict(db, item, stock)
+    material["material_content"] = _stock_material_content(db, item)
+    return material
+
+
+def _stock_material_content(db: Session, item: "StockMaterial") -> str | None:
+    if item.material_type == "source_item":
+        source = db.get(SourceItem, item.material_id)
+        return source.content if source is not None else None
+    if item.material_type == "knowledge_note":
+        note = db.get(StockResearchNote, item.material_id)
+        return note.content if note is not None else None
+    return None
+
+
 def update_stock_material(db: Session, material_id: int, payload: "StockMaterialUpdate") -> dict | None:
     item = db.get(StockMaterial, material_id)
     if item is None:

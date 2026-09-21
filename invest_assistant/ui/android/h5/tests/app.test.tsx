@@ -1083,13 +1083,13 @@ describe("mobile H5 app", () => {
 
     const positive = await screen.findByText("利好");
     expect(positive).toHaveClass("material-direction--positive");
-    expect(positive.closest(".detail-material")).toHaveTextContent("订单超预期");
+    expect(positive.closest(".material-card")).toHaveTextContent("订单超预期");
     expect(screen.getByText("利空")).toHaveClass("material-direction--negative");
     expect(screen.getByText("中性")).toHaveClass("material-direction--neutral");
     expect(screen.queryByText("无关快讯")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "看全部" }));
-    const noiseCard = (await screen.findByText("无关快讯")).closest(".detail-material");
+    const noiseCard = (await screen.findByText("无关快讯")).closest(".material-card");
     expect(noiseCard?.querySelector(".material-direction")).toBeNull();
   });
 
@@ -2214,20 +2214,58 @@ describe("mobile H5 app", () => {
     expect(screen.getByText("算力需求从训练转向推理")).toBeInTheDocument();
     expect(screen.getByText("先进封装产能是唯一瓶颈")).toBeInTheDocument();
 
-    // 材料卡与标的详情同构：标题、方向标、摘要、来源时间和原文链接
+    // 材料卡与看板信息流、标的详情同构：标题、方向标、摘要、来源时间，整卡点进材料详情
     fireEvent.click(screen.getByRole("button", { name: "材料" }));
-    const materialCard = (await screen.findByText("先进封装扩产落地")).closest(".detail-material");
+    const materialCard = (await screen.findByText("先进封装扩产落地")).closest(".material-card");
     expect(materialCard).not.toBeNull();
     // 方向标沿用两端共用的口径：support 和 positive 都显示利好
     expect(materialCard?.querySelector(".material-direction")).toHaveTextContent("利好");
     expect(materialCard).toHaveTextContent("产能紧张带来议价权");
-    expect(materialCard?.querySelector("a")).toHaveAttribute("href", "https://example.com/packaging");
+    // 列表态不再挂原文外链，原文收到材料详情页
+    expect(materialCard?.querySelector("a")).toBeNull();
+    fireEvent.click(screen.getByText("先进封装扩产落地"));
+    await waitFor(() => expect(window.location.hash).toBe("#/materials/track/1"));
+    window.location.hash = "#/tracks/7";
     // 必须打到 /detail：不带的那个路由只返回扁平 TrackRead，页面会缺字段。
     // 光断言渲染结果抓不到这个错——兜底之后地址写错也只是显示 0，所以直接断言请求地址。
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/track-discovery/tracks/7/detail"),
       expect.anything()
     );
+  });
+
+  it("材料详情展示全文和原文入口，实体名可点回赛道", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/materials/track/1";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/track-discovery/materials/1")) {
+        return new Response(JSON.stringify({
+          id: 1, track_id: 7, track_name: "AI算力", material_type: "source_item", material_id: 88,
+          direction: "support", importance_level: "high", status: "confirmed", note: "等下季度产能数据验证",
+          material_title: "先进封装扩产落地", material_source_name: "SEMI",
+          material_url: "https://example.com/packaging", material_time: "2026-07-04T10:00:00",
+          material_content: "台积电宣布先进封装产能翻倍，2027 年前分三期落地。"
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 10, offset: 0, has_more: false }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "先进封装扩产落地" })).toBeInTheDocument();
+    // 卡片上只有两行摘要，全文只在这一页
+    expect(screen.getByText(/台积电宣布先进封装产能翻倍/)).toBeInTheDocument();
+    expect(screen.getByText("利好")).toHaveClass("material-direction--positive");
+    expect(screen.getByText("已确认")).toBeInTheDocument();
+    expect(screen.getByText("等下季度产能数据验证")).toBeInTheDocument();
+    // 原文外链从列表收到这里，是这一页唯一的外链
+    expect(screen.getByRole("link", { name: /查看原文/ })).toHaveAttribute("href", "https://example.com/packaging");
+    // 实体名是回到赛道的入口：信息流里的材料卡不再单独挂实体链接
+    fireEvent.click(screen.getByRole("button", { name: /AI算力/ }));
+    await waitFor(() => expect(window.location.hash).toBe("#/tracks/7"));
   });
 
   it("赛道详情拿到缺字段的响应也不白屏，返回按钮始终在", async () => {

@@ -17,7 +17,7 @@ from invest_assistant.modules.stock_analysis.models import (
     StockTrackRelation,
     StockValuationSnapshot,
 )
-from invest_assistant.modules.stock_analysis.service import get_stock_detail
+from invest_assistant.modules.stock_analysis.service import get_stock_detail, get_stock_material_detail
 from invest_assistant.modules.track_discovery.models import Track
 
 
@@ -219,3 +219,67 @@ def test_disclosure_to_stock_analysis_requires_stock_id():
 
     with pytest.raises(ValueError, match="stock_id is required"):
         disclosure_to_stock_analysis(db, disclosure)
+
+
+def test_get_stock_material_detail_covers_three_material_types():
+    """材料详情要给未截断的正文；公告正文没入库，这时只能靠标题和原文链接。"""
+    db = make_session()
+    stock = Stock(stock_code="000333", stock_name="美的集团", market="SZ")
+    db.add(stock)
+    db.flush()
+    long_body = "海外业务增长，利润率改善。" * 40
+    source = SourceItem(
+        source_type="news",
+        source_name="manual",
+        title="美的集团海外业务增长",
+        content=long_body,
+        source_url="https://example.com/midea",
+        publish_time=datetime(2026, 5, 31, 9, 30, tzinfo=timezone.utc),
+    )
+    note = StockResearchNote(stock_id=stock.id, note_type="thesis", title="份额提升", content="## 份额\n\n继续提升")
+    disclosure = CompanyDisclosure(
+        stock_id=stock.id,
+        source="cninfo",
+        disclosure_type="annual_report",
+        title="2025年年度报告",
+        report_period="2025A",
+        source_url="https://example.com/annual",
+        parsed_text_path="var/disclosures/000333-2025A.txt",
+        parse_status="parsed",
+    )
+    db.add_all([source, note, disclosure])
+    db.flush()
+    from_source = StockMaterial(
+        stock_id=stock.id,
+        material_type="source_item",
+        material_id=source.id,
+        impact_direction="positive",
+        importance_level="high",
+        status="confirmed",
+        note="验证海外逻辑",
+    )
+    from_note = StockMaterial(
+        stock_id=stock.id, material_type="knowledge_note", material_id=note.id, status="pending"
+    )
+    from_disclosure = StockMaterial(
+        stock_id=stock.id, material_type="company_disclosure", material_id=disclosure.id, status="pending"
+    )
+    db.add_all([from_source, from_note, from_disclosure])
+    db.commit()
+
+    detail = get_stock_material_detail(db, from_source.id)
+    assert detail["stock_name"] == "美的集团"
+    assert detail["stock_code"] == "000333"
+    assert detail["note"] == "验证海外逻辑"
+    # 列表字段仍然是截断过的，正文是完整的
+    assert detail["material_summary"].endswith("...")
+    assert detail["material_content"] == long_body
+
+    assert get_stock_material_detail(db, from_note.id)["material_content"] == "## 份额\n\n继续提升"
+
+    disclosure_detail = get_stock_material_detail(db, from_disclosure.id)
+    assert disclosure_detail["material_content"] is None
+    assert disclosure_detail["material_url"] == "https://example.com/annual"
+    assert disclosure_detail["report_period"] == "2025A"
+
+    assert get_stock_material_detail(db, 9999) is None

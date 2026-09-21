@@ -161,6 +161,11 @@ class TrackMaterialRead(TrackMaterialCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TrackMaterialDetailRead(TrackMaterialRead):
+    # 详情页专用：material_content 是未截断的正文，列表接口不带，避免把全文塞进信息流。
+    material_content: str | None = None
+
+
 class TrackStatusChange(BaseModel):
     new_status: str
     new_industry_phase: str | None = None

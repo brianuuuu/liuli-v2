@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
+import { MaterialCard, materialDetailPath } from "../components/MaterialCard";
 import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
@@ -27,7 +27,6 @@ import {
 import { DetailFrame } from "./DetailPages";
 import type { StockDetail, StockTrendSnapshot } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
-import { materialDirectionPresentation } from "../utils/materialDirection";
 
 const RatingRadar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.RatingRadar })));
 const ScoreTrendBar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ScoreTrendBar })));
@@ -280,6 +279,7 @@ function LatestTrend({ trend }: { trend: StockTrendSnapshot }) {
 }
 
 function MaterialsSection({ detail }: { detail: StockDetail }) {
+  const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? detail.materials : actionableMaterials(detail.materials);
   return (
@@ -288,22 +288,25 @@ function MaterialsSection({ detail }: { detail: StockDetail }) {
         title="材料"
         action={<button type="button" className="text-button" onClick={() => setShowAll((value) => !value)}>{showAll ? "只看有效" : "看全部"}</button>}
       >
-        {visible.length ? visible.map((item) => {
-          const direction = materialDirectionPresentation(item.impact_direction);
-          return (
-            <article className="detail-material" key={item.id}>
-              <h3>
-                <span>{item.material_title?.trim() || "--"}</span>
-                {direction ? <em className={`material-direction material-direction--${direction.tone}`}>{direction.label}</em> : null}
-              </h3>
-              {item.material_summary?.trim() ? <p>{item.material_summary}</p> : null}
-              <footer>
-                {[item.material_source_name?.trim(), item.material_time ? formatDateTime(item.material_time) : null].filter(Boolean).join(" · ") || "--"}
-                {item.material_url ? <a href={item.material_url} target="_blank" rel="noreferrer">原文 <ExternalLink size={13} /></a> : null}
-              </footer>
-            </article>
-          );
-        }) : <EmptyState title="暂无材料" detail={showAll ? undefined : "已隐藏噪音和已忽略材料"} />}
+        {visible.length ? (
+          <div className="material-list">
+            {visible.map((item) => (
+              <MaterialCard
+                key={item.id}
+                item={{
+                  id: item.id,
+                  owner: "stock",
+                  direction: item.impact_direction,
+                  title: item.material_title,
+                  summary: item.material_summary,
+                  sourceName: item.material_source_name,
+                  materialTime: item.material_time
+                }}
+                onOpen={(card) => navigate(materialDetailPath(card))}
+              />
+            ))}
+          </div>
+        ) : <EmptyState title="暂无材料" detail={showAll ? undefined : "已隐藏噪音和已忽略材料"} />}
       </SectionCard>
       <SectionCard title="公告财报">
         {detail.disclosures.length ? detail.disclosures.slice(0, 20).map((item) => (

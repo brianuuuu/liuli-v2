@@ -11,6 +11,7 @@ from invest_assistant.modules.track_discovery.schemas import (
     TrackDetailRead,
     TrackCreate,
     TrackMaterialCreate,
+    TrackMaterialDetailRead,
     TrackMaterialRead,
     TrackMaterialUpdate,
     TrackStatusChange,
@@ -70,6 +71,14 @@ def list_all_track_materials(
     if track_id is not None and service.get_track(db, track_id) is None:
         raise HTTPException(status_code=404, detail="track not found")
     return service.list_all_materials_page(db, track_id=track_id, statuses=_parse_material_status_filter(status), limit=limit, offset=offset)
+
+
+@router.get("/materials/{material_id}", response_model=TrackMaterialDetailRead)
+def get_track_material(material_id: int, db: Session = Depends(get_db)) -> dict:
+    material = service.get_material_detail(db, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="material not found")
+    return material
 
 
 @router.post("/tracks", response_model=TrackRead)
