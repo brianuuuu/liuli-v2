@@ -75,6 +75,13 @@ function numberText(value?: number | null, suffix = "") {
   return value === null || value === undefined ? "-" : `${Number(value).toFixed(2).replace(/\.00$/, "")}${suffix}`;
 }
 
+/** 资讯热度的环比：+8 / -3 / 0。没有参照点时不显示，持平和缺参照点是两回事。 */
+function heatChangeText(change?: number | null) {
+  if (typeof change !== "number") return null;
+  const rounded = Math.round(change);
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
 /** 分数列一律一位小数：表里六列宽度一致，扫一眼就能比出哪一维拖了后腿。 */
 function scoreText(value?: number | null) {
   return typeof value === "number" ? value.toFixed(1) : "-";
@@ -703,7 +710,7 @@ function HeatTab({ data }: { data: TrackDetail }) {
         {data.heat_trends.length ? <InlineChart option={heatTrendOption(data.heat_trends, resolvedMode)} /> : <EmptyAction description="暂无热度趋势" />}
         <div className="track-detail-panel-section">
           <div className="detail-list track-detail-keyfacts">
-            <div className="detail-row"><span>当前热度</span><span>{numberText(data.summary.latest_heat_score)}</span></div>
+            <div className="detail-row"><span>资讯热度 7日</span><span>{numberText(data.summary.latest_heat_score)}{heatChangeText(data.summary.heat_change) ? <Typography.Text type="secondary">（{heatChangeText(data.summary.heat_change)}）</Typography.Text> : null}</span></div>
             <div className="detail-row"><span>关联标签</span><span>{data.summary.tag_count}</span></div>
             <div className="detail-row"><span>热度窗口</span><span>{data.heat_trends.map((item) => item.window_type).join(" / ") || "-"}</span></div>
             <div className="detail-row"><span>市场与资金认可</span><span>{data.latest_snapshot?.market_capital || "-"}</span></div>

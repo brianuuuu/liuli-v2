@@ -59,7 +59,7 @@ export const mobileApi = {
   trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
   // 必须带 /detail：不带的那个路由只返回扁平的 TrackRead，没有 summary/stocks/materials
-  // 移动端只显示当前热度那一个数字，不画热度曲线，明确要求后端别回 90 天序列
+  // 移动端只显示资讯热度那一个数字和环比，不画热度曲线，明确要求后端别回 90 天序列
   trackDetail: (trackId: number) =>
     apiClient.get<TrackDetail>(`/api/track-discovery/tracks/${trackId}/detail?include_heat_trends=false`),
   // 赛道总量是十几条量级，一次取回在端上排序分档，不做分页

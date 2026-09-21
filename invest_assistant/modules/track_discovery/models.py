@@ -77,7 +77,7 @@ class TrackTrendSnapshot(Base):
     current_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
     future_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # 派生列：六项平均、综合分评级、市场热度档位。冗余存一份是为了看板按评级筛选排序
+    # 派生列：六项平均、综合分评级、资金热度档位。冗余存一份是为了看板按评级筛选排序
     # 走 SQL，不用把全部快照捞进内存再算。写入路径统一由 scoring.derive_track_scores 生成。
     overall_score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
     track_grade: Mapped[str] = mapped_column(String(2), nullable=False, index=True)

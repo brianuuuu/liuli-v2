@@ -16,7 +16,7 @@ import type {
 
 /** 六维评分的展示顺序和中文名。顺序固定，雷达图和明细表共用，换位置只改这里。 */
 export const TRACK_SCORE_DIMENSIONS = [
-  { key: "market_heat_score", label: "市场热度", hint: "资金与叙事当前的关注程度" },
+  { key: "market_heat_score", label: "资金热度", hint: "资金与叙事当前的关注程度，不是资讯条数那个资讯热度" },
   { key: "growth_speed_score", label: "发展速度", hint: "产业与需求的扩张斜率" },
   { key: "concentration_score", label: "行业集中度", hint: "10 分为格局收敛、龙头有定价权" },
   { key: "cycle_resilience_score", label: "周期韧性", hint: "10 分为弱周期、能穿越周期" },
@@ -171,7 +171,7 @@ export function buildScoreRadarOption(
 type ScoreRow = Pick<TrackTrendSnapshot, "research_date" | "overall_score" | "market_heat_score">;
 
 /**
- * 综合分与市场热度随时间的走势。两条线分开看才有意义：综合分抬升而热度不动，是还没被
+ * 综合分与资金热度随时间的走势。两条线分开看才有意义：综合分抬升而热度不动，是还没被
  * 市场定价；热度冲高而综合分不动，是纯情绪。纵轴固定 0—10，同一天多份快照全部保留。
  */
 export function buildScoreTimelineOption(
@@ -213,7 +213,7 @@ export function buildScoreTimelineOption(
         data: ordered.map((item) => item.overall_score ?? null)
       },
       {
-        name: "市场热度",
+        name: "资金热度",
         type: "line",
         smooth: true,
         connectNulls: true,

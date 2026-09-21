@@ -307,7 +307,9 @@ class TrackDetailSummary(BaseModel):
     pending_material_count: int = 0
     high_importance_material_count: int = 0
     bound_stock_count: int = 0
+    # 资讯热度：最新 7d 窗口内带该赛道标签的资讯条数，heat_change 是相对一天前的变化。
     latest_heat_score: float | None = None
+    heat_change: float | None = None
     last_updated_at: datetime | None = None
 
 

@@ -1,7 +1,7 @@
 """赛道六维量化评分：分数、综合分、评级、热度档位的唯一口径。
 
 六个维度都是 0—10，综合分取六项算术平均，评级由综合分分档，热度档位单独由
-市场热度分档。三个派生值在入库时算好写进快照列，看板排序走 SQL，Web 和 H5 直接读列
+资金热度分档。三个派生值在入库时算好写进快照列，看板排序走 SQL，Web 和 H5 直接读列
 渲染角标，不各自实现一遍映射；改阈值只改这个文件，再对历史快照重算一次。
 
 **六个维度一律"分高 = 更有利"**，否则算术平均没有意义。两个容易读反的维度：
@@ -23,7 +23,7 @@ TRACK_SCORE_FIELDS = (
 )
 
 TRACK_SCORE_LABELS = {
-    "market_heat_score": "市场热度",
+    "market_heat_score": "资金热度",
     "growth_speed_score": "发展速度",
     "concentration_score": "行业集中度",
     "cycle_resilience_score": "周期韧性",
@@ -47,7 +47,8 @@ TRACK_GRADES = ("S", "A", "B", "C", "D")
 # 看板排序用：S 最前。同级内再按综合分细排，所以这里只解决分档。
 GRADE_ORDER = {grade: index for index, grade in enumerate(TRACK_GRADES)}
 
-# 市场热度单独出一个档位：T0 最热，与 A 股"T0 龙头"的习惯一致。
+# 资金热度单独出一个档位：T0 最热，与 A 股"T0 龙头"的习惯一致。
+# 这里说的是研究员打的"资金与叙事关注度"0—10 分，不是资讯条数那个热度，别混。
 HEAT_TIER_THRESHOLDS: tuple[tuple[float, str], ...] = (
     (9.0, "T0"),
     (7.0, "T1"),

@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v37：两个「热度」拆开命名，消除一词两义。研究员六维里的 `market_heat_score` 展示名由「市场热度」改为「资金热度」（研究员打的 0—10 分，量的是资金与叙事关注度，`heat_tier` 随之称资金热度档）；赛道详情那个数字改称「资讯热度」（系统统计的资讯条数），Web 市场雷达的「市场热度」榜改称「热度榜」。列名 `market_heat_score`、JSON 契约和研究员输出格式一律不动，只改展示名与口径文案。同批把赛道对外露出的资讯热度窗口从 24h 改为 7d（新增常量 `TRACK_HEAT_WINDOW`），详情页数字、看板热度排行的 `current_heat` 和赛道库「热度」排序共用这一个窗口：24h 的计数只有个位数，抓取延迟一轮就能让数字腰斩，而 market_radar 自己的默认窗口本来就是 7d。赛道详情 summary 新增 `heat_change`，为相对一天前同窗口的变化量（基线走 `rank_change_reference_stat_time`，7d 容差 36 小时），两端把它显示在热度数字旁边——绝对条数没有参照系，单独一个数字读不出高低。
 - v36：材料卡在安卓端收敛成一套：看板信息流、赛道详情、标的详情共用 `MaterialCard` 和 `.material-card` 样式，摘要统一两行截断，原 `.detail-material` 与 `.dashboard-material-item` 两套样式合并删除。列表态不再挂「原文」外链，整张卡点进新增的材料详情页 `/materials/{track|stock}/{material_id}`，全文、原文外链、重要度与研判备注都收在这一页；实体入口也从信息流卡片移到材料详情页，看板卡片上的公司名不再单独可点。后端为此新增两个只读接口 `GET /api/track-discovery/materials/{material_id}` 和 `GET /api/stock-analysis/materials/{material_id}`，在列表字段之外补一个未截断的 `material_content`；列表接口维持原样，不带正文。公告类材料正文不入库（只落 `parsed_text_path`），`material_content` 恒为 None，详情页靠标题和原文链接兜底。
 - v35：赛道详情接口收敛体积：`trend_snapshots` 只回简表（身份、主导周期、核心判断、六维评分与派生三项），六项分析、环节、情景等长文本仅保留在 `latest_snapshot`，要翻历史原文走 `/trend-snapshots`；新增 `include_heat_trends` 查询参数，移动端传 `false` 跳过 90 天热度序列，此时 `latest_heat_score` 改由一条聚合查询取最新 24h 热度。安卓赛道库去掉归档分档（归档只在 Web 端可见），状态分档与排序合并为一行，排序提供「评分 / 热度」两种；赛道详情的材料卡与标的详情统一为 `.detail-material` 一套样式。
 - v34：赛道状态去掉 `paused`（暂停观察），只留 `active` 跟踪中 / `candidate` 候选 / `archived` 归档，列表与筛选一律把跟踪中排在候选之前。不再跟踪的赛道退回候选，归档仍等同软删除。存量 `paused` 赛道由迁移脚本统一改判为 `candidate`。
@@ -111,7 +112,7 @@
 2. 不做多人协作 SaaS。
 3. 不做复杂租户隔离。
 4. 不把 AI Gateway 过度抽象成中心化平台。
-5. 不把市场热度误当成投资价值。
+5. 不把热度误当成投资价值。
 6. 不为了组件复用而过度拆分目录。
 ```
 
@@ -297,7 +298,7 @@ Worker 进程负责：
 ```text
 抓财联社新闻
 抽取标签
-聚合市场热度
+聚合资讯热度
 聚合标签关系
 同步股票基础库
 拉取标的公告
@@ -2222,7 +2223,7 @@ track_trend_snapshot
 - report_id              -- 报告原文回溯
 
 -- 六维量化评分，全部 0—10，必填。一律"分高 = 更有利"，否则算术平均没有意义
-- market_heat_score         -- 市场热度：资金与叙事当前的关注程度
+- market_heat_score         -- 资金热度：资金与叙事当前的关注程度（与资讯热度无关）
 - growth_speed_score        -- 发展速度：产业与需求的扩张斜率
 - concentration_score       -- 行业集中度：10 = 格局收敛、龙头有定价权
 - cycle_resilience_score    -- 周期韧性：10 = 弱周期、能穿越周期（不是周期振幅）
@@ -3487,7 +3488,7 @@ lightweight-charts
 
 ```text
 Ant Design：表格、表单、控制台、布局
-ECharts：市场热度、标签趋势、关系图、组合结构
+ECharts：热度榜、标签趋势、关系图、组合结构
 lightweight-charts：K线、分时、成交量、价格事件标注
 ```
 

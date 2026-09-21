@@ -30,6 +30,9 @@ from invest_assistant.shared.time_utils import beijing_now
 
 ARCHIVED_STATUS = "archived"
 DASHBOARD_HEAT_WINDOWS = ("24h", "7d", "30d")
+# 赛道对外露出的那个热度数字统一走 7d：24h 的计数只有个位数，噪声压过信号，
+# 而且 market_radar 自己的默认窗口就是 7d，详情页再用 24h 就成了孤例。
+TRACK_HEAT_WINDOW = "7d"
 DEFAULT_RANK_CHANGE_WINDOW = "7d"
 DASHBOARD_RANKING_LIMIT = 10
 # 赛道详情是移动端最重的一个响应，列表一律截断：材料和快照另有分页接口，
@@ -198,7 +201,7 @@ def get_dashboard(db: Session) -> dict:
                 "track_id": track.id,
                 "track_name": track.name,
                 "status": track.status,
-                "current_heat": latest_heat(track.id, "24h"),
+                "current_heat": latest_heat(track.id, TRACK_HEAT_WINDOW),
                 "today_material_count": int(material_count.get("total", 0)),
                 "confirmed_material_count": int(material_count.get("confirmed", 0)),
                 "processed_material_count": int(material_count.get("processed", 0)),
@@ -437,10 +440,10 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
             active_tag_ids,
             since=beijing_now() - timedelta(days=TRACK_DETAIL_HEAT_TREND_DAYS),
         )
-        latest_heat_score = _latest_heat_score(heat_trends)
     else:
         heat_trends = []
-        latest_heat_score = _latest_heat_score_for_tags(db, active_tag_ids)
+    # 热度数字走同一条聚合查询，不从序列末尾取：两端读到的口径必须一致。
+    latest_heat_score, heat_change = _track_heat_summary(db, active_tag_ids)
     active_stock_count = len([item for item in stocks if item["status"] == "active"])
     last_updated_candidates = [
         track.updated_at,
@@ -459,6 +462,7 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
             "high_importance_material_count": material_stats["high_importance"],
             "bound_stock_count": active_stock_count,
             "latest_heat_score": latest_heat_score,
+            "heat_change": heat_change,
             "last_updated_at": _max_datetime(last_updated_candidates),
         },
         "heat_trends": heat_trends,
@@ -884,38 +888,54 @@ def _track_detail_heat_trends(
     return trends
 
 
-def _latest_heat_score_for_tags(db: Session, active_tag_ids: list[int]) -> float | None:
-    """不需要整段序列时，只取最新一个 24h 热度点。
+def _track_heat_summary(db: Session, active_tag_ids: list[int]) -> tuple[float | None, float | None]:
+    """赛道资讯热度：最新一个 7d 热度点，以及相对一天前同窗口的变化。
+
+    热度就是窗口内带该赛道标签的资讯条数（market_radar 的 _heat_score 取 trigger_count）。
+    用 7d 而不是 24h：单日计数只有个位数，抓取延迟一轮就能让数字腰斩，波动压过信号；
+    7d 把基数抬到几十条，也和 market_radar 自己的默认窗口一致。
 
     多个标签的同一时刻要相加，所以先定位最新时刻再按该时刻汇总，
     不能直接 order by limit 1——那样只拿到其中一个标签的分数。
+
+    环比基线走 market_radar 的 rank_change_reference_stat_time：7d 窗口取一天前那个点，
+    允许 36 小时容差，聚合任务漏跑一轮也还能找到参照点。绝对条数没有参照系，
+    单独一个"42"读不出高低，所以这里必须带上变化量。
     """
     if not active_tag_ids:
-        return None
+        return None, None
     latest_stat_time = db.scalar(
         select(func.max(TagHeatSnapshot.stat_time)).where(
             TagHeatSnapshot.tag_id.in_(active_tag_ids),
-            TagHeatSnapshot.window_type == "24h",
+            TagHeatSnapshot.window_type == TRACK_HEAT_WINDOW,
         )
     )
     if latest_stat_time is None:
-        return None
+        return None, None
+    latest = _tag_heat_total(db, active_tag_ids, latest_stat_time)
+    if latest is None:
+        return None, None
+    previous_stat_time = rank_change_reference_stat_time(
+        db,
+        TRACK_HEAT_WINDOW,
+        latest_stat_time,
+        TagHeatSnapshot.tag_id.in_(active_tag_ids),
+    )
+    if previous_stat_time is None:
+        return latest, None
+    previous = _tag_heat_total(db, active_tag_ids, previous_stat_time)
+    return latest, None if previous is None else round(latest - previous, 2)
+
+
+def _tag_heat_total(db: Session, active_tag_ids: list[int], stat_time) -> float | None:
     total = db.scalar(
         select(func.sum(TagHeatSnapshot.heat_score)).where(
             TagHeatSnapshot.tag_id.in_(active_tag_ids),
-            TagHeatSnapshot.window_type == "24h",
-            TagHeatSnapshot.stat_time == latest_stat_time,
+            TagHeatSnapshot.window_type == TRACK_HEAT_WINDOW,
+            TagHeatSnapshot.stat_time == stat_time,
         )
     )
     return None if total is None else round(float(total), 2)
-
-
-def _latest_heat_score(heat_trends: list[dict]) -> float | None:
-    preferred = next((item for item in heat_trends if item["window_type"] == "24h"), None)
-    trend = preferred or (heat_trends[0] if heat_trends else None)
-    if not trend or not trend["points"]:
-        return None
-    return trend["points"][-1]["heat_score"]
 
 
 def change_track_status(db: Session, track_id: int, payload: TrackStatusChange) -> dict | None:

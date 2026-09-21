@@ -117,10 +117,11 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     assert dashboard["summary"]["focus_tracks_count"] == 2
     assert dashboard["summary"]["pending_materials_count"] == 1
     assert dashboard["summary"]["top_heat_track"]["name"] == "机器人"
-    assert dashboard["summary"]["top_heat_track"]["heat_score"] == 89
+    # 赛道露出的热度走 7d：机器人两个标签 70 + 14 = 84，24h 那组 60 + 29 只进热度序列
+    assert dashboard["summary"]["top_heat_track"]["heat_score"] == 84
     assert dashboard["heat_rankings"][0]["track_name"] == "机器人"
     assert dashboard["heat_rankings"][0]["status"] == "active"
-    assert dashboard["heat_rankings"][0]["current_heat"] == 89
+    assert dashboard["heat_rankings"][0]["current_heat"] == 84
     assert dashboard["heat_rankings"][0]["rank_change_24h"] is None
     assert dashboard["heat_rankings"][0]["rank_change_7d"] == 0
     assert dashboard["heat_rankings"][0]["rank_change_30d"] is None

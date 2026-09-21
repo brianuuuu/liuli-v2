@@ -2137,7 +2137,7 @@ describe("mobile H5 app", () => {
       if (/\/api\/track-discovery\/tracks\/7\/detail(\?|$)/.test(url)) {
         return new Response(JSON.stringify({
           track: { id: 7, name: "AI算力", status: "active", industry_phase: "expansion", market_phase: "accelerate" },
-          summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89 },
+          summary: { tag_count: 1, material_count: 0, pending_material_count: 2, high_importance_material_count: 0, bound_stock_count: 1, latest_heat_score: 89, heat_change: 8 },
           latest_snapshot: {
             id: 1, track_id: 7, research_date: "2026-07-05", researcher_code: "track_analyst_001",
             headline_cycle: "long", core_judgment: "算力需求从训练转向推理", key_contradiction: "先进封装产能是唯一瓶颈",
@@ -2200,7 +2200,7 @@ describe("mobile H5 app", () => {
     const rankOf = (name: string) => trackOrder().findIndex((text) => text.includes(name));
     expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池"));
 
-    // 切到当前热度：固态电池评级更低但更热，顺序必须反过来
+    // 切到资讯热度：固态电池评级更低但更热，顺序必须反过来
     fireEvent.click(screen.getByRole("button", { name: "热度" }));
     await waitFor(() => expect(rankOf("固态电池")).toBeLessThan(rankOf("AI算力")));
 
@@ -2213,6 +2213,11 @@ describe("mobile H5 app", () => {
     expect(await screen.findByRole("heading", { name: "AI算力" })).toBeInTheDocument();
     expect(screen.getByText("算力需求从训练转向推理")).toBeInTheDocument();
     expect(screen.getByText("先进封装产能是唯一瓶颈")).toBeInTheDocument();
+    // 热度那格是"资讯热度"，不是六维里研究员打的资金热度；窗口和环比都要露出来，
+    // 否则一个孤零零的 89 读不出高低。
+    expect(screen.getByText("7日")).toBeInTheDocument();
+    expect(screen.getByText(/资讯热度/)).toBeInTheDocument();
+    expect(screen.getByText("+8")).toHaveClass("heat-change--up");
 
     // 材料卡与看板信息流、标的详情同构：标题、方向标、摘要、来源时间，整卡点进材料详情
     fireEvent.click(screen.getByRole("button", { name: "材料" }));

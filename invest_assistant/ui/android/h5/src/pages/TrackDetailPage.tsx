@@ -10,6 +10,8 @@ import {
   buildDetailScoreRows,
   detailCount,
   detailHeat,
+  detailHeatChange,
+  heatChangeText,
   detailMaterials,
   detailSnapshots,
   detailStocks,
@@ -107,9 +109,28 @@ function TrackProfile({ detail }: { detail: TrackDetail }) {
       <div className="track-profile__metrics">
         <div><span>关联标的</span><strong>{activeStockCount(detail)}</strong></div>
         <div><span>待研判材料</span><strong>{detailCount(detail, "pending_material_count")}</strong></div>
-        <div><span>当前热度</span><strong>{detailHeat(detail) === null ? "-" : formatNumber(detailHeat(detail), 0)}</strong></div>
+        <HeatMetric detail={detail} />
       </div>
     </section>
+  );
+}
+
+/**
+ * 资讯热度：7 天窗口内带该赛道标签的资讯条数，不是六维里研究员打的资金热度。
+ * 单独一个绝对条数读不出高低，所以必须带上相对一天前的环比。
+ */
+function HeatMetric({ detail }: { detail: TrackDetail }) {
+  const heat = detailHeat(detail);
+  const change = heatChangeText(detailHeatChange(detail));
+  const tone = change === null ? null : change.startsWith("+") ? "up" : change === "0" ? "flat" : "down";
+  return (
+    <div>
+      <span>资讯热度 <i>7日</i></span>
+      <strong>
+        {heat === null ? "-" : formatNumber(heat, 0)}
+        {change === null ? null : <em className={`heat-change heat-change--${tone}`}>{change}</em>}
+      </strong>
+    </div>
   );
 }
 

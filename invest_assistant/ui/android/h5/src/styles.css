@@ -597,6 +597,12 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .track-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
 .track-profile__metrics span { color: var(--muted); font-size: 11px; }
 .track-profile__metrics strong { overflow: hidden; font-size: 17px; font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+/* 窗口后缀和环比：绝对条数没有参照系，单独一个"42"读不出高低，所以两者都得贴在数字旁边。 */
+.track-profile__metrics span i { color: var(--subtle); font-size: 10px; font-style: normal; }
+.heat-change { margin-left: 5px; font-size: 11px; font-style: normal; font-weight: 650; }
+.heat-change--up { color: #dc2626; }
+.heat-change--down { color: #16a34a; }
+.heat-change--flat { color: var(--subtle); }
 
 /* 六维评分条：标签定宽、条形自适应、分数右对齐，六行左右边界对齐才扫得动 */
 .track-score-list { display: grid; gap: 9px; }

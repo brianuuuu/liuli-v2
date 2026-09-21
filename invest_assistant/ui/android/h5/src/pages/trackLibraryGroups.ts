@@ -39,8 +39,9 @@ const GRADE_UNRESEARCHED = 5;
 
 export type TrackSortKey = "grade" | "heat";
 
-// 两种排法对应两个角标：评级看"值不值得配研究精力"，热度看"市场是不是已经在交易它"。
+// 两种排法：评级看"值不值得配研究精力"，资讯热度看"最近外面在不在说它"。
 // 两者经常背离，所以要能分别排，而不是只给一个综合序。
+// 排序键沿用短标签"热度"：这一行还挤着状态分档，四个字排不下，全称在详情页给。
 export const TRACK_SORT_OPTIONS: { value: TrackSortKey; label: string }[] = [
   { value: "grade", label: "评分" },
   { value: "heat", label: "热度" }
@@ -52,7 +53,7 @@ export const TRACK_CYCLE_LABELS: Record<string, string> = { short: "短期", mid
 
 /** 六维评分的展示顺序和中文名，详情页按这个顺序渲染，换位置只改这里。 */
 export const TRACK_SCORE_DIMENSIONS = [
-  { key: "market_heat_score", label: "市场热度" },
+  { key: "market_heat_score", label: "资金热度" },
   { key: "growth_speed_score", label: "发展速度" },
   { key: "concentration_score", label: "行业集中度" },
   { key: "cycle_resilience_score", label: "周期韧性" },
@@ -90,7 +91,7 @@ export type TrackRowView = {
   status: string;
   /** 卡片左角标：综合评级。没有研究结论时为 null，卡片显示"待研究"。 */
   grade?: string | null;
-  /** 卡片右角标：市场热度档位，T0 最热。 */
+  /** 卡片右角标：资金热度档位，T0 最热。 */
   heatTier?: string | null;
   overallScore: number | null;
   headlineCycle?: string | null;
@@ -161,7 +162,7 @@ export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
 }
 
 /**
- * 按当前热度排：热度 → 综合分 → 名称。
+ * 按资讯热度排：热度 → 综合分 → 名称。
  * 热度取不到的排在有热度的之后，和"热度 0"区分开——看板热度是单独一条查询，
  * 失败或未统计时是缺值，不能当成"没人关注"顶到最后一名之前。
  */
@@ -265,4 +266,17 @@ export function detailCount(detail: TrackDetail, key: "pending_material_count" |
 export function detailHeat(detail: TrackDetail): number | null {
   const value = detail?.summary?.latest_heat_score;
   return typeof value === "number" ? value : null;
+}
+
+/** 资讯热度的环比，相对一天前的同一个 7d 窗口。没有参照点时为 null，不补 0。 */
+export function detailHeatChange(detail: TrackDetail): number | null {
+  const value = detail?.summary?.heat_change;
+  return typeof value === "number" ? value : null;
+}
+
+/** 环比展示成 +8 / -3，0 也要显示出来：持平和"没有参照点"是两回事。 */
+export function heatChangeText(change: number | null): string | null {
+  if (change === null) return null;
+  const rounded = Math.round(change);
+  return rounded > 0 ? `+${rounded}` : String(rounded);
 }

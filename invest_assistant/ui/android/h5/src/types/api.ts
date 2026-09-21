@@ -130,7 +130,7 @@ export type TrackDashboard = {
 export type TrackCycle = "short" | "mid" | "long";
 /** 综合评级，S 最高，由六维评分的平均分分档。阈值在后端，前端只读不算。 */
 export type TrackGrade = "S" | "A" | "B" | "C" | "D";
-/** 市场热度档位，T0 最热，只由 market_heat_score 决定，与评级各自独立。 */
+/** 资金热度档位，T0 最热，只由 market_heat_score 决定，与评级各自独立。 */
 export type TrackHeatTier = "T0" | "T1" | "T2" | "T3" | "T4";
 
 /** 与后端 track_trend_snapshot 一一对应；JSON 三列在移动端只解析展示用的字段。 */
@@ -219,7 +219,9 @@ export type TrackDetail = {
     pending_material_count: number;
     high_importance_material_count: number;
     bound_stock_count: number;
+    // 资讯热度：7d 窗口内带该赛道标签的资讯条数；heat_change 是相对一天前的变化。
     latest_heat_score?: number | null;
+    heat_change?: number | null;
     last_updated_at?: string | null;
   };
   latest_snapshot?: TrackTrendSnapshot | null;

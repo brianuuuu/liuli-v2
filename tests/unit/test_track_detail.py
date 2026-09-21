@@ -102,6 +102,7 @@ def test_track_detail_returns_stable_empty_structure():
         "high_importance_material_count": 0,
         "bound_stock_count": 0,
         "latest_heat_score": None,
+        "heat_change": None,
         "last_updated_at": track.updated_at,
     }
     assert detail["heat_trends"] == []
@@ -189,7 +190,10 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     assert detail["summary"]["pending_material_count"] == 1
     assert detail["summary"]["high_importance_material_count"] == 1
     assert detail["summary"]["bound_stock_count"] == 1
-    assert detail["summary"]["latest_heat_score"] == 42
+    # 热度取 7d 窗口而不是 24h：24h 那条 42 只进热度序列，不再是对外露出的数字
+    assert detail["summary"]["latest_heat_score"] == 45
+    # 环比基线是一天前的同窗口点：45 - 31
+    assert detail["summary"]["heat_change"] == 14
     assert [item["tag"]["name"] for item in detail["tags"]] == ["机器人"]
     material_titles = {item["material_type"]: item["material_title"] for item in detail["materials"]}
     assert material_titles["source_item"] == "机器人订单提升"
