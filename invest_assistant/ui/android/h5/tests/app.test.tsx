@@ -895,9 +895,9 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    const editGroups = await screen.findByRole("button", { name: "编辑分组" });
+    const editGroups = await screen.findByRole("button", { name: "编辑" });
     expect(editGroups).toHaveClass("secondary-navigation__end-action");
-    expect(screen.queryByText("编辑分组", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
+    expect(screen.queryByText("编辑", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 
   it("persists all custom note groups after direct handle reorder without sending the fixed all tab", async () => {
@@ -930,7 +930,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    fireEvent.click(await screen.findByRole("button", { name: "编辑" }));
     const first = await screen.findByTestId("note-group-1");
     const second = screen.getByTestId("note-group-2");
     vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
@@ -944,7 +944,8 @@ describe("mobile H5 app", () => {
     await waitFor(() => expect(reorderBodies).toEqual([{ ordered_ids: [2, 1] }]));
     const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
     // 全部和未分组两个固定页签不参与排序，未分组是收件箱不是分组
-    expect(tabs).toEqual(["全部", "未分组", "原则", "复盘"]);
+    // 自定义分组在前，全部和未分组这两个非分组视图收到最后
+    expect(tabs).toEqual(["原则", "复盘", "全部", "未分组"]);
   });
 
   it("edits a note group name inline and updates the note tabs", async () => {
@@ -981,7 +982,7 @@ describe("mobile H5 app", () => {
     }));
 
     renderApp();
-    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    fireEvent.click(await screen.findByRole("button", { name: "编辑" }));
     expect(screen.getByText("笔记分组").closest(".sheet-backdrop")).toHaveStyle({ height: "480px", top: "12px" });
     fireEvent.click(await screen.findByRole("button", { name: "编辑复盘" }));
     fireEvent.change(screen.getByRole("textbox", { name: "分组名称" }), { target: { value: "每周复盘" } });
@@ -1023,7 +1024,7 @@ describe("mobile H5 app", () => {
     }));
 
     renderApp();
-    fireEvent.click(await screen.findByRole("button", { name: "编辑分组" }));
+    fireEvent.click(await screen.findByRole("button", { name: "编辑" }));
     const first = await screen.findByTestId("note-group-1");
     const second = screen.getByTestId("note-group-2");
     vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 44, height: 44 } as DOMRect);
@@ -1037,7 +1038,7 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("分组排序保存失败，请重试")).toBeInTheDocument();
     await waitFor(() => {
       const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
-      expect(tabs).toEqual(["全部", "未分组", "复盘", "原则"]);
+      expect(tabs).toEqual(["复盘", "原则", "全部", "未分组"]);
     });
   });
 
