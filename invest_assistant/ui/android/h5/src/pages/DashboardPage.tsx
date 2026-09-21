@@ -100,17 +100,18 @@ export function DashboardPage() {
 
 function TodayDashboard() {
   const navigate = useNavigate();
+  // 今日三张卡同源：今日报告跟着 workbench-today 一起回，日界在后端按北京时间算。
   const market = useQuery({ queryKey: ["workbench-today"], queryFn: mobileApi.workbenchToday, staleTime: 300_000 });
-  const reports = useQuery({ queryKey: ["today-reports"], queryFn: () => mobileApi.reports(0, 4), staleTime: 300_000 });
-  if (reports.isLoading) return <LoadingState />;
   const portfolio = market.data?.portfolio_today;
+  const todayReports = market.data?.today_reports;
+  const reportTotal = todayReports?.total ?? 0;
+  const reportItems = todayReports?.items ?? [];
   return (
     <PullToRefresh
       ariaLabel="今日看板下拉刷新"
       onRefresh={async () => {
-        const [marketResult, reportsResult] = await Promise.all([market.refetch(), reports.refetch()]);
+        const marketResult = await market.refetch();
         if (marketResult.isError) throw marketResult.error;
-        if (reportsResult.isError) throw reportsResult.error;
       }}
     >
       <div className="page-stack">
@@ -144,8 +145,28 @@ function TodayDashboard() {
           </div>
         </SectionCard>
       ) : null}
-      <SectionCard title="最新报告" action={<button className="text-button" onClick={() => navigate("/reports")}>全部</button>}>
-        {reports.data?.items.map((item) => <ListRow key={item.id} title={item.title} meta={item.source_module} onClick={() => navigate(`/reports/${item.id}`)} />)}
+      <SectionCard
+        title="今日报告"
+        action={
+          <span className="section-card__actions">
+            {/* 卡片只显示前几篇，标题却叫"今日报告"，截断时必须把总数说出来 */}
+            {reportTotal > reportItems.length ? <em className="section-card__hint">近 {reportItems.length} 篇 · 共 {reportTotal} 篇</em> : null}
+            <button className="text-button" onClick={() => navigate("/reports")}>全部</button>
+          </span>
+        }
+      >
+        {market.isLoading ? <LoadingState /> : market.isError ? (
+          <ErrorState message="今日报告加载失败" onRetry={() => void market.refetch()} />
+        ) : reportItems.length ? reportItems.map((item) => (
+          <ListRow
+            key={item.id}
+            title={item.title}
+            // 凌晨 3 点入库的那篇日报内容是昨天的，标题日期会比入库日期早一天，
+            // 所以把入库时间显示出来，免得对着"今日报告"里的昨日标题发愣。
+            meta={[item.source_module, item.created_at ? formatDateTime(item.created_at) : null].filter(Boolean).join(" · ")}
+            onClick={() => navigate(`/reports/${item.id}`)}
+          />
+        )) : <EmptyState title="今天还没有新报告" detail="市场雷达日报每天凌晨 3 点生成，研究回流导入后也会出现在这里" />}
       </SectionCard>
       </div>
     </PullToRefresh>

@@ -40,6 +40,49 @@ def list_reports_page(
     return page_from_statement(db, stmt, limit=limit, offset=offset)
 
 
+DEFAULT_TODAY_REPORT_LIMIT = 4
+
+
+def list_today_reports(db: Session, limit: int = DEFAULT_TODAY_REPORT_LIMIT) -> dict:
+    """今日入库的报告，供今日看板用。
+
+    按 created_at（入库时间）而不是 publish_time 切：凌晨 3 点那个定时任务生成的是
+    前一自然日的日报，publish_time 是昨天，但它是今天才出现在你面前的东西。
+
+    日界用 beijing_now 取，不用 UTC。utc_now 实际返回的就是北京时间（见 time_utils），
+    但这里显式写出来，免得以后有人把它改回真 UTC 时，凌晨入库的日报被算成昨天——
+    那恰恰是最该显示的一篇。
+
+    total 单独回一个数：卡片只显示前几条，标题却叫"今日报告"，不把总数带出去就是撒谎。
+    """
+    start = beijing_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    conditions = (Report.created_at >= start,)
+    total = int(db.scalar(select(func.count(Report.id)).where(*conditions)) or 0)
+    rows = list(
+        db.scalars(
+            select(Report)
+            .where(*conditions)
+            .order_by(Report.created_at.desc(), Report.id.desc())
+            .limit(max(1, limit))
+        )
+    )
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "title": item.title,
+                "source_module": item.source_module,
+                "report_type": item.report_type,
+                "created_at": item.created_at,
+                "publish_time": item.publish_time,
+            }
+            for item in rows
+        ],
+        "total": total,
+        "since": start,
+    }
+
+
 def _filter_reports_by_kind(stmt, report_kind: str | None):
     if report_kind == "market":
         return stmt.where(

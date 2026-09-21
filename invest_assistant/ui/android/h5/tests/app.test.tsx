@@ -394,6 +394,51 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("暂无热度排行")).toBeInTheDocument();
   });
 
+  it("今日报告显示入库时间和总数，没有报告时给空态", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const workbench = (todayReports: unknown) => new Response(JSON.stringify({
+      market_indices: { items: [] },
+      today_reports: todayReports
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/console/workbench-today")) {
+        return workbench({
+          items: [{
+            id: 9,
+            title: "2026年9月20日市场雷达日报",
+            source_module: "market_radar",
+            created_at: "2026-09-21T03:00:00+08:00"
+          }],
+          total: 6
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    }));
+
+    const view = renderApp();
+    expect(await screen.findByText("今日报告")).toBeInTheDocument();
+    // 凌晨 3 点入库的日报，标题日期是昨天、入库日期是今天，两者都要看得见
+    expect(await screen.findByText("2026年9月20日市场雷达日报")).toBeInTheDocument();
+    expect(screen.getByText(/market_radar · 09\/21 03:00/)).toBeInTheDocument();
+    // 只显示 1 篇却共 6 篇，截断必须说出来
+    expect(screen.getByText("近 1 篇 · 共 6 篇")).toBeInTheDocument();
+    view.unmount();
+
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/api/console/workbench-today")) return workbench({ items: [], total: 0 });
+      return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    }));
+    renderApp();
+    expect(await screen.findByText("今天还没有新报告")).toBeInTheDocument();
+    expect(screen.queryByText(/共 .* 篇/)).not.toBeInTheDocument();
+  });
+
   it("refreshes only the today dashboard queries after a top pull", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
@@ -430,8 +475,9 @@ describe("mobile H5 app", () => {
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/console/workbench-today"))).toHaveLength(2);
-      expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/reports?offset=0&limit=4"))).toHaveLength(2);
     });
+    // 今日报告跟着 workbench-today 一起回，今日这一屏不再单独请求报告库
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/reports"))).toBe(false);
     expect(fetchMock.mock.calls.some(([input]) => (
       /\/api\/(?:market-radar\/rankings|track-discovery\/materials|stock-analysis\/materials|portfolios\/overview)/.test(String(input))
     ))).toBe(false);
@@ -1929,7 +1975,8 @@ describe("mobile H5 app", () => {
     renderApp();
 
     expect(await screen.findByText("投研工作台")).toBeInTheDocument();
-    expect(screen.getByText("今日组合")).toBeInTheDocument();
+    // 今日各卡片自己管加载态，不再整屏等最慢的那个查询，所以这里要等卡片出现
+    expect(await screen.findByText("今日组合")).toBeInTheDocument();
     expect(screen.queryByText("组合表现")).not.toBeInTheDocument();
     expect(screen.queryByText("重要资讯")).not.toBeInTheDocument();
     expect(screen.queryByText("未读预警")).not.toBeInTheDocument();

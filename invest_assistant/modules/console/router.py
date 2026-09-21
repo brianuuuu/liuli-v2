@@ -15,6 +15,7 @@ from invest_assistant.modules.basic.disclosure_library.models import CompanyDisc
 from invest_assistant.modules.basic.job_center.models import JobConfig, JobRunRequest
 from invest_assistant.modules.basic.job_center.registry import JOB_REGISTRY
 from invest_assistant.modules.basic.job_center import service as job_service
+from invest_assistant.modules.basic.report_library import service as report_service
 from invest_assistant.modules.basic.mcp.auth import load_mcp_clients
 from invest_assistant.modules.basic.mcp.debug_logger import is_mcp_debug_log_enabled
 from invest_assistant.modules.basic.mcp.registry import registered_tool_names
@@ -191,6 +192,8 @@ def workbench_today(db: Session = Depends(get_db)) -> dict:
             "items": stock_service.list_major_index_quotes(db),
         },
         "portfolio_today": _portfolio_today_summary(db),
+        # 今日那一屏三张卡走同一个接口：日界这种最容易写错的东西集中在后端算一次。
+        "today_reports": report_service.list_today_reports(db),
         "market_refresh": _market_refresh_summary(db),
         "source_stats": source_stats,
         "active": {

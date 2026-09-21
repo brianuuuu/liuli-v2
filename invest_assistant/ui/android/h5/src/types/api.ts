@@ -105,6 +105,19 @@ export type WorkbenchToday = {
     day_pct?: number | null;
     latest_quote_time?: string | null;
   };
+  /** 今日入库的报告：按 created_at 在北京时间当日 0 点切，items 只是前几条，总数看 total。 */
+  today_reports?: {
+    items: Array<{
+      id: number;
+      title: string;
+      source_module: string;
+      report_type?: string | null;
+      created_at?: string | null;
+      publish_time?: string | null;
+    }>;
+    total: number;
+    since?: string | null;
+  };
 };
 export type TrackDashboard = {
   summary?: {

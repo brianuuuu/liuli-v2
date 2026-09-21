@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v39：安卓今日看板的「最新报告」改为「今日报告」，只显示当天入库的报告。口径按 `created_at`（入库时间）而不是 `publish_time`：凌晨 3 点 `market_radar.generate_daily_report` 生成的是前一自然日的日报，`publish_time` 在昨天但它是今天才出现的东西；日界用 `beijing_now()` 取当日 0 点，不用 UTC，否则这篇最该显示的日报会被算到昨天。数据并进 `workbench-today` 返回的 `today_reports`（`items` + `total` + `since`），今日那一屏三张卡同源，端上不再单独请求报告库，日界只在后端算一次。卡片列出入库时间（日报标题的日期比入库日期早一天，不写出来会让人困惑），截断时显示「近 N 篇 · 共 M 篇」，无报告时给空态。今日各卡片改为各自管加载态，不再整屏等最慢的那个查询。
 - v38：知识笔记增加收件箱链路。`list_notes` 新增 `ungrouped` 与 `note_type` 两个过滤参数——`group_id=None` 的语义是「不按分组过滤」，表达不了「未分组」；归档分组不再把成员笔记的 `group_id` 置 NULL，旧行为既不可逆（分组恢复笔记也回不去）又会让一次归档把整组历史笔记倒灌进收件箱。安卓笔记页在「全部」之后固定加「未分组」页签，它是收件箱不是分组，不参与分组排序；待办新增「笔记」子模块，只收 `note_type=mcp` 的未分组笔记，支持就地归入分组，标签仍在笔记页打。对外 MCP 新增受控写入工具 `knowledge_base.create_note`，只收 `content`，单行、最长 80 字、五分钟幂等，落到未分组并标记来源；不接收分组和标签，不提供笔记的更新与删除。
 - v37：两个「热度」拆开命名，消除一词两义。研究员六维里的 `market_heat_score` 展示名由「市场热度」改为「资金热度」（研究员打的 0—10 分，量的是资金与叙事关注度，`heat_tier` 随之称资金热度档）；赛道详情那个数字改称「资讯热度」（系统统计的资讯条数），Web 市场雷达的「市场热度」榜改称「热度榜」。列名 `market_heat_score`、JSON 契约和研究员输出格式一律不动，只改展示名与口径文案。同批把赛道对外露出的资讯热度窗口从 24h 改为 7d（新增常量 `TRACK_HEAT_WINDOW`），详情页数字、看板热度排行的 `current_heat` 和赛道库「热度」排序共用这一个窗口：24h 的计数只有个位数，抓取延迟一轮就能让数字腰斩，而 market_radar 自己的默认窗口本来就是 7d。赛道详情 summary 新增 `heat_change`，为相对一天前同窗口的变化量（基线走 `rank_change_reference_stat_time`，7d 容差 36 小时），两端把它显示在热度数字旁边——绝对条数没有参照系，单独一个数字读不出高低。
 - v36：材料卡在安卓端收敛成一套：看板信息流、赛道详情、标的详情共用 `MaterialCard` 和 `.material-card` 样式，摘要统一两行截断，原 `.detail-material` 与 `.dashboard-material-item` 两套样式合并删除。列表态不再挂「原文」外链，整张卡点进新增的材料详情页 `/materials/{track|stock}/{material_id}`，全文、原文外链、重要度与研判备注都收在这一页；实体入口也从信息流卡片移到材料详情页，看板卡片上的公司名不再单独可点。后端为此新增两个只读接口 `GET /api/track-discovery/materials/{material_id}` 和 `GET /api/stock-analysis/materials/{material_id}`，在列表字段之外补一个未截断的 `material_content`；列表接口维持原样，不带正文。公告类材料正文不入库（只落 `parsed_text_path`），`material_content` 恒为 None，详情页靠标题和原文链接兜底。
@@ -4484,7 +4485,7 @@ tag 作为市场信息流和业务实体之间的连接层。
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/console/dashboard` | 控制台首页汇总 |
-| GET | `/api/console/workbench-today` | 今日工作台汇总 |
+| GET | `/api/console/workbench-today` | 今日工作台汇总，含大盘、组合与今日入库报告 |
 | POST | `/api/console/workbench-today/refresh-market` | 触发市场刷新相关任务 |
 | GET | `/api/console/system-status` | 系统状态 |
 | GET | `/api/console/data-sources` | 数据源状态列表 |
