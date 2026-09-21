@@ -33,9 +33,21 @@ def list_notes(
     q: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    ungrouped: bool = False,
+    note_type: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return service.list_notes(db, status=status, group_id=group_id, tag_id=tag_id, q=q, limit=limit, offset=offset)
+    return service.list_notes(
+        db,
+        status=status,
+        group_id=group_id,
+        tag_id=tag_id,
+        q=q,
+        limit=limit,
+        offset=offset,
+        ungrouped=ungrouped,
+        note_type=note_type,
+    )
 
 
 @router.post("/notes", response_model=KnowledgeNoteRead)

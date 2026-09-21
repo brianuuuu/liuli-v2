@@ -6,7 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import String, delete, func, or_, select, update
+from sqlalchemy import String, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.report_library import service as report_service
@@ -598,8 +598,13 @@ def update_note_group(db: Session, item: KnowledgeNoteGroup, payload: KnowledgeN
 
 
 def archive_note_group(db: Session, item: KnowledgeNoteGroup) -> KnowledgeNoteGroup:
+    """归档分组保留成员笔记的 group_id。
+
+    以前这里把成员笔记的 group_id 置 NULL，有两个问题：归档不可逆，分组恢复回来笔记
+    也回不去；未分组现在是收件箱，一次归档会把整组历史笔记倒灌进待办。归档只是让分组
+    不再出现在页签里，不改笔记归属。
+    """
     item.status = "archived"
-    db.execute(update(KnowledgeNote).where(KnowledgeNote.group_id == item.id).values(group_id=None))
     db.commit()
     db.refresh(item)
     return item
@@ -624,7 +629,14 @@ def list_notes(
     q: str | None = None,
     limit: int = 20,
     offset: int = 0,
+    ungrouped: bool = False,
+    note_type: str | None = None,
 ) -> KnowledgeNotePage:
+    """ungrouped 单独一个参数，不能靠 group_id=None 表达。
+
+    group_id=None 的语义已经被"不按分组过滤"占住了，未分组是另一回事：
+    它是收件箱，笔记页的未分组页签和待办的笔记子模块都查这一条。
+    """
     safe_limit = max(1, min(limit, 100))
     safe_offset = max(0, offset)
     stmt = select(KnowledgeNote)
@@ -634,6 +646,10 @@ def list_notes(
         conditions.append(KnowledgeNote.status == status)
     if group_id is not None:
         conditions.append(KnowledgeNote.group_id == group_id)
+    if ungrouped:
+        conditions.append(KnowledgeNote.group_id.is_(None))
+    if note_type:
+        conditions.append(KnowledgeNote.note_type == note_type)
     if tag_id is not None:
         note_ids_for_tag = select(KnowledgeNoteTagRelation.note_id).where(KnowledgeNoteTagRelation.tag_id == tag_id)
         conditions.append(KnowledgeNote.id.in_(note_ids_for_tag))

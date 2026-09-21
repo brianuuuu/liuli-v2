@@ -139,7 +139,12 @@ def test_create_note_rejects_missing_tag_without_creating_note():
         db.close()
 
 
-def test_archiving_group_moves_notes_to_ungrouped():
+def test_archiving_group_keeps_note_membership():
+    """归档分组不再把成员笔记打回未分组。
+
+    未分组现在是收件箱（笔记页未分组页签 + 待办笔记子模块），旧行为会让一次归档把整组
+    历史笔记倒灌进待办；而且置 NULL 不可逆，分组恢复回来笔记也回不去。
+    """
     SessionLocal, _ = make_session("archive-group")
     db = SessionLocal()
     try:
@@ -150,7 +155,33 @@ def test_archiving_group_moves_notes_to_ungrouped():
         db.refresh(note)
 
         assert archived_group.status == "archived"
-        assert note.group_id is None
+        assert note.group_id == group.id
+        # 归档组的笔记不该出现在收件箱里
+        assert [item.id for item in service.list_notes(db, ungrouped=True).items] == []
+    finally:
+        db.close()
+
+
+def test_list_notes_ungrouped_is_separate_from_no_group_filter():
+    """ungrouped 必须是独立参数：group_id=None 的语义是"不过滤"，表达不了"未分组"。"""
+    SessionLocal, _ = make_session("ungrouped-filter")
+    db = SessionLocal()
+    try:
+        group = service.create_note_group(db, KnowledgeNoteGroupCreate(name="投资"))
+        grouped = service.create_note(db, KnowledgeNoteCreate(content="已归档到投资组", group_id=group.id))
+        inbox_manual = service.create_note(db, KnowledgeNoteCreate(content="随手记的想法"))
+        inbox_mcp = service.create_note(db, KnowledgeNoteCreate(content="模型写进来的观点", note_type="mcp"))
+
+        every = service.list_notes(db)
+        assert {item.id for item in every.items} == {grouped.id, inbox_manual.id, inbox_mcp.id}
+
+        inbox = service.list_notes(db, ungrouped=True)
+        assert {item.id for item in inbox.items} == {inbox_manual.id, inbox_mcp.id}
+        assert inbox.total == 2
+
+        # 待办只看 MCP 写进来的那部分，自己随手记的在笔记页整理
+        todo = service.list_notes(db, ungrouped=True, note_type="mcp")
+        assert [item.id for item in todo.items] == [inbox_mcp.id]
     finally:
         db.close()
 
