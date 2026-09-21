@@ -693,6 +693,15 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .note-editor select, .note-editor input { min-width: 0; max-width: 100%; }
 .note-danger-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
 .note-danger-actions button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); }
+/* 待办里的待归档笔记：卡片沿用笔记页那一套，笔记在两个页面长得一样，不用切换阅读模式。
+   这里只多一个来源标记和一个归组按钮。 */
+.note-card-source { flex: 0 0 auto; padding: 1px 6px; border-radius: 5px; background: var(--panel-soft); color: var(--subtle); font-size: 11px; }
+.note-card-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.note-card-actions button { min-height: 32px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; color: var(--blue); font-size: 12px; }
+.note-card-actions button:disabled { color: var(--subtle); }
+.inbox-note-assign-preview { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.inbox-note-group-options { display: grid; gap: 8px; }
+.inbox-note-group-options button { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-soft); text-align: left; }
 .note-action-confirm p { margin: 0; color: var(--muted); line-height: 1.6; }
 .note-action-confirm-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .note-action-confirm-buttons button { min-height: 44px; border-radius: 10px; }

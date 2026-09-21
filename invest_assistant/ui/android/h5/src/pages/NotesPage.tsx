@@ -13,6 +13,14 @@ import { TagPicker } from "../components/TagPicker";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
 
+/** 未分组页签的 key。用字符串而不是数字，避免和分组 id 撞上。 */
+export const UNGROUPED_KEY = "ungrouped";
+
+/** 全部和未分组两个页签都不对应真实分组 id，新建笔记时都落到未分组。 */
+function isInboxKey(key: string) {
+  return key === "all" || key === UNGROUPED_KEY;
+}
+
 export function NotesPage() {
   const client = useQueryClient();
   const [groupId, setGroupId] = useState("all");
@@ -25,9 +33,14 @@ export function NotesPage() {
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
-  const groupItems = useMemo(() => [{ key: "all", label: "全部" }, ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))], [groups.data]);
+  // 未分组排在全部之后、各分组之前：它是收件箱，不是又一个分组。
+  const groupItems = useMemo(() => [
+    { key: "all", label: "全部" },
+    { key: UNGROUPED_KEY, label: "未分组" },
+    ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))
+  ], [groups.data]);
   const create = useMutation({
-    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: groupId === "all" ? null : Number(groupId), tag_ids: tagIds }),
+    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: isInboxKey(groupId) ? null : Number(groupId), tag_ids: tagIds }),
     onSuccess: async () => { setContent(""); setTagIds([]); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
   });
   useEffect(() => {
@@ -59,7 +72,13 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
   const client = useQueryClient();
   const notes = useQuery({
     queryKey: ["notes", groupId],
-    queryFn: () => mobileApi.notes({ limit: 30, offset: 0, status: "active", group_id: groupId === "all" ? undefined : Number(groupId) })
+    queryFn: () => mobileApi.notes({
+      limit: 30,
+      offset: 0,
+      status: "active",
+      group_id: isInboxKey(groupId) ? undefined : Number(groupId),
+      ungrouped: groupId === UNGROUPED_KEY ? true : undefined
+    })
   });
   /** 分组标签栏和笔记同属这一屏，一次下拉把两者都拉新。 */
   const refresh = async () => {
@@ -72,7 +91,10 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
   return (
     <PullToRefresh ariaLabel="笔记下拉刷新" onRefresh={refresh}>
       {notes.isLoading ? <LoadingState /> : notes.isError ? <ErrorState onRetry={() => void notes.refetch()} /> : !notes.data?.items?.length ? (
-        <EmptyState title="这个分组还没有笔记" detail="记录一条现在的想法" />
+        <EmptyState
+          title={groupId === UNGROUPED_KEY ? "收件箱是空的" : "这个分组还没有笔记"}
+          detail={groupId === UNGROUPED_KEY ? "没有待归档的笔记" : "记录一条现在的想法"}
+        />
       ) : (
         <div className="note-list">
           {notes.data.items.map((note) => (

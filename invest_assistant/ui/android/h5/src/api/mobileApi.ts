@@ -89,7 +89,8 @@ export const mobileApi = {
   newsDetail: (id: number) => apiClient.get<SourceItem>(`/api/market-radar/source-items/${id}`),
   noteGroups: () => apiClient.get<NoteGroup[]>("/api/knowledge/note-groups"),
   tags: () => apiClient.get<Tag[]>("/api/market-radar/tags"),
-  notes: (query: Record<string, string | number | undefined>) =>
+  // ungrouped 是布尔量：group_id 留空表示"不按分组过滤"，表达不了"未分组"这个收件箱。
+  notes: (query: Record<string, string | number | boolean | undefined>) =>
     apiClient.get<PageDto<KnowledgeNote>>("/api/knowledge/notes", query),
   noteDetail: (id: number) => apiClient.get<KnowledgeNote>(`/api/knowledge/notes/${id}`),
   createNote: (write: NoteWrite) =>

@@ -897,7 +897,8 @@ describe("mobile H5 app", () => {
 
     await waitFor(() => expect(reorderBodies).toEqual([{ ordered_ids: [2, 1] }]));
     const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
-    expect(tabs).toEqual(["全部", "原则", "复盘"]);
+    // 全部和未分组两个固定页签不参与排序，未分组是收件箱不是分组
+    expect(tabs).toEqual(["全部", "未分组", "原则", "复盘"]);
   });
 
   it("edits a note group name inline and updates the note tabs", async () => {
@@ -990,7 +991,7 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("分组排序保存失败，请重试")).toBeInTheDocument();
     await waitFor(() => {
       const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
-      expect(tabs).toEqual(["全部", "复盘", "原则"]);
+      expect(tabs).toEqual(["全部", "未分组", "复盘", "原则"]);
     });
   });
 
@@ -1215,7 +1216,7 @@ describe("mobile H5 app", () => {
     renderApp();
 
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "待处理报告", "预警事件"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "待处理报告", "笔记", "预警事件"]);
     expect(screen.getByRole("tab", { name: "AI 推荐词" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByPlaceholderText("搜索推荐词")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新增 AI 推荐词" })).not.toBeInTheDocument();
