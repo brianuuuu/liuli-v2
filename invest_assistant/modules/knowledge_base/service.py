@@ -2,13 +2,14 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import String, delete, func, or_, select
 from sqlalchemy.orm import Session
 
+from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.modules.basic.report_library import service as report_service
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.knowledge_base.models import (
@@ -958,6 +959,66 @@ def create_research_feedback(db: Session, payload: KnowledgeResearchFeedbackCrea
 
 RESEARCH_FEEDBACK_SOURCES = {"mcp"}
 RESEARCH_FEEDBACK_STATUSES = {"received", "parsed", "imported"}
+
+
+# MCP 写进来的笔记：正文就是标题，一条笔记只放一个观点。
+MCP_NOTE_TYPE = "mcp"
+# 80 不是拍的，是 _derive_note_title 的既有边界：首行 <=80 时标题原样等于正文，
+# 超过就截断加省略号，title 和 content 分家，正好是"标题就是正文"不想要的状态。
+MCP_NOTE_MAX_LENGTH = 80
+# 幂等窗口：模型超时重发、重试会把同一个想法写进来好几遍。
+MCP_NOTE_DEDUPE_WINDOW = timedelta(minutes=5)
+
+
+def create_note_from_mcp(db: Session, *, content: str, client_name: str, now: datetime | None = None) -> tuple[KnowledgeNote, bool]:
+    """MCP 写入一条短笔记，返回 (笔记, 是否命中幂等)。
+
+    分组和标签一律不收：它们是人工维护的语义体系，模型猜出来还得复核，不如不猜。
+    笔记固定落到未分组，由笔记页的未分组页签和待办的笔记子模块接手。
+
+    长度和换行的限制只作用在这条 MCP 入口上，不加到通用的 create_note 上——
+    H5 的笔记编辑器不限长度也允许多行，那是另一回事。
+    """
+    text = (content or "").strip()
+    if not text:
+        raise ValueError("content must not be empty")
+    if "\n" in text or "\r" in text:
+        raise ValueError("content must be a single line: one note holds one idea, split it into two calls")
+    if len(text) > MCP_NOTE_MAX_LENGTH:
+        raise ValueError(
+            f"content must be at most {MCP_NOTE_MAX_LENGTH} characters, got {len(text)}; "
+            "use knowledge_base.upload_research_feedback for anything longer"
+        )
+
+    moment = now or utc_now()
+    existing = db.scalars(
+        select(KnowledgeNote)
+        .where(
+            KnowledgeNote.note_type == MCP_NOTE_TYPE,
+            KnowledgeNote.related_module == client_name,
+            KnowledgeNote.content == text,
+            KnowledgeNote.created_at >= moment - MCP_NOTE_DEDUPE_WINDOW,
+        )
+        .order_by(KnowledgeNote.id.desc())
+        .limit(1)
+    ).first()
+    if existing is not None:
+        return existing, True
+
+    # 这几个字段由平台写死，不经参数：即使以后有人给工具签名加了参数，
+    # MCP 笔记也必须落在未分组并且带着来源，否则分不清哪条是模型写的。
+    item = KnowledgeNote(
+        title=_derive_note_title(text),
+        content=text,
+        note_type=MCP_NOTE_TYPE,
+        group_id=None,
+        related_module=client_name,
+        status="active",
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item, False
 
 
 def upload_research_feedback(

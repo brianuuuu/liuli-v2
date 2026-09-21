@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v38：知识笔记增加收件箱链路。`list_notes` 新增 `ungrouped` 与 `note_type` 两个过滤参数——`group_id=None` 的语义是「不按分组过滤」，表达不了「未分组」；归档分组不再把成员笔记的 `group_id` 置 NULL，旧行为既不可逆（分组恢复笔记也回不去）又会让一次归档把整组历史笔记倒灌进收件箱。安卓笔记页在「全部」之后固定加「未分组」页签，它是收件箱不是分组，不参与分组排序；待办新增「笔记」子模块，只收 `note_type=mcp` 的未分组笔记，支持就地归入分组，标签仍在笔记页打。对外 MCP 新增受控写入工具 `knowledge_base.create_note`，只收 `content`，单行、最长 80 字、五分钟幂等，落到未分组并标记来源；不接收分组和标签，不提供笔记的更新与删除。
 - v37：两个「热度」拆开命名，消除一词两义。研究员六维里的 `market_heat_score` 展示名由「市场热度」改为「资金热度」（研究员打的 0—10 分，量的是资金与叙事关注度，`heat_tier` 随之称资金热度档）；赛道详情那个数字改称「资讯热度」（系统统计的资讯条数），Web 市场雷达的「市场热度」榜改称「热度榜」。列名 `market_heat_score`、JSON 契约和研究员输出格式一律不动，只改展示名与口径文案。同批把赛道对外露出的资讯热度窗口从 24h 改为 7d（新增常量 `TRACK_HEAT_WINDOW`），详情页数字、看板热度排行的 `current_heat` 和赛道库「热度」排序共用这一个窗口：24h 的计数只有个位数，抓取延迟一轮就能让数字腰斩，而 market_radar 自己的默认窗口本来就是 7d。赛道详情 summary 新增 `heat_change`，为相对一天前同窗口的变化量（基线走 `rank_change_reference_stat_time`，7d 容差 36 小时），两端把它显示在热度数字旁边——绝对条数没有参照系，单独一个数字读不出高低。
 - v36：材料卡在安卓端收敛成一套：看板信息流、赛道详情、标的详情共用 `MaterialCard` 和 `.material-card` 样式，摘要统一两行截断，原 `.detail-material` 与 `.dashboard-material-item` 两套样式合并删除。列表态不再挂「原文」外链，整张卡点进新增的材料详情页 `/materials/{track|stock}/{material_id}`，全文、原文外链、重要度与研判备注都收在这一页；实体入口也从信息流卡片移到材料详情页，看板卡片上的公司名不再单独可点。后端为此新增两个只读接口 `GET /api/track-discovery/materials/{material_id}` 和 `GET /api/stock-analysis/materials/{material_id}`，在列表字段之外补一个未截断的 `material_content`；列表接口维持原样，不带正文。公告类材料正文不入库（只落 `parsed_text_path`），`material_content` 恒为 None，详情页靠标题和原文链接兜底。
 - v35：赛道详情接口收敛体积：`trend_snapshots` 只回简表（身份、主导周期、核心判断、六维评分与派生三项），六项分析、环节、情景等长文本仅保留在 `latest_snapshot`，要翻历史原文走 `/trend-snapshots`；新增 `include_heat_trends` 查询参数，移动端传 `false` 跳过 90 天热度序列，此时 `latest_heat_score` 改由一条聚合查询取最新 24h 热度。安卓赛道库去掉归档分档（归档只在 Web 端可见），状态分档与排序合并为一行，排序提供「评分 / 热度」两种；赛道详情的材料卡与标的详情统一为 `.detail-material` 一套样式。
@@ -4712,7 +4713,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/knowledge/notes` | 知识笔记列表 |
+| GET | `/api/knowledge/notes` | 知识笔记列表，支持 `ungrouped` 未分组过滤与 `note_type` 来源过滤 |
 | POST | `/api/knowledge/notes` | 新增知识笔记 |
 | GET | `/api/knowledge/notes/{id}` | 笔记详情 |
 | PUT | `/api/knowledge/notes/{id}` | 编辑笔记 |
@@ -5535,11 +5536,14 @@ portfolio.get_overview
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
 ```text
+knowledge_base.create_note
 knowledge_base.upload_research_feedback
 report_library.upload_markdown_report
 ```
 
 `knowledge_base.upload_research_feedback` 只接收 Markdown 报告、标题和通用回流元数据，先写入报告库文件和 `report` 索引，再创建 `knowledge_research_feedback` 记录。feedback 只保存 `report_id, report_path, researcher_code, skill_name, business_module, source, status` 等通用字段，不保存报告正文或估值、评分、风险等领域解析字段。
+
+`knowledge_base.create_note` 只接收 `content` 一个参数，写一条短笔记：正文就是标题，一条笔记只放一个观点。不接收分组、标签、标题和状态——分组和标签是人工维护的语义体系，模型猜出来还得复核，不如不猜；`group_id=None`、`note_type="mcp"`、`related_module=<client 名>`、`status="active"` 全部由平台侧写死，签名以后怎么变都守得住这个不变量。正文必须单行（多行说明是两个观点，拆成两次调用），最长 80 字——这是 `_derive_note_title` 的既有边界，超过就截断加省略号、标题和正文分家；更长的内容走 `upload_research_feedback`。「尽量 30 字以内」写在工具描述里而不做硬校验：硬卡会让模型删掉依据保留结论。同一 client 五分钟内写入相同正文视为重复，返回已有笔记而不新建，防模型超时重发写出多条。不提供笔记的更新和删除。
 
 `report_library.upload_markdown_report` 只接收 Markdown 文本、报告标题和 `source_module`，固定写入 `var/reports/{source_module}/YYYY-MM/`，同时创建 `report` 索引；不允许客户端指定任意路径或文件名。
 

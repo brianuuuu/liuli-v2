@@ -727,3 +727,97 @@ def test_mcp_registry_marks_upload_research_feedback_as_controlled_write_tool():
     assert metadata is not None
     assert metadata["read_only"] is False
     assert metadata["risk_level"] == "medium"
+
+
+def _note_client(allowed: list[str] | None = None):
+    from invest_assistant.modules.basic.mcp.auth import McpClientConfig
+
+    return McpClientConfig(
+        name="codex",
+        enabled=True,
+        token="secret-token",
+        allowed_tools=allowed if allowed is not None else ["knowledge_base.create_note"],
+        max_result_limit=50,
+        local_only=True,
+    )
+
+
+def test_mcp_create_note_lands_ungrouped_with_source_marked(tmp_path, monkeypatch):
+    """平台侧强制赋值：分组、来源、类型都不经参数，签名改了也守得住。"""
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import create_note
+    from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+
+    result = create_note(db=db, client=_note_client(), content="  光伏产能出清比预期慢，别急着抄底  ")
+
+    data = result["data"]
+    assert data["duplicated"] is False
+    # 正文就是标题：<=80 字时 _derive_note_title 原样返回，两者必须相等
+    assert data["title"] == data["content"] == "光伏产能出清比预期慢，别急着抄底"
+
+    note = db.get(KnowledgeNote, data["note_id"])
+    assert note.group_id is None
+    assert note.note_type == "mcp"
+    assert note.related_module == "codex"
+    assert note.status == "active"
+
+
+def test_mcp_create_note_is_idempotent_inside_the_dedupe_window(tmp_path, monkeypatch):
+    """模型超时重发不该把同一个想法写进去两遍。"""
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import create_note
+    from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = _note_client()
+
+    first = create_note(db=db, client=client, content="算力需求从训练转向推理")["data"]
+    again = create_note(db=db, client=client, content="算力需求从训练转向推理")["data"]
+
+    assert again["note_id"] == first["note_id"]
+    assert again["duplicated"] is True
+    assert first["duplicated"] is False
+    assert db.query(KnowledgeNote).count() == 1
+
+
+def test_mcp_create_note_rejects_multiline_and_overlong_content(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import create_note
+    from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+    client = _note_client()
+
+    for bad, expected in (
+        ("", "must not be empty"),
+        ("   ", "must not be empty"),
+        ("第一个观点\n第二个观点", "single line"),
+        ("观" * 81, "at most 80 characters"),
+    ):
+        try:
+            create_note(db=db, client=client, content=bad)
+        except ValueError as exc:
+            assert expected in str(exc)
+        else:
+            raise AssertionError(f"expected ValueError for {bad!r}")
+
+    # 正好 80 字是允许的，边界不能少一个
+    ok = create_note(db=db, client=client, content="观" * 80)["data"]
+    assert ok["note_id"] > 0
+    assert db.query(KnowledgeNote).count() == 1
+
+
+def test_mcp_create_note_requires_allowlist(tmp_path, monkeypatch):
+    from invest_assistant.modules.basic.mcp.tools.knowledge_base import create_note
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()()
+
+    try:
+        create_note(db=db, client=_note_client(["knowledge_base.get_researcher_profile"]), content="一个观点")
+    except PermissionError as exc:
+        assert "not allowed" in str(exc)
+    else:
+        raise AssertionError("expected PermissionError")

@@ -13,6 +13,32 @@ def get_researcher_profile(*, db, client: McpClientConfig, researcher: str) -> d
     )
 
 
+def create_note(*, db, client: McpClientConfig, content: str) -> dict:
+    def handler(session, content: str) -> dict:
+        note, duplicated = knowledge_service.create_note_from_mcp(
+            session,
+            content=content,
+            client_name=client.name,
+        )
+        return {
+            "note_id": note.id,
+            "title": note.title,
+            "content": note.content,
+            "note_type": note.note_type,
+            "created_at": note.created_at,
+            # 命中幂等窗口时回的是已有那条，调用方据此知道没有新建
+            "duplicated": duplicated,
+        }
+
+    return execute_write_tool(
+        db=db,
+        client=client,
+        tool_name="knowledge_base.create_note",
+        arguments={"content": content},
+        handler=handler,
+    )
+
+
 def upload_research_feedback(
     *,
     db,

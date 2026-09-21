@@ -86,6 +86,13 @@ MCP_TOOL_DESCRIPTIONS = {
         "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
         "支持 researcher 按展示名称、researcher_code 或 ID 精确匹配。"
     ),
+    "knowledge_base.create_note": (
+        "写一条短笔记到知识库。一条笔记只放一个观点，尽量 30 字以内，说不完说明是两个观点，分两次写。"
+        "参数只有 content，正文就是标题；不接受分组和标签，笔记统一落到未分组，"
+        "由用户在笔记页或待办里归档和打标签。正文必须是单行，最长 80 字，更长的内容走 "
+        "knowledge_base.upload_research_feedback。同一 client 五分钟内写入相同正文视为重复，"
+        "返回已有笔记而不新建。该工具是受控写入工具，必须显式加入 MCP client allowed_tools。"
+    ),
     "knowledge_base.upload_research_feedback": (
         "上传外部研究回流和 Markdown 报告。参数为 title、markdown、researcher_code、skill_name、"
         "business_module、source、status；business_module 必须落在允许的业务模块白名单内，"
@@ -316,6 +323,16 @@ def _register_tools(server: FastMCP) -> None:
             "knowledge_base.get_researcher_profile",
             {"researcher": researcher},
             knowledge_base.get_researcher_profile,
+        )
+
+    @server.tool(name="knowledge_base.create_note", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.create_note"])
+    def mcp_knowledge_base_create_note(ctx: Context, content: str) -> dict:
+        # 签名只暴露 content：分组、标签、状态由平台侧写死，客户端传不进来。
+        return _run_tool(
+            ctx,
+            "knowledge_base.create_note",
+            {"content": content},
+            knowledge_base.create_note,
         )
 
     @server.tool(name="knowledge_base.upload_research_feedback", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.upload_research_feedback"])
