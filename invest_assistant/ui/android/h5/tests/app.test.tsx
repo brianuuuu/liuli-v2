@@ -1193,7 +1193,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "预警事件" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "预警" }));
     fireEvent.click(await screen.findByRole("button", { name: "已处理" }));
 
     expect(await screen.findByText("已处理事件")).toBeInTheDocument();
@@ -1216,8 +1216,8 @@ describe("mobile H5 app", () => {
     renderApp();
 
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["AI 推荐词", "待处理报告", "笔记", "预警事件"]);
-    expect(screen.getByRole("tab", { name: "AI 推荐词" })).toHaveAttribute("aria-selected", "true");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["推荐词", "报告", "笔记", "预警"]);
+    expect(screen.getByRole("tab", { name: "推荐词" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByPlaceholderText("搜索推荐词")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新增 AI 推荐词" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "已通过" })).not.toBeInTheDocument();
@@ -1258,7 +1258,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
 
     expect(await screen.findByRole("button", { name: "阅读" })).toBeInTheDocument();
     expect(screen.getByText("宁德时代-2026-09-12-标的评级报告")).toBeInTheDocument();
@@ -1278,7 +1278,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
     fireEvent.click(await screen.findByRole("button", { name: "阅读" }));
 
     await waitFor(() => expect(window.location.hash).toBe("#/reports/41"));
@@ -1291,7 +1291,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
     fireEvent.click(await screen.findByRole("button", { name: "导入" }));
 
     await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url.includes("/research-feedback/7/import"))).toBe(true));
@@ -1321,7 +1321,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
     fireEvent.click(await screen.findByRole("button", { name: "导入" }));
 
     expect(await screen.findByText("导入失败：未找到股票：宁德时代")).toBeInTheDocument();
@@ -1334,7 +1334,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
     fireEvent.click(await screen.findByRole("button", { name: "删除" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -1357,7 +1357,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "待处理报告" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "报告" }));
     await screen.findByText("宁德时代-2026-09-12-标的评级报告");
     const listCalls = () => calls.filter((call) => call.method === "GET" && call.url.includes("pending_import")).length;
     const before = listCalls();
@@ -1395,7 +1395,7 @@ describe("mobile H5 app", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "预警事件" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "预警" }));
     await screen.findByText("事件-0");
     fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
     await screen.findByText("事件-50");

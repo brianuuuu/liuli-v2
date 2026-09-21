@@ -8,12 +8,14 @@ import { AlertsContent } from "./AlertsPage";
 import { InboxNotesPanel } from "./InboxNotesPanel";
 import { PendingReportsPanel } from "./PendingReportsPanel";
 
-// 四个页签是同一回事：外部输入等我处理。笔记这一项收的是 MCP 写进来的未分组笔记。
+// 四个页签是同一回事：外部输入等我处理，标题都用最短的名词，扫一眼就够。
+// 推荐词不叫"热词"：候选词通过后可以落到热词、赛道或标的，热词只是三个去向之一；
+// 预警不叫"事件"："事件"在投研语境里指市场催化事件，这里说的是系统预警。
 const taskTabs = [
-  { key: "suggestions", label: "AI 推荐词" },
-  { key: "pending-reports", label: "待处理报告" },
+  { key: "suggestions", label: "推荐词" },
+  { key: "pending-reports", label: "报告" },
   { key: "notes", label: "笔记" },
-  { key: "alerts", label: "预警事件" }
+  { key: "alerts", label: "预警" }
 ] as const;
 
 type TaskTab = typeof taskTabs[number]["key"];
