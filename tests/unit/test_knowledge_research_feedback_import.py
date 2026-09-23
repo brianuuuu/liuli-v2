@@ -193,12 +193,12 @@ def test_import_valuation_keeps_assumptions_and_drops_unknown_result(tmp_path, m
         "万东医疗-2026-07-05-标的估值报告",
         valuation_markdown(valuation_assumptions={
             "previous_period": "2025-Q4",
-            "verification": [
+            "last_assumptions_vs_actual": [
                 {"metric": "收入同比增速", "assumed": "25%", "actual": "18%", "result": "不如预期"},
                 {"metric": "净利率", "assumed": "12%", "actual": "13%", "result": "略好于预期"},
                 {"assumed": "没有指标名的一条", "actual": "x", "result": "超预期"},
             ],
-            "current": [
+            "current_assumptions": [
                 {"metric": "收入同比增速", "assumed": "18%"},
                 {"metric": "经营现金流", "assumed": "12.3亿元"},
             ],
@@ -211,12 +211,12 @@ def test_import_valuation_keeps_assumptions_and_drops_unknown_result(tmp_path, m
     assumptions = json_module.loads(result["valuation"]["valuation_assumptions_json"])
     # previous_period 指向被验证的那一期，不是本次的 2026-Q1
     assert assumptions["previous_period"] == "2025-Q4"
-    assert [item["metric"] for item in assumptions["current"]] == ["收入同比增速", "经营现金流"]
-    assert assumptions["current"][1]["assumed"] == "12.3亿元"
+    assert [item["metric"] for item in assumptions["current_assumptions"]] == ["收入同比增速", "经营现金流"]
+    assert assumptions["current_assumptions"][1]["assumed"] == "12.3亿元"
     # 没有 metric 的那条整条丢掉；第四种判定词退化成 None，不污染跨期比较
-    assert [item["metric"] for item in assumptions["verification"]] == ["收入同比增速", "净利率"]
-    assert assumptions["verification"][0]["result"] == "不如预期"
-    assert assumptions["verification"][1]["result"] is None
+    assert [item["metric"] for item in assumptions["last_assumptions_vs_actual"]] == ["收入同比增速", "净利率"]
+    assert assumptions["last_assumptions_vs_actual"][0]["result"] == "不如预期"
+    assert assumptions["last_assumptions_vs_actual"][1]["result"] is None
 
 
 def test_import_valuation_ignores_malformed_assumptions(tmp_path, monkeypatch):

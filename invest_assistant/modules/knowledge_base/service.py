@@ -1638,15 +1638,15 @@ def _valuation_import_assumptions(value: Any) -> dict | None:
     if not isinstance(value, dict):
         return None
     previous_period = _normalize_optional_text(value.get("previous_period"))
-    verification = []
-    for item in value.get("verification") or []:
+    last_assumptions_vs_actual = []
+    for item in value.get("last_assumptions_vs_actual") or []:
         if not isinstance(item, dict):
             continue
         metric = _normalize_optional_text(item.get("metric"))
         if not metric:
             continue
         result = _normalize_optional_text(item.get("result"))
-        verification.append(
+        last_assumptions_vs_actual.append(
             {
                 "metric": metric,
                 "assumed": _normalize_optional_text(item.get("assumed")),
@@ -1654,17 +1654,21 @@ def _valuation_import_assumptions(value: Any) -> dict | None:
                 "result": result if result in VALUATION_ASSUMPTION_RESULTS else None,
             }
         )
-    current = []
-    for item in value.get("current") or []:
+    current_assumptions = []
+    for item in value.get("current_assumptions") or []:
         if not isinstance(item, dict):
             continue
         metric = _normalize_optional_text(item.get("metric"))
         if not metric:
             continue
-        current.append({"metric": metric, "assumed": _normalize_optional_text(item.get("assumed"))})
-    if not verification and not current and previous_period is None:
+        current_assumptions.append({"metric": metric, "assumed": _normalize_optional_text(item.get("assumed"))})
+    if not last_assumptions_vs_actual and not current_assumptions and previous_period is None:
         return None
-    return {"previous_period": previous_period, "verification": verification, "current": current}
+    return {
+        "previous_period": previous_period,
+        "last_assumptions_vs_actual": last_assumptions_vs_actual,
+        "current_assumptions": current_assumptions,
+    }
 
 
 def _valuation_import_float(value: Any, field: str) -> float:

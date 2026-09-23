@@ -860,8 +860,10 @@ export type StockDashboard = {
 export type ValuationAssumptions = {
   /** 被验证的那一期的报告期，不是本次的；首次估值为 null。 */
   previous_period?: string | null;
-  verification?: Array<{ metric: string; assumed?: string | null; actual?: string | null; result?: string | null }>;
-  current?: Array<{ metric: string; assumed?: string | null }>;
+  /** 本期财报与上次假设的对照，逐条给判定。上一期没记录假设时为空数组。 */
+  last_assumptions_vs_actual?: Array<{ metric: string; assumed?: string | null; actual?: string | null; result?: string | null }>;
+  /** 本次估值假设，1-3 条，供下一期财报对照。 */
+  current_assumptions?: Array<{ metric: string; assumed?: string | null }>;
 };
 
 export type StockDetailValuationSnapshot = {

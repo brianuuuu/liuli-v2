@@ -41,10 +41,14 @@ export function parseValuationAssumptions(raw?: string | null): ValuationAssumpt
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const hasMetric = (item: unknown) => Boolean(item) && typeof (item as { metric?: unknown }).metric === "string";
-    const verification = Array.isArray(parsed.verification) ? parsed.verification.filter(hasMetric) : [];
-    const current = Array.isArray(parsed.current) ? parsed.current.filter(hasMetric) : [];
-    if (!verification.length && !current.length) return null;
-    return { previous_period: parsed.previous_period ?? null, verification, current };
+    const lastAssumptionsVsActual = Array.isArray(parsed.last_assumptions_vs_actual) ? parsed.last_assumptions_vs_actual.filter(hasMetric) : [];
+    const currentAssumptions = Array.isArray(parsed.current_assumptions) ? parsed.current_assumptions.filter(hasMetric) : [];
+    if (!lastAssumptionsVsActual.length && !currentAssumptions.length) return null;
+    return {
+      previous_period: parsed.previous_period ?? null,
+      last_assumptions_vs_actual: lastAssumptionsVsActual,
+      current_assumptions: currentAssumptions
+    };
   } catch {
     return null;
   }

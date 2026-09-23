@@ -6,8 +6,8 @@
 -- 结构：
 --   {
 --     "previous_period": "2025-Q4",
---     "verification": [{"metric": "...", "assumed": "...", "actual": "...", "result": "不如预期"}],
---     "current": [{"metric": "...", "assumed": "..."}]
+--     "last_assumptions_vs_actual": [{"metric": "...", "assumed": "...", "actual": "...", "result": "不如预期"}],
+--     "current_assumptions": [{"metric": "...", "assumed": "..."}]
 --   }
 --
 -- 幂等，可重复执行。

@@ -117,17 +117,17 @@ display_name: 标的估值师
 ```json
 {
   "previous_period": "2025-Q4",
-  "verification": [
+  "last_assumptions_vs_actual": [
     { "metric": "收入同比增速", "assumed": "25%", "actual": "18%", "result": "不如预期" }
   ],
-  "current": [
+  "current_assumptions": [
     { "metric": "收入同比增速", "assumed": "15%" }
   ]
 }
 ```
 
 读法：上一期报告假设收入同比增速 25%，本期财报实际 18%，判定不如预期；据此把本次新假设下调到 15%。
-注意三个数字各不相同——`actual` 是已经发生的事实，`current.assumed` 是对下一期的判断，两者恰好相等只会是巧合。
+注意三个数字各不相同——`actual` 是已经发生的事实，`current_assumptions[].assumed` 是对下一期的判断，两者恰好相等只会是巧合。
 验证结果应当反馈到新假设上：连续不及预期却维持原假设，等于没有从上一期学到东西，必须在正文说明为什么仍然维持。
 
 #### 五、当季财报表现判断
@@ -286,10 +286,10 @@ expectation_gap_rate = expected_market_value_3y / current_market_value - 1
   },
   "valuation_assumptions": {
     "previous_period": "YYYY-QN",
-    "verification": [
+    "last_assumptions_vs_actual": [
       { "metric": "", "assumed": "", "actual": "", "result": "不如预期" }
     ],
-    "current": [
+    "current_assumptions": [
       { "metric": "", "assumed": "" }
     ]
   },
@@ -313,8 +313,8 @@ expectation_gap_rate = expected_market_value_3y / current_market_value - 1
 - `researcher_code` 固定为 `valuator_001`。
 - `valuation_assumptions` 是唯一的选填字段，不填不会导致导入失败，但强烈建议每次都填，理由见第四节。
 - `valuation_assumptions.previous_period` 写被验证的那一期的 `report_period`，即**上一期**估值报告的报告期，不是本次的报告期，也不是上一份报告的报告期。首次估值写 `null`。
-- `valuation_assumptions.verification` 是对上一期假设的逐条验证；上一期未记录假设时写 `[]`。
-- `valuation_assumptions.verification[].result` 只能是 `超预期`、`符合预期`、`不如预期`。
-- `valuation_assumptions.current` 是本次的新假设，1-3 条。
+- `valuation_assumptions.last_assumptions_vs_actual` 是对上一期假设的逐条验证；上一期未记录假设时写 `[]`。
+- `valuation_assumptions.last_assumptions_vs_actual[].result` 只能是 `超预期`、`符合预期`、`不如预期`。
+- `valuation_assumptions.current_assumptions` 是本次的新假设，1-3 条。
 - `assumed` 和 `actual` 一律写成带单位的字符串，例如 `"18%"`、`"12.3亿元"`、`"45天"`，不要写成裸数字。
 

@@ -233,13 +233,13 @@ function ValuationSection({ detail }: { detail: StockDetail }) {
 function ValuationAssumptionsCard({ valuation }: { valuation?: StockDetail["latest_valuation"] }) {
   const assumptions = parseValuationAssumptions(valuation?.valuation_assumptions_json);
   if (!assumptions) return null;
-  const current = assumptions.current ?? [];
-  const verification = assumptions.verification ?? [];
+  const current = assumptions.current_assumptions ?? [];
+  const verification = assumptions.last_assumptions_vs_actual ?? [];
   return (
     <SectionCard title="估值假设">
       {current.length ? (
         <div className="valuation-assumption-block">
-          <h3>本次假设</h3>
+          <h3>本次估值假设</h3>
           <div className="detail-facts">
             {current.map((item) => (
               <div key={item.metric}><span>{item.metric}</span><b>{item.assumed || "-"}</b></div>
@@ -248,7 +248,7 @@ function ValuationAssumptionsCard({ valuation }: { valuation?: StockDetail["late
         </div>
       ) : null}
       <div className="valuation-assumption-block">
-        <h3>上一期验证{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}</h3>
+        <h3>本期财报与上次假设对照{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}</h3>
         {verification.length ? verification.map((item) => {
           const tone = assumptionResultTone(item.result);
           return (

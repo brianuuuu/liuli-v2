@@ -772,14 +772,14 @@ function ScoresTab({ data }: { data: StockDetail }) {
 function ValuationAssumptionsPanel({ valuation }: { valuation?: StockDetailValuationSnapshot | null }) {
   const assumptions = parseValuationAssumptions(valuation?.valuation_assumptions_json);
   if (!assumptions) return null;
-  const current = assumptions.current ?? [];
-  const verification = assumptions.verification ?? [];
+  const current = assumptions.current_assumptions ?? [];
+  const verification = assumptions.last_assumptions_vs_actual ?? [];
   return (
     <div className="stock-valuation-assumptions">
       <div className="stock-detail-subtitle">估值假设</div>
       {current.length ? (
         <div className="stock-valuation-assumption-block">
-          <span className="stock-valuation-assumption-title">本次假设</span>
+          <span className="stock-valuation-assumption-title">本次估值假设</span>
           <div className="detail-list">
             {current.map((item) => (
               <div className="detail-row" key={item.metric}><span>{item.metric}</span><span>{item.assumed || "-"}</span></div>
@@ -789,7 +789,7 @@ function ValuationAssumptionsPanel({ valuation }: { valuation?: StockDetailValua
       ) : null}
       <div className="stock-valuation-assumption-block">
         <span className="stock-valuation-assumption-title">
-          上一期验证{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}
+          本期财报与上次假设对照{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}
         </span>
         {verification.length ? (
           <div className="detail-list">

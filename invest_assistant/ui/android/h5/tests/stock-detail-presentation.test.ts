@@ -182,14 +182,14 @@ describe("估值假设解析", () => {
   it("解析出本次假设和上一期验证", () => {
     const parsed = parseValuationAssumptions(JSON.stringify({
       previous_period: "2025-Q4",
-      verification: [{ metric: "收入同比增速", assumed: "25%", actual: "18%", result: "不如预期" }],
-      current: [{ metric: "收入同比增速", assumed: "18%" }]
+      last_assumptions_vs_actual: [{ metric: "收入同比增速", assumed: "25%", actual: "18%", result: "不如预期" }],
+      current_assumptions: [{ metric: "收入同比增速", assumed: "18%" }]
     }));
 
     // previous_period 是被验证的那一期，不是本次的报告期
     expect(parsed?.previous_period).toBe("2025-Q4");
-    expect(parsed?.current?.[0]).toEqual({ metric: "收入同比增速", assumed: "18%" });
-    expect(parsed?.verification?.[0].result).toBe("不如预期");
+    expect(parsed?.current_assumptions?.[0]).toEqual({ metric: "收入同比增速", assumed: "18%" });
+    expect(parsed?.last_assumptions_vs_actual?.[0].result).toBe("不如预期");
   });
 
   it("没填、坏结构、空内容一律当没填，卡片不渲染", () => {
@@ -198,15 +198,15 @@ describe("估值假设解析", () => {
     expect(parseValuationAssumptions("不是 JSON")).toBeNull();
     expect(parseValuationAssumptions(JSON.stringify(["数组不是对象"]))).toBeNull();
     // 两个列表都空时没有可展示的内容，不给老标的留空卡
-    expect(parseValuationAssumptions(JSON.stringify({ previous_period: "2025-Q4", verification: [], current: [] }))).toBeNull();
+    expect(parseValuationAssumptions(JSON.stringify({ previous_period: "2025-Q4", last_assumptions_vs_actual: [], current_assumptions: [] }))).toBeNull();
   });
 
   it("丢掉没有 metric 的条目", () => {
     const parsed = parseValuationAssumptions(JSON.stringify({
-      current: [{ metric: "净利率", assumed: "12%" }, { assumed: "没有指标名" }]
+      current_assumptions: [{ metric: "净利率", assumed: "12%" }, { assumed: "没有指标名" }]
     }));
 
-    expect(parsed?.current).toHaveLength(1);
+    expect(parsed?.current_assumptions).toHaveLength(1);
   });
 
   it("判定配色沿用涨红跌绿，未知判定归中性", () => {
