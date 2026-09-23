@@ -112,6 +112,24 @@ display_name: 标的估值师
 - 上一期未记录假设时，写明"上一期未记录假设，无可验证项"，验证部分留空。不要回头推算一个上一期假设，那不是当时的判断，用它验证没有意义。
 - 验证结论只陈述兑现情况，不在这里重复估值结论，也不延伸到趋势、情绪或赛道判断——那些不是本研究员的职责。
 
+完整示例。本次报告期为 `2026-Q1`，上一期为 `2025-Q4`：
+
+```json
+{
+  "previous_period": "2025-Q4",
+  "verification": [
+    { "metric": "收入同比增速", "assumed": "25%", "actual": "18%", "result": "不如预期" }
+  ],
+  "current": [
+    { "metric": "收入同比增速", "assumed": "15%" }
+  ]
+}
+```
+
+读法：上一期报告假设收入同比增速 25%，本期财报实际 18%，判定不如预期；据此把本次新假设下调到 15%。
+注意三个数字各不相同——`actual` 是已经发生的事实，`current.assumed` 是对下一期的判断，两者恰好相等只会是巧合。
+验证结果应当反馈到新假设上：连续不及预期却维持原假设，等于没有从上一期学到东西，必须在正文说明为什么仍然维持。
+
 #### 五、当季财报表现判断
 
 把当季指标分为：
@@ -267,12 +285,12 @@ expectation_gap_rate = expected_market_value_3y / current_market_value - 1
     "market_value_3y": 0
   },
   "valuation_assumptions": {
-    "previous_period": "2025-Q4",
+    "previous_period": "YYYY-QN",
     "verification": [
-      { "metric": "收入同比增速", "assumed": "25%", "actual": "18%", "result": "不如预期" }
+      { "metric": "", "assumed": "", "actual": "", "result": "不如预期" }
     ],
     "current": [
-      { "metric": "收入同比增速", "assumed": "18%" }
+      { "metric": "", "assumed": "" }
     ]
   },
   "primary_model": "profit",
