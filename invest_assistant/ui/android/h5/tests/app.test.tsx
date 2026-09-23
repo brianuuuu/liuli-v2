@@ -907,8 +907,8 @@ describe("mobile H5 app", () => {
     // 只显示图标，不再是蓝色的「编辑」两个字
     expect(editGroups).toHaveTextContent("");
     expect(editGroups.querySelector("svg")).not.toBeNull();
-    // 一屏摆四个页签：全部、未分组加两个自定义分组
-    expect(document.querySelector(".secondary-navigation__track--fixed-count")).toHaveStyle({ "--secondary-navigation-visible-count": "4" });
+    // 一屏摆五个页签：全部、未分组加三个自定义分组
+    expect(document.querySelector(".secondary-navigation__track--fixed-count")).toHaveStyle({ "--secondary-navigation-visible-count": "5" });
     expect(screen.queryByText("编辑", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
 

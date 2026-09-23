@@ -21,8 +21,8 @@ function isInboxKey(key: string) {
   return key === "all" || key === UNGROUPED_KEY;
 }
 
-/** 标签栏一屏摆四个：全部、未分组，加两个自定义分组；再多的横向滑动查看。 */
-const NOTE_TABS_PER_SCREEN = 4;
+/** 标签栏一屏摆五个：全部、未分组，加三个自定义分组；再多的横向滑动查看。 */
+const NOTE_TABS_PER_SCREEN = 5;
 
 export function NotesPage() {
   const client = useQueryClient();
