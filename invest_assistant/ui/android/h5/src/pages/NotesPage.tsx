@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Plus, X } from "lucide-react";
+import { MoreHorizontal, PenLine, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
@@ -21,6 +21,9 @@ function isInboxKey(key: string) {
   return key === "all" || key === UNGROUPED_KEY;
 }
 
+/** 标签栏一屏摆四个：全部、未分组，加两个自定义分组；再多的横向滑动查看。 */
+const NOTE_TABS_PER_SCREEN = 4;
+
 export function NotesPage() {
   const client = useQueryClient();
   const [groupId, setGroupId] = useState("all");
@@ -33,12 +36,11 @@ export function NotesPage() {
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
-  // 自定义分组排在最前：那是日常真正要翻的东西。全部和未分组都不是分组，
-  // 一个是兜底视图、一个是收件箱，放到分组后面，不占开头的位置。
+  // 全部和未分组固定在最前，一个是兜底视图、一个是收件箱，都不是分组，不参与分组排序。
   const groupItems = useMemo(() => [
-    ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name })),
     { key: "all", label: "全部" },
-    { key: UNGROUPED_KEY, label: "未分组" }
+    { key: UNGROUPED_KEY, label: "未分组" },
+    ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))
   ], [groups.data]);
   const create = useMutation({
     mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: isInboxKey(groupId) ? null : Number(groupId), tag_ids: tagIds }),
@@ -59,7 +61,7 @@ export function NotesPage() {
   }, [composer]);
 
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} endAction={{ label: "编辑", onClick: () => setManageGroups(true) }} />}>
+    <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} visibleCount={NOTE_TABS_PER_SCREEN} endAction={{ label: "编辑分组", icon: <PenLine size={16} />, onClick: () => setManageGroups(true) }} />}>
       <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} motionSink={navigationMotion} renderPage={(key) => <NotesGroupContent groupId={key} />} />
       <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
       {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><TagPicker tags={availableTags.data ?? []} value={tagIds} onChange={setTagIds} /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}

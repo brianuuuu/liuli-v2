@@ -4,8 +4,10 @@ import {
   useImperativeHandle,
   useLayoutEffect,
   useRef,
+  type CSSProperties,
   type ForwardedRef,
-  type ReactElement
+  type ReactElement,
+  type ReactNode
 } from "react";
 import type { PagerMotion, PagerMotionSink } from "./pagerMotion";
 
@@ -18,8 +20,12 @@ type Props<T extends string> = {
   items: readonly SecondaryNavigationItem<T>[];
   activeKey: T;
   onChange: (key: T) => void;
+  /** 一屏正好摆下几个页签，其余的横向滑动查看。不传就按内容宽度排。 */
+  visibleCount?: number;
   endAction?: {
     label: string;
+    /** 给了图标就只显示图标，label 作为无障碍名称 */
+    icon?: ReactNode;
     onClick: () => void;
   };
 };
@@ -40,6 +46,7 @@ function SecondaryNavigationInner<T extends string>({
   items,
   activeKey,
   onChange,
+  visibleCount,
   endAction
 }: Props<T>, forwardedRef: ForwardedRef<PagerMotionSink>) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -114,7 +121,12 @@ function SecondaryNavigationInner<T extends string>({
 
   return (
     <div className="secondary-navigation" data-height="36" role="tablist" aria-label="二级导航">
-      <div ref={trackRef} className="secondary-navigation__track" data-horizontal-scroll="true">
+      <div
+        ref={trackRef}
+        className={`secondary-navigation__track${visibleCount ? " secondary-navigation__track--fixed-count" : ""}`}
+        style={visibleCount ? { "--secondary-navigation-visible-count": String(visibleCount) } as CSSProperties : undefined}
+        data-horizontal-scroll="true"
+      >
         {items.map((item, index) => (
           <button
             type="button"
@@ -142,9 +154,11 @@ function SecondaryNavigationInner<T extends string>({
           type="button"
           className="secondary-navigation__end-action"
           data-swipe-ignore="true"
+          aria-label={endAction.icon ? endAction.label : undefined}
+          title={endAction.icon ? endAction.label : undefined}
           onClick={endAction.onClick}
         >
-          {endAction.label}
+          {endAction.icon ?? endAction.label}
         </button>
       ) : null}
     </div>

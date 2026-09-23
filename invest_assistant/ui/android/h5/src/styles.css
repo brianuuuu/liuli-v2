@@ -78,6 +78,14 @@ a { color: var(--blue); text-decoration: none; }
   scrollbar-width: none;
 }
 .secondary-navigation__track::-webkit-scrollbar { display: none; }
+/* 按个数等分一屏：宽度跟着轨道走，多出来的页签落到屏外，横向滑动查看 */
+.secondary-navigation__track--fixed-count .secondary-navigation__item {
+  flex: 0 0 calc(100% / var(--secondary-navigation-visible-count));
+  min-width: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .secondary-navigation__item {
   position: relative;
   min-width: 20%;
@@ -101,11 +109,15 @@ a { color: var(--blue); text-decoration: none; }
 }
 .secondary-navigation__item.is-active { color: var(--blue); font-weight: 650; }
 .secondary-navigation__end-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 36px;
   flex: 0 0 auto;
   padding: 0 12px;
   background: var(--top-bg);
-  color: var(--blue);
+  /* 跟未选中页签同色：它是个工具入口，不该比当前页签更抢眼 */
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;

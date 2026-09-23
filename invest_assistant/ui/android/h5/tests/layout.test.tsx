@@ -49,6 +49,35 @@ describe("secondary navigation", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("renders an icon-only end action with the label as its accessible name", () => {
+    render(
+      <SecondaryNavigation
+        items={[{ key: "all", label: "全部" }]}
+        activeKey="all"
+        onChange={vi.fn()}
+        endAction={{ label: "编辑分组", icon: <svg data-testid="edit-icon" />, onClick: vi.fn() }}
+      />
+    );
+
+    const action = screen.getByRole("button", { name: "编辑分组" });
+    expect(action).toContainElement(screen.getByTestId("edit-icon"));
+    expect(action).not.toHaveTextContent("编辑分组");
+  });
+
+  it("sizes tabs to a fixed count per screen only when asked", () => {
+    const items = [
+      { key: "all", label: "全部" },
+      { key: "work", label: "工作" }
+    ];
+    const { rerender } = render(<SecondaryNavigation items={items} activeKey="all" onChange={vi.fn()} />);
+    const track = screen.getByRole("tablist").firstElementChild as HTMLElement;
+    expect(track).not.toHaveClass("secondary-navigation__track--fixed-count");
+
+    rerender(<SecondaryNavigation items={items} activeKey="all" onChange={vi.fn()} visibleCount={4} />);
+    expect(track).toHaveClass("secondary-navigation__track--fixed-count");
+    expect(track.style.getPropertyValue("--secondary-navigation-visible-count")).toBe("4");
+  });
+
   it("moves the indicator imperatively without rendering the navigation again", () => {
     const items = [
       { key: "all", label: "全部" },
