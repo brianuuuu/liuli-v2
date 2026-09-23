@@ -635,6 +635,8 @@ export type StockValuationComparisonItem = {
   profit_model_json?: string | null;
   fcf_model_json?: string | null;
   revenue_model_json?: string | null;
+  /** 估值假设原始 JSON 文本，选填，老快照为空。解析走 parseValuationAssumptions。 */
+  valuation_assumptions_json?: string | null;
   primary_model?: string | null;
   expected_market_value_3y?: number | null;
   expectation_gap_rate?: number | null;
@@ -852,6 +854,14 @@ export type StockDashboard = {
   pending_materials: StockDashboardMaterial[];
   default_stock_id?: number | null;
   selected_stock_summary?: StockDashboardSelectedStockSummary | null;
+};
+
+/** 估值假设：支撑本次估值的 1-3 个可量化指标，供下一期财报对照。 */
+export type ValuationAssumptions = {
+  /** 被验证的那一期的报告期，不是本次的；首次估值为 null。 */
+  previous_period?: string | null;
+  verification?: Array<{ metric: string; assumed?: string | null; actual?: string | null; result?: string | null }>;
+  current?: Array<{ metric: string; assumed?: string | null }>;
 };
 
 export type StockDetailValuationSnapshot = {

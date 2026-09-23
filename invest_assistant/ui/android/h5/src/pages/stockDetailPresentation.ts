@@ -1,4 +1,4 @@
-import type { StockDetail, StockDetailMaterial, StockScoreSnapshot, StockTrendSnapshot, StockValuationSnapshot } from "../types/api";
+import type { StockDetail, StockDetailMaterial, StockScoreSnapshot, StockTrendSnapshot, StockValuationSnapshot, ValuationAssumptions } from "../types/api";
 
 export type StockDetailSection = "overview" | "rating" | "valuation" | "trend" | "materials" | "notes";
 
@@ -116,6 +116,39 @@ export function trendNarratives(snapshot: StockTrendSnapshot) {
 /** 历史列表按时间倒序，最新的在最前面。 */
 export function trendHistoryRows(rows: StockTrendSnapshot[]) {
   return [...rows].sort((a, b) => String(b.research_date).localeCompare(String(a.research_date)));
+}
+
+/** 估值假设判定的配色：沿用全站涨红跌绿，超预期是好事走红。 */
+const ASSUMPTION_RESULT_TONES: Record<string, string> = {
+  超预期: "positive",
+  不如预期: "negative",
+  符合预期: "neutral"
+};
+
+export function assumptionResultTone(result?: string | null) {
+  return result ? ASSUMPTION_RESULT_TONES[result] ?? "neutral" : null;
+}
+
+/**
+ * 估值假设是选填的，落库存的是原始 JSON 文本。解析失败、结构不对一律当没填，
+ * 让展示端直接不渲染这张卡——给每只老标的留一张空卡比不显示更糟。
+ */
+export function parseValuationAssumptions(raw?: string | null): ValuationAssumptions | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const verification = Array.isArray(parsed.verification)
+      ? parsed.verification.filter((item: unknown) => item && typeof (item as { metric?: unknown }).metric === "string")
+      : [];
+    const current = Array.isArray(parsed.current)
+      ? parsed.current.filter((item: unknown) => item && typeof (item as { metric?: unknown }).metric === "string")
+      : [];
+    if (!verification.length && !current.length) return null;
+    return { previous_period: parsed.previous_period ?? null, verification, current };
+  } catch {
+    return null;
+  }
 }
 
 export function valuationHistoryRows(rows: StockValuationSnapshot[]) {

@@ -1199,6 +1199,9 @@ def _import_valuation_feedback(
             profit_model_json=_json_text(payload["profit_model"]),
             fcf_model_json=_json_text(payload["fcf_model"]),
             revenue_model_json=_json_text(payload["revenue_model"]),
+            valuation_assumptions_json=(
+                _json_text(payload["valuation_assumptions"]) if payload["valuation_assumptions"] else None
+            ),
             primary_model=payload["primary_model"],
             expected_market_value_3y=payload["expected_market_value_3y"],
             expectation_gap_rate=payload["expectation_gap_rate"],
@@ -1584,6 +1587,7 @@ def _normalize_valuation_import_payload(payload: dict, feedback: KnowledgeResear
     normalized["primary_model"] = primary_model
     normalized["expected_market_value_3y"] = _valuation_import_float(payload.get("expected_market_value_3y"), "expected_market_value_3y")
     normalized["expectation_gap_rate"] = round(normalized["expected_market_value_3y"] / normalized["current_market_value"] - 1, 6)
+    normalized["valuation_assumptions"] = _valuation_import_assumptions(payload.get("valuation_assumptions"))
     normalized["analysis_date"] = _import_date_field(payload.get("analysis_date"), "analysis_date")
     normalized["researcher_code"] = _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")) or "valuator_001"
     return normalized
@@ -1616,6 +1620,51 @@ def _import_date_field(value: Any, field: str) -> date:
         return date.fromisoformat(str(value or "").strip())
     except ValueError as exc:
         raise ValueError(f"{field} 必须是 YYYY-MM-DD") from exc
+
+
+VALUATION_ASSUMPTION_RESULTS = {"超预期", "符合预期", "不如预期"}
+
+
+def _valuation_import_assumptions(value: Any) -> dict | None:
+    """估值假设：选填，缺失返回 None。
+
+    不进 VALUATION_IMPORT_FIELDS 的必填校验——这个字段是后加的，老的执行方式不带它，
+    当成必填会把整份报告的导入一起打挂。缺失和结构不对都退化成 None，正文照样入库，
+    只是这一期没有可供下一期对照的假设。
+
+    填了就按最小结构裁一遍：只收认识的键，result 限定三档，避免研究员自由发挥出
+    第四种说法，下一期没法比较。
+    """
+    if not isinstance(value, dict):
+        return None
+    previous_period = _normalize_optional_text(value.get("previous_period"))
+    verification = []
+    for item in value.get("verification") or []:
+        if not isinstance(item, dict):
+            continue
+        metric = _normalize_optional_text(item.get("metric"))
+        if not metric:
+            continue
+        result = _normalize_optional_text(item.get("result"))
+        verification.append(
+            {
+                "metric": metric,
+                "assumed": _normalize_optional_text(item.get("assumed")),
+                "actual": _normalize_optional_text(item.get("actual")),
+                "result": result if result in VALUATION_ASSUMPTION_RESULTS else None,
+            }
+        )
+    current = []
+    for item in value.get("current") or []:
+        if not isinstance(item, dict):
+            continue
+        metric = _normalize_optional_text(item.get("metric"))
+        if not metric:
+            continue
+        current.append({"metric": metric, "assumed": _normalize_optional_text(item.get("assumed"))})
+    if not verification and not current and previous_period is None:
+        return None
+    return {"previous_period": previous_period, "verification": verification, "current": current}
 
 
 def _valuation_import_float(value: Any, field: str) -> float:

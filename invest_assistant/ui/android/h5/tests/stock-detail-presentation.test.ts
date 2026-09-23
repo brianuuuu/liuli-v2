@@ -4,7 +4,9 @@ import {
   DEFAULT_STOCK_DETAIL_SECTION,
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
+  assumptionResultTone,
   formatValuationGap,
+  parseValuationAssumptions,
   priorityRankLabel,
   scoreDimensions,
   scoreTrendRows,
@@ -173,5 +175,45 @@ describe("展示口径", () => {
   it("赛道名过滤空值", () => {
     const detail = { tracks: [{ id: 1, track: { name: "医疗器械" } }, { id: 2, track: null }] } as StockDetail;
     expect(trackNames(detail)).toEqual(["医疗器械"]);
+  });
+});
+
+describe("估值假设解析", () => {
+  it("解析出本次假设和上一期验证", () => {
+    const parsed = parseValuationAssumptions(JSON.stringify({
+      previous_period: "2025-Q4",
+      verification: [{ metric: "收入同比增速", assumed: "25%", actual: "18%", result: "不如预期" }],
+      current: [{ metric: "收入同比增速", assumed: "18%" }]
+    }));
+
+    // previous_period 是被验证的那一期，不是本次的报告期
+    expect(parsed?.previous_period).toBe("2025-Q4");
+    expect(parsed?.current?.[0]).toEqual({ metric: "收入同比增速", assumed: "18%" });
+    expect(parsed?.verification?.[0].result).toBe("不如预期");
+  });
+
+  it("没填、坏结构、空内容一律当没填，卡片不渲染", () => {
+    expect(parseValuationAssumptions(null)).toBeNull();
+    expect(parseValuationAssumptions("")).toBeNull();
+    expect(parseValuationAssumptions("不是 JSON")).toBeNull();
+    expect(parseValuationAssumptions(JSON.stringify(["数组不是对象"]))).toBeNull();
+    // 两个列表都空时没有可展示的内容，不给老标的留空卡
+    expect(parseValuationAssumptions(JSON.stringify({ previous_period: "2025-Q4", verification: [], current: [] }))).toBeNull();
+  });
+
+  it("丢掉没有 metric 的条目", () => {
+    const parsed = parseValuationAssumptions(JSON.stringify({
+      current: [{ metric: "净利率", assumed: "12%" }, { assumed: "没有指标名" }]
+    }));
+
+    expect(parsed?.current).toHaveLength(1);
+  });
+
+  it("判定配色沿用涨红跌绿，未知判定归中性", () => {
+    expect(assumptionResultTone("超预期")).toBe("positive");
+    expect(assumptionResultTone("不如预期")).toBe("negative");
+    expect(assumptionResultTone("符合预期")).toBe("neutral");
+    expect(assumptionResultTone("略好于预期")).toBe("neutral");
+    expect(assumptionResultTone(null)).toBeNull();
   });
 });

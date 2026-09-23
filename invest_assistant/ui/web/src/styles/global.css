@@ -2628,6 +2628,38 @@ body {
   border-top: 1px solid var(--ll-border);
 }
 
+/* 估值假设：本次假设和上一期验证两块，沿用 detail-list 的键值行，
+   判定角标复用 stock-valuation-gap 的涨红跌绿。 */
+.stock-valuation-assumptions {
+  margin-bottom: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ll-border);
+}
+
+.stock-valuation-assumption-block + .stock-valuation-assumption-block {
+  margin-top: 12px;
+}
+
+.stock-valuation-assumption-title {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ll-text-muted);
+  font-size: 12px;
+}
+
+.stock-valuation-assumption-values {
+  margin-right: 8px;
+  color: var(--ll-text-muted);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-valuation-assumption-empty {
+  color: var(--ll-text-muted);
+  font-size: 12px;
+}
+
+
 .stock-detail-keyfacts {
   margin: 0;
 }

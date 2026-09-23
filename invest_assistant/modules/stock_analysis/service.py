@@ -647,6 +647,7 @@ def _valuation_snapshot_dict(item: StockValuationSnapshot) -> dict:
         "profit_model_json": item.profit_model_json,
         "fcf_model_json": item.fcf_model_json,
         "revenue_model_json": item.revenue_model_json,
+        "valuation_assumptions_json": item.valuation_assumptions_json,
         "primary_model": item.primary_model,
         "expected_market_value_3y": item.expected_market_value_3y,
         "expectation_gap_rate": item.expectation_gap_rate,

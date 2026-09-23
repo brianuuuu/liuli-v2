@@ -672,6 +672,15 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .material-detail__note h3 { margin: 0; color: var(--muted); font-size: 12px; font-weight: 620; }
 .material-detail__note p { margin: 6px 0 0; font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .material-detail__source { display: inline-flex; align-items: center; gap: 4px; margin-top: 20px; color: var(--blue); font-size: 13px; }
+/* 估值假设：本次假设走 detail-facts 那套键值行，上一期验证多一列"假设 → 实际"和判定角标。 */
+.valuation-assumption-block + .valuation-assumption-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.valuation-assumption-block h3 { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 620; }
+.valuation-assumption-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; }
+.valuation-assumption-row + .valuation-assumption-row { border-top: 1px solid var(--border); }
+.valuation-assumption-row > span { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: 13px; }
+.valuation-assumption-row em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }
+.valuation-assumption-row i { flex: 0 0 auto; margin-left: 0; }
+.valuation-assumption-empty { margin: 0; color: var(--subtle); font-size: 12px; }
 .stock-detail-note { padding: 12px 0; }
 .stock-detail-note + .stock-detail-note { border-top: 1px solid var(--border); }
 .stock-detail-note h3 { margin: 0; font-size: var(--content-font-size); font-weight: 650; }

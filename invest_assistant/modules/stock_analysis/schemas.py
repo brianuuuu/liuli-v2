@@ -76,6 +76,7 @@ class StockValuationSnapshotCreate(BaseModel):
     profit_model_json: str | None = None
     fcf_model_json: str | None = None
     revenue_model_json: str | None = None
+    valuation_assumptions_json: str | None = None
     primary_model: str | None = None
     expected_market_value_3y: float | None = None
     expectation_gap_rate: float | None = None

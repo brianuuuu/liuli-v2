@@ -54,9 +54,11 @@ import {
   trendLevelTone
 } from "./trendPresentation";
 import {
+  assumptionResultTone,
   buildLatestValuationSummary,
   buildValuationComparisonOption,
   formatValuationGap,
+  parseValuationAssumptions,
   valuationGapTone,
   valuationModelLabel
 } from "./valuationPresentation";
@@ -763,6 +765,53 @@ function ScoresTab({ data }: { data: StockDetail }) {
   );
 }
 
+/**
+ * 估值假设：支撑本次估值的关键指标，以及上一期假设的兑现情况。
+ * 字段是选填的，没填就整块不渲染——给每只老标的留一块空区域比不显示更糟。
+ */
+function ValuationAssumptionsPanel({ valuation }: { valuation?: StockDetailValuationSnapshot | null }) {
+  const assumptions = parseValuationAssumptions(valuation?.valuation_assumptions_json);
+  if (!assumptions) return null;
+  const current = assumptions.current ?? [];
+  const verification = assumptions.verification ?? [];
+  return (
+    <div className="stock-valuation-assumptions">
+      <div className="stock-detail-subtitle">估值假设</div>
+      {current.length ? (
+        <div className="stock-valuation-assumption-block">
+          <span className="stock-valuation-assumption-title">本次假设</span>
+          <div className="detail-list">
+            {current.map((item) => (
+              <div className="detail-row" key={item.metric}><span>{item.metric}</span><span>{item.assumed || "-"}</span></div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="stock-valuation-assumption-block">
+        <span className="stock-valuation-assumption-title">
+          上一期验证{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}
+        </span>
+        {verification.length ? (
+          <div className="detail-list">
+            {verification.map((item) => {
+              const tone = assumptionResultTone(item.result);
+              return (
+                <div className="detail-row" key={item.metric}>
+                  <span>{item.metric}</span>
+                  <span>
+                    <em className="stock-valuation-assumption-values">{item.assumed || "-"} → {item.actual || "-"}</em>
+                    {tone ? <i className={`stock-valuation-gap ${tone}`}>{item.result}</i> : null}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : <span className="stock-valuation-assumption-empty">上一期未记录假设，无可验证项</span>}
+      </div>
+    </div>
+  );
+}
+
 function ValuationTab({ data }: { data: StockDetail }) {
   const { resolvedMode } = useLiuliTheme();
   const latest = data.latest_valuation ? buildLatestValuationSummary(data.latest_valuation) : null;
@@ -811,6 +860,7 @@ function ValuationTab({ data }: { data: StockDetail }) {
               </div>
             </div>
           ) : <EmptyAction description="暂无最新估值" />}
+          <ValuationAssumptionsPanel valuation={data.latest_valuation} />
           <div className="stock-valuation-chart-section">
             <div className="stock-detail-subtitle">市值对比趋势</div>
             {data.valuation_history.length ? <InlineChart option={buildValuationComparisonOption(data.valuation_history, resolvedMode)} /> : <EmptyAction description="暂无估值趋势" />}

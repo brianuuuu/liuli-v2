@@ -325,9 +325,24 @@ export type StockScoreSnapshot = {
   primary_risk?: string | null;
 };
 
+/** 估值假设：支撑本次估值的 1-3 个可量化指标，供下一期财报对照。选填，老快照没有。 */
+export type ValuationAssumptions = {
+  /** 被验证的那一期的报告期，不是本次的；首次估值为 null。 */
+  previous_period?: string | null;
+  verification?: Array<{
+    metric: string;
+    assumed?: string | null;
+    actual?: string | null;
+    result?: string | null;
+  }>;
+  current?: Array<{ metric: string; assumed?: string | null }>;
+};
+
 export type StockValuationSnapshot = {
   id: number;
   report_period?: string | null;
+  /** 原始 JSON 文本，解析走 parseValuationAssumptions，不要在组件里直接 JSON.parse。 */
+  valuation_assumptions_json?: string | null;
   current_market_value?: number | null;
   expected_market_value_3y?: number | null;
   expectation_gap_rate?: number | null;

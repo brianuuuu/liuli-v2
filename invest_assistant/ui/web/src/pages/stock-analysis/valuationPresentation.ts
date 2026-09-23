@@ -1,5 +1,5 @@
 import type { EChartsOption } from "echarts";
-import type { StockDetailValuationSnapshot } from "../../types/api";
+import type { StockDetailValuationSnapshot, ValuationAssumptions } from "../../types/api";
 import {
   STOCK_CHART_BAR_MAX_WIDTH,
   STOCK_CHART_BAR_RADIUS,
@@ -18,6 +18,36 @@ export function formatValuationGap(value?: number | null) {
 export function valuationGapTone(value?: number | null): ValuationGapTone {
   if (value === null || value === undefined || value === 0) return "flat";
   return value > 0 ? "positive" : "negative";
+}
+
+/** 估值假设判定的配色：沿用全站涨红跌绿，超预期是好事走红。 */
+const ASSUMPTION_RESULT_TONES: Record<string, ValuationGapTone> = {
+  超预期: "positive",
+  不如预期: "negative",
+  符合预期: "flat"
+};
+
+export function assumptionResultTone(result?: string | null): ValuationGapTone | null {
+  return result ? ASSUMPTION_RESULT_TONES[result] ?? "flat" : null;
+}
+
+/**
+ * 估值假设是选填的，落库存的是原始 JSON 文本。解析失败、结构不对一律当没填，
+ * 让展示端直接不渲染——给每只老标的留一块空区域比不显示更糟。
+ */
+export function parseValuationAssumptions(raw?: string | null): ValuationAssumptions | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const hasMetric = (item: unknown) => Boolean(item) && typeof (item as { metric?: unknown }).metric === "string";
+    const verification = Array.isArray(parsed.verification) ? parsed.verification.filter(hasMetric) : [];
+    const current = Array.isArray(parsed.current) ? parsed.current.filter(hasMetric) : [];
+    if (!verification.length && !current.length) return null;
+    return { previous_period: parsed.previous_period ?? null, verification, current };
+  } catch {
+    return null;
+  }
 }
 
 export function valuationModelLabel(value?: string | null) {

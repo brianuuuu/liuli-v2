@@ -148,6 +148,9 @@ class StockValuationSnapshot(Base):
     profit_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     fcf_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     revenue_model_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 本次估值假设的支撑指标，外加对上一期假设的兑现验证。选填：老快照和不填的执行都是 NULL，
+    # 展示端据此决定要不要渲染，不要拿空对象糊过去。
+    valuation_assumptions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     primary_model: Mapped[str | None] = mapped_column(String(32), nullable=True)
     expected_market_value_3y: Mapped[float | None] = mapped_column(Float, nullable=True)
     expectation_gap_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -215,6 +218,10 @@ def ensure_stock_analysis_schema(engine: Engine) -> None:
             ).first()
             if table_exists is None:
                 MarketIndexDailyBar.__table__.create(bind=conn, checkfirst=True)
+            # 估值假设是后加的列，老库补一次。Postgres 走 tools/migrations 的迁移脚本。
+            valuation_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(stock_valuation_snapshot)")).all()}
+            if valuation_columns and "valuation_assumptions_json" not in valuation_columns:
+                conn.execute(text("ALTER TABLE stock_valuation_snapshot ADD COLUMN valuation_assumptions_json TEXT"))
         return
     if engine.dialect.name != "postgresql":
         return

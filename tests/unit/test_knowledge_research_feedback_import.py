@@ -180,6 +180,64 @@ def test_import_research_feedback_imports_stock_score_by_title(tmp_path, monkeyp
     assert db.get(KnowledgeResearchFeedback, feedback.id).status == "parsed"
 
 
+def test_import_valuation_keeps_assumptions_and_drops_unknown_result(tmp_path, monkeypatch):
+    """估值假设落库，供下一期对照；result 只收三档，第四种说法丢掉不入库。"""
+    import json as json_module
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        valuation_markdown(valuation_assumptions={
+            "previous_period": "2025-Q4",
+            "verification": [
+                {"metric": "收入同比增速", "assumed": "25%", "actual": "18%", "result": "不如预期"},
+                {"metric": "净利率", "assumed": "12%", "actual": "13%", "result": "略好于预期"},
+                {"assumed": "没有指标名的一条", "actual": "x", "result": "超预期"},
+            ],
+            "current": [
+                {"metric": "收入同比增速", "assumed": "18%"},
+                {"metric": "经营现金流", "assumed": "12.3亿元"},
+            ],
+        }),
+        researcher_code="valuator_001",
+    )
+
+    result = import_research_feedback(db, feedback.id)
+
+    assumptions = json_module.loads(result["valuation"]["valuation_assumptions_json"])
+    # previous_period 指向被验证的那一期，不是本次的 2026-Q1
+    assert assumptions["previous_period"] == "2025-Q4"
+    assert [item["metric"] for item in assumptions["current"]] == ["收入同比增速", "经营现金流"]
+    assert assumptions["current"][1]["assumed"] == "12.3亿元"
+    # 没有 metric 的那条整条丢掉；第四种判定词退化成 None，不污染跨期比较
+    assert [item["metric"] for item in assumptions["verification"]] == ["收入同比增速", "净利率"]
+    assert assumptions["verification"][0]["result"] == "不如预期"
+    assert assumptions["verification"][1]["result"] is None
+
+
+def test_import_valuation_ignores_malformed_assumptions(tmp_path, monkeypatch):
+    """结构不对就退化成不填，正文照样入库——选填字段不该把整份报告拖下水。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    db.add(Stock(stock_code="600055", stock_name="万东医疗", symbol="600055.SH", exchange="SH"))
+    db.commit()
+    feedback = create_feedback(
+        db,
+        "万东医疗-2026-07-05-标的估值报告",
+        valuation_markdown(valuation_assumptions="收入增速 18%"),
+        researcher_code="valuator_001",
+    )
+
+    result = import_research_feedback(db, feedback.id)
+
+    assert result["target"] == "stock_valuation_snapshot"
+    assert result["valuation"]["valuation_assumptions_json"] is None
+
+
 def test_import_research_feedback_imports_stock_valuation_by_title(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     db = make_session()
@@ -209,6 +267,8 @@ def test_import_research_feedback_imports_stock_valuation_by_title(tmp_path, mon
     assert valuation["primary_model"] == "revenue"
     assert valuation["expected_market_value_3y"] == 150.0
     assert valuation["expectation_gap_rate"] == 0.5
+    # 估值假设是选填的：老的执行方式不带它，不能因此让整份报告导入失败
+    assert valuation["valuation_assumptions_json"] is None
     assert valuation["analysis_date"] == date(2026, 7, 5)
     assert valuation["researcher"] == "valuator_001"
     assert '"beat_items": ["收入同比改善"]' in valuation["financial_performance_json"]

@@ -19,6 +19,8 @@ import {
   trendHistoryRows,
   trendLevelTone,
   trendNarratives,
+  assumptionResultTone,
+  parseValuationAssumptions,
   valuationGapTone,
   valuationHistoryRows,
   valuationModelLabel,
@@ -209,6 +211,7 @@ function ValuationSection({ detail }: { detail: StockDetail }) {
           </>
         ) : <EmptyState title="暂无估值" detail="等待研究员写入估值快照" />}
       </SectionCard>
+      <ValuationAssumptionsCard valuation={valuation} />
       <SectionCard title="历史估值">
         {history.length ? history.map((item) => (
           <ListRow
@@ -220,6 +223,44 @@ function ValuationSection({ detail }: { detail: StockDetail }) {
         )) : <EmptyState title="暂无历史估值" />}
       </SectionCard>
     </>
+  );
+}
+
+/**
+ * 估值假设：支撑本次估值的关键指标，以及上一期假设的兑现情况。
+ * 字段是选填的，没填就整张卡不渲染——给每只老标的留一张空卡比不显示更糟。
+ */
+function ValuationAssumptionsCard({ valuation }: { valuation?: StockDetail["latest_valuation"] }) {
+  const assumptions = parseValuationAssumptions(valuation?.valuation_assumptions_json);
+  if (!assumptions) return null;
+  const current = assumptions.current ?? [];
+  const verification = assumptions.verification ?? [];
+  return (
+    <SectionCard title="估值假设">
+      {current.length ? (
+        <div className="valuation-assumption-block">
+          <h3>本次假设</h3>
+          <div className="detail-facts">
+            {current.map((item) => (
+              <div key={item.metric}><span>{item.metric}</span><b>{item.assumed || "-"}</b></div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="valuation-assumption-block">
+        <h3>上一期验证{assumptions.previous_period ? ` · ${assumptions.previous_period}` : ""}</h3>
+        {verification.length ? verification.map((item) => {
+          const tone = assumptionResultTone(item.result);
+          return (
+            <div className="valuation-assumption-row" key={item.metric}>
+              <span>{item.metric}</span>
+              <em>{item.assumed || "-"} → {item.actual || "-"}</em>
+              {tone ? <i className={`material-direction material-direction--${tone}`}>{item.result}</i> : null}
+            </div>
+          );
+        }) : <p className="valuation-assumption-empty">上一期未记录假设，无可验证项</p>}
+      </div>
+    </SectionCard>
   );
 }
 
