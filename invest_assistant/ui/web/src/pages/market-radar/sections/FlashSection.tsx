@@ -21,17 +21,12 @@ const sourceFilterOptions = [
   { value: "cninfo", label: "巨潮" }
 ];
 
-function isImportantFlash(item: SourceItem) {
-  const text = `${item.title}\n${item.content}`;
-  return /重要|重大|风口|电报解读|预增|预减|停牌|复牌|重组|并购|处罚|监管|芯片|半导体|AI|算力/.test(text);
-}
-
 function flashDate(item: SourceItem) {
   return item.publish_time ? item.publish_time.slice(0, 10) : "未注明日期";
 }
 
 function dotClass(item: SourceItem) {
-  if (isImportantFlash(item)) return "flash-dot important";
+  if (item.is_important) return "flash-dot important";
   if (item.source_type === "announcement" || item.source_type === "financial") return "flash-dot filing";
   return "flash-dot";
 }
@@ -174,7 +169,7 @@ export function FlashSection() {
                           <span className="flash-time">{formatTime(item.publish_time)}</span>
                           <span>{item.source_name}</span>
                           <span>{item.source_type}</span>
-                          {isImportantFlash(item) ? <Tag color="orange">重要</Tag> : null}
+                          {item.is_important ? <Tag color="orange">重要</Tag> : null}
                         </div>
                         <div className="flash-title">{item.title}</div>
                         <div className="flash-content">{item.content}</div>

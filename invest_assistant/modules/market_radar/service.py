@@ -64,25 +64,6 @@ SOURCE_ITEM_DAILY_TYPE_GROUPS = {
     "report": {"research", "research_report", "report", "report_summary"},
 }
 
-SOURCE_ITEM_IMPORTANT_KEYWORDS = (
-    "重要",
-    "重大",
-    "风口",
-    "电报解读",
-    "预增",
-    "预减",
-    "停牌",
-    "复牌",
-    "重组",
-    "并购",
-    "处罚",
-    "监管",
-    "芯片",
-    "半导体",
-    "AI",
-    "算力",
-)
-
 
 def ensure_tag(
     db: Session,
@@ -449,12 +430,7 @@ def _source_item_filter_conditions(
     if source_type_value:
         conditions.append(SourceItem.source_type == source_type_value)
     if important_only:
-        important_conditions = []
-        for keyword in SOURCE_ITEM_IMPORTANT_KEYWORDS:
-            like_keyword = f"%{keyword}%"
-            important_conditions.append(SourceItem.title.ilike(like_keyword))
-            important_conditions.append(SourceItem.content.ilike(like_keyword))
-        conditions.append(or_(*important_conditions))
+        conditions.append(SourceItem.is_important.is_(True))
     if tag_id is not None:
         conditions.append(SourceItem.id.in_(select(SourceTag.source_item_id).where(SourceTag.tag_id == tag_id)))
     return conditions
@@ -1172,6 +1148,7 @@ def _source_item_dict_from_tags(item: SourceItem, source_tags: list[dict]) -> di
         "publish_time": item.publish_time,
         "related_type": item.related_type,
         "related_id": item.related_id,
+        "is_important": item.is_important,
         "created_at": item.created_at,
         "source_tags": source_tags,
     }

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,6 +86,7 @@ class SourceItem(Base):
         Index("ix_source_item_url_dedupe_lookup", "source_type", "source_name", "source_url"),
         Index("ix_source_item_title_time_dedupe_lookup", "source_type", "source_name", "publish_time", "title"),
         Index("ix_source_item_daily_stats", "publish_time", "created_at", "source_type"),
+        Index("ix_source_item_important_feed", "is_important", "publish_time", "id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -97,6 +98,8 @@ class SourceItem(Base):
     publish_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     related_type: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     related_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # 来源自带的重要标记，目前只有富途快讯的 level；其他来源没有这个概念，一律 False
+    is_important: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
@@ -170,6 +173,21 @@ class AiTagSuggestion(Base):
 
 
 def ensure_market_radar_schema(engine: Engine) -> None:
+    if engine.dialect.name == "sqlite":
+        # is_important 是后加的列，老库补一次，要赶在下面建索引之前。Postgres 走 tools/migrations 的迁移脚本。
+        with engine.begin() as connection:
+            columns = {row[1] for row in connection.execute(text("PRAGMA table_info(source_item)")).all()}
+            if columns and "is_important" not in columns:
+                connection.execute(text("ALTER TABLE source_item ADD COLUMN is_important BOOLEAN NOT NULL DEFAULT 0"))
     for table in (SourceItem.__table__, TrackTagRelation.__table__, TagHeatSnapshot.__table__, TagEdgeSnapshot.__table__):
         for index in table.indexes:
             index.create(bind=engine, checkfirst=True)
+    if engine.dialect.name == "postgresql":
+        # 资讯流按 publish_time DESC NULLS LAST, id DESC 排序。升序的 ix_source_item_feed_order 倒着扫
+        # 得到的是 NULLS FIRST，对不上，PostgreSQL 只能全表过滤后再排序。
+        # SQLite 的索引定义不支持 NULLS LAST，所以只在 PostgreSQL 上建。
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_source_item_feed_order_desc "
+                "ON source_item (publish_time DESC NULLS LAST, id DESC)"
+            ))

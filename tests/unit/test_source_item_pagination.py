@@ -122,6 +122,7 @@ def test_list_source_items_page_filters_in_database_and_counts_filtered_total():
                     title=f"普通跟踪 {index}",
                     content=content,
                     publish_time=base_time + timedelta(minutes=index),
+                    is_important=index % 10 == 0,
                 ),
             )
             if index % 3 == 0:
@@ -152,7 +153,9 @@ def test_list_source_items_page_filters_in_database_and_counts_filtered_total():
         assert cninfo_page.items[0]["source_name"] == "cninfo"
         assert query_page.total == 11
         assert type_page.total == 61
-        assert important_page.total == 13
+        # 只认来源给的重要标记；巨潮那条正文里有「重大」，但不再按关键词算重要
+        assert important_page.total == 12
+        assert all(item["is_important"] for item in important_page.items)
         assert tag_page.total == 40
     finally:
         db.close()

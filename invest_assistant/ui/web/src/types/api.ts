@@ -171,6 +171,7 @@ export type SourceItem = {
   publish_time?: string | null;
   related_type?: string | null;
   related_id?: number | null;
+  is_important?: boolean;
   created_at?: string | null;
   source_tags?: SourceTag[];
 };

@@ -361,7 +361,7 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
             "key": "futu-news",
             "name": "信息流（富途牛牛）",
             "module": "market_radar",
-            "provider": "AkShare",
+            "provider": "富途官网快讯接口",
             "record_count": int(futu_count),
             "status": futu_job.last_status if futu_job is not None else "unknown",
             "last_sync_at": _format_time(futu_job.last_run_at if futu_job is not None else latest_futu_time),

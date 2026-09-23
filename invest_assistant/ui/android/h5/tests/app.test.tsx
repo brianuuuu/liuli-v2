@@ -99,10 +99,16 @@ describe("mobile H5 app", () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/news";
     const newsRequests: string[] = [];
+    const importantRequests: string[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (!url.includes("/api/market-radar/source-items")) {
         return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      // 重要页签在进页面时就后台预取，单独计数，不混进当前页签的分页请求
+      if (url.includes("important_only=true")) {
+        importantRequests.push(url);
+        return new Response(JSON.stringify({ items: [], total: 0, limit: 30, offset: 0, has_more: false }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       newsRequests.push(url);
       const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") ?? 0);
@@ -125,6 +131,7 @@ describe("mobile H5 app", () => {
     renderApp();
 
     expect(await screen.findByText("资讯-0-1")).toBeInTheDocument();
+    await waitFor(() => expect(importantRequests).toHaveLength(1));
     expect(screen.queryByText("90 条")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "刷新资讯" })).not.toBeInTheDocument();
 

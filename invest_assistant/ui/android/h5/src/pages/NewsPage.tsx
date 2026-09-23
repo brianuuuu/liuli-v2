@@ -1,5 +1,5 @@
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { infiniteQueryOptions, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { newsQueryForTab, type NewsTab } from "../api/filters";
 import { mobileApi } from "../api/mobileApi";
@@ -18,8 +18,20 @@ const tabs = [
   { key: "stock", label: "个股" }
 ] as const;
 
+function newsTimelineQuery(tab: NewsTab) {
+  return infiniteQueryOptions({
+    queryKey: ["news", tab],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => mobileApi.news({ limit: 30, offset: pageParam, ...newsQueryForTab(tab) }, signal),
+    getNextPageParam: (last) => last.has_more ? last.offset + last.limit : undefined
+  });
+}
+
 export function NewsPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<NewsTab>("all");
+  // 重要页签是最常切的那个，进页面就先在后台把首屏拉好，切过去直接出列表，不用再看一次加载态。
+  useEffect(() => { void queryClient.prefetchInfiniteQuery(newsTimelineQuery("important")); }, [queryClient]);
   const pager = useRef<HorizontalTabPagerHandle<NewsTab>>(null);
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   return <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={tabs} activeKey={tab} onChange={(key) => pager.current?.requestChange(key)} />}><HorizontalTabPager ref={pager} items={tabs} activeKey={tab} onChange={setTab} motionSink={navigationMotion} renderPage={(key) => <NewsTimeline tab={key} />} /></MobilePageFrame>;
@@ -28,12 +40,7 @@ export function NewsPage() {
 function NewsTimeline({ tab }: { tab: NewsTab }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const query = useInfiniteQuery({
-    queryKey: ["news", tab],
-    initialPageParam: 0,
-    queryFn: ({ pageParam, signal }) => mobileApi.news({ limit: 30, offset: pageParam, ...newsQueryForTab(tab) }, signal),
-    getNextPageParam: (last) => last.has_more ? last.offset + last.limit : undefined
-  });
+  const query = useInfiniteQuery(newsTimelineQuery(tab));
   const items = useMemo(() => {
     const map = new Map<number, NonNullable<typeof query.data>["pages"][number]["items"][number]>();
     query.data?.pages.flatMap((page) => page.items).forEach((item) => map.set(item.id, item));

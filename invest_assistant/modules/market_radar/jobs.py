@@ -16,16 +16,21 @@ from invest_assistant.modules.market_radar.daily_report import (
     DEFAULT_DAILY_REPORT_MODEL,
     generate_daily_report,
 )
+from invest_assistant.modules.market_radar.futu_client import fetch_futu_flash_page
 from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotword, SourceItem, Tag
 from invest_assistant.modules.market_radar.schemas import SourceItemCreate
 from invest_assistant.modules.stock_analysis.models import StockPoolItem
 from invest_assistant.modules.track_discovery.models import Track
-from invest_assistant.services.akshare.client import fetch_cls_news_rows, fetch_eastmoney_stock_news_rows, fetch_futu_news_rows
+from invest_assistant.services.akshare.client import fetch_cls_news_rows, fetch_eastmoney_stock_news_rows
 from invest_assistant.services.deepseek import client as deepseek_client
 from invest_assistant.services.deepseek.client import DEFAULT_DEEPSEEK_MODEL
-from invest_assistant.shared.time_utils import utc_now
+from invest_assistant.shared.time_utils import BEIJING_TZ, utc_now
 
 DEEPSEEK_HOTWORD_JOB_NAME = "market_radar.extract_daily_hotwords_deepseek"
+
+FUTU_SOURCE_NAME = "富途牛牛"
+FUTU_PAGE_SIZE = 100
+FUTU_DEFAULT_LIMIT = 300
 
 DAILY_HOTWORD_STATE_NAMESPACE = f"job.{DEEPSEEK_HOTWORD_JOB_NAME}"
 HOTWORD_SOURCE_ITEM_CURSOR_KEY = "source_item_last_id"
@@ -48,8 +53,35 @@ def _fetch_cls_rows(limit: int) -> list[dict]:
     return fetch_cls_news_rows(limit)
 
 
-def _fetch_futu_rows(limit: int) -> list[dict]:
-    return fetch_futu_news_rows(limit)
+def _fetch_futu_rows(db, limit: int) -> list[dict]:
+    """从最新往前翻页，翻到库里已有的快讯就停。
+
+    每 30 分钟抓一次，白天和美股时段快讯密集，只取最新一页会漏；平时一页就能接上，
+    高峰期多翻两三页。limit 是兜底上限，防止库空或断档很久时一路翻到底。
+    """
+    rows: list[dict] = []
+    seq_mark = None
+    while len(rows) < limit:
+        page = fetch_futu_flash_page(seq_mark=seq_mark, page_size=min(FUTU_PAGE_SIZE, limit - len(rows)))
+        rows.extend(page.news)
+        if not page.has_more or not page.next_seq_mark or _futu_page_reaches_stored(db, page.news):
+            break
+        seq_mark = page.next_seq_mark
+    return rows[:limit]
+
+
+def _futu_page_reaches_stored(db, news: list[dict]) -> bool:
+    urls = [str(row.get("detailUrl") or "").strip() for row in news]
+    urls = [url for url in urls if url]
+    if not urls:
+        return False
+    return db.scalar(
+        select(SourceItem.id).where(
+            SourceItem.source_type == "news",
+            SourceItem.source_name == FUTU_SOURCE_NAME,
+            SourceItem.source_url.in_(urls),
+        ).limit(1)
+    ) is not None
 
 
 def _fetch_eastmoney_stock_news_rows(stock_code: str, limit: int) -> list[dict]:
@@ -74,20 +106,35 @@ def _normalize_cls_row(row: dict) -> SourceItemCreate | None:
 
 
 def _normalize_futu_row(row: dict) -> SourceItemCreate | None:
-    title = str(row.get("标题") or "").strip()
-    content = str(row.get("内容") or title or "").strip()
-    source_url = str(row.get("链接") or "").strip() or None
-    publish_time = str(row.get("发布时间") or "").strip() or None
+    title = str(row.get("title") or "").strip()
+    content = str(row.get("content") or title or "").strip()
+    source_url = str(row.get("detailUrl") or "").strip() or None
     if not content:
         return None
     return SourceItemCreate(
         source_type="news",
-        source_name="富途牛牛",
+        source_name=FUTU_SOURCE_NAME,
         title=(title or content)[:120],
         content=content,
         source_url=source_url,
-        publish_time=publish_time,
+        publish_time=_futu_publish_time(row.get("time")),
+        # level 是富途快讯页标红的「重要」：0 普通，1 重要
+        is_important=_int_or_zero(row.get("level")) > 0,
     )
+
+
+def _futu_publish_time(value) -> datetime | None:
+    """富途给的是 Unix 秒。带上北京时区：SQLite 落库去掉时区后和其他来源一样是北京时间，
+    PostgreSQL 按绝对时刻存，都不依赖服务器本地时区。"""
+    seconds = _int_or_zero(value)
+    return datetime.fromtimestamp(seconds, tz=BEIJING_TZ) if seconds > 0 else None
+
+
+def _int_or_zero(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _normalize_eastmoney_stock_news_row(row: dict, stock_id: int) -> SourceItemCreate | None:
@@ -143,20 +190,20 @@ def fetch_news_job(limit: int = 50, **kwargs) -> JobResult:
     )
 
 
-def fetch_futu_news_job(limit: int = 50, **kwargs) -> JobResult:
-    try:
-        raw_rows = _fetch_futu_rows(max(int(limit), 1))
-    except Exception as exc:
-        return JobResult(success=False, message=str(exc))
-
-    rows = []
-    for row in raw_rows:
-        payload = _normalize_futu_row(row)
-        if payload is not None:
-            rows.append(payload)
-
+def fetch_futu_news_job(limit: int = FUTU_DEFAULT_LIMIT, **kwargs) -> JobResult:
     db = SessionLocal()
     try:
+        try:
+            raw_rows = _fetch_futu_rows(db, max(int(limit), 1))
+        except Exception as exc:
+            return JobResult(success=False, message=str(exc))
+
+        rows = []
+        for row in raw_rows:
+            payload = _normalize_futu_row(row)
+            if payload is not None:
+                rows.append(payload)
+
         inserted = 0
         skipped = 0
         for payload in rows:
@@ -622,7 +669,7 @@ JOBS = [
         cron_expr="*/30 * * * *",
         timeout_seconds=120,
         max_retries=1,
-        params_schema={"limit": {"type": "number", "label": "最多快讯条数", "default": 50, "min": 1}},
+        params_schema={"limit": {"type": "number", "label": "最多快讯条数", "default": FUTU_DEFAULT_LIMIT, "min": 1}},
         tags=["news", "futu", "market_radar"],
     ),
     JobDefinition(

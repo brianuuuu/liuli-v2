@@ -34,6 +34,7 @@ class SourceItemCreate(BaseModel):
     publish_time: datetime | None = None
     related_type: str | None = None
     related_id: int | None = None
+    is_important: bool = False
 
 
 class MarketFlashSyncCreate(BaseModel):
