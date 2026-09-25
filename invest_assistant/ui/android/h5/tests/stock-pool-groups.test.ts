@@ -23,9 +23,11 @@ import {
 } from "../src/pages/stockPoolGroups";
 import {
   lastDashboardTab,
+  lastPoolSort,
   lastPoolStatus,
   lastStockView,
   rememberDashboardTab,
+  rememberPoolSort,
   rememberPoolStatus,
   rememberStockView,
   resetDashboardViewState
@@ -83,6 +85,14 @@ describe("看板视图记忆", () => {
     expect(lastPoolStatus()).toBe("watching");
     resetDashboardViewState();
   });
+
+  it("记住标的池排序，默认按趋势", () => {
+    resetDashboardViewState();
+    expect(lastPoolSort()).toBe("trend");
+    rememberPoolSort("space");
+    expect(lastPoolSort()).toBe("space");
+    resetDashboardViewState();
+  });
 });
 
 describe("标的池排序", () => {
@@ -119,7 +129,7 @@ describe("标的池排序", () => {
     expect(nextPoolSort("trend")).toBe("level");
     expect(nextPoolSort("level")).toBe("space");
     expect(nextPoolSort("space")).toBe("trend");
-    expect(["trend", "level", "space"].map((sort) => poolSortLabel(sort as "trend"))).toEqual(["趋势", "评级", "估值空间"]);
+    expect(["trend", "level", "space"].map((sort) => poolSortLabel(sort as "trend"))).toEqual(["趋势", "评级", "估值"]);
   });
 
   it("按评级排时评级打头，同档再按趋势、估值空间", () => {
@@ -127,7 +137,12 @@ describe("标的池排序", () => {
     expect(sorted.map((item) => item.id)).toEqual([2, 1, 4, 3]);
   });
 
-  it("按估值空间排时空间打头，同档再按趋势、评级", () => {
+  it("按估值排时直接比三年空间原始值，同为大档也分得出先后，没估值的排最后", () => {
+    const sorted = sortPool([entry(1, "T0", "S", 1.2), entry(2, "T5", "D", 3.0), entry(3, "T0", "S", null), entry(4, "T3", "B", 0.9)], "space");
+    expect(sorted.map((item) => item.id)).toEqual([2, 1, 4, 3]);
+  });
+
+  it("按估值排时原始值相同再按趋势、评级", () => {
     const sorted = sortPool([entry(1, "T0", "S", 0.1), entry(2, "T4", "D", 1.0), entry(3, "T2", "C", 1.0), entry(4, "T2", "A", 1.0)], "space");
     expect(sorted.map((item) => item.id)).toEqual([4, 3, 2, 1]);
   });

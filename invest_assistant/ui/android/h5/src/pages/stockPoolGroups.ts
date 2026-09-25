@@ -142,7 +142,7 @@ export type PoolSortKey = "trend" | "level" | "space";
 export const POOL_SORT_OPTIONS: { value: PoolSortKey; label: string }[] = [
   { value: "trend", label: "趋势" },
   { value: "level", label: "评级" },
-  { value: "space", label: "估值空间" }
+  { value: "space", label: "估值" }
 ];
 
 export const DEFAULT_POOL_SORT: PoolSortKey = "trend";
@@ -163,7 +163,11 @@ const POOL_SORT_ORDERS: Record<PoolSortKey, PoolSortKey[]> = {
   space: ["space", "trend", "level"]
 };
 
-/** 排序键与卡片角标同源，每一维都是强在前：看到的角标就是排序依据，不用再解释一遍。 */
+/**
+ * 排序键与卡片角标同源，每一维都是强在前：看到的角标就是排序依据，不用再解释一遍。
+ * 例外是按估值排时打头的那一键：大/中/小只有三档，一档里挤一堆分不出先后，
+ * 所以直接按三年空间的原始值从大到小排；没有估值的排最后。兜底时仍用档位。
+ */
 export function poolSortKey(item: StockPoolItem, sort: PoolSortKey = DEFAULT_POOL_SORT): number[] {
   const { level, space, trend } = poolCardBadgeSet(item);
   const ranks: Record<PoolSortKey, number> = {
@@ -171,7 +175,12 @@ export function poolSortKey(item: StockPoolItem, sort: PoolSortKey = DEFAULT_POO
     level: rankIn(INVESTMENT_LEVELS, (level?.toUpperCase() ?? null) as (typeof INVESTMENT_LEVELS)[number] | null),
     space: rankIn(VALUATION_SPACES, space)
   };
-  return POOL_SORT_ORDERS[sort].map((key) => ranks[key]);
+  const keys = POOL_SORT_ORDERS[sort].map((key) => ranks[key]);
+  if (sort === "space") {
+    const gap = item.expectation_gap_rate;
+    keys[0] = gap != null && Number.isFinite(gap) ? -gap : Number.POSITIVE_INFINITY;
+  }
+  return keys;
 }
 
 /** 三个键全相同的保持后端返回的次序：Array.prototype.sort 是稳定排序。 */

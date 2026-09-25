@@ -1,5 +1,5 @@
-import type { PoolStatusKey, StockTabView } from "./stockPoolGroups";
-import { DEFAULT_POOL_STATUS, DEFAULT_STOCK_TAB_VIEW } from "./stockPoolGroups";
+import type { PoolSortKey, PoolStatusKey, StockTabView } from "./stockPoolGroups";
+import { DEFAULT_POOL_SORT, DEFAULT_POOL_STATUS, DEFAULT_STOCK_TAB_VIEW } from "./stockPoolGroups";
 import type { TrackSortKey, TrackStatusKey, TrackTabView } from "./trackLibraryGroups";
 import { DEFAULT_TRACK_SORT, DEFAULT_TRACK_STATUS, DEFAULT_TRACK_TAB_VIEW } from "./trackLibraryGroups";
 
@@ -11,6 +11,7 @@ type DashboardViewState = {
   tab: string;
   stockView: StockTabView;
   poolStatus: PoolStatusKey;
+  poolSort: PoolSortKey;
   trackView: TrackTabView;
   trackStatus: TrackStatusKey;
   trackSort: TrackSortKey;
@@ -20,6 +21,7 @@ const state: DashboardViewState = {
   tab: "today",
   stockView: DEFAULT_STOCK_TAB_VIEW,
   poolStatus: DEFAULT_POOL_STATUS,
+  poolSort: DEFAULT_POOL_SORT,
   trackView: DEFAULT_TRACK_TAB_VIEW,
   trackStatus: DEFAULT_TRACK_STATUS,
   trackSort: DEFAULT_TRACK_SORT
@@ -47,6 +49,14 @@ export function rememberPoolStatus(status: PoolStatusKey) {
 
 export function lastPoolStatus() {
   return state.poolStatus;
+}
+
+export function rememberPoolSort(sort: PoolSortKey) {
+  state.poolSort = sort;
+}
+
+export function lastPoolSort() {
+  return state.poolSort;
 }
 
 export function rememberTrackView(view: TrackTabView) {
@@ -77,6 +87,7 @@ export function resetDashboardViewState() {
   state.tab = "today";
   state.stockView = DEFAULT_STOCK_TAB_VIEW;
   state.poolStatus = DEFAULT_POOL_STATUS;
+  state.poolSort = DEFAULT_POOL_SORT;
   state.trackView = DEFAULT_TRACK_TAB_VIEW;
   state.trackStatus = DEFAULT_TRACK_STATUS;
   state.trackSort = DEFAULT_TRACK_SORT;

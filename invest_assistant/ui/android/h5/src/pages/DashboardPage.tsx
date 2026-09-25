@@ -15,7 +15,6 @@ import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
 import {
-  DEFAULT_POOL_SORT,
   DEFAULT_POOL_STATUS,
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
@@ -56,12 +55,14 @@ import {
 } from "./trackLibraryGroups";
 import {
   lastDashboardTab,
+  lastPoolSort,
   lastPoolStatus,
   lastStockView,
   lastTrackSort,
   lastTrackStatus,
   lastTrackView,
   rememberDashboardTab,
+  rememberPoolSort,
   rememberPoolStatus,
   rememberStockView,
   rememberTrackSort,
@@ -483,8 +484,7 @@ function StockDashboard({ active }: { active: boolean }) {
 function StockPoolView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<PoolStatusKey>(lastPoolStatus);
-  // 排序不记忆，每次进来都从默认的趋势开始。
-  const [sort, setSort] = useState<PoolSortKey>(DEFAULT_POOL_SORT);
+  const [sort, setSort] = useState<PoolSortKey>(lastPoolSort);
   const [page, setPage] = useState(0);
   const query = useQuery({
     queryKey: ["stock-pool", "active"],
@@ -514,7 +514,7 @@ function StockPoolView() {
           type="button"
           className="pool-sort-toggle"
           aria-label={`排序：${poolSortLabel(sort)}，点击切换为${poolSortLabel(nextPoolSort(sort))}`}
-          onClick={() => { setSort(nextPoolSort(sort)); setPage(0); }}
+          onClick={() => { const next = nextPoolSort(sort); rememberPoolSort(next); setSort(next); setPage(0); }}
         >
           <ArrowUpDown size={12} aria-hidden="true" />{poolSortLabel(sort)}
         </button>
