@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashRouter } from "react-router-dom";
 import { MobileApp } from "../src/app/MobileApp";
+import { createMobileQueryClient } from "../src/queryClient";
 import { tokenStorageKey } from "../src/api/client";
 import { resetDashboardViewState } from "../src/pages/dashboardViewState";
 
@@ -18,10 +19,7 @@ vi.mock("../src/components/PortfolioTreemap", () => ({
   )
 }));
 
-function renderApp() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
-  });
+function renderApp(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <QueryClientProvider client={queryClient}>
@@ -2183,6 +2181,33 @@ describe("mobile H5 app", () => {
       expect.stringContaining(endpoint),
       expect.objectContaining({ method })
     ));
+  });
+
+  it("从笔记列表进去归档后，回到列表不再显示这条笔记", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    let archived = false;
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    const note = { id: 7, content: "需要处理的笔记", status: "active", group_id: null };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("note-groups") || url.includes("/api/tags")) return json([]);
+      if (url.includes("/notes/7/archive")) { archived = true; return json({ ...note, status: "archived" }); }
+      if (url.includes("/notes/7")) return json(note);
+      if (url.includes("/api/knowledge/notes") && (init?.method ?? "GET") === "GET") {
+        return json({ items: archived ? [] : [note], total: archived ? 0 : 1, limit: 30, offset: 0, has_more: false });
+      }
+      return json({ items: [], total: 0, limit: 30, offset: 0, has_more: false });
+    }));
+
+    // 用线上同一份 QueryClient 配置：refetchOnMount 为 false 时列表回来不会自己补拉，这正是要测的
+    renderApp(createMobileQueryClient());
+
+    fireEvent.click(await screen.findByText("需要处理的笔记"));
+    fireEvent.click(await screen.findByRole("button", { name: "归档笔记" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认归档" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/notes"));
+    await waitFor(() => expect(screen.queryByText("需要处理的笔记")).not.toBeInTheDocument());
   });
 
   it("赛道库可在评分与热度之间切换排序，点条目进赛道详情", async () => {

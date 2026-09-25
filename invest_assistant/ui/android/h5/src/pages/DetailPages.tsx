@@ -39,30 +39,27 @@ export function NoteDetailPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
+  /**
+   * 笔记列表和待办的笔记收件箱此刻都已卸载，默认的 invalidate 只重拉挂着的查询，
+   * 而全局 refetchOnMount 为 false，回到列表也不会补拉，看到的仍是旧列表。
+   * 所以用 refetchType: "all" 让它们在后台立刻重拉。
+   */
+  const refreshNoteLists = () => Promise.all([
+    client.invalidateQueries({ queryKey: ["notes"], refetchType: "all" }),
+    client.invalidateQueries({ queryKey: ["inbox-notes"], refetchType: "all" }),
+    client.invalidateQueries({ queryKey: ["note", id] })
+  ]);
   const update = useMutation({
     mutationFn: () => mobileApi.updateNote(id, { content: content ?? query.data?.content ?? "", group_id: groupId === undefined ? query.data?.group_id : groupId, tag_ids: tagIds ?? query.data?.tags?.map((tag) => tag.id) ?? [] }),
-    // 归好组的笔记要从待办的笔记子模块里消失，inbox-notes 一起失效
-    onSuccess: async () => { await Promise.all([client.invalidateQueries({ queryKey: ["notes"] }), client.invalidateQueries({ queryKey: ["note", id] }), client.invalidateQueries({ queryKey: ["inbox-notes"] })]); requestAppBack(); }
+    onSuccess: async () => { await refreshNoteLists(); requestAppBack(); }
   });
   const archive = useMutation({
     mutationFn: () => mobileApi.archiveNote(id),
-    onSuccess: async () => {
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ["notes"] }),
-        client.invalidateQueries({ queryKey: ["note", id] })
-      ]);
-      navigate("/notes", { replace: true });
-    }
+    onSuccess: async () => { await refreshNoteLists(); navigate("/notes", { replace: true }); }
   });
   const remove = useMutation({
     mutationFn: () => mobileApi.deleteNote(id),
-    onSuccess: async () => {
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ["notes"] }),
-        client.invalidateQueries({ queryKey: ["note", id] })
-      ]);
-      navigate("/notes", { replace: true });
-    }
+    onSuccess: async () => { await refreshNoteLists(); navigate("/notes", { replace: true }); }
   });
   useLayoutEffect(() => {
     if (query.data && typeof textareaRef.current?.scrollTo === "function") textareaRef.current.scrollTo({ left: 0 });
