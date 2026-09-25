@@ -15,12 +15,14 @@ import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
 import {
+  DEFAULT_POOL_SORT,
   DEFAULT_POOL_STATUS,
   DEFAULT_STOCK_TAB_VIEW,
   POOL_STATUS_OPTIONS,
   STOCK_TAB_VIEWS,
-  ARCHIVED_POOL_STATUS,
   filterPoolByStatus,
+  nextPoolSort,
+  poolSortLabel,
   nextPoolPage,
   poolPageLayout,
   badgeTierClass,
@@ -29,8 +31,9 @@ import {
   trendLevelTier,
   valuationSpaceTier,
   poolStatusCounts,
-  sortPoolByResearchRank,
+  sortPool,
   type PoolCardBadgeSet,
+  type PoolSortKey,
   type PoolStatusKey,
   type StockTabView
 } from "./stockPoolGroups";
@@ -480,18 +483,18 @@ function StockDashboard({ active }: { active: boolean }) {
 function StockPoolView() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<PoolStatusKey>(lastPoolStatus);
+  // 排序不记忆，每次进来都从默认的趋势开始。
+  const [sort, setSort] = useState<PoolSortKey>(DEFAULT_POOL_SORT);
   const [page, setPage] = useState(0);
-  // 归档等同软删除：后端默认不返回，只有切到"归档"这个回收站视图才单独去取。
-  const archivedView = status === ARCHIVED_POOL_STATUS;
   const query = useQuery({
-    queryKey: ["stock-pool", archivedView ? ARCHIVED_POOL_STATUS : "active"],
-    queryFn: () => mobileApi.stockPool(50, archivedView ? ARCHIVED_POOL_STATUS : undefined),
+    queryKey: ["stock-pool", "active"],
+    queryFn: () => mobileApi.stockPool(50),
     staleTime: 300_000
   });
   const items = query.data ?? [];
-  const counts = poolStatusCounts(items, archivedView);
+  const counts = poolStatusCounts(items);
   // 排序在筛选之后、分页之前：分档计数走的是未排序的原始列表，两边互不影响。
-  const visible = sortPoolByResearchRank(filterPoolByStatus(items, status));
+  const visible = sortPool(filterPoolByStatus(items, status), sort);
   const layout = poolPageLayout(visible, page);
   return (
     <SectionCard className="dashboard-flat-section">
@@ -500,13 +503,21 @@ function StockPoolView() {
           <button
             type="button"
             key={option.value}
-            className={`${status === option.value ? "is-active" : ""}${option.value === ARCHIVED_POOL_STATUS ? " is-archived" : ""}`.trim()}
+            className={status === option.value ? "is-active" : ""}
             aria-pressed={status === option.value}
             onClick={() => { rememberPoolStatus(option.value); setStatus(option.value); setPage(0); }}
           >
-            {option.label}{counts[option.value] === undefined ? null : <i>{counts[option.value]}</i>}
+            {option.label}<i>{counts[option.value]}</i>
           </button>
         ))}
+        <button
+          type="button"
+          className="pool-sort-toggle"
+          aria-label={`排序：${poolSortLabel(sort)}，点击切换为${poolSortLabel(nextPoolSort(sort))}`}
+          onClick={() => { setSort(nextPoolSort(sort)); setPage(0); }}
+        >
+          <ArrowUpDown size={12} aria-hidden="true" />{poolSortLabel(sort)}
+        </button>
       </div>
       {query.isLoading ? <LoadingState /> : query.isError ? (
         <ErrorState message="标的池加载失败" onRetry={() => void query.refetch()} />

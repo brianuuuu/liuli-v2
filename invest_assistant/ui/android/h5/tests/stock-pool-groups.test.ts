@@ -17,7 +17,9 @@ import {
   POOL_PAGE_CAPACITY,
   poolPageLayout,
   nextPoolPage,
-  sortPoolByResearchRank
+  nextPoolSort,
+  poolSortLabel,
+  sortPool
 } from "../src/pages/stockPoolGroups";
 import {
   lastDashboardTab,
@@ -46,10 +48,11 @@ describe("标的 tab 视图切换", () => {
 });
 
 describe("标的池状态分组", () => {
-  it("状态口径与 Web 标的池一致", () => {
+  it("分组去掉归档，徽章文案仍认得归档", () => {
     expect(DEFAULT_POOL_STATUS).toBe("focused");
-    expect(POOL_STATUS_OPTIONS.map((item) => item.label)).toEqual(["全部", "重点跟踪", "观察", "候选", "归档"]);
+    expect(POOL_STATUS_OPTIONS.map((item) => item.label)).toEqual(["全部", "重点跟踪", "观察", "候选"]);
     expect(poolStatusLabel("focused")).toBe("重点跟踪");
+    expect(poolStatusLabel("archived")).toBe("归档");
     expect(poolStatusLabel(null)).toBe("未知");
   });
 
@@ -63,11 +66,6 @@ describe("标的池状态分组", () => {
     expect(poolStatusCounts(items)).toEqual({ all: 4, focused: 1, watching: 1, candidate: 2 });
   });
 
-  it("回收站视图只统计归档一组，避免另一份数据全显示成 0", () => {
-    const archivedItems = items.filter((item) => item.status === "archived");
-    expect(filterPoolByStatus(archivedItems, "archived").map((item) => item.id)).toEqual([1]);
-    expect(poolStatusCounts(archivedItems, true)).toEqual({ archived: 1 });
-  });
 });
 
 describe("看板视图记忆", () => {
@@ -93,33 +91,50 @@ describe("标的池排序", () => {
     ({ id, stock_id: id, status: "focused", trend_level: trend, investment_level: level, expectation_gap_rate: gap }) as StockPoolItem;
 
   it("先按趋势等级排，T0 最强排最前", () => {
-    const sorted = sortPoolByResearchRank([entry(1, "T4", "A", 1.0), entry(2, "T0", "D", 0.1), entry(3, "T2", "C", 0.5)]);
+    const sorted = sortPool([entry(1, "T4", "A", 1.0), entry(2, "T0", "D", 0.1), entry(3, "T2", "C", 0.5)]);
     expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
   });
 
   it("趋势相同再按评级排", () => {
-    const sorted = sortPoolByResearchRank([entry(1, "T3", "C", 1.0), entry(2, "T3", "S", 0.1), entry(3, "T3", "B", 1.0)]);
+    const sorted = sortPool([entry(1, "T3", "C", 1.0), entry(2, "T3", "S", 0.1), entry(3, "T3", "B", 1.0)]);
     expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
   });
 
   it("趋势与评级都相同再按估值空间排", () => {
-    const sorted = sortPoolByResearchRank([entry(1, "T3", "B", 0.1), entry(2, "T3", "B", 1.0), entry(3, "T3", "B", 0.5)]);
+    const sorted = sortPool([entry(1, "T3", "B", 0.1), entry(2, "T3", "B", 1.0), entry(3, "T3", "B", 0.5)]);
     expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
   });
 
   it("认不出的值排在该维度已知档之后，不混进最强的一批", () => {
-    const sorted = sortPoolByResearchRank([entry(1, null, "A", 1.0), entry(2, "T5", "A", 1.0), entry(3, "T1", null, 1.0), entry(4, "T1", "A", null)]);
+    const sorted = sortPool([entry(1, null, "A", 1.0), entry(2, "T5", "A", 1.0), entry(3, "T1", null, 1.0), entry(4, "T1", "A", null)]);
     expect(sorted.map((item) => item.id)).toEqual([4, 3, 2, 1]);
   });
 
   it("三个维度全相同时保持后端返回的次序", () => {
-    const sorted = sortPoolByResearchRank([entry(7, "T2", "A", 1.0), entry(3, "T2", "A", 1.0), entry(5, "T2", "A", 1.0)]);
+    const sorted = sortPool([entry(7, "T2", "A", 1.0), entry(3, "T2", "A", 1.0), entry(5, "T2", "A", 1.0)]);
     expect(sorted.map((item) => item.id)).toEqual([7, 3, 5]);
+  });
+
+  it("排序按钮在趋势、评级、估值空间之间循环", () => {
+    expect(nextPoolSort("trend")).toBe("level");
+    expect(nextPoolSort("level")).toBe("space");
+    expect(nextPoolSort("space")).toBe("trend");
+    expect(["trend", "level", "space"].map((sort) => poolSortLabel(sort as "trend"))).toEqual(["趋势", "评级", "估值空间"]);
+  });
+
+  it("按评级排时评级打头，同档再按趋势、估值空间", () => {
+    const sorted = sortPool([entry(1, "T0", "B", 1.0), entry(2, "T3", "S", 0.1), entry(3, "T1", "B", 0.1), entry(4, "T1", "B", 1.0)], "level");
+    expect(sorted.map((item) => item.id)).toEqual([2, 1, 4, 3]);
+  });
+
+  it("按估值空间排时空间打头，同档再按趋势、评级", () => {
+    const sorted = sortPool([entry(1, "T0", "S", 0.1), entry(2, "T4", "D", 1.0), entry(3, "T2", "C", 1.0), entry(4, "T2", "A", 1.0)], "space");
+    expect(sorted.map((item) => item.id)).toEqual([4, 3, 2, 1]);
   });
 
   it("不改动传入的数组", () => {
     const source = [entry(1, "T4", "A", 1.0), entry(2, "T0", "D", 0.1)];
-    sortPoolByResearchRank(source);
+    sortPool(source);
     expect(source.map((item) => item.id)).toEqual([1, 2]);
   });
 });

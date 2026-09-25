@@ -334,9 +334,8 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pill-segments--compact button { padding: 5px 9px; font-size: 12px; }
 .pill-segments--compact button i { margin-left: 4px; color: var(--subtle); font-size: 10px; font-style: normal; font-variant-numeric: tabular-nums; }
 .pill-segments--compact button.is-active i { color: var(--blue); }
-/* 归档等同回收站，和前面几个真实状态不是一类，推到行尾单独成一档；
-   它也拿不到常规列表里的计数，靠这段间距说明"性质不同"而不是"没数据"。 */
-.pill-segments button.is-archived { margin-left: auto; color: var(--subtle); }
+/* 排序按钮不是分组，推到行尾和前面的筛选项拉开距离；只显示当前维度，点一下换下一个。 */
+.pill-segments button.pool-sort-toggle { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; color: var(--muted); }
 .suggestion-review-form select {
   width: 100%;
   height: 42px;

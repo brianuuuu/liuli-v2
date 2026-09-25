@@ -189,8 +189,8 @@ describe("mobile card elevation", () => {
     // 只有强档带色：中档、弱档同走中性底，否则满屏琥珀色会把真正的重点淹掉。
     expect(styles).toMatch(/\.pool-card__badge--tier-mid\s*\{[^}]*background:\s*#eef1f5;/s);
     expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*#f4f6f9;/s);
-    // 归档是回收站，推到状态行尾单独成一档。
-    expect(styles).toMatch(/\.pill-segments button\.is-archived\s*\{[^}]*margin-left:\s*auto;/s);
+    // 排序按钮不是分组，推到状态行尾单独成一档。
+    expect(styles).toMatch(/\.pill-segments button\.pool-sort-toggle\s*\{[^}]*margin-left:\s*auto;/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
     expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*10px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--panel\);[^}]*box-shadow:\s*var\(--float-shadow\);/s);
     // 浮层不描边，改用阴影说明层级；--shadow 恒为 none，浮层另开 --float-shadow，两个主题都要有。

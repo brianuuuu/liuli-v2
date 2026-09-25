@@ -9,32 +9,37 @@ export const STOCK_TAB_VIEWS: { value: StockTabView; label: string }[] = [
   { value: "materials", label: "标的材料" }
 ];
 
-export type PoolStatusKey = "all" | "focused" | "watching" | "candidate" | "archived";
+export type PoolStatusKey = "all" | "focused" | "watching" | "candidate";
 
 /** 归档 = 软删除，等同回收站，不进"全部"也不进任何默认列表。 */
-export const ARCHIVED_POOL_STATUS: PoolStatusKey = "archived";
+const ARCHIVED_POOL_STATUS = "archived";
 
 /** 默认落在重点跟踪，这是日常最常看的一组。 */
 export const DEFAULT_POOL_STATUS: PoolStatusKey = "focused";
 
-/** 与 Web 标的池保持一致的状态口径。 */
+/** 分组筛选项。归档在 App 上不再单独成组，回收站只在 Web 端看。 */
 export const POOL_STATUS_OPTIONS: { value: PoolStatusKey; label: string }[] = [
   { value: "all", label: "全部" },
   { value: "focused", label: "重点跟踪" },
   { value: "watching", label: "观察" },
-  { value: "candidate", label: "候选" },
-  { value: "archived", label: "归档" }
+  { value: "candidate", label: "候选" }
 ];
+
+/** 状态徽章的文案口径与 Web 标的池一致，比筛选项多一个归档：详情页仍可能打开已归档的标的。 */
+const POOL_STATUS_LABELS: Record<string, string> = {
+  focused: "重点跟踪",
+  watching: "观察",
+  candidate: "候选",
+  archived: "归档"
+};
 
 /** 徽章配色只认已知状态；"全部"是筛选项不是标的状态，和未知值一起走中性样式。 */
 export function poolStatusTone(status?: string | null) {
-  return POOL_STATUS_OPTIONS.some((option) => option.value === status && option.value !== "all")
-    ? String(status)
-    : "unknown";
+  return status && status in POOL_STATUS_LABELS ? status : "unknown";
 }
 
 export function poolStatusLabel(status?: string | null) {
-  return POOL_STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status ?? "未知";
+  return (status && POOL_STATUS_LABELS[status]) ?? status ?? "未知";
 }
 
 export function filterPoolByStatus(items: StockPoolItem[], status: PoolStatusKey = DEFAULT_POOL_STATUS) {
@@ -43,17 +48,12 @@ export function filterPoolByStatus(items: StockPoolItem[], status: PoolStatusKey
     : items.filter((item) => item.status === status);
 }
 
-/**
- * 分组计数在端上算，因为 /pool 不返回按状态的统计。
- * 回收站和常规列表是两份数据，只给当前这份标计数，免得另一份全显示成 0。
- */
-export function poolStatusCounts(items: StockPoolItem[], archivedView = false): Partial<Record<PoolStatusKey, number>> {
+/** 分组计数在端上算，因为 /pool 不返回按状态的统计。 */
+export function poolStatusCounts(items: StockPoolItem[]): Record<PoolStatusKey, number> {
   return POOL_STATUS_OPTIONS.reduce((counts, option) => {
-    if ((option.value === ARCHIVED_POOL_STATUS) === archivedView) {
-      counts[option.value] = filterPoolByStatus(items, option.value).length;
-    }
+    counts[option.value] = filterPoolByStatus(items, option.value).length;
     return counts;
-  }, {} as Partial<Record<PoolStatusKey, number>>);
+  }, {} as Record<PoolStatusKey, number>);
 }
 
 export type AnnualizedValuationSpace = "大" | "中" | "小";
@@ -136,24 +136,49 @@ function rankIn<T>(order: readonly T[], value: T | null): number {
   return index < 0 ? order.length : index;
 }
 
-/**
- * 排序键与卡片角标同源：趋势 > 评级 > 估值空间，每一维都是强在前。
- * 看到的三个角标就是排序依据，顺序和角标的横排顺序一致，不用再解释一遍。
- */
-export function poolSortKey(item: StockPoolItem): [number, number, number] {
+export type PoolSortKey = "trend" | "level" | "space";
+
+/** 排序按钮点一下换下一个维度，到末尾回到趋势。 */
+export const POOL_SORT_OPTIONS: { value: PoolSortKey; label: string }[] = [
+  { value: "trend", label: "趋势" },
+  { value: "level", label: "评级" },
+  { value: "space", label: "估值空间" }
+];
+
+export const DEFAULT_POOL_SORT: PoolSortKey = "trend";
+
+export function nextPoolSort(sort: PoolSortKey): PoolSortKey {
+  const index = POOL_SORT_OPTIONS.findIndex((option) => option.value === sort);
+  return POOL_SORT_OPTIONS[(index + 1) % POOL_SORT_OPTIONS.length].value;
+}
+
+export function poolSortLabel(sort: PoolSortKey) {
+  return POOL_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "";
+}
+
+/** 选中的维度打头，其余两维按趋势 > 评级 > 估值空间的原有次序兜底。 */
+const POOL_SORT_ORDERS: Record<PoolSortKey, PoolSortKey[]> = {
+  trend: ["trend", "level", "space"],
+  level: ["level", "trend", "space"],
+  space: ["space", "trend", "level"]
+};
+
+/** 排序键与卡片角标同源，每一维都是强在前：看到的角标就是排序依据，不用再解释一遍。 */
+export function poolSortKey(item: StockPoolItem, sort: PoolSortKey = DEFAULT_POOL_SORT): number[] {
   const { level, space, trend } = poolCardBadgeSet(item);
-  return [
-    rankIn(TREND_LEVELS, trend),
-    rankIn(INVESTMENT_LEVELS, (level?.toUpperCase() ?? null) as (typeof INVESTMENT_LEVELS)[number] | null),
-    rankIn(VALUATION_SPACES, space)
-  ];
+  const ranks: Record<PoolSortKey, number> = {
+    trend: rankIn(TREND_LEVELS, trend),
+    level: rankIn(INVESTMENT_LEVELS, (level?.toUpperCase() ?? null) as (typeof INVESTMENT_LEVELS)[number] | null),
+    space: rankIn(VALUATION_SPACES, space)
+  };
+  return POOL_SORT_ORDERS[sort].map((key) => ranks[key]);
 }
 
 /** 三个键全相同的保持后端返回的次序：Array.prototype.sort 是稳定排序。 */
-export function sortPoolByResearchRank(items: StockPoolItem[]): StockPoolItem[] {
+export function sortPool(items: StockPoolItem[], sort: PoolSortKey = DEFAULT_POOL_SORT): StockPoolItem[] {
   return [...items].sort((left, right) => {
-    const leftKey = poolSortKey(left);
-    const rightKey = poolSortKey(right);
+    const leftKey = poolSortKey(left, sort);
+    const rightKey = poolSortKey(right, sort);
     for (let index = 0; index < leftKey.length; index += 1) {
       if (leftKey[index] !== rightKey[index]) return leftKey[index] - rightKey[index];
     }

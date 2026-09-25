@@ -74,8 +74,8 @@ export const mobileApi = {
   // 状态分组和计数在端上完成；标的池超过 50 条时需要后端补分页。
   // status 只在回收站视图传 archived：不传时后端本来就不返归档。
   stockDetail: (stockId: number) => apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`),
-  stockPool: (limit = 50, status?: string) =>
-    apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit, status }),
+  stockPool: (limit = 50) =>
+    apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit }),
   stockMaterials: (offset = 0, limit = 10) =>
     apiClient.get<PageDto<StockMaterial>>("/api/stock-analysis/materials", { status: "confirmed", offset, limit }),
   stockMaterialDetail: (materialId: number) =>
