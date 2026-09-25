@@ -10,3 +10,7 @@ if (!types.includes("rejected_count: number")) {
 if (!section.includes('title: "拒绝次数"') || !section.includes('dataIndex: "rejected_count"')) {
   throw new Error("AI 推荐词列表 must show rejected_count as 拒绝次数");
 }
+
+if (!section.includes("sorter: true") || !section.includes('"rejected_count_desc"')) {
+  throw new Error("AI 推荐词列表 must support sorting by rejected_count");
+}

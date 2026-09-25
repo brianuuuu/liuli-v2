@@ -140,7 +140,12 @@ export async function getTagTrend(tagId: number): Promise<TagHeat[]> {
   return response.data;
 }
 
-export async function listAiTagSuggestions(status?: string, params: PageParams = {}): Promise<Page<AiTagSuggestion>> {
+export type AiTagSuggestionSort = "rejected_count_desc" | "rejected_count_asc";
+
+export async function listAiTagSuggestions(
+  status?: string,
+  params: PageParams & { sort?: AiTagSuggestionSort } = {}
+): Promise<Page<AiTagSuggestion>> {
   const response = await apiClient.get<Page<AiTagSuggestion>>("/api/market-radar/ai-tag-suggestions", {
     params: { ...params, ...(status ? { status } : {}) }
   });

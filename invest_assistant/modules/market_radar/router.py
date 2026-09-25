@@ -203,9 +203,10 @@ def list_ai_tag_suggestions(
     q: str | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    sort: str | None = Query(None, pattern="^rejected_count_(asc|desc)$"),
     db: Session = Depends(get_db),
 ) -> Page:
-    return service.list_ai_tag_suggestions_page(db, status=status, q=q, limit=limit, offset=offset)
+    return service.list_ai_tag_suggestions_page(db, status=status, q=q, limit=limit, offset=offset, sort=sort)
 
 
 @router.post("/ai-tag-suggestions", response_model=AiTagSuggestionRead)

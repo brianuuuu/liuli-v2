@@ -1017,10 +1017,16 @@ def list_ai_tag_suggestions_page(
     q: str | None = None,
     limit: int | None = 50,
     offset: int = 0,
+    sort: str | None = None,
 ) -> Page[AiTagSuggestion]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
-    stmt = select(AiTagSuggestion).order_by(AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc())
+    order_by = [AiTagSuggestion.created_at.desc(), AiTagSuggestion.id.desc()]
+    if sort == "rejected_count_desc":
+        order_by.insert(0, AiTagSuggestion.rejected_count.desc())
+    elif sort == "rejected_count_asc":
+        order_by.insert(0, AiTagSuggestion.rejected_count.asc())
+    stmt = select(AiTagSuggestion).order_by(*order_by)
     count_stmt = select(func.count(AiTagSuggestion.id))
     if status:
         stmt = stmt.where(AiTagSuggestion.status == status)

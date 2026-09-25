@@ -2,6 +2,7 @@ import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, message 
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  type AiTagSuggestionSort,
   approveAiTagSuggestion,
   createAiTagSuggestion,
   listHotwords,
@@ -61,10 +62,11 @@ export function CandidatesSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [sort, setSort] = useState<AiTagSuggestionSort | undefined>();
   const suggestions = useAsyncData(
     useCallback(
-      async () => listAiTagSuggestions(statusFilter, { q: searchQuery.trim() || undefined, limit: pageSize, offset: (page - 1) * pageSize }),
-      [page, pageSize, searchQuery, statusFilter]
+      async () => listAiTagSuggestions(statusFilter, { q: searchQuery.trim() || undefined, limit: pageSize, offset: (page - 1) * pageSize, sort }),
+      [page, pageSize, searchQuery, sort, statusFilter]
     ),
     { items: [], total: 0, limit: 20, offset: 0, has_more: false }
   );
@@ -80,7 +82,7 @@ export function CandidatesSection() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, sort, statusFilter]);
 
   const rows = suggestions.data.items;
   const statusButtons = [{ value: undefined, label: "全部" }, ...statusOptions];
@@ -163,7 +165,15 @@ export function CandidatesSection() {
     { title: "最终标签", dataIndex: "final_tag_name", width: 150, ellipsis: true, render: (value) => value || "-" },
     { title: "分数", dataIndex: "score", width: 80, render: (value) => (value == null ? "-" : Number(value).toFixed(1)) },
     { title: "状态", dataIndex: "status", width: 92, render: (value) => <SuggestionStatusTag status={value} /> },
-    { title: "拒绝次数", dataIndex: "rejected_count", width: 88, render: (value) => Number(value || 0) },
+    {
+      title: "拒绝次数",
+      dataIndex: "rejected_count",
+      width: 100,
+      sorter: true,
+      sortDirections: ["descend", "ascend"],
+      sortOrder: sort === "rejected_count_desc" ? "descend" : sort === "rejected_count_asc" ? "ascend" : null,
+      render: (value) => Number(value || 0)
+    },
     { title: "原因", dataIndex: "reason", ellipsis: true, render: (value) => value || "-" },
     { title: "创建", dataIndex: "created_at", width: 132, render: (value) => formatTime(value).slice(5, 16) },
     {
@@ -230,6 +240,11 @@ export function CandidatesSection() {
               setPage(nextPageSize !== pageSize ? 1 : nextPage);
               setPageSize(nextPageSize);
             }
+          }}
+          onChange={(_, __, sorter, extra) => {
+            if (extra.action !== "sort") return;
+            const order = Array.isArray(sorter) ? sorter[0]?.order : sorter.order;
+            setSort(order === "descend" ? "rejected_count_desc" : order === "ascend" ? "rejected_count_asc" : undefined);
           }}
           locale={{ emptyText: <EmptyAction description="暂无 AI 推荐词" /> }}
         />
