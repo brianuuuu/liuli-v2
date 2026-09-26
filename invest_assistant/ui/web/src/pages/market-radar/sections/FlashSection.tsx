@@ -18,8 +18,17 @@ const sourceTypeOptions = [
 const sourceFilterOptions = [
   { value: "东方财富", label: "东方财富" },
   { value: "富途牛牛", label: "富途牛牛" },
-  { value: "cninfo", label: "巨潮" }
+  { value: "cninfo", label: "巨潮" },
+  { value: "雪球", label: "雪球" },
+  { value: "微博", label: "微博" },
+  { value: "知乎", label: "知乎" }
 ];
+
+const sourceTypeNames: Record<string, string> = Object.fromEntries(sourceTypeOptions.map((option) => [option.value, option.label]));
+
+function isSentiment(item: SourceItem) {
+  return item.source_type === "sentiment";
+}
 
 function flashDate(item: SourceItem) {
   return item.publish_time ? item.publish_time.slice(0, 10) : "未注明日期";
@@ -28,6 +37,7 @@ function flashDate(item: SourceItem) {
 function dotClass(item: SourceItem) {
   if (item.is_important) return "flash-dot important";
   if (item.source_type === "announcement" || item.source_type === "financial") return "flash-dot filing";
+  if (isSentiment(item)) return "flash-dot sentiment";
   return "flash-dot";
 }
 
@@ -39,6 +49,7 @@ export function FlashSection() {
   const [keyword, setKeyword] = useState("");
   const [sourceName, setSourceName] = useState<string | undefined>();
   const [sourceType, setSourceType] = useState<string | undefined>();
+  const [author, setAuthor] = useState("");
   const [importantOnly, setImportantOnly] = useState(false);
   const [activeTagId, setActiveTagId] = useState<number | null>(null);
   const [detail, setDetail] = useState<SourceItem | null>(null);
@@ -57,7 +68,8 @@ export function FlashSection() {
         source_name: sourceName?.trim() || undefined,
         source_type: sourceType,
         important_only: importantOnly,
-        tag_id: activeTagId ?? undefined
+        tag_id: activeTagId ?? undefined,
+        author: author.trim() || undefined
       });
       const nextItems = page.items;
       setHasMoreSources(page.has_more);
@@ -73,7 +85,7 @@ export function FlashSection() {
         setLoadingMoreSources(false);
       }
     }
-  }, [activeTagId, importantOnly, keyword, sourceName, sourceType]);
+  }, [activeTagId, author, importantOnly, keyword, sourceName, sourceType]);
 
   const refreshFirstPage = useCallback(async () => {
     setSourceItems([]);
@@ -107,6 +119,7 @@ export function FlashSection() {
     setKeyword("");
     setSourceName(undefined);
     setSourceType(undefined);
+    setAuthor("");
     setImportantOnly(false);
     setActiveTagId(null);
   }
@@ -139,6 +152,9 @@ export function FlashSection() {
                 </div>
                 <div className="flash-command-summary">
                   {activeTagId ? <span>已按标签筛选</span> : null}
+                  {author.trim() ? (
+                    <Tag closable onClose={() => setAuthor("")}>作者：{author.trim()}</Tag>
+                  ) : null}
                 </div>
               </div>
               <Space className="flash-command-actions" size={8}>
@@ -158,6 +174,7 @@ export function FlashSection() {
                   }
                   const item = entry.item;
                   const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter(Boolean).slice(0, 8);
+                  const sentiment = isSentiment(item);
                   return (
                     <article className="flash-row" key={entry.key}>
                       <div className="flash-rail">
@@ -167,12 +184,31 @@ export function FlashSection() {
                       <button className="flash-line" onClick={() => setDetail(item)}>
                         <div className="flash-line-head">
                           <span className="flash-time">{formatTime(item.publish_time)}</span>
+                          {sentiment && item.author ? (
+                            <span
+                              className="flash-author"
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setAuthor(item.author || "");
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setAuthor(item.author || "");
+                              }}
+                            >
+                              {item.author}
+                            </span>
+                          ) : null}
                           <span>{item.source_name}</span>
-                          <span>{item.source_type}</span>
+                          {sentiment ? <Tag color="purple">舆情</Tag> : <span>{sourceTypeNames[item.source_type] || item.source_type}</span>}
                           {item.is_important ? <Tag color="orange">重要</Tag> : null}
                         </div>
-                        <div className="flash-title">{item.title}</div>
-                        <div className="flash-content">{item.content}</div>
+                        {sentiment ? null : <div className="flash-title">{item.title}</div>}
+                        <div className={sentiment ? "flash-content sentiment" : "flash-content"}>{item.content}</div>
                         <div className="flash-tags">
                           {itemTags.length ? itemTags.map((tag) => (
                             <Tag
@@ -228,6 +264,7 @@ export function FlashSection() {
               onSearch={(value) => setSourceName(value.trim() || undefined)}
             />
             <Select allowClear placeholder="类型" value={sourceType} options={sourceTypeOptions} onChange={setSourceType} />
+            <Input allowClear placeholder="舆情作者" value={author} onChange={(event) => setAuthor(event.target.value)} />
             <Button block onClick={resetFilters}>重置筛选</Button>
           </Space>
         </aside>
@@ -245,19 +282,19 @@ export function FlashSection() {
           const lead = match ? match[1] : null;
           const body = match ? match[2].trim() : content;
 
-          const sourceTypeNames: Record<string, string> = {
-            news: "新闻",
-            policy: "政策",
-            sentiment: "舆情",
-            announcement: "公告",
-            financial: "财报"
-          };
+          const sentiment = isSentiment(detail);
 
           return (
             <div className="flash-detail-container">
-              <h2 className="flash-detail-title">{detail.title}</h2>
-              
+              {sentiment ? null : <h2 className="flash-detail-title">{detail.title}</h2>}
+
               <div className="flash-detail-meta">
+                {sentiment && detail.author ? (
+                  <>
+                    <span className="flash-detail-meta-item" style={{ fontWeight: 600 }}>{detail.author}</span>
+                    <span className="flash-detail-meta-divider">|</span>
+                  </>
+                ) : null}
                 <span className="flash-detail-meta-item" style={{ fontWeight: 600, color: 'var(--ll-accent)' }}>
                   {detail.source_name}
                 </span>

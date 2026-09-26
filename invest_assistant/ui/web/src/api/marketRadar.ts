@@ -180,6 +180,7 @@ export type SourceItemListParams = {
   source_type?: string;
   important_only?: boolean;
   tag_id?: number;
+  author?: string;
 };
 
 export async function listSourceItems(params: SourceItemListParams = {}): Promise<Page<SourceItem>> {

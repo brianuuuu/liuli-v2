@@ -156,6 +156,47 @@ describe("mobile H5 app", () => {
     expect(new URL(newsRequests[3], "http://localhost").searchParams.get("offset")).toBe("30");
   });
 
+  it("shows sentiment as author-first cards and filters the sentiment tab by author", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/news";
+    const requests: string[] = [];
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (!url.includes("/api/market-radar/source-items")) return json({});
+      requests.push(url);
+      const params = new URL(url, "http://localhost").searchParams;
+      if (params.get("important_only") === "true") return json({ items: [], total: 0, limit: 30, offset: 0, has_more: false });
+      const author = params.get("author");
+      const items = [
+        { id: 1, source_type: "sentiment", source_name: "雪球", author: "大V甲", title: "光伏观点标题", content: "光伏产能出清比预期慢", created_at: "2026-09-26T10:00:00+08:00", source_tags: [] },
+        { id: 2, source_type: "sentiment", source_name: "微博", author: "大V乙", title: "算力观点标题", content: "算力需求转向推理", created_at: "2026-09-26T09:00:00+08:00", source_tags: [] },
+        { id: 3, source_type: "news", source_name: "富途牛牛", title: "一条快讯", content: "快讯正文", created_at: "2026-09-26T08:00:00+08:00", source_tags: [] }
+      ].filter((item) => !author || item.author === author);
+      return json({ items, total: items.length, limit: 30, offset: 0, has_more: false });
+    }));
+
+    renderApp();
+
+    const tabNames = (await screen.findAllByRole("tab")).map((tab) => tab.textContent);
+    expect(tabNames).toEqual(["全部", "舆情", "重要", "公告", "个股"]);
+    // “全部”照常包含舆情，舆情卡片先显示作者、直接显示正文、不显示标题
+    expect(await screen.findByText("光伏产能出清比预期慢")).toBeInTheDocument();
+    expect(screen.queryByText("光伏观点标题")).not.toBeInTheDocument();
+    expect(screen.getByText("一条快讯")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "大V乙" }));
+
+    await waitFor(() => expect(requests.some((url) => url.includes("source_type=sentiment") && url.includes(`author=${encodeURIComponent("大V乙")}`))).toBe(true));
+    expect(await screen.findByText("作者：大V乙")).toBeInTheDocument();
+
+    // 翻页动画结束后舆情页才对无障碍树可见
+    fireEvent.click(await screen.findByRole("button", { name: "清除作者筛选" }));
+
+    await waitFor(() => expect(screen.queryByText("作者：大V乙")).not.toBeInTheDocument());
+    await waitFor(() => expect(requests.some((url) => url.includes("source_type=sentiment") && !url.includes("author="))).toBe(true));
+  });
+
   it("hides the native bottom bar only while reading a report", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/reports/7";

@@ -17,6 +17,7 @@ from invest_assistant.modules.basic.mcp.auth import McpClientConfig, authenticat
 from invest_assistant.modules.basic.mcp.debug_logger import stack_trace_from_exception, write_mcp_call_log
 from invest_assistant.modules.basic.mcp.registry import get_tool_metadata
 from invest_assistant.modules.basic.mcp.tools import knowledge_base, market_radar, portfolio, report_library, stock_analysis, track_discovery
+from invest_assistant.modules.market_radar.schemas import SentimentImportItem
 
 MCP_SCOPE = "mcp"
 
@@ -42,9 +43,16 @@ MCP_INSTRUCTIONS = (
 MCP_TOOL_DESCRIPTIONS = {
     "market_radar.search_source_items": (
         "搜索 liuli 已入库的信息流条目，适合查询新闻、公告、快讯、研报摘要等市场信息。"
-        "支持关键词 q、来源 source_name、类型 source_type、重要标记 important_only、tag_id、"
+        "支持关键词 q、来源 source_name、类型 source_type、重要标记 important_only、tag_id、舆情作者 author、"
         "时间范围 start_time/end_time（YYYY-MM-DD 或完整 ISO 时间）、limit、offset 过滤。"
         "正文默认截断到 content_chars 个字符并标记 content_truncated，需要全文时把 content_chars 设为 0。"
+    ),
+    "market_radar.import_sentiment_items": (
+        "批量导入雪球、微博、知乎上的大V观点到市场雷达信息流，每次最多 200 条。"
+        "每条填 platform（雪球/微博/知乎）、author、date（YYYY-MM-DD）、content（最长 2000 字）。"
+        "important 可选，标记值得重点关注的观点。"
+        "同平台同作者同正文的重复导入会被跳过，可以整批重导。"
+        "受控写入工具，需加入 allowed_tools。"
     ),
     "market_radar.get_hotwords": (
         "查询市场雷达热词列表，适合按状态或关键词了解当前已沉淀的热点词。"
@@ -203,6 +211,7 @@ def _register_tools(server: FastMCP) -> None:
         tag_id: int | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
+        author: str | None = None,
         content_chars: int = market_radar.DEFAULT_SOURCE_ITEM_CONTENT_CHARS,
         limit: int = 50,
         offset: int = 0,
@@ -218,11 +227,22 @@ def _register_tools(server: FastMCP) -> None:
                 "tag_id": tag_id,
                 "start_time": _parse_optional_datetime(start_time),
                 "end_time": _parse_optional_datetime(end_time),
+                "author": author,
                 "content_chars": content_chars,
                 "limit": limit,
                 "offset": offset,
             },
             market_radar.search_source_items,
+        )
+
+    @server.tool(name="market_radar.import_sentiment_items", description=MCP_TOOL_DESCRIPTIONS["market_radar.import_sentiment_items"])
+    def mcp_market_radar_import_sentiment_items(ctx: Context, items: list[SentimentImportItem]) -> dict:
+        # 签名只暴露 items：source_type 由平台侧写死为 sentiment，客户端传不进来。
+        return _run_tool(
+            ctx,
+            "market_radar.import_sentiment_items",
+            {"items": items},
+            market_radar.import_sentiment_items,
         )
 
     @server.tool(name="market_radar.get_hotwords", description=MCP_TOOL_DESCRIPTIONS["market_radar.get_hotwords"])
@@ -502,6 +522,10 @@ def _sanitize_arguments_for_log(arguments: dict) -> dict:
     for key, value in arguments.items():
         if key in {"markdown", "content"} and isinstance(value, str):
             sanitized[key] = {"content_length": len(value), "content_bytes": len(value.encode("utf-8"))}
+            continue
+        if key == "items" and isinstance(value, list):
+            # 批量导入只记条数，正文不进日志
+            sanitized[key] = {"item_count": len(value)}
             continue
         sanitized[key] = value
     return sanitized

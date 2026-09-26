@@ -2,8 +2,9 @@ from datetime import datetime
 
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig
 from invest_assistant.modules.basic.mcp.projection import truncate_text
-from invest_assistant.modules.basic.mcp.service import execute_read_tool
+from invest_assistant.modules.basic.mcp.service import execute_read_tool, execute_write_tool
 from invest_assistant.modules.market_radar import service as market_service
+from invest_assistant.modules.market_radar.schemas import SentimentImportItem
 
 DEFAULT_SOURCE_ITEM_CONTENT_CHARS = 300
 
@@ -19,6 +20,7 @@ def search_source_items(
     tag_id: int | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    author: str | None = None,
     content_chars: int = DEFAULT_SOURCE_ITEM_CONTENT_CHARS,
     limit: int = 50,
     offset: int = 0,
@@ -35,6 +37,7 @@ def search_source_items(
             "tag_id": tag_id,
             "start_time": start_time,
             "end_time": end_time,
+            "author": author,
             "limit": limit,
             "offset": offset,
         },
@@ -42,6 +45,16 @@ def search_source_items(
     )
     truncate_text(result.get("items"), "content", content_chars)
     return result
+
+
+def import_sentiment_items(*, db, client: McpClientConfig, items: list[SentimentImportItem]) -> dict:
+    return execute_write_tool(
+        db=db,
+        client=client,
+        tool_name="market_radar.import_sentiment_items",
+        arguments={"items": items},
+        handler=market_service.import_sentiment_items,
+    )
 
 
 def get_hotwords(

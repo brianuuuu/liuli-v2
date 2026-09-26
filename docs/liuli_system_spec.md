@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v43：信息流接入社交媒体舆情。对外 MCP 新增受控写入工具 `market_radar.import_sentiment_items`，由外部程序定时批量导入雪球、微博、知乎上大V和自媒体的观点，每条只有 `platform`、`author`、`date`（只有日期）、`content` 四个字段，另有可选的 `important`；单次最多 200 条，单条校验失败不影响同批其他条目。舆情落在 `source_item`（`source_type=sentiment`），不新建表，照常参与标签命中、热度、图谱和标的/赛道待审材料生成，不进待办，也暂不进 AI 推荐词任务。`source_item` 新增可空列 `author`（迁移见 `tools/migrations/2026-09-26_source_item_author.sql`），只有舆情使用；作者不做成 tag——作者是信息的出处，不是语义锚点，做成 tag 会污染热度榜、共现图谱和标签管理；同一个人在不同平台的名字不合并。`publish_time` 记导入时间：只有日期时编造具体时间没有意义，而记当天 00:00 会让舆情排在当天所有新闻之后、并提前滑出 24 小时热度窗口；`date` 只用于校验（不晚于今天）和限定去重范围。去重口径为同平台、同作者、正文完全相同，且在 `date` 当天 00:00（北京时间）之后已导入过——导入时间每次不同不能比时间，而同一条观点只可能在发布日期当天或之后被导入。标题由服务端取正文第一行前 40 字生成，只用于满足表结构和关键词搜索，Web 和安卓都不显示。`important` 写入 `is_important`，标了的舆情进入「重要」：导入程序在筛选时最清楚哪些观点有分量。信息流接口和 `search_source_items` 增加 `author` 精确筛选。Web 市场雷达信息流的舆情条目改为「时间 · 作者 · 平台 · 舆情」头部加正文、不显示标题，时间线圆点用紫色区分，点作者名只看这个人，筛选区增加雪球、微博、知乎来源和作者输入框，类型改显示中文；安卓资讯页新增「舆情」页签，排在「全部」之后，「全部」照常包含舆情，舆情卡片先显示作者再显示正文（最多 4 行），在任意页签点作者名都跳到舆情页签只看这个人，顶部可清除。
 - v42：资讯「重要」改为来源自带的标记。`source_item` 新增 `is_important`（非空布尔，默认 false，迁移见 `tools/migrations/2026-09-24_source_item_is_important.sql`），`important_only` 由 16 个关键词对标题和正文做 ILIKE 改为按这一列过滤：原做法每次全表扫两遍（列表 + 总数），安卓首次切到「重要」页签明显卡顿；而且「AI」「芯片」这类词让大量普通快讯被算作重要。目前只有富途快讯有重要标记，其他来源一律 false；老数据一律 false，不用关键词回填，免得新旧两批口径不一致。富途快讯抓取不再经 akshare 的 `stock_info_global_futu`，改由 `market_radar/futu_client.py` 直接请求富途官网快讯接口：akshare 请求的是同一地址，但只留四列，丢了 `level` 和翻页游标，时间按运行机器本地时区转成不带时区的字符串，且没设超时。新实现带 15 秒超时，按 `seqMark` 从新往旧翻页，翻到已入库的快讯就停，`limit` 默认改为 300 作兜底上限（原先每 30 分钟只取最新 50 条，白天和美股时段会漏）；发布时间由 Unix 秒按北京时区换算。接口不是公开 API、无公开限流规则，保持每 30 分钟一次，失败不连续重试。控制台数据源页富途一行的接口改为「富途官网快讯接口」；Web 市场雷达信息流的「重要」角标同样改读 `is_important`。安卓资讯页进页面时后台预取「重要」页签首屏；PostgreSQL 额外建 `publish_time DESC NULLS LAST, id DESC` 索引，与信息流排序一致，列表查询取够一页即停。安卓笔记页标签栏改为「全部」「未分组」固定在最前、自定义分组在后（v38 是自定义分组在前）；一屏固定摆五个页签，即两个固定页签加前三个自定义分组，其余横向滑动查看，放不下的分组名以省略号截断；右侧「编辑」文字改为笔形图标，颜色与未选中页签相同，不再用蓝色。
 - v41：标的估值新增「估值假设」。`stock_valuation_snapshot` 增加 `valuation_assumptions_json`（可空 TEXT，迁移见 `tools/migrations/2026-09-23_valuation_assumptions.sql`），结构为 `previous_period` + `last_assumptions_vs_actual[]` + `current_assumptions[]`，记录支撑本次估值的 1—3 个可量化指标，以及对上一期假设的兑现验证（`超预期/符合预期/不如预期`，与 `quarter_performance` 同一套词）。`assumed`/`actual` 一律是带单位的字符串（`18%`、`12.3亿元`），指标异构，存数字要额外的单位字段，也不用于画图。**这是估值导入唯一的选填字段**：不进 `VALUATION_IMPORT_FIELDS` 必填校验，缺失或结构不对退化成 NULL，老执行方式不受影响；导入侧只收认识的键，`result` 超出三档退化成 null，避免第四种说法让跨期比较失效。`valuator_001` profile 同步补两节方法论：**上一份**估值报告（`analysis_date` 最新，仅用于识别同报告期重复执行）与**上一期**估值报告（`report_period` 不同的最近一份，才用于验证假设和预期差）必须分开，同期重复执行时不得拿上一份自我验证；上一期未记录假设时留空并写明，禁止回头推算或编造。安卓标的详情估值页与 Web 估值 tab 各增一块「估值假设」，选填字段没填就整块不渲染。
 - v40：待办的笔记子模块去掉卡片上的「归入分组」按钮和分组选择弹层，整卡点开进笔记编辑页——分组和标签在那里能一次改完，卡片上挂一个只能改分组的按钮既占地方又少一半能力；笔记编辑页保存后一并失效 `inbox-notes` 缓存，归好组的笔记立即从待办消失。笔记编辑页的分组选择由原生 `<select>` 换成单选 chip（`GroupPicker`），与 `TagPicker` 同一套视觉语言：手机上原生下拉会拉起系统滚轮、看不见全部分组，而分组通常只有几个，平铺出来一眼看全；「未分组」是其中一个明确选项，回调 `null`，归档分组不出现在可选项里。
@@ -1831,6 +1832,8 @@ source_item
 - publish_time
 - related_type      -- 可选：company_disclosure / report / manual
 - related_id        -- 可选：关联业务表 ID
+- is_important      -- 来源自带的重要标记
+- author            -- 可选：作者，仅 sentiment 使用，其他类型为空
 - created_at
 ```
 
@@ -1884,7 +1887,7 @@ tag_edge_snapshot
 news          新闻
 announcement  公告 / 财报摘要
 policy        政策信息
-sentiment     舆情 / RSS / 自媒体摘要
+sentiment     舆情：雪球 / 微博 / 知乎上大V和自媒体的观点
 research      外部研报摘要 / 系统报告摘要，可选
 ```
 
@@ -1907,6 +1910,20 @@ tag_heat_snapshot / tag_edge_snapshot
 ```
 
 `is_important` 是来源自带的重要标记，只在入库时由来源给出，不按关键词推断。目前只有富途快讯有这个概念（接口字段 `level`，1 为重要，即富途快讯页标红的条目），其他来源一律为 `false`。信息流的「重要」筛选（`important_only`）直接按这一列过滤。
+
+舆情（`sentiment`）只通过 MCP 工具 `market_radar.import_sentiment_items` 批量导入，约定如下：
+
+```text
+platform   → source_name，只允许 雪球 / 微博 / 知乎
+author     → author，按平台显示名原样保存，不跨平台合并
+date       → 不入库，只用于校验（不晚于今天）和限定去重范围
+content    → content，去首尾空白，最长 2000 字
+important  → is_important，可选，默认 false
+title      → 服务端取正文第一行前 40 字生成，展示时不显示
+publish_time → 导入时间
+source_url → 空，导入数据不含链接
+去重       → 同平台、同作者、正文完全相同，且在 date 当天 00:00（北京时间）之后已导入过
+```
 
 ### 17.7 AI 推荐词
 
@@ -4929,7 +4946,7 @@ id, suggested_text, final_tag_name, score, reason, status, rejected_count, final
 字段：
 
 ```text
-id, source_type, source_name, title, content, source_url, publish_time, related_type, related_id, is_important, created_at
+id, source_type, source_name, title, content, source_url, publish_time, related_type, related_id, is_important, author, created_at
 ```
 
 #### `source_tag`：信息-标签触发表，记录每条信息命中的标签词
@@ -5542,10 +5559,13 @@ portfolio.get_overview
 受控写入工具必须显式加入对应 client 的 `allowed_tools` 后才能调用。第一版仅允许以下受控写入工具：
 
 ```text
+market_radar.import_sentiment_items
 knowledge_base.create_note
 knowledge_base.upload_research_feedback
 report_library.upload_markdown_report
 ```
+
+`market_radar.import_sentiment_items` 只接收 `items`，每条为 `platform`、`author`、`date`、`content` 和可选的 `important`，单次最多 200 条；`source_type=sentiment` 由平台侧写死。逐条校验，单条失败不影响同批其他条目，返回 `created`、`duplicated`、`failed`（序号和原因）和 `ids`。重复导入按 17.6 的去重口径跳过，失败可以整批重导。调用日志只记条数，不记正文。
 
 `knowledge_base.upload_research_feedback` 只接收 Markdown 报告、标题和通用回流元数据，先写入报告库文件和 `report` 索引，再创建 `knowledge_research_feedback` 记录。feedback 只保存 `report_id, report_path, researcher_code, skill_name, business_module, source, status` 等通用字段，不保存报告正文或估值、评分、风险等领域解析字段。
 

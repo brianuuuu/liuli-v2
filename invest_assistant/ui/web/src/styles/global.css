@@ -3955,6 +3955,26 @@ body {
   background: var(--ll-panel);
 }
 
+.flash-dot.sentiment {
+  border-color: #8b5cf6;
+  background: var(--ll-panel);
+}
+
+.flash-author {
+  color: var(--ll-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.flash-author:hover {
+  color: var(--ll-accent);
+}
+
+.flash-content.sentiment {
+  color: var(--ll-text);
+  -webkit-line-clamp: 4;
+}
+
 .flash-line {
   display: block;
   width: 100%;

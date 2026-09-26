@@ -9,6 +9,7 @@ describe("mobile filters", () => {
   it("maps announcement and important tabs to existing query parameters", () => {
     expect(newsQueryForTab("announcement")).toEqual({ source_type: "announcement" });
     expect(newsQueryForTab("important")).toEqual({ important_only: true });
+    expect(newsQueryForTab("sentiment")).toEqual({ source_type: "sentiment" });
     expect(newsQueryForTab("all")).toEqual({});
   });
 

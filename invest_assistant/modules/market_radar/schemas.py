@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TagCreate(BaseModel):
@@ -35,6 +35,17 @@ class SourceItemCreate(BaseModel):
     related_type: str | None = None
     related_id: int | None = None
     is_important: bool = False
+    author: str | None = None
+
+
+class SentimentImportItem(BaseModel):
+    """MCP 舆情导入的单条输入。字段只做类型约束，取值校验在服务层逐条做，一条不合法不拖垮整批。"""
+
+    platform: str = Field(description="平台：雪球 / 微博 / 知乎")
+    author: str = Field(description="作者名，按平台上的显示名原样填写")
+    date: str = Field(description="发布日期 YYYY-MM-DD，只要日期")
+    content: str = Field(description="观点正文，纯文本，最长 2000 字")
+    important: bool = Field(default=False, description="是否值得重点关注，标记后进入“重要”")
 
 
 class MarketFlashSyncCreate(BaseModel):

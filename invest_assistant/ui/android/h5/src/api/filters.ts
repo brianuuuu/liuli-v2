@@ -1,8 +1,10 @@
-export type NewsTab = "all" | "important" | "announcement" | "stock";
+export type NewsTab = "all" | "sentiment" | "important" | "announcement" | "stock";
 export type AlertTab = "all" | "unread" | "handled";
 
 export function newsQueryForTab(tab: NewsTab): Record<string, string | boolean> {
   switch (tab) {
+    case "sentiment":
+      return { source_type: "sentiment" };
     case "important":
       return { important_only: true };
     case "announcement":

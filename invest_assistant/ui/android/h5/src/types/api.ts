@@ -17,6 +17,8 @@ export type SourceItem = {
   source_url?: string | null;
   publish_time?: string | null;
   created_at?: string | null;
+  is_important?: boolean;
+  author?: string | null;
   source_tags?: Array<{ id: number; tag?: Tag | null }>;
 };
 export type NoteGroup = { id: number; name: string; sort_order: number; status: string };

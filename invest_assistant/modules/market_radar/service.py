@@ -24,6 +24,7 @@ from invest_assistant.modules.market_radar.schemas import (
     AiTagSuggestionApprove,
     AiTagSuggestionCreate,
     HotwordCreate,
+    SentimentImportItem,
     SourceItemCreate,
     TagBindingCreate,
     TagCreate,
@@ -31,7 +32,7 @@ from invest_assistant.modules.market_radar.schemas import (
 )
 from invest_assistant.modules.track_discovery.material_generation import create_pending_track_materials_for_source_item
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
-from invest_assistant.shared.time_utils import beijing_now, utc_now
+from invest_assistant.shared.time_utils import BEIJING_TZ, beijing_now, utc_now
 
 WINDOWS = {
     "24h": timedelta(days=1),
@@ -56,6 +57,13 @@ RANK_CHANGE_REFERENCE_TOLERANCES = {
 EXTRACT_TAGS_STATE_NAMESPACE = "job.market_radar.extract_tags"
 EXTRACT_TAGS_SOURCE_ITEM_CURSOR_KEY = "source_item_last_id"
 DEFAULT_EXTRACT_TAGS_BATCH_LIMIT = 500
+
+SENTIMENT_SOURCE_TYPE = "sentiment"
+SENTIMENT_PLATFORMS = ("雪球", "微博", "知乎")
+SENTIMENT_IMPORT_MAX_ITEMS = 200
+SENTIMENT_CONTENT_MAX_CHARS = 2000
+SENTIMENT_AUTHOR_MAX_CHARS = 128
+SENTIMENT_TITLE_CHARS = 40
 
 SOURCE_ITEM_DAILY_TYPE_GROUPS = {
     "news": {"news"},
@@ -388,6 +396,87 @@ def find_duplicate_source_item(db: Session, payload: SourceItemCreate) -> Source
     )
 
 
+def import_sentiment_items(
+    db: Session,
+    items: list[SentimentImportItem | dict],
+    now: datetime | None = None,
+) -> dict:
+    """批量导入舆情。publish_time 记导入时间；同平台同作者同正文、且在发布日期当天之后导入过的算重复。"""
+    if not items:
+        raise ValueError("items 不能为空")
+    if len(items) > SENTIMENT_IMPORT_MAX_ITEMS:
+        raise ValueError(f"单次最多导入 {SENTIMENT_IMPORT_MAX_ITEMS} 条，本次 {len(items)} 条")
+    imported_at = (now or beijing_now()).astimezone(BEIJING_TZ)
+    created = 0
+    duplicated = 0
+    failed: list[dict] = []
+    ids: list[int] = []
+    for index, raw in enumerate(items):
+        try:
+            payload, since = build_sentiment_source_item(raw, imported_at)
+        except ValueError as exc:
+            failed.append({"index": index, "reason": str(exc)})
+            continue
+        existing_id = db.scalar(sentiment_duplicate_stmt(payload, since))
+        if existing_id is not None:
+            duplicated += 1
+            ids.append(int(existing_id))
+            continue
+        ids.append(int(create_source_item(db, payload)["id"]))
+        created += 1
+    return {"created": created, "duplicated": duplicated, "failed": failed, "ids": ids}
+
+
+def build_sentiment_source_item(raw: SentimentImportItem | dict, imported_at: datetime) -> tuple[SourceItemCreate, datetime]:
+    """校验一条舆情并组装入库数据，同时给出去重的时间下限（发布日期当天 00:00，北京时间）。"""
+    data = raw.model_dump() if isinstance(raw, SentimentImportItem) else dict(raw or {})
+    platform = str(data.get("platform") or "").strip()
+    if platform not in SENTIMENT_PLATFORMS:
+        raise ValueError(f"platform 只允许 {' / '.join(SENTIMENT_PLATFORMS)}")
+    author = str(data.get("author") or "").strip()
+    if not author:
+        raise ValueError("author 不能为空")
+    if len(author) > SENTIMENT_AUTHOR_MAX_CHARS:
+        raise ValueError(f"author 最长 {SENTIMENT_AUTHOR_MAX_CHARS} 字")
+    content = str(data.get("content") or "").strip()
+    if not content:
+        raise ValueError("content 不能为空")
+    try:
+        published_on = date.fromisoformat(str(data.get("date") or "").strip())
+    except ValueError:
+        raise ValueError("date 必须是 YYYY-MM-DD") from None
+    if published_on > imported_at.date():
+        raise ValueError("date 不能晚于今天")
+    content = content[:SENTIMENT_CONTENT_MAX_CHARS]
+    payload = SourceItemCreate(
+        source_type=SENTIMENT_SOURCE_TYPE,
+        source_name=platform,
+        title=sentiment_title(content),
+        content=content,
+        publish_time=imported_at,
+        is_important=bool(data.get("important")),
+        author=author,
+    )
+    return payload, datetime.combine(published_on, time.min, tzinfo=BEIJING_TZ)
+
+
+def sentiment_title(content: str) -> str:
+    first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")
+    if len(first_line) <= SENTIMENT_TITLE_CHARS:
+        return first_line
+    return first_line[:SENTIMENT_TITLE_CHARS] + "…"
+
+
+def sentiment_duplicate_stmt(payload: SourceItemCreate, since: datetime):
+    return select(SourceItem.id).where(
+        SourceItem.source_type == SENTIMENT_SOURCE_TYPE,
+        SourceItem.source_name == payload.source_name,
+        SourceItem.author == payload.author,
+        SourceItem.publish_time >= since,
+        SourceItem.content == payload.content,
+    ).limit(1)
+
+
 def _source_item_time_condition(start_time: datetime | None, end_time: datetime | None) -> list:
     """publish_time 可能为空，这类条目按 created_at 参与时间过滤，避免被整段筛掉。"""
     conditions = []
@@ -417,6 +506,7 @@ def _source_item_filter_conditions(
     tag_id: int | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    author: str | None = None,
 ) -> list:
     conditions = _source_item_time_condition(start_time, end_time)
     query = str(q or "").strip()
@@ -431,6 +521,9 @@ def _source_item_filter_conditions(
         conditions.append(SourceItem.source_type == source_type_value)
     if important_only:
         conditions.append(SourceItem.is_important.is_(True))
+    author_value = str(author or "").strip()
+    if author_value:
+        conditions.append(SourceItem.author == author_value)
     if tag_id is not None:
         conditions.append(SourceItem.id.in_(select(SourceTag.source_item_id).where(SourceTag.tag_id == tag_id)))
     return conditions
@@ -445,6 +538,7 @@ def list_source_items(
     source_type: str | None = None,
     important_only: bool = False,
     tag_id: int | None = None,
+    author: str | None = None,
 ) -> list[dict]:
     conditions = _source_item_filter_conditions(
         q=q,
@@ -452,6 +546,7 @@ def list_source_items(
         source_type=source_type,
         important_only=important_only,
         tag_id=tag_id,
+        author=author,
     )
     stmt = select(SourceItem).where(*conditions).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     if offset > 0:
@@ -473,6 +568,7 @@ def list_source_items_page(
     tag_id: int | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    author: str | None = None,
 ) -> Page[dict]:
     safe_limit = normalize_limit(limit)
     safe_offset = normalize_offset(offset)
@@ -484,6 +580,7 @@ def list_source_items_page(
         tag_id=tag_id,
         start_time=start_time,
         end_time=end_time,
+        author=author,
     )
     stmt = select(SourceItem).where(*conditions).order_by(SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
     total = count_source_items(
@@ -495,6 +592,7 @@ def list_source_items_page(
         tag_id=tag_id,
         start_time=start_time,
         end_time=end_time,
+        author=author,
     )
     items = list(db.scalars(stmt.limit(safe_limit).offset(safe_offset)))
     return make_page(_source_item_dicts(db, items), total, safe_limit, safe_offset)
@@ -509,6 +607,7 @@ def count_source_items(
     tag_id: int | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    author: str | None = None,
 ) -> int:
     conditions = _source_item_filter_conditions(
         q=q,
@@ -518,6 +617,7 @@ def count_source_items(
         tag_id=tag_id,
         start_time=start_time,
         end_time=end_time,
+        author=author,
     )
     return int(db.scalar(select(func.count()).select_from(SourceItem).where(*conditions)) or 0)
 
@@ -1155,6 +1255,7 @@ def _source_item_dict_from_tags(item: SourceItem, source_tags: list[dict]) -> di
         "related_type": item.related_type,
         "related_id": item.related_id,
         "is_important": item.is_important,
+        "author": item.author,
         "created_at": item.created_at,
         "source_tags": source_tags,
     }

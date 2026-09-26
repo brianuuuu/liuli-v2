@@ -631,6 +631,7 @@ def test_mcp_tools_list_exposes_chinese_descriptions_and_encoding_instruction(mo
     assert "UTF-8" in init_response.json()["result"]["instructions"]
     tools = {item["name"]: item["description"] for item in tools_response.json()["result"]["tools"]}
     assert "信息流" in tools["market_radar.search_source_items"]
+    assert "大V观点" in tools["market_radar.import_sentiment_items"]
     assert "track_id" in tools["track_discovery.get_track_detail"]
     assert "股票代码" in tools["stock_analysis.get_stock_profile"]
     assert "研究员" in tools["knowledge_base.get_researcher_profile"]

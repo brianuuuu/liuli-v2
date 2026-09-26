@@ -48,6 +48,7 @@ def list_source_items(
     source_type: str | None = None,
     important_only: bool = False,
     tag_id: int | None = None,
+    author: str | None = None,
     db: Session = Depends(get_db),
 ) -> Page[dict]:
     return service.list_source_items_page(
@@ -59,6 +60,7 @@ def list_source_items(
         source_type=source_type,
         important_only=important_only,
         tag_id=tag_id,
+        author=author,
     )
 
 

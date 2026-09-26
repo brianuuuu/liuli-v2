@@ -4,6 +4,11 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "low",
         "service_name": "market_radar.service.list_source_items_page",
     },
+    "market_radar.import_sentiment_items": {
+        "read_only": False,
+        "risk_level": "medium",
+        "service_name": "market_radar.service.import_sentiment_items",
+    },
     "market_radar.get_hotwords": {
         "read_only": True,
         "risk_level": "low",

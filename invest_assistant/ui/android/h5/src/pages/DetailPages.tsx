@@ -24,7 +24,7 @@ export function NewsDetailPage() {
   if (query.isLoading) return <DetailFrame title="资讯详情"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) return <DetailFrame title="资讯详情"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
   const item = query.data;
-  return <DetailFrame title="资讯详情"><article className="article-detail"><p className="article-source">{item.source_name} · {formatDateTime(item.publish_time)}</p><h2>{item.title}</h2><p>{item.content}</p>{item.source_tags?.length ? <div className="tag-row">{item.source_tags.map((tag) => <span key={tag.id}>#{tag.tag?.name}</span>)}</div> : null}{item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer">查看原文 <ExternalLink size={15} /></a> : null}</article></DetailFrame>;
+  return <DetailFrame title="资讯详情"><article className="article-detail"><p className="article-source">{item.source_type === "sentiment" && item.author ? `${item.author} · ` : ""}{item.source_name} · {formatDateTime(item.publish_time)}</p>{item.source_type === "sentiment" ? null : <h2>{item.title}</h2>}<p>{item.content}</p>{item.source_tags?.length ? <div className="tag-row">{item.source_tags.map((tag) => <span key={tag.id}>#{tag.tag?.name}</span>)}</div> : null}{item.source_url ? <a href={item.source_url} target="_blank" rel="noreferrer">查看原文 <ExternalLink size={15} /></a> : null}</article></DetailFrame>;
 }
 
 export function NoteDetailPage() {
