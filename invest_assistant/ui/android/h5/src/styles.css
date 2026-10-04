@@ -434,13 +434,14 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .timeline-list::before { position: absolute; top: 38px; bottom: 18px; left: 5px; width: 1px; background: var(--border); content: ""; }
 .timeline-day { position: sticky; z-index: 4; top: 36px; margin: 0 0 8px -18px; padding: 8px 0 5px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 650; }
 .timeline-item { position: relative; min-width: 0; max-width: 100%; padding: 4px 2px 20px 0; }
-.timeline-dot { position: absolute; top: 9px; left: -17px; width: 9px; height: 9px; border: 2px solid var(--panel); border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+/* 圆点只做时间轴上的节点提示，不抢正文：5px 实心点压在竖线中心（x=5.5），去掉外圈描边并降低不透明度 */
+.timeline-dot { position: absolute; top: 11px; left: -15px; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); opacity: 0.55; }
 .timeline-item time { color: var(--subtle); font-size: 12px; }
 .timeline-item h2 { margin: 6px 0 5px; font-size: var(--content-font-size); font-weight: 620; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
 .timeline-item p { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: var(--content-font-size); line-height: 1.62; overflow-wrap: anywhere; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .timeline-item footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; color: var(--muted); font-size: 11px; }
 .timeline-item footer em { color: var(--blue); font-style: normal; }
-.sentiment-item .timeline-dot { background: var(--sentiment); box-shadow: 0 0 0 1px var(--sentiment); }
+.sentiment-item .timeline-dot { background: var(--sentiment); }
 .sentiment-head { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--subtle); font-size: 12px; }
 .sentiment-head time { margin-left: auto; flex-shrink: 0; }
 .sentiment-head b { color: #ea580c; font-weight: 600; }
