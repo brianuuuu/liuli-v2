@@ -7,6 +7,7 @@ import { AiSuggestionsPanel } from "./AiSuggestionsPanel";
 import { AlertsContent } from "./AlertsPage";
 import { InboxNotesPanel } from "./InboxNotesPanel";
 import { PendingReportsPanel } from "./PendingReportsPanel";
+import { lastTaskTab, rememberTaskTab, type TaskTab } from "./tasksViewState";
 
 // 四个页签是同一回事：外部输入等我处理，标题都用最短的名词，扫一眼就够。
 // 推荐词不叫"热词"：候选词通过后可以落到热词、赛道或标的，热词只是三个去向之一；
@@ -16,12 +17,11 @@ const taskTabs = [
   { key: "pending-reports", label: "报告" },
   { key: "notes", label: "笔记" },
   { key: "alerts", label: "预警" }
-] as const;
-
-type TaskTab = typeof taskTabs[number]["key"];
+] as const satisfies readonly { key: TaskTab; label: string }[];
 
 export function TasksPage() {
-  const [tab, setTab] = useState<TaskTab>("suggestions");
+  const [tab, setTabState] = useState<TaskTab>(lastTaskTab);
+  const setTab = (next: TaskTab) => { rememberTaskTab(next); setTabState(next); };
   const pager = useRef<HorizontalTabPagerHandle<TaskTab>>(null);
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   return (

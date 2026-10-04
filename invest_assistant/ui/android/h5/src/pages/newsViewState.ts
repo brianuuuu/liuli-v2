@@ -45,3 +45,9 @@ export function takeNewsAnchor(tab: NewsTab) {
   state.anchor = null;
   return anchor;
 }
+
+export function resetNewsViewState() {
+  state.tab = "all";
+  state.author = "";
+  state.anchor = null;
+}

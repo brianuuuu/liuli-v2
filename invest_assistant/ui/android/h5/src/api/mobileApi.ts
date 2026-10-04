@@ -121,8 +121,9 @@ export const mobileApi = {
     apiClient.put<NoteGroup[]>("/api/knowledge/note-groups/reorder", { ordered_ids: orderedIds }),
   updateNoteGroup: (group: NoteGroup) =>
     apiClient.put<NoteGroup>(`/api/knowledge/note-groups/${group.id}`, group),
-  alerts: (offset = 0, limit = 50, signal?: AbortSignal) =>
-    apiClient.get<PageDto<AlertEvent>>("/api/alerts/events", { offset, limit }, signal),
+  // 待办里的预警只看未读：标记已读或已处理后就从列表里消失。
+  unreadAlerts: (offset = 0, limit = 50, signal?: AbortSignal) =>
+    apiClient.get<PageDto<AlertEvent>>("/api/alerts/events", { offset, limit, status: "unread" }, signal),
   alertStats: () => apiClient.get<AlertStats>("/api/alerts/events/stats"),
   alertDetail: (id: number) => apiClient.get<AlertEvent>(`/api/alerts/events/${id}`),
   markAlertRead: (id: number) => apiClient.post<AlertEvent>(`/api/alerts/events/${id}/read`),

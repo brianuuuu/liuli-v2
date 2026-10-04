@@ -465,7 +465,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .compact-search input { min-width: 0; height: 40px; flex: 1; padding: 0 11px; outline: 0; background: transparent; color: var(--text); }
 .compact-search button { display: grid; width: 42px; height: 40px; place-items: center; color: var(--muted); }
 .icon-primary-button { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 9px; background: var(--blue); color: #fff; }
-.tasks-status-filter { position: sticky; z-index: 3; top: 36px; }
 .ai-suggestions-panel { gap: 8px; }
 .suggestion-list { display: grid; gap: 8px; }
 .suggestion-card { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); text-align: left; box-shadow: var(--shadow); }

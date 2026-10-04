@@ -6,6 +6,8 @@ import { MobileApp } from "../src/app/MobileApp";
 import { createMobileQueryClient } from "../src/queryClient";
 import { tokenStorageKey } from "../src/api/client";
 import { resetDashboardViewState } from "../src/pages/dashboardViewState";
+import { resetNewsViewState } from "../src/pages/newsViewState";
+import { resetTasksViewState } from "../src/pages/tasksViewState";
 
 vi.mock("../src/components/MiniChart", () => ({
   DonutChart: ({ items }: { items: Array<{ name: string; value: number }> }) => (
@@ -48,6 +50,8 @@ class DashboardObserverFake {
 describe("mobile H5 app", () => {
   beforeEach(() => {
     resetDashboardViewState();
+    resetNewsViewState();
+    resetTasksViewState();
     window.localStorage.clear();
     window.sessionStorage.clear();
     window.location.hash = "";
@@ -1265,38 +1269,6 @@ describe("mobile H5 app", () => {
     });
   });
 
-  it("continues alert pagination when the selected status is absent from the first page", async () => {
-    window.localStorage.setItem(tokenStorageKey, "token");
-    window.location.hash = "#/tasks";
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.includes("offset=0")) {
-        return new Response(JSON.stringify({
-          items: [{ id: 1, status: "read", event_level: "info", title: "已读事件", message: "第一页", event_time: "2026-07-20T00:00:00" }],
-          total: 51,
-          limit: 50,
-          offset: 0,
-          has_more: true
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      return new Response(JSON.stringify({
-        items: [{ id: 2, status: "handled", event_level: "info", title: "已处理事件", message: "第二页", event_time: "2026-07-19T00:00:00" }],
-        total: 51,
-        limit: 50,
-        offset: 50,
-        has_more: false
-      }), { status: 200, headers: { "Content-Type": "application/json" } });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderApp();
-    fireEvent.click(await screen.findByRole("tab", { name: "预警" }));
-    fireEvent.click(await screen.findByRole("button", { name: "已处理" }));
-
-    expect(await screen.findByText("已处理事件")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("offset=50"))).toBe(true);
-  });
-
   it("opens tasks on AI recommendations before pending reports and alert events", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/tasks";
@@ -1504,6 +1476,41 @@ describe("mobile H5 app", () => {
 
     await waitFor(() => expect(alertRequests).toHaveLength(3));
     expect(new URL(alertRequests[2], "http://localhost").searchParams.get("offset")).toBe("0");
+  });
+
+  it("lists only unread alerts and returns to the alerts tab without the handled one", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    const listUrls: string[] = [];
+    let handled = false;
+    const event = (id: number) => ({ id, status: "unread", event_level: "info", title: `预警-${id}`, message: "内容", event_time: "2026-07-20T00:00:00" });
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/alerts/events/1/handle")) {
+        handled = true;
+        return json({ ...event(1), status: "handled" });
+      }
+      if (url.includes("/api/alerts/events/1")) return json(event(1));
+      if (url.includes("/api/alerts/events")) {
+        listUrls.push(url);
+        const items = handled ? [event(2)] : [event(1), event(2)];
+        return json({ items, total: items.length, limit: 50, offset: 0, has_more: false });
+      }
+      return json({ items: [], total: 0, limit: 50, offset: 0, has_more: false });
+    }));
+
+    // 线上 QueryClient 是 refetchOnMount: false，回列表不会自己补拉，这正是要测的
+    renderApp(createMobileQueryClient());
+    fireEvent.click(await screen.findByRole("tab", { name: "预警" }));
+    fireEvent.click(await screen.findByText("预警-1"));
+    fireEvent.click(await screen.findByRole("button", { name: "标记已处理" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks"));
+    await screen.findByText("预警-2");
+    await waitFor(() => expect(screen.queryByText("预警-1")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "预警" })).toHaveAttribute("aria-selected", "true");
+    expect(listUrls.every((url) => new URL(url, "http://localhost").searchParams.get("status") === "unread")).toBe(true);
   });
 
   it("moves the pending hint count into the load-more remaining count", async () => {

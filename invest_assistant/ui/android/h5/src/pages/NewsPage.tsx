@@ -86,6 +86,8 @@ function NewsTimeline({ tab, author, onSelectAuthor, onClearAuthor }: { tab: New
   }, [query.isLoading, tab]);
   const openItem = (id: number) => {
     const element = sectionRef.current?.querySelector<HTMLElement>(`[data-news-id="${id}"]`);
+    // 页签切换动画没走完就点进来时，页签还没记上，这里补记一次
+    rememberNewsTab(tab);
     rememberNewsAnchor({ tab, itemId: id, offset: element?.getBoundingClientRect().top ?? 0, scrollY: window.scrollY });
     navigate(`/news/${id}`);
   };

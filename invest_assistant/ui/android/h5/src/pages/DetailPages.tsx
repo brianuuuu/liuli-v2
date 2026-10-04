@@ -73,8 +73,14 @@ export function AlertDetailPage() {
   const id = Number(useParams().id);
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["alert-detail", id], queryFn: () => mobileApi.alertDetail(id) });
-  const read = useMutation({ mutationFn: () => mobileApi.markAlertRead(id), onSuccess: async () => { await query.refetch(); await client.invalidateQueries({ queryKey: ["alerts"] }); } });
-  const handle = useMutation({ mutationFn: () => mobileApi.handleAlert(id), onSuccess: async () => { await query.refetch(); await client.invalidateQueries({ queryKey: ["alerts"] }); } });
+  // 列表只放未读：已读或已处理后连同未挂载的列表一起重拉再回去，回到列表时这条已经不在了。
+  const leaveToList = async () => {
+    await client.invalidateQueries({ queryKey: ["alerts"], refetchType: "all" });
+    client.removeQueries({ queryKey: ["alert-detail", id] });
+    requestAppBack();
+  };
+  const read = useMutation({ mutationFn: () => mobileApi.markAlertRead(id), onSuccess: leaveToList });
+  const handle = useMutation({ mutationFn: () => mobileApi.handleAlert(id), onSuccess: leaveToList });
   if (query.isLoading) return <DetailFrame title="预警详情"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) return <DetailFrame title="预警详情"><ErrorState onRetry={() => void query.refetch()} /></DetailFrame>;
   return <DetailFrame title="预警详情"><div className="page-stack"><SectionCard><span className={`level-badge level-badge--${query.data.event_level}`}>{query.data.event_level}</span><h2>{query.data.title}</h2><p className="detail-message">{query.data.message}</p><time>{formatDateTime(query.data.event_time)}</time></SectionCard><div className="detail-actions">{query.data.status === "unread" ? <button onClick={() => read.mutate()}>标记已读</button> : null}{query.data.status !== "handled" ? <button className="primary-button" onClick={() => handle.mutate()}><Check size={17} />标记已处理</button> : <span className="handled-state"><Check size={17} />已处理</span>}</div></div></DetailFrame>;

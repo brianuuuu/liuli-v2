@@ -1,5 +1,4 @@
 export type NewsTab = "all" | "sentiment" | "important" | "announcement" | "stock";
-export type AlertTab = "all" | "unread" | "handled";
 
 export function newsQueryForTab(tab: NewsTab): Record<string, string | boolean> {
   switch (tab) {
@@ -14,9 +13,4 @@ export function newsQueryForTab(tab: NewsTab): Record<string, string | boolean> 
     default:
       return {};
   }
-}
-
-export function alertMatchesTab(tab: AlertTab, event: { status: string }): boolean {
-  if (tab === "all") return true;
-  return event.status === tab;
 }
