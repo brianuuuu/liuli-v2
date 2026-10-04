@@ -6,12 +6,14 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
+import { useRestoreListPosition } from "../components/listReturn";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { ReorderableNoteGroups } from "../components/ReorderableNoteGroups";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { TagPicker } from "../components/TagPicker";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
+import { lastNoteGroup, notesReturn, rememberNoteGroup } from "./notesViewState";
 
 /** 未分组页签的 key。用字符串而不是数字，避免和分组 id 撞上。 */
 export const UNGROUPED_KEY = "ungrouped";
@@ -26,7 +28,8 @@ const NOTE_TABS_PER_SCREEN = 5;
 
 export function NotesPage() {
   const client = useQueryClient();
-  const [groupId, setGroupId] = useState("all");
+  const [groupId, setGroupIdState] = useState(lastNoteGroup);
+  const setGroupId = (next: string) => { rememberNoteGroup(next); setGroupIdState(next); };
   const [composer, setComposer] = useState(false);
   const [content, setContent] = useState("");
   const [tagIds, setTagIds] = useState<number[]>([]);
@@ -42,6 +45,10 @@ export function NotesPage() {
     { key: UNGROUPED_KEY, label: "未分组" },
     ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))
   ], [groups.data]);
+  // 记住的分组可能已被归档或删除：分组列表拉到后对不上就退回全部，否则分页器找不到页签会整屏空白。
+  useEffect(() => {
+    if (groups.data && !groupItems.some((item) => item.key === groupId)) setGroupId("all");
+  }, [groupItems, groupId, groups.data]);
   const create = useMutation({
     mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: isInboxKey(groupId) ? null : Number(groupId), tag_ids: tagIds }),
     onSuccess: async () => { setContent(""); setTagIds([]); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
@@ -73,6 +80,7 @@ export function NotesPage() {
 function NotesGroupContent({ groupId }: { groupId: string }) {
   const navigate = useNavigate();
   const client = useQueryClient();
+  const listRef = useRef<HTMLDivElement>(null);
   const notes = useQuery({
     queryKey: ["notes", groupId],
     queryFn: () => mobileApi.notes({
@@ -83,6 +91,13 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
       ungrouped: groupId === UNGROUPED_KEY ? true : undefined
     })
   });
+  useRestoreListPosition(listRef, !notes.isLoading, notesReturn, groupId);
+  const openNote = (id: number) => {
+    // 页签切换动画没走完就点进来时，分组还没记上，这里补记一次
+    rememberNoteGroup(groupId);
+    notesReturn.remember(groupId, listRef.current, id);
+    navigate(`/notes/${id}`);
+  };
   /** 分组标签栏和笔记同属这一屏，一次下拉把两者都拉新。 */
   const refresh = async () => {
     const [refetched] = await Promise.all([
@@ -99,9 +114,9 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
           detail={groupId === UNGROUPED_KEY ? "没有待归档的笔记" : "记录一条现在的想法"}
         />
       ) : (
-        <div className="note-list">
+        <div className="note-list" ref={listRef}>
           {notes.data.items.map((note) => (
-            <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}>
+            <article className="note-card" key={note.id} data-return-id={note.id} onClick={() => openNote(note.id)}>
               <header>
                 <div className="note-card-meta">
                   <time>{formatDateTime(note.updated_at ?? note.created_at)}</time>

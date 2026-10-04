@@ -29,7 +29,6 @@ export function NewsDetailPage() {
 
 export function NoteDetailPage() {
   const id = Number(useParams().id);
-  const navigate = useNavigate();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["note", id], queryFn: () => mobileApi.noteDetail(id) });
   const [content, setContent] = useState<string | null>(null);
@@ -55,11 +54,11 @@ export function NoteDetailPage() {
   });
   const archive = useMutation({
     mutationFn: () => mobileApi.archiveNote(id),
-    onSuccess: async () => { await refreshNoteLists(); navigate("/notes", { replace: true }); }
+    onSuccess: async () => { await refreshNoteLists(); requestAppBack(); }
   });
   const remove = useMutation({
     mutationFn: () => mobileApi.deleteNote(id),
-    onSuccess: async () => { await refreshNoteLists(); navigate("/notes", { replace: true }); }
+    onSuccess: async () => { await refreshNoteLists(); requestAppBack(); }
   });
   useLayoutEffect(() => {
     if (query.data && typeof textareaRef.current?.scrollTo === "function") textareaRef.current.scrollTo({ left: 0 });

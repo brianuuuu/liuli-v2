@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { useRestoreListPosition } from "../components/listReturn";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
+import { rememberTaskTab, tasksReturn } from "./tasksViewState";
 
 /**
  * 待办里的笔记：只收 MCP 写进来的未分组笔记。
@@ -20,6 +23,14 @@ export function InboxNotesPanel() {
     queryFn: () => mobileApi.notes({ limit: 30, offset: 0, status: "active", ungrouped: true, note_type: "mcp" })
   });
   const rows = query.data?.items ?? [];
+  const listRef = useRef<HTMLElement>(null);
+  useRestoreListPosition(listRef, !query.isLoading, tasksReturn, "notes");
+  const openNote = (id: number) => {
+    // 页签切换动画没走完就点进来时，页签还没记上，这里补记一次
+    rememberTaskTab("notes");
+    tasksReturn.remember("notes", listRef.current, id);
+    navigate(`/notes/${id}`);
+  };
 
   const refresh = async () => {
     const result = await query.refetch();
@@ -27,7 +38,7 @@ export function InboxNotesPanel() {
   };
 
   return (
-    <section className="tasks-panel inbox-notes-panel">
+    <section className="tasks-panel inbox-notes-panel" ref={listRef}>
       <PullToRefresh ariaLabel="待归档笔记下拉刷新" onRefresh={refresh}>
         {query.isLoading ? <LoadingState /> : query.isError ? (
           <ErrorState message="待归档笔记加载失败" onRetry={() => void query.refetch()} />
@@ -36,9 +47,9 @@ export function InboxNotesPanel() {
             {rows.map((note) => (
               <article
                 className="note-card"
-                data-inbox-note-id={note.id}
+                data-return-id={note.id}
                 key={note.id}
-                onClick={() => navigate(`/notes/${note.id}`)}
+                onClick={() => openNote(note.id)}
               >
                 <header>
                   <div className="note-card-meta">

@@ -7,6 +7,7 @@ import { createMobileQueryClient } from "../src/queryClient";
 import { tokenStorageKey } from "../src/api/client";
 import { resetDashboardViewState } from "../src/pages/dashboardViewState";
 import { resetNewsViewState } from "../src/pages/newsViewState";
+import { resetNotesViewState } from "../src/pages/notesViewState";
 import { resetTasksViewState } from "../src/pages/tasksViewState";
 
 vi.mock("../src/components/MiniChart", () => ({
@@ -51,6 +52,7 @@ describe("mobile H5 app", () => {
   beforeEach(() => {
     resetDashboardViewState();
     resetNewsViewState();
+    resetNotesViewState();
     resetTasksViewState();
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -2229,6 +2231,61 @@ describe("mobile H5 app", () => {
       expect.stringContaining(endpoint),
       expect.objectContaining({ method })
     ));
+  });
+
+  it("从分组页签点进笔记再返回，仍停在原分组", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes";
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    const note = { id: 7, content: "复盘分组里的笔记", status: "active", group_id: 3, group: { id: 3, name: "投资复盘" }, tags: [] };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("note-groups")) return json([{ id: 3, name: "投资复盘", status: "active", sort_order: 0 }]);
+      if (url.includes("/api/tags") || url.includes("/api/market-radar/tags")) return json([]);
+      if (url.includes("/notes/7")) return json(note);
+      if (url.includes("/api/knowledge/notes")) return json({ items: [note], total: 1, limit: 30, offset: 0, has_more: false });
+      return json({ items: [], total: 0, limit: 30, offset: 0, has_more: false });
+    }));
+
+    renderApp(createMobileQueryClient());
+    const groupTab = await screen.findByRole("tab", { name: "投资复盘" });
+    fireEvent.click(groupTab);
+    await waitFor(() => expect(groupTab).toHaveAttribute("aria-selected", "true"));
+    // 全部和投资复盘两页都挂着同一条，点当前可见页里的那条
+    const cards = await screen.findAllByText("复盘分组里的笔记", { selector: "p" });
+    fireEvent.click(cards.find((card) => !card.closest("[aria-hidden='true']")) ?? cards[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "返回" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/notes"));
+    expect(await screen.findByRole("tab", { name: "投资复盘" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("从待办笔记进去归档后，回到待办的笔记页签", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/tasks";
+    let archived = false;
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    const note = { id: 7, content: "外部写进来的笔记", status: "active", group_id: null, note_type: "mcp" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("note-groups") || url.includes("/api/tags") || url.includes("/api/market-radar/tags")) return json([]);
+      if (url.includes("/notes/7/archive")) { archived = true; return json({ ...note, status: "archived" }); }
+      if (url.includes("/notes/7")) return json(note);
+      if (url.includes("/api/knowledge/notes") && (init?.method ?? "GET") === "GET") {
+        return json({ items: archived ? [] : [note], total: archived ? 0 : 1, limit: 30, offset: 0, has_more: false });
+      }
+      return json({ items: [], total: 0, limit: 30, offset: 0, has_more: false });
+    }));
+
+    renderApp(createMobileQueryClient());
+    fireEvent.click(await screen.findByRole("tab", { name: "笔记" }));
+    fireEvent.click(await screen.findByText("外部写进来的笔记"));
+    fireEvent.click(await screen.findByRole("button", { name: "归档笔记" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认归档" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/tasks"));
+    expect(await screen.findByRole("tab", { name: "笔记" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.queryByText("外部写进来的笔记")).not.toBeInTheDocument());
   });
 
   it("从笔记列表进去归档后，回到列表不再显示这条笔记", async () => {

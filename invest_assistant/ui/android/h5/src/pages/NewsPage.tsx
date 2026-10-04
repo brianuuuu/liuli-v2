@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import { newsQueryForTab, type NewsTab } from "../api/filters";
 import { mobileApi } from "../api/mobileApi";
+import { useRestoreListPosition } from "../components/listReturn";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
@@ -12,7 +13,7 @@ import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import type { SourceItem } from "../types/api";
 import { formatDateTime, formatDay } from "../utils/format";
-import { lastNewsAuthor, lastNewsTab, rememberNewsAnchor, rememberNewsAuthor, rememberNewsTab, takeNewsAnchor } from "./newsViewState";
+import { lastNewsAuthor, lastNewsTab, newsReturn, rememberNewsAuthor, rememberNewsTab } from "./newsViewState";
 
 const tabs = [
   { key: "all", label: "全部" },
@@ -71,28 +72,15 @@ function NewsTimeline({ tab, author, onSelectAuthor, onClearAuthor }: { tab: New
     } : current);
     await query.refetch();
   };
-  // 从详情返回：先把点过的那条摆回原来离视口顶部的位置，找不到（比如刷新后被挤出去）就退回原 scrollY。
-  // 取锚点放在帧回调里，StrictMode 下第一次 effect 被取消时不会把锚点白白消费掉。
-  useEffect(() => {
-    if (query.isLoading) return;
-    const frame = window.requestAnimationFrame(() => {
-      const anchor = takeNewsAnchor(tab);
-      if (!anchor) return;
-      const element = sectionRef.current?.querySelector<HTMLElement>(`[data-news-id="${anchor.itemId}"]`);
-      const top = element ? window.scrollY + element.getBoundingClientRect().top - anchor.offset : anchor.scrollY;
-      window.scrollTo({ top, behavior: "auto" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [query.isLoading, tab]);
+  useRestoreListPosition(sectionRef, !query.isLoading, newsReturn, tab);
   const openItem = (id: number) => {
-    const element = sectionRef.current?.querySelector<HTMLElement>(`[data-news-id="${id}"]`);
     // 页签切换动画没走完就点进来时，页签还没记上，这里补记一次
     rememberNewsTab(tab);
-    rememberNewsAnchor({ tab, itemId: id, offset: element?.getBoundingClientRect().top ?? 0, scrollY: window.scrollY });
+    newsReturn.remember(tab, sectionRef.current, id);
     navigate(`/news/${id}`);
   };
   let lastDay = "";
-  return <section ref={sectionRef}>{authorFilter ? <div className="news-author-filter"><span>作者：{authorFilter}</span><button type="button" aria-label="清除作者筛选" onClick={onClearAuthor}><X size={14} /></button></div> : null}<PullToRefresh ariaLabel="资讯下拉刷新" onRefresh={refresh}>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{items.map((item) => { const day = formatDay(item.publish_time ?? item.created_at); const showDay = day !== lastDay; lastDay = day; return <div key={item.id} data-news-id={item.id}>{showDay ? <div className="timeline-day">{day}</div> : null}{item.source_type === "sentiment" ? <SentimentCard item={item} onOpen={() => openItem(item.id)} onSelectAuthor={onSelectAuthor} /> : <article className="timeline-item" onClick={() => openItem(item.id)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article>}</div>; })}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</PullToRefresh></section>;
+  return <section ref={sectionRef}>{authorFilter ? <div className="news-author-filter"><span>作者：{authorFilter}</span><button type="button" aria-label="清除作者筛选" onClick={onClearAuthor}><X size={14} /></button></div> : null}<PullToRefresh ariaLabel="资讯下拉刷新" onRefresh={refresh}>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{items.map((item) => { const day = formatDay(item.publish_time ?? item.created_at); const showDay = day !== lastDay; lastDay = day; return <div key={item.id} data-return-id={item.id}>{showDay ? <div className="timeline-day">{day}</div> : null}{item.source_type === "sentiment" ? <SentimentCard item={item} onOpen={() => openItem(item.id)} onSelectAuthor={onSelectAuthor} /> : <article className="timeline-item" onClick={() => openItem(item.id)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article>}</div>; })}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</PullToRefresh></section>;
 }
 
 /** 舆情先看是谁说的，再看说了什么：标题只是正文前 40 字，不显示。 */
