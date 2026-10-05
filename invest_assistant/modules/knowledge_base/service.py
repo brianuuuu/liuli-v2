@@ -1076,22 +1076,42 @@ IMPORTABLE_REPORT_TYPES = {
 }
 
 
-def is_pending_import_feedback(item: KnowledgeResearchFeedback) -> bool:
-    """待导入 = 收到后还没解析过，且标题能落到一种可导入的报告类型上。"""
+# 末尾 JSON 是数组的报告类型，其余可导入类型都是对象
+JSON_ARRAY_REPORT_TYPES = {TREND_REPORT_TYPE, TRACK_TREND_REPORT_TYPE}
+
+
+def is_pending_import_feedback(db: Session, item: KnowledgeResearchFeedback) -> bool:
+    """待导入 = 收到后还没解析过、标题能落到一种可导入的报告类型上，且正文末尾带着能解析的 JSON。
+
+    没有 JSON 的报告导入必然失败，留在安卓待办和 Web 一键导入里只是干扰；
+    它仍在研究回流列表里，可以阅读、删除，单独点导入会提示缺 JSON。"""
     if item.status != "received" or not item.report_id:
         return False
     try:
         _, _, report_type = _parse_feedback_report_title(item.title)
     except ValueError:
         return False
-    return report_type in IMPORTABLE_REPORT_TYPES
+    return report_type in IMPORTABLE_REPORT_TYPES and _has_trailing_json(db, item.report_id, report_type)
+
+
+def _has_trailing_json(db: Session, report_id: int, report_type: str) -> bool:
+    report = report_service.get_report(db, report_id)
+    if report is None:
+        return False
+    path = report_service.resolve_report_path(report)
+    try:
+        payload = _extract_trailing_json_payload(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    expected = list if report_type in JSON_ARRAY_REPORT_TYPES else dict
+    return isinstance(payload, expected)
 
 
 def list_research_feedback(db: Session, *, pending_import: bool = False) -> list[KnowledgeResearchFeedback]:
     items = list(
         db.scalars(select(KnowledgeResearchFeedback).order_by(KnowledgeResearchFeedback.returned_at.desc(), KnowledgeResearchFeedback.id.desc()))
     )
-    return [item for item in items if is_pending_import_feedback(item)] if pending_import else items
+    return [item for item in items if is_pending_import_feedback(db, item)] if pending_import else items
 
 
 def get_research_feedback(db: Session, feedback_id: int) -> KnowledgeResearchFeedback | None:

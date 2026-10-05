@@ -4,9 +4,10 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("./KnowledgePage.tsx", import.meta.url), "utf8");
 
 assert.match(source, /const\s+\[bulkImporting,\s*setBulkImporting\]\s*=\s*useState\(false\)/, "research feedback must track one-click import loading state");
-assert.match(source, /!\["parsed",\s*"imported"\]\.includes\(record\.status\)/, "one-click import must skip already parsed or imported feedback rows");
+assert.match(source, /listKnowledgeResearchFeedback\(true\)/, "one-click import must use the backend pending-import list, the same rule as Android pending reports");
 assert.match(source, /Promise\.all\(/, "one-click import must attempt remaining feedback rows without stopping at the first failure");
-assert.match(source, /message\.success\(`一键导入完成：成功 \$\{successCount\} 个，失败 \$\{failureCount\} 个`\)/, "one-click import must summarize success and failure counts");
+assert.match(source, /`一键导入完成：成功 \$\{successCount\} 个，失败 \$\{failures\.length\} 个`/, "one-click import must summarize success and failure counts");
+assert.match(source, /notification\.warning\(\{\s*message: summary/, "one-click import must list each failure reason in a non-blocking notification");
 assert.match(source, /formatFeedbackImportSummary\(result\)/, "single import must render its summary through the shared formatter");
 assert.match(source, /hasImportFailure\(result\)/, "partial batch import failures must be surfaced as a warning, not a silent success");
 assert.doesNotMatch(source, /Modal\.error\(\{[\s\S]*一键导入/, "one-click import failures must not show a blocking error modal");

@@ -423,7 +423,7 @@ def test_list_research_feedback_pending_import_keeps_only_importable_received_ro
     db = make_session()
     score = create_feedback(db, "万东医疗-2026-07-05-标的评级报告", score_markdown())
     valuation = create_feedback(db, "万东医疗-2026-07-05-标的估值报告", score_markdown())
-    trend = create_feedback(db, "万东医疗-2026-07-05-趋势研究", score_markdown())
+    trend = create_feedback(db, "万东医疗-2026-07-05-趋势研究", trend_markdown([trend_item()]))
     unknown_type = create_feedback(db, "万东医疗-2026-07-05-随手记", score_markdown())
     bad_title = create_feedback(db, "没有日期的标题", score_markdown())
     already_imported = create_feedback(db, "万东医疗-2026-07-04-标的评级报告", score_markdown())
@@ -438,6 +438,21 @@ def test_list_research_feedback_pending_import_keeps_only_importable_received_ro
     assert already_imported.id not in pending_ids
     # 不带过滤时仍然是整张表，Web 的研究回流页不受影响
     assert len(list_research_feedback(db)) == 6
+
+
+def test_list_research_feedback_pending_import_drops_reports_without_usable_json(tmp_path, monkeypatch):
+    """末尾没有 JSON、或 JSON 形状不对的报告导入必然失败，不进待办也不进一键导入，但仍留在回流列表里。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    usable = create_feedback(db, "万东医疗-2026-07-05-标的评级报告", score_markdown())
+    no_json = create_feedback(db, "实盘组合-2026-07-05-微操报告", "今日是否有微操机会：无。")
+    trailing_text = create_feedback(db, "万东医疗-2026-07-06-标的评级报告", score_markdown() + "\n数据来源：略。")
+    wrong_shape = create_feedback(db, "万东医疗-2026-07-05-趋势研究", score_markdown())
+
+    pending_ids = [item.id for item in list_research_feedback(db, pending_import=True)]
+
+    assert pending_ids == [usable.id]
+    assert {no_json.id, trailing_text.id, wrong_shape.id} <= {item.id for item in list_research_feedback(db)}
 
 
 def test_list_research_feedback_pending_import_drops_rows_without_report(tmp_path, monkeypatch):

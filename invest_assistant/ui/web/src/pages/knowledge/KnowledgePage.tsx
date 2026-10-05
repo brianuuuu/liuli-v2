@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, FolderOutlined, PlusOutlined, ReloadOutlined, DownOutlined, UpOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Tree, Typography, message } from "antd";
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Row, Col, Select, Space, Table, Tabs, Tag, Tree, Typography, message, notification } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
@@ -1074,13 +1074,14 @@ function ResearchFeedbackSection() {
   }
 
   async function importAllPendingFeedback() {
-    const pendingFeedback = feedback.data.filter((record) => !["parsed", "imported"].includes(record.status));
-    if (!pendingFeedback.length) {
-      message.success("一键导入完成：成功 0 个，失败 0 个");
-      return;
-    }
     setBulkImporting(true);
     try {
+      // 与安卓待办同一份后端判定：可导入类型、尚未导入、正文末尾带可解析的 JSON
+      const pendingFeedback = await listKnowledgeResearchFeedback(true);
+      if (!pendingFeedback.length) {
+        message.success("没有待导入的报告");
+        return;
+      }
       const failures = (
         await Promise.all(
           pendingFeedback.map(async (record) => {
@@ -1096,11 +1097,11 @@ function ResearchFeedbackSection() {
       const successCount = pendingFeedback.length - failures.length;
       const summary = `一键导入完成：成功 ${successCount} 个，失败 ${failures.length} 个`;
       if (failures.length) {
-        // 逐条列出失败原因，否则只看到失败个数，还得一份份点开重试才知道哪里错了
-        Modal.warning({
-          title: summary,
-          width: 640,
-          content: (
+        // 逐条列出失败原因，否则只看到失败个数，还得一份份点开重试才知道哪里错了；用不阻塞的通知
+        notification.warning({
+          message: summary,
+          duration: 0,
+          description: (
             <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
               {failures.map((item) => (
                 <li key={item.title}>

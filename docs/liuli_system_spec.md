@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v47：「待导入」判定增加正文末尾 JSON 校验，对全部可导入报告类型生效：末尾解析不到 JSON，或形状不对（趋势研究、赛道趋势研究要求数组，其余要求对象）的报告，不出现在安卓「待处理报告」里，也不进 Web 研究回流的一键导入；仍保留在研究回流列表，可阅读、删除，单独导入会提示缺 JSON。Web 一键导入改为直接取后端 `pending_import=true` 列表，与安卓同一份判定；有失败时用不阻塞的通知逐条列出失败原因。
 - v46：微操报告不再要求绑定单个组合。`portfolio_adjust_advice.portfolio_id` 改为可空，空值表示全部实盘组合：研究员按所有账户合在一起的持仓出报告，报告 JSON 省略 `portfolio_id`；执行匹配按标的在所有组合里找 T 日调仓；`list_adjust_advice_reviews` 不传 `portfolio_id` 返回全部报告，指定组合时只返回绑定该组合的报告。线上 PostgreSQL 需执行 `tools/migrations/2026-10-05_adjust_advice_portfolio_nullable.sql`（只放宽非空约束，不动数据）。研究回流导入接口对非校验类异常也返回具体原因（500），Web「一键导入」逐条列出失败原因，不再误报为「未识别可导入的报告类型」。
 - v45：Web 组合管理「组合复盘」页在收益曲线与盈亏日历下方新增「微操复盘」板块，数据来自 `GET /api/portfolios/adjust-advice`（复用 `list_adjust_advice_reviews`，返回结构与 MCP 工具一致，另含全部历史的 `summary`）。板块包括：增持与减持 20 日胜率、建议执行率、警示命中率、待评估数；微操报告列表（展开看逐只持仓的方向、价格区间、触及、执行、5/20/60 日收益、对错、风险）；信号表现表（样本不足 10 条置灰）与风险警示命中率表。维持、等待且无警示的条目默认隐藏。安卓端不做，第一版不含人工备注。
 - v44：组合管理新增微操建议跟踪。研究员 `portfolio_001` 每个交易日收盘后或早盘前出一份「微操报告」（标题 `实盘组合-YYYY-MM-DD-微操报告`），报告末尾 JSON 经研究回流导入 `portfolio_adjust_advice`（一份报告一条）与 `portfolio_adjust_advice_item`（每只持仓一条，含维持和等待）；只有查询、统计、评估要用的字段成列，其余原样存 `detail_json`，profile 的 JSON 演进不需要迁移。条目 `risk_level` 为 warning / severe 时导入同时生成未读 `alert_event`，进入安卓待办。新增定时任务 `portfolio.evaluate_adjust_advice`（工作日 19:15，排在 18:30 日线同步之后）：以适用交易日 T 为锚、用沪深300 日线数交易日，回写触及区间、执行匹配（T 日同方向调仓）和 T+5/20/60 收益，20 日为主判定（增持涨超 1% 或减持后跌超 1% 为对，反向超过 1% 为错）；收益统一用前复权 T 收盘为基准，价格是否触及区间只决定是否计入胜率；警示 20 日跑输沪深300 超过 3% 为命中。对外 MCP 新增只读工具 `portfolio.list_adjust_advice_reviews`，返回最近报告及评估、按方向+主信号与方向+大类的胜率、按风险代码的警示命中率，供研究员出报告前校准。两张均为新表，由 `create_all` 建表，无迁移脚本。
@@ -4839,7 +4840,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | POST | `/api/knowledge/researchers` | 新增研究员并写入 profile 文件 |
 | PUT | `/api/knowledge/researchers/{id}` | 编辑研究员并更新 profile 文件 |
 | DELETE | `/api/knowledge/researchers/{id}` | 删除研究员 |
-| GET | `/api/knowledge/research-feedback` | 研究回流报告列表，`pending_import=true` 只返回收到、可导入且未导入的报告（安卓待办「待处理报告」用） |
+| GET | `/api/knowledge/research-feedback` | 研究回流报告列表，`pending_import=true` 只返回收到、可导入类型、未导入且正文末尾带可解析 JSON 的报告（安卓待办「待处理报告」与 Web 一键导入共用） |
 | GET | `/api/knowledge/research-feedback/{id}` | 研究回流详情并通过报告库读取正文 |
 | POST | `/api/knowledge/research-feedback` | MCP 写入研究回流索引 |
 | POST | `/api/knowledge/research-feedback/{id}/import` | 按标题自动识别并导入业务表 |

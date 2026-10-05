@@ -281,8 +281,10 @@ export async function deleteKnowledgeResearcher(id: number): Promise<KnowledgeRe
   return response.data;
 }
 
-export async function listKnowledgeResearchFeedback(): Promise<KnowledgeResearchFeedback[]> {
-  const response = await apiClient.get<KnowledgeResearchFeedback[]>("/api/knowledge/research-feedback");
+export async function listKnowledgeResearchFeedback(pendingImport = false): Promise<KnowledgeResearchFeedback[]> {
+  const response = await apiClient.get<KnowledgeResearchFeedback[]>("/api/knowledge/research-feedback", {
+    params: pendingImport ? { pending_import: true } : undefined
+  });
   return response.data;
 }
 
