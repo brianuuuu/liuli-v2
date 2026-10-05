@@ -126,6 +126,11 @@ MCP_TOOL_DESCRIPTIONS = {
         "没有成交价、方向和费用；现金变化由现金校准单独维护，不要用调仓记录去推算成交金额。"
         "支持 portfolio_id（留空为全部组合）、stock_id、start_date、end_date、limit 过滤，按调仓日期倒序返回。"
     ),
+    "portfolio.list_adjust_advice_reviews": (
+        "读取最近 limit 份微操报告（默认 10）及系统事后评估：每只持仓的建议、是否触及价格区间、执行情况、"
+        "5/20/60 日收益与对错、风险警示是否命中；另附基于全部历史的按方向+主信号、方向+信号大类的胜率，"
+        "以及按风险代码的警示命中率。portfolio_id 留空为全部组合。评估由系统按固定口径计算，只读。"
+    ),
     "portfolio.get_overview": (
         "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持股数量、持仓市值、总资产、当日盈亏和持仓分布。"
         "portfolio_id 为空时返回全组合汇总。"
@@ -434,6 +439,18 @@ def _register_tools(server: FastMCP) -> None:
                 "limit": limit,
             },
             portfolio.list_position_changes,
+        )
+
+    @server.tool(
+        name="portfolio.list_adjust_advice_reviews",
+        description=MCP_TOOL_DESCRIPTIONS["portfolio.list_adjust_advice_reviews"],
+    )
+    def mcp_portfolio_list_adjust_advice_reviews(ctx: Context, portfolio_id: int | None = None, limit: int = 10) -> dict:
+        return _run_tool(
+            ctx,
+            "portfolio.list_adjust_advice_reviews",
+            {"portfolio_id": portfolio_id, "limit": limit},
+            portfolio.list_adjust_advice_reviews,
         )
 
     @server.tool(name="portfolio.get_overview", description=MCP_TOOL_DESCRIPTIONS["portfolio.get_overview"])

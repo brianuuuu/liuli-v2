@@ -107,6 +107,7 @@
 | `report_library.upload_markdown_report` | 写入 | medium | 单体 | `report_library.service.create_markdown_report_file_and_index` |
 | `portfolio.list_position_changes` | 只读 | low | 列表 | `portfolio.service.list_position_changes` |
 | `portfolio.get_overview` | 只读 | low | 单体 | `portfolio.service.get_overview` |
+| `portfolio.list_adjust_advice_reviews` | 只读 | low | 单体 | `portfolio.adjust_advice.list_adjust_advice_reviews` |
 
 ## 4 工具明细
 
@@ -512,6 +513,31 @@
 
 行情不可用时 `day_pnl`、`day_pct` 可能为 `null`。
 
+### 4.16 portfolio.list_adjust_advice_reviews
+
+微操研究员出报告前读取的历史建议与系统事后评估。评估由任务 `portfolio.evaluate_adjust_advice` 按固定口径回写，本工具只读。
+
+| 参数 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `portfolio_id` | int \| null | 否 | `null` | 指定组合，留空为全部；指定的组合不存在抛 `[NOT_FOUND]` |
+| `limit` | int | 否 | `10` | 返回最近几份报告（按适用交易日倒序），统计不受它限制 |
+
+#### 应答内容
+
+返回单体信封。
+
+| 字段路径 | 类型 | 说明 |
+|---|---|---|
+| `data.rules` | string | 评估口径说明 |
+| `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note` |
+| `data.reports[].items[]` | object[] | 每只持仓的建议：`stock_id`、`stock_code`、`stock_name`、`action`、`rating`、`quantity`、`price_low`、`price_high`、`primary_signal_code`、`value_zone`、`long_trend`、`bias60_pct`、`core_logic`、`history_note`、`risk_level`、`primary_risk_code`、`risk_summary` |
+| `data.reports[].items[]` 评估字段 | — | `trigger_status`（touched / not_touched / n_a）、`execution_status`（executed / partial / not_executed）、`executed_quantity`、`base_price`、`return_5d`、`return_20d`、`return_60d`、`benchmark_return_20d`、`verdict`（correct / wrong / neutral）、`risk_verdict`（hit / miss）；未到期为 `null` |
+| `data.signal_stats.by_signal[]` | object[] | 按 `action` + `signal_code` 汇总：`samples`、`correct`、`wrong`、`neutral`、`win_rate`、`avg_effect_20d` |
+| `data.signal_stats.by_category[]` | object[] | 按 `action` + `category`（value / allocation / risk / timing）汇总，字段同上 |
+| `data.risk_stats[]` | object[] | 按 `risk_code` 汇总 warning 及以上警示：`samples`、`hits`、`hit_rate` |
+
+胜率只统计价格触及区间的增持、减持；连续多份报告对同一标的的同方向未执行建议只算一次。
+
 ## 5 ID 从哪来
 
 按 ID 取数的工具都要求真实主键，不允许猜，也不能把证券代码当 `stock_id`。各类 ID 的获取路径：
@@ -530,6 +556,7 @@
 | `report_id` | `report_library.list_reports` → `items[].id` | 主入口，支持标题关键词 |
 | `portfolio_id` | `portfolio.get_overview` → `portfolio_options[].id` | 不传则返回全组合汇总 |
 | `portfolio_id` | `portfolio.list_position_changes` → `items[].portfolio_id` | 顺带拿到，含组合名 |
+| `portfolio_id` | `portfolio.list_adjust_advice_reviews` → `reports[].portfolio_id` | 顺带拿到 |
 
 `tag_id` 只服务 `market_radar.get_tag_trend` 一个工具，暂不单独开列表入口：热词、赛道、标的的返回里都会带出各自绑定的标签，而热度趋势的典型问法本来就是围绕热词，`market_radar.get_hotwords` 支持 `q` 关键词，两步即可拿到。若以后确有“按标签名直接查趋势”的固定场景，更合适的做法是给 `get_tag_trend` 增加 `tag_name` 参数由服务端解析，而不是把语言层的 `tag` 全表暴露给外部 client。
 

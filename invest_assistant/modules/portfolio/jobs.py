@@ -1,10 +1,11 @@
 from invest_assistant.bootstrap.database import SessionLocal
 from invest_assistant.modules.basic.job_center.types import JobDefinition, JobResult
-from invest_assistant.modules.portfolio import service
+from invest_assistant.modules.portfolio import adjust_advice, service
 
 
 CAPTURE_DAILY_VALUE_SNAPSHOT_JOB_NAME = "portfolio.capture_daily_value_snapshot"
 REFRESH_ALL_REALTIME_QUOTES_JOB_NAME = "portfolio.refresh_all_realtime_quotes"
+EVALUATE_ADJUST_ADVICE_JOB_NAME = "portfolio.evaluate_adjust_advice"
 
 
 def capture_daily_value_snapshot_job(**kwargs) -> JobResult:
@@ -41,6 +42,21 @@ def refresh_all_realtime_quotes_job(**kwargs) -> JobResult:
         db.close()
 
 
+def evaluate_adjust_advice_job(**kwargs) -> JobResult:
+    db = SessionLocal()
+    try:
+        result = adjust_advice.evaluate_adjust_advice(db)
+        return JobResult(
+            success=True,
+            message=f"evaluated {result['updated_count']} of {result['processed_count']} adjust advice items",
+            processed_count=result["processed_count"],
+            updated_count=result["updated_count"],
+            extra=result,
+        )
+    finally:
+        db.close()
+
+
 JOBS = [
     JobDefinition(
         job_name=REFRESH_ALL_REALTIME_QUOTES_JOB_NAME,
@@ -64,5 +80,17 @@ JOBS = [
         timeout_seconds=900,
         max_retries=1,
         tags=["portfolio", "snapshot", "cash"],
-    )
+    ),
+    JobDefinition(
+        job_name=EVALUATE_ADJUST_ADVICE_JOB_NAME,
+        module_name="portfolio",
+        display_name="评估微操建议",
+        description="按沪深300 交易日对到期的微操建议计算执行、触及、5/20/60 日收益和对错，排在 18:30 日线同步之后",
+        handler=evaluate_adjust_advice_job,
+        trigger_type="both",
+        cron_expr="15 19 * * 1-5",
+        timeout_seconds=600,
+        max_retries=1,
+        tags=["portfolio", "adjust_advice", "review"],
+    ),
 ]

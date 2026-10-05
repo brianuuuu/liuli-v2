@@ -186,6 +186,7 @@ stock_analysis.get_daily_bars
 knowledge_base.get_researcher_profile
 report_library.list_reports
 report_library.read_report_content
+portfolio.list_adjust_advice_reviews
 portfolio.get_overview
 ```
 

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from pathlib import Path
 import shutil
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import text
@@ -143,6 +143,80 @@ class PortfolioValueSnapshot(Base):
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class PortfolioAdjustAdvice(Base):
+    """微操报告：一份研究回流报告一条，导入后只改 status。"""
+
+    __tablename__ = "portfolio_adjust_advice"
+    __table_args__ = (
+        UniqueConstraint("feedback_id", name="uq_portfolio_adjust_advice_feedback_id"),
+        Index("ix_portfolio_adjust_advice_portfolio_id", "portfolio_id"),
+        Index("ix_portfolio_adjust_advice_target_trade_date", "target_trade_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    # 回流记录和预警都允许用户删除，这两处只存 ID 不建外键，免得 PostgreSQL 拦下删除
+    feedback_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    report_id: Mapped[int | None] = mapped_column(ForeignKey("report.id"), nullable=True)
+    researcher_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    data_as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    news_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 适用交易日 T：所有事后评估都从这一天起数交易日
+    target_trade_date: Mapped[date] = mapped_column(Date, nullable=False)
+    has_opportunity: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    total_asset: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cash: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cash_ratio_before: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cash_ratio_after: Mapped[float | None] = mapped_column(Float, nullable=True)
+    continuity_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # active / superseded：同组合、同研究员、同 T 重新导入时旧报告作废，统计只算 active
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class PortfolioAdjustAdviceItem(Base):
+    """微操报告里逐只持仓的判断。只有查询、统计、评估要用的字段成列，其余原样留在 detail_json，
+    profile 的 JSON 结构演进不需要迁移。评估字段由 portfolio.evaluate_adjust_advice 任务回写。"""
+
+    __tablename__ = "portfolio_adjust_advice_item"
+    __table_args__ = (
+        Index("ix_portfolio_adjust_advice_item_advice_id", "advice_id"),
+        Index("ix_portfolio_adjust_advice_item_stock_id", "stock_id"),
+        Index("ix_portfolio_adjust_advice_item_primary_signal_code", "primary_signal_code"),
+        Index("ix_portfolio_adjust_advice_item_risk_level", "risk_level"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    advice_id: Mapped[int] = mapped_column(ForeignKey("portfolio_adjust_advice.id"), nullable=False)
+    stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantity_before: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    primary_signal_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    value_zone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    long_trend: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    bias60_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    risk_level: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    primary_risk_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    alert_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+    trigger_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    execution_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    executed_quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    base_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    return_5d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    return_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    return_60d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    benchmark_return_20d: Mapped[float | None] = mapped_column(Float, nullable=True)
+    verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    risk_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 def ensure_portfolio_schema(engine: Engine) -> None:

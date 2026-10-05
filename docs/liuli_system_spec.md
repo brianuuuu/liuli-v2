@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v44：组合管理新增微操建议跟踪。研究员 `portfolio_001` 每个交易日收盘后或早盘前出一份「微操报告」（标题 `实盘组合-YYYY-MM-DD-微操报告`），报告末尾 JSON 经研究回流导入 `portfolio_adjust_advice`（一份报告一条）与 `portfolio_adjust_advice_item`（每只持仓一条，含维持和等待）；只有查询、统计、评估要用的字段成列，其余原样存 `detail_json`，profile 的 JSON 演进不需要迁移。条目 `risk_level` 为 warning / severe 时导入同时生成未读 `alert_event`，进入安卓待办。新增定时任务 `portfolio.evaluate_adjust_advice`（工作日 19:15，排在 18:30 日线同步之后）：以适用交易日 T 为锚、用沪深300 日线数交易日，回写触及区间、执行匹配（T 日同方向调仓）和 T+5/20/60 收益，20 日为主判定（增持涨超 1% 或减持后跌超 1% 为对，反向超过 1% 为错）；收益统一用前复权 T 收盘为基准，价格是否触及区间只决定是否计入胜率；警示 20 日跑输沪深300 超过 3% 为命中。对外 MCP 新增只读工具 `portfolio.list_adjust_advice_reviews`，返回最近报告及评估、按方向+主信号与方向+大类的胜率、按风险代码的警示命中率，供研究员出报告前校准。两张均为新表，由 `create_all` 建表，无迁移脚本。
 - v43：信息流接入社交媒体舆情。对外 MCP 新增受控写入工具 `market_radar.import_sentiment_items`，由外部程序定时批量导入雪球、微博、知乎上大V和自媒体的观点，每条只有 `platform`、`author`、`date`（只有日期）、`content` 四个字段，另有可选的 `important`；单次最多 200 条，单条校验失败不影响同批其他条目。舆情落在 `source_item`（`source_type=sentiment`），不新建表，照常参与标签命中、热度、图谱和标的/赛道待审材料生成，不进待办，也暂不进 AI 推荐词任务。`source_item` 新增可空列 `author`（迁移见 `tools/migrations/2026-09-26_source_item_author.sql`），只有舆情使用；作者不做成 tag——作者是信息的出处，不是语义锚点，做成 tag 会污染热度榜、共现图谱和标签管理；同一个人在不同平台的名字不合并。`publish_time` 记导入时间：只有日期时编造具体时间没有意义，而记当天 00:00 会让舆情排在当天所有新闻之后、并提前滑出 24 小时热度窗口；`date` 只用于校验（不晚于今天）和限定去重范围。去重口径为同平台、同作者、正文完全相同，且在 `date` 当天 00:00（北京时间）之后已导入过——导入时间每次不同不能比时间，而同一条观点只可能在发布日期当天或之后被导入。标题由服务端取正文第一行前 40 字生成，只用于满足表结构和关键词搜索，Web 和安卓都不显示。`important` 写入 `is_important`，标了的舆情进入「重要」：导入程序在筛选时最清楚哪些观点有分量。信息流接口和 `search_source_items` 增加 `author` 精确筛选。Web 市场雷达信息流的舆情条目改为「时间 · 作者 · 平台 · 舆情」头部加正文、不显示标题，时间线圆点用紫色区分，点作者名只看这个人，筛选区增加雪球、微博、知乎来源和作者输入框，类型改显示中文；安卓资讯页新增「舆情」页签，排在「全部」之后，「全部」照常包含舆情，舆情卡片先显示作者再显示正文（最多 4 行），在任意页签点作者名都跳到舆情页签只看这个人，顶部可清除。
 - v42：资讯「重要」改为来源自带的标记。`source_item` 新增 `is_important`（非空布尔，默认 false，迁移见 `tools/migrations/2026-09-24_source_item_is_important.sql`），`important_only` 由 16 个关键词对标题和正文做 ILIKE 改为按这一列过滤：原做法每次全表扫两遍（列表 + 总数），安卓首次切到「重要」页签明显卡顿；而且「AI」「芯片」这类词让大量普通快讯被算作重要。目前只有富途快讯有重要标记，其他来源一律 false；老数据一律 false，不用关键词回填，免得新旧两批口径不一致。富途快讯抓取不再经 akshare 的 `stock_info_global_futu`，改由 `market_radar/futu_client.py` 直接请求富途官网快讯接口：akshare 请求的是同一地址，但只留四列，丢了 `level` 和翻页游标，时间按运行机器本地时区转成不带时区的字符串，且没设超时。新实现带 15 秒超时，按 `seqMark` 从新往旧翻页，翻到已入库的快讯就停，`limit` 默认改为 300 作兜底上限（原先每 30 分钟只取最新 50 条，白天和美股时段会漏）；发布时间由 Unix 秒按北京时区换算。接口不是公开 API、无公开限流规则，保持每 30 分钟一次，失败不连续重试。控制台数据源页富途一行的接口改为「富途官网快讯接口」；Web 市场雷达信息流的「重要」角标同样改读 `is_important`。安卓资讯页进页面时后台预取「重要」页签首屏；PostgreSQL 额外建 `publish_time DESC NULLS LAST, id DESC` 索引，与信息流排序一致，列表查询取够一页即停。安卓笔记页标签栏改为「全部」「未分组」固定在最前、自定义分组在后（v38 是自定义分组在前）；一屏固定摆五个页签，即两个固定页签加前三个自定义分组，其余横向滑动查看，放不下的分组名以省略号截断；右侧「编辑」文字改为笔形图标，颜色与未选中页签相同，不再用蓝色。
 - v41：标的估值新增「估值假设」。`stock_valuation_snapshot` 增加 `valuation_assumptions_json`（可空 TEXT，迁移见 `tools/migrations/2026-09-23_valuation_assumptions.sql`），结构为 `previous_period` + `last_assumptions_vs_actual[]` + `current_assumptions[]`，记录支撑本次估值的 1—3 个可量化指标，以及对上一期假设的兑现验证（`超预期/符合预期/不如预期`，与 `quarter_performance` 同一套词）。`assumed`/`actual` 一律是带单位的字符串（`18%`、`12.3亿元`），指标异构，存数字要额外的单位字段，也不用于画图。**这是估值导入唯一的选填字段**：不进 `VALUATION_IMPORT_FIELDS` 必填校验，缺失或结构不对退化成 NULL，老执行方式不受影响；导入侧只收认识的键，`result` 超出三档退化成 null，避免第四种说法让跨期比较失效。`valuator_001` profile 同步补两节方法论：**上一份**估值报告（`analysis_date` 最新，仅用于识别同报告期重复执行）与**上一期**估值报告（`report_period` 不同的最近一份，才用于验证假设和预期差）必须分开，同期重复执行时不得拿上一份自我验证；上一期未记录假设时留空并写明，禁止回头推算或编造。安卓标的详情估值页与 Web 估值 tab 各增一块「估值假设」，选填字段没填就整块不渲染。
@@ -1190,6 +1191,7 @@ disclosure_library.parse_pdf
 track_discovery.review_track_events_deepseek
 portfolio.refresh_all_realtime_quotes
 portfolio.capture_daily_value_snapshot
+portfolio.evaluate_adjust_advice
 alert_center.evaluate_rules
 ```
 
@@ -1322,6 +1324,7 @@ market_radar.generate_daily_report
 track_discovery.review_track_events_deepseek
 portfolio.refresh_all_realtime_quotes
 portfolio.capture_daily_value_snapshot
+portfolio.evaluate_adjust_advice
 alert_center.evaluate_rules
 ```
 
@@ -2907,6 +2910,81 @@ portfolio_position_change 是调仓记录，只记个股数量变动，不记买
 调仓由持仓数量变动自动留痕，现金变动由 portfolio_cash_flow 的现金校准单独维护，两者不互相推导；
 候选 / 观察 / 重点跟踪 / 放弃 / 归档由 stock_pool 管理。
 ```
+
+### 21.3.1 微操建议跟踪
+
+研究员 `portfolio_001`（组合微操大师）围绕三条原则出报告：捕捉价格围绕价值（均线中枢，MA60 为主、MA20 为短期、MA5 为时机，MA250 只判断长期趋势）上下波动的机会；持续优化实盘资产配置；获取个股资讯和K线变化及时警示风险。每个交易日收盘后或早盘前一份，标题 `实盘组合-YYYY-MM-DD-微操报告`，末尾 JSON 经研究回流导入。微操建议不是成交，导入、评估都不改动持仓和调仓记录。
+
+```sql
+portfolio_adjust_advice          -- 一份报告一条，导入后只改 status
+- id
+- portfolio_id
+- feedback_id           -- 来源研究回流，唯一，防重复导入；不建外键（回流允许删除）
+- report_id             -- 报告原文
+- researcher_code
+- data_as_of_date       -- 报告使用的最后一根日K日期
+- news_as_of            -- 资讯截止时间
+- target_trade_date     -- 适用交易日 T，所有评估的锚点
+- has_opportunity       -- 有 / 无；暂无法判断为 NULL
+- total_asset           -- AI 当时看到的总资产
+- cash                  -- AI 当时看到的现金
+- cash_ratio_before
+- cash_ratio_after
+- continuity_note       -- 历史建议与实盘调仓的对照说明
+- status                -- active / superseded，同组合、同研究员、同 T 重导时旧的作废
+- created_at
+```
+
+```sql
+portfolio_adjust_advice_item     -- 每只持仓一条，含维持和等待
+-- 导入时写入，此后不变
+- id
+- advice_id
+- stock_id              -- 由证券代码解析，失败则整份报告导入失败
+- action                -- add / reduce / hold / wait
+- rating                -- 1-5
+- quantity
+- quantity_before
+- price_low / price_high
+- primary_signal_code   -- 主信号，胜率按它统计；大类由代码映射，不落列
+- value_zone            -- deep_below / below / around / above / far_above（相对 MA60）
+- long_trend            -- up / flat / down（MA250 20 日方向）
+- bias60_pct            -- MA60 乖离历史分位 0-1
+- risk_level            -- none / watch / warning / severe
+- primary_risk_code     -- 第一个风险代码，警示命中率按它统计
+- alert_event_id        -- warning 及以上生成的预警；不建外键（预警允许删除）
+- detail_json           -- 该持仓在报告 JSON 中的完整内容，只用于展示和回看
+-- 由 portfolio.evaluate_adjust_advice 回写
+- trigger_status        -- touched / not_touched / n_a
+- execution_status      -- executed / partial / not_executed，只对 add、reduce
+- executed_quantity     -- T 日同方向调仓股数
+- base_price            -- T 日前复权收盘价
+- return_5d / return_20d / return_60d
+- benchmark_return_20d  -- 同期沪深300 收益，只用于 risk_verdict
+- verdict               -- correct / wrong / neutral，20 日
+- risk_verdict          -- hit / miss，只对 warning 及以上
+- evaluated_at
+```
+
+规则：
+
+```text
+只有查询、统计、评估要用的字段成列，其余原样存 detail_json，profile 的 JSON 演进不需要迁移；
+可推导的不存：信号大类、相对不调整的效果、评估日期、重复建议链都在查询时计算；
+导入整份成功或整份失败；条目 risk_level 为 warning / severe 时同时生成未读 alert_event（warning / critical）；
+评估任务工作日 19:15 运行，排在 18:30 日线同步之后，可重复执行，数据未到的条目跳过、下次补上；
+以 T 为锚，用沪深300 日线数交易日（指数日线即交易日历），T 非交易日时取其后第一个交易日；
+收益 = 前复权 close(T+N) / close(T) - 1，同一份前复权序列计算，分红除权不影响；
+个股在评估日停牌时取此前最近收盘价，日线尚未同步到评估日时跳过；
+价格是否触及：增持看 T 日最低价 ≤ price_high，减持看 T 日最高价 ≥ price_low，T 日停牌视为未触及；
+执行匹配：T 日同组合、同标的、同方向的调仓数量合计，达到建议数量为 executed，不足为 partial；
+只评估 add、reduce 以及 warning 及以上的条目；
+verdict：增持 20 日收益 > +1% 或减持 20 日收益 < -1% 为 correct，反向超过 1% 为 wrong，其余 neutral；
+risk_verdict：20 日收益 - 沪深300 收益 < -3% 为 hit；
+胜率只统计 touched 的增持、减持，连续多份报告对同一标的同方向、一直未执行的建议只算一次。
+```
+
+研究员通过只读工具 `portfolio.list_adjust_advice_reviews` 读取最近报告、评估结果和统计，评价由系统按固定口径计算，不由研究员自评。研究员 profile 保存在 `knowledge_base/external/researchers/portfolio_001/profile.md`。
 
 ### 21.4 页面
 
@@ -5181,6 +5259,22 @@ id, portfolio_id, snapshot_date, total_value, position_market_value, cash_amount
 id, portfolio_id, title, content, risk_summary, created_at
 ```
 
+#### `portfolio_adjust_advice`：微操报告表，一份微操报告一条，记录适用交易日和组合快照
+
+字段：
+
+```text
+id, portfolio_id, feedback_id, report_id, researcher_code, data_as_of_date, news_as_of, target_trade_date, has_opportunity, total_asset, cash, cash_ratio_before, cash_ratio_after, continuity_note, status, created_at
+```
+
+#### `portfolio_adjust_advice_item`：微操建议条目表，每只持仓一条判断及系统事后评估
+
+字段：
+
+```text
+id, advice_id, stock_id, action, rating, quantity, quantity_before, price_low, price_high, primary_signal_code, value_zone, long_trend, bias60_pct, risk_level, primary_risk_code, alert_event_id, detail_json, trigger_status, execution_status, executed_quantity, base_price, return_5d, return_20d, return_60d, benchmark_return_20d, verdict, risk_verdict, evaluated_at
+```
+
 ---
 
 ### 34.13 knowledge_base
@@ -5549,6 +5643,7 @@ knowledge_base.get_researcher_profile
 report_library.list_reports
 report_library.read_report_content
 portfolio.list_position_changes
+portfolio.list_adjust_advice_reviews
 portfolio.get_overview
 ```
 

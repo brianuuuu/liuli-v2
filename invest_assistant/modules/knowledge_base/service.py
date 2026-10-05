@@ -39,6 +39,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeResearcherRead,
 )
 from invest_assistant.modules.market_radar.models import Tag
+from invest_assistant.modules.portfolio import adjust_advice as adjust_advice_service
 from invest_assistant.modules.stock_analysis import service as stock_service
 from invest_assistant.modules.stock_analysis.models import StockTrendSnapshot
 from invest_assistant.modules.track_discovery import service as track_service
@@ -65,6 +66,7 @@ SCORE_REPORT_TYPE = "标的评级报告"
 VALUATION_REPORT_TYPE = "标的估值报告"
 TREND_REPORT_TYPE = "趋势研究"
 TRACK_TREND_REPORT_TYPE = "赛道趋势研究"
+ADJUST_ADVICE_REPORT_TYPE = "微操报告"
 # 报告标题：研究对象-YYYY-MM-DD-报告类型。研究对象只是标签，不参与业务解析。
 SCORE_REPORT_TITLE_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(.+)$")
 TREND_LEVELS = {"T0", "T1", "T2", "T3", "T4", "T5"}
@@ -1065,7 +1067,13 @@ def upload_research_feedback(
     return feedback, report.id, content_size
 
 
-IMPORTABLE_REPORT_TYPES = {SCORE_REPORT_TYPE, VALUATION_REPORT_TYPE, TREND_REPORT_TYPE, TRACK_TREND_REPORT_TYPE}
+IMPORTABLE_REPORT_TYPES = {
+    SCORE_REPORT_TYPE,
+    VALUATION_REPORT_TYPE,
+    TREND_REPORT_TYPE,
+    TRACK_TREND_REPORT_TYPE,
+    ADJUST_ADVICE_REPORT_TYPE,
+}
 
 
 def is_pending_import_feedback(item: KnowledgeResearchFeedback) -> bool:
@@ -1129,6 +1137,8 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     if report_type == TRACK_TREND_REPORT_TYPE:
         return _import_track_trend_feedback(db, feedback, report_time, _extract_trailing_json_array(content))
     payload = _extract_trailing_json_object(content)
+    if report_type == ADJUST_ADVICE_REPORT_TYPE:
+        return _import_adjust_advice_feedback(db, feedback, payload)
     if report_type == SCORE_REPORT_TYPE:
         return _import_score_feedback(db, feedback, company_name, report_time, payload)
     if report_type == VALUATION_REPORT_TYPE:
@@ -1257,6 +1267,31 @@ def _import_trend_feedback(
         "failure_count": len(failures),
         "failures": failures,
         "trends": trends,
+    }
+
+
+def _import_adjust_advice_feedback(db: Session, feedback: KnowledgeResearchFeedback, payload: dict) -> dict:
+    """微操报告整份成功或整份失败：持仓判断是一个整体，缺一只就没法复盘组合层面的取舍。"""
+    try:
+        advice = adjust_advice_service.import_advice(
+            db,
+            payload,
+            feedback_id=feedback.id,
+            report_id=feedback.report_id,
+            researcher_code=feedback.researcher_code,
+        )
+        feedback.status = "parsed"
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(feedback)
+    result = adjust_advice_service.advice_dict(db, advice)
+    alert_count = sum(1 for item in result["items"] if item["risk_level"] in adjust_advice_service.ALERT_RISK_LEVELS)
+    return {
+        "target": "portfolio_adjust_advice",
+        "message": f"微操报告导入成功：{len(result['items'])} 只持仓，{alert_count} 条风险警示",
+        "advice": result,
     }
 
 

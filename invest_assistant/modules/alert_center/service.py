@@ -62,6 +62,14 @@ def event_stats(db: Session) -> dict[str, int]:
     return stats
 
 
+def create_event(db: Session, *, title: str, message: str, event_level: str = "warning") -> AlertEvent:
+    """供其他模块直接发出一条未读预警（不挂规则），提交交给调用方，与业务写入同一事务。"""
+    event = AlertEvent(rule_id=None, event_level=event_level, title=title[:255], message=message, status="unread")
+    db.add(event)
+    db.flush()
+    return event
+
+
 def get_event(db: Session, event_id: int) -> AlertEvent | None:
     return db.get(AlertEvent, event_id)
 

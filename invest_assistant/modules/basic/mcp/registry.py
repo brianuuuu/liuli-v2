@@ -88,6 +88,11 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "low",
         "service_name": "portfolio.service.get_overview",
     },
+    "portfolio.list_adjust_advice_reviews": {
+        "read_only": True,
+        "risk_level": "low",
+        "service_name": "portfolio.adjust_advice.list_adjust_advice_reviews",
+    },
 }
 
 
