@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  AdjustAdviceReviews,
   Portfolio,
   PortfolioCashBalance,
   PortfolioCashFlow,
@@ -92,6 +93,13 @@ export async function getPortfolioReviewPerformance(
       refresh_benchmark: refreshBenchmark,
       ...(portfolioId ? { portfolio_id: portfolioId } : {})
     }
+  });
+  return response.data;
+}
+
+export async function getAdjustAdviceReviews(portfolioId?: number | null, limit = 30): Promise<AdjustAdviceReviews> {
+  const response = await apiClient.get<AdjustAdviceReviews>("/api/portfolios/adjust-advice", {
+    params: { limit, ...(portfolioId ? { portfolio_id: portfolioId } : {}) }
   });
   return response.data;
 }

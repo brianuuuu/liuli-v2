@@ -529,6 +529,7 @@
 | 字段路径 | 类型 | 说明 |
 |---|---|---|
 | `data.rules` | string | 评估口径说明 |
+| `data.summary` | object | 全部历史概况：`report_count`、`advice_count`（增持减持条数）、`executed_count`、`tracked_count`（已匹配执行的条数）、`pending_count`（尚无 20 日判定）、`alert_count` |
 | `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note` |
 | `data.reports[].items[]` | object[] | 每只持仓的建议：`stock_id`、`stock_code`、`stock_name`、`action`、`rating`、`quantity`、`price_low`、`price_high`、`primary_signal_code`、`value_zone`、`long_trend`、`bias60_pct`、`core_logic`、`history_note`、`risk_level`、`primary_risk_code`、`risk_summary` |
 | `data.reports[].items[]` 评估字段 | — | `trigger_status`（touched / not_touched / n_a）、`execution_status`（executed / partial / not_executed）、`executed_quantity`、`base_price`、`return_5d`、`return_20d`、`return_60d`、`benchmark_return_20d`、`verdict`（correct / wrong / neutral）、`risk_verdict`（hit / miss）；未到期为 `null` |

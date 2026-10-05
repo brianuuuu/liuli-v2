@@ -278,6 +278,14 @@ def test_reviews_count_unexecuted_repeats_once(tmp_path, monkeypatch):
     review = adjust_advice.list_adjust_advice_reviews(db, portfolio_id=1, limit=1)
 
     assert len(review["reports"]) == 1
+    assert review["summary"] == {
+        "report_count": 2,
+        "advice_count": 2,
+        "executed_count": 0,
+        "tracked_count": 2,
+        "pending_count": 0,
+        "alert_count": 2,
+    }
     assert review["reports"][0]["target_trade_date"] == days[1]
     first_item = review["reports"][0]["items"][0]
     assert first_item["stock_name"] == "春秋航空" and first_item["core_logic"] == "进入中枢上方，分批减持。"

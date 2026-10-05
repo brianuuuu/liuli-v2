@@ -408,6 +408,7 @@ def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, lim
             "胜率只统计价格触及区间的建议，连续多日对同一标的的同方向未执行建议只算一次。"
             "warning 及以上警示 20 日跑输沪深300 超过 3% 为 hit。"
         ),
+        "summary": _summary(advices, items_by_advice),
         "reports": [_advice_dict(advice, items_by_advice[advice.id]) for advice in recent],
         "signal_stats": _signal_stats(advices, items_by_advice),
         "risk_stats": _risk_stats(advices, items_by_advice),
@@ -470,6 +471,25 @@ def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock) -> dict:
         "benchmark_return_20d": item.benchmark_return_20d,
         "verdict": item.verdict,
         "risk_verdict": item.risk_verdict,
+    }
+
+
+def _summary(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> dict:
+    """全部历史上的执行与待评估概况；胜率口径见 signal_stats。"""
+    directional = [
+        item for advice in advices for item, _stock in items_by_advice.get(advice.id, []) if item.action in DIRECTIONAL_ACTIONS
+    ]
+    alerts = [
+        item for advice in advices for item, _stock in items_by_advice.get(advice.id, []) if item.risk_level in ALERT_RISK_LEVELS
+    ]
+    tracked = [item for item in directional if item.execution_status is not None]
+    return {
+        "report_count": len(advices),
+        "advice_count": len(directional),
+        "executed_count": sum(1 for item in tracked if item.execution_status in {"executed", "partial"}),
+        "tracked_count": len(tracked),
+        "pending_count": sum(1 for item in directional if item.verdict is None),
+        "alert_count": len(alerts),
     }
 
 

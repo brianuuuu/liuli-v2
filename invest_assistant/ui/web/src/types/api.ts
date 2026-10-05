@@ -1139,4 +1139,77 @@ export type PortfolioReviewPerformance = {
   };
 };
 
+export type AdjustAdviceItem = {
+  id: number;
+  stock_id: number;
+  stock_code: string;
+  stock_name: string;
+  action: "add" | "reduce" | "hold" | "wait" | string;
+  rating?: number | null;
+  quantity?: number | null;
+  price_low?: number | null;
+  price_high?: number | null;
+  primary_signal_code?: string | null;
+  value_zone?: string | null;
+  long_trend?: string | null;
+  bias60_pct?: number | null;
+  core_logic?: string | null;
+  history_note?: string | null;
+  risk_level: "none" | "watch" | "warning" | "severe" | string;
+  primary_risk_code?: string | null;
+  risk_summary?: string | null;
+  trigger_status?: "touched" | "not_touched" | "n_a" | string | null;
+  execution_status?: "executed" | "partial" | "not_executed" | string | null;
+  executed_quantity?: number | null;
+  base_price?: number | null;
+  return_5d?: number | null;
+  return_20d?: number | null;
+  return_60d?: number | null;
+  benchmark_return_20d?: number | null;
+  verdict?: "correct" | "wrong" | "neutral" | string | null;
+  risk_verdict?: "hit" | "miss" | string | null;
+};
+
+export type AdjustAdviceReport = {
+  id: number;
+  portfolio_id: number;
+  report_id?: number | null;
+  researcher_code?: string | null;
+  data_as_of_date: string;
+  target_trade_date: string;
+  has_opportunity?: boolean | null;
+  continuity_note?: string | null;
+  items: AdjustAdviceItem[];
+};
+
+export type AdjustAdviceWinRateRow = {
+  action: string;
+  signal_code?: string;
+  category?: string;
+  samples: number;
+  correct: number;
+  wrong: number;
+  neutral: number;
+  win_rate: number;
+  avg_effect_20d: number;
+};
+
+export type AdjustAdviceReviews = {
+  rules: string;
+  summary: {
+    report_count: number;
+    advice_count: number;
+    executed_count: number;
+    tracked_count: number;
+    pending_count: number;
+    alert_count: number;
+  };
+  reports: AdjustAdviceReport[];
+  signal_stats: {
+    by_signal: AdjustAdviceWinRateRow[];
+    by_category: AdjustAdviceWinRateRow[];
+  };
+  risk_stats: { risk_code: string; samples: number; hits: number; hit_rate: number }[];
+};
+
 export type AnyRecord = Record<string, unknown>;

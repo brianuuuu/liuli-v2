@@ -30,6 +30,7 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { AdjustAdviceReview } from "./AdjustAdviceReview";
 import type {
   Portfolio,
   PortfolioCashFlow,
@@ -173,6 +174,7 @@ export function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [reviewPortfolioId, setReviewPortfolioId] = useState<number | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("year");
+  const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
@@ -920,7 +922,15 @@ export function PortfolioPage() {
               ]}
               onChange={(value) => setReviewPeriod(value as ReviewPeriod)}
             />
-            <Button onClick={() => reviewPerformance.refresh()} loading={reviewPerformance.loading}>刷新复盘</Button>
+            <Button
+              onClick={() => {
+                void reviewPerformance.refresh();
+                setReviewRefreshKey((value) => value + 1);
+              }}
+              loading={reviewPerformance.loading}
+            >
+              刷新复盘
+            </Button>
             <Tag>{data.benchmark.name || "沪深300"}</Tag>
             <Tag>{periodLabel}</Tag>
           </Space>
@@ -944,6 +954,7 @@ export function PortfolioPage() {
             <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`}><EmptyAction description="暂无可用于复盘的盈亏记录" /></WorkbenchCard>
           )}
         </div>
+        <AdjustAdviceReview key={reviewRefreshKey} portfolioId={reviewPortfolioId} />
       </div>
     );
   }

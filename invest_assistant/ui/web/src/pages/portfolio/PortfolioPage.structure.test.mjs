@@ -2,6 +2,7 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 
 const page = fs.readFileSync(new URL("./PortfolioPage.tsx", import.meta.url), "utf8");
+const adjustAdvice = fs.readFileSync(new URL("./AdjustAdviceReview.tsx", import.meta.url), "utf8");
 const chartTheme = fs.readFileSync(new URL("../../components/charts/chartTheme.ts", import.meta.url), "utf8");
 
 assert.match(page, /新建组合/);
@@ -42,6 +43,12 @@ assert.match(page, /有效记录以来/);
 assert.match(page, /reviewLineOption/);
 assert.match(page, /reviewCalendarOption/);
 assert.match(page, /portfolio-review-metrics/);
+assert.match(page, /<AdjustAdviceReview key=\{reviewRefreshKey\} portfolioId=\{reviewPortfolioId\} \/>/);
+assert.match(adjustAdvice, /微操复盘/);
+assert.match(adjustAdvice, /getAdjustAdviceReviews/);
+assert.match(adjustAdvice, /显示维持和等待/);
+assert.match(adjustAdvice, /信号表现/);
+assert.match(adjustAdvice, /风险警示命中率/);
 assert.doesNotMatch(page, /coordinateSystem: "calendar"/);
 assert.doesNotMatch(page, /cellSize: \["auto", 18\]/);
 assert.match(page, /renderOverview/);

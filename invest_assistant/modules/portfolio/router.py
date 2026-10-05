@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
-from invest_assistant.modules.portfolio import service
+from invest_assistant.modules.portfolio import adjust_advice, service
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashFlowCreate,
     PortfolioCashFlowRead,
@@ -63,6 +63,14 @@ def get_review_performance(
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/adjust-advice")
+def list_adjust_advice_reviews(portfolio_id: int | None = None, limit: int = 30, db: Session = Depends(get_db)) -> dict:
+    try:
+        return adjust_advice.list_adjust_advice_reviews(db, portfolio_id=portfolio_id, limit=min(max(limit, 1), 200))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="portfolio not found") from exc
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioRead)

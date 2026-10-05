@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v45：Web 组合管理「组合复盘」页在收益曲线与盈亏日历下方新增「微操复盘」板块，数据来自 `GET /api/portfolios/adjust-advice`（复用 `list_adjust_advice_reviews`，返回结构与 MCP 工具一致，另含全部历史的 `summary`）。板块包括：增持与减持 20 日胜率、建议执行率、警示命中率、待评估数；微操报告列表（展开看逐只持仓的方向、价格区间、触及、执行、5/20/60 日收益、对错、风险）；信号表现表（样本不足 10 条置灰）与风险警示命中率表。维持、等待且无警示的条目默认隐藏。安卓端不做，第一版不含人工备注。
 - v44：组合管理新增微操建议跟踪。研究员 `portfolio_001` 每个交易日收盘后或早盘前出一份「微操报告」（标题 `实盘组合-YYYY-MM-DD-微操报告`），报告末尾 JSON 经研究回流导入 `portfolio_adjust_advice`（一份报告一条）与 `portfolio_adjust_advice_item`（每只持仓一条，含维持和等待）；只有查询、统计、评估要用的字段成列，其余原样存 `detail_json`，profile 的 JSON 演进不需要迁移。条目 `risk_level` 为 warning / severe 时导入同时生成未读 `alert_event`，进入安卓待办。新增定时任务 `portfolio.evaluate_adjust_advice`（工作日 19:15，排在 18:30 日线同步之后）：以适用交易日 T 为锚、用沪深300 日线数交易日，回写触及区间、执行匹配（T 日同方向调仓）和 T+5/20/60 收益，20 日为主判定（增持涨超 1% 或减持后跌超 1% 为对，反向超过 1% 为错）；收益统一用前复权 T 收盘为基准，价格是否触及区间只决定是否计入胜率；警示 20 日跑输沪深300 超过 3% 为命中。对外 MCP 新增只读工具 `portfolio.list_adjust_advice_reviews`，返回最近报告及评估、按方向+主信号与方向+大类的胜率、按风险代码的警示命中率，供研究员出报告前校准。两张均为新表，由 `create_all` 建表，无迁移脚本。
 - v43：信息流接入社交媒体舆情。对外 MCP 新增受控写入工具 `market_radar.import_sentiment_items`，由外部程序定时批量导入雪球、微博、知乎上大V和自媒体的观点，每条只有 `platform`、`author`、`date`（只有日期）、`content` 四个字段，另有可选的 `important`；单次最多 200 条，单条校验失败不影响同批其他条目。舆情落在 `source_item`（`source_type=sentiment`），不新建表，照常参与标签命中、热度、图谱和标的/赛道待审材料生成，不进待办，也暂不进 AI 推荐词任务。`source_item` 新增可空列 `author`（迁移见 `tools/migrations/2026-09-26_source_item_author.sql`），只有舆情使用；作者不做成 tag——作者是信息的出处，不是语义锚点，做成 tag 会污染热度榜、共现图谱和标签管理；同一个人在不同平台的名字不合并。`publish_time` 记导入时间：只有日期时编造具体时间没有意义，而记当天 00:00 会让舆情排在当天所有新闻之后、并提前滑出 24 小时热度窗口；`date` 只用于校验（不晚于今天）和限定去重范围。去重口径为同平台、同作者、正文完全相同，且在 `date` 当天 00:00（北京时间）之后已导入过——导入时间每次不同不能比时间，而同一条观点只可能在发布日期当天或之后被导入。标题由服务端取正文第一行前 40 字生成，只用于满足表结构和关键词搜索，Web 和安卓都不显示。`important` 写入 `is_important`，标了的舆情进入「重要」：导入程序在筛选时最清楚哪些观点有分量。信息流接口和 `search_source_items` 增加 `author` 精确筛选。Web 市场雷达信息流的舆情条目改为「时间 · 作者 · 平台 · 舆情」头部加正文、不显示标题，时间线圆点用紫色区分，点作者名只看这个人，筛选区增加雪球、微博、知乎来源和作者输入框，类型改显示中文；安卓资讯页新增「舆情」页签，排在「全部」之后，「全部」照常包含舆情，舆情卡片先显示作者再显示正文（最多 4 行），在任意页签点作者名都跳到舆情页签只看这个人，顶部可清除。
 - v42：资讯「重要」改为来源自带的标记。`source_item` 新增 `is_important`（非空布尔，默认 false，迁移见 `tools/migrations/2026-09-24_source_item_is_important.sql`），`important_only` 由 16 个关键词对标题和正文做 ILIKE 改为按这一列过滤：原做法每次全表扫两遍（列表 + 总数），安卓首次切到「重要」页签明显卡顿；而且「AI」「芯片」这类词让大量普通快讯被算作重要。目前只有富途快讯有重要标记，其他来源一律 false；老数据一律 false，不用关键词回填，免得新旧两批口径不一致。富途快讯抓取不再经 akshare 的 `stock_info_global_futu`，改由 `market_radar/futu_client.py` 直接请求富途官网快讯接口：akshare 请求的是同一地址，但只留四列，丢了 `level` 和翻页游标，时间按运行机器本地时区转成不带时区的字符串，且没设超时。新实现带 15 秒超时，按 `seqMark` 从新往旧翻页，翻到已入库的快讯就停，`limit` 默认改为 300 作兜底上限（原先每 30 分钟只取最新 50 条，白天和美股时段会漏）；发布时间由 Unix 秒按北京时区换算。接口不是公开 API、无公开限流规则，保持每 30 分钟一次，失败不连续重试。控制台数据源页富途一行的接口改为「富途官网快讯接口」；Web 市场雷达信息流的「重要」角标同样改读 `is_important`。安卓资讯页进页面时后台预取「重要」页签首屏；PostgreSQL 额外建 `publish_time DESC NULLS LAST, id DESC` 索引，与信息流排序一致，列表查询取够一页即停。安卓笔记页标签栏改为「全部」「未分组」固定在最前、自定义分组在后（v38 是自定义分组在前）；一屏固定摆五个页签，即两个固定页签加前三个自定义分组，其余横向滑动查看，放不下的分组名以省略号截断；右侧「编辑」文字改为笔形图标，颜色与未选中页签相同，不再用蓝色。
@@ -2984,7 +2985,7 @@ risk_verdict：20 日收益 - 沪深300 收益 < -3% 为 hit；
 胜率只统计 touched 的增持、减持，连续多份报告对同一标的同方向、一直未执行的建议只算一次。
 ```
 
-研究员通过只读工具 `portfolio.list_adjust_advice_reviews` 读取最近报告、评估结果和统计，评价由系统按固定口径计算，不由研究员自评。研究员 profile 保存在 `knowledge_base/external/researchers/portfolio_001/profile.md`。
+Web 在「组合复盘」页的「微操复盘」板块查看（不新增二级菜单，安卓端不做）。研究员通过只读工具 `portfolio.list_adjust_advice_reviews` 读取最近报告、评估结果和统计，评价由系统按固定口径计算，不由研究员自评。研究员 profile 保存在 `knowledge_base/external/researchers/portfolio_001/profile.md`。
 
 ### 21.4 页面
 
@@ -4791,6 +4792,7 @@ ai_audit 是基础数据能力，Web 暴露入口由 Console 聚合。
 | GET | `/api/portfolios/overview` | 全组合概览 |
 | GET | `/api/portfolios/value-snapshots` | 组合市值快照序列 |
 | GET | `/api/portfolios/review-performance` | 组合复盘表现汇总 |
+| GET | `/api/portfolios/adjust-advice` | 微操复盘：最近微操报告及评估、信号胜率、警示命中率（`portfolio_id`、`limit` 默认 30） |
 | GET | `/api/portfolios/{id}` | 组合详情 |
 | PUT | `/api/portfolios/{id}` | 更新组合 |
 | DELETE | `/api/portfolios/{id}` | 删除组合 |
