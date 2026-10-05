@@ -1,5 +1,3 @@
-from datetime import date
-
 from pydantic import BaseModel, Field
 
 
@@ -19,10 +17,3 @@ class SourceItemSearchParams(LimitOffsetParams):
 class HotwordParams(LimitOffsetParams):
     status: str | None = None
     q: str | None = None
-
-
-class DailyBarsParams(BaseModel):
-    stock_id: int
-    start_date: date | None = None
-    end_date: date | None = None
-    limit: int = Field(default=50, ge=1, le=100)

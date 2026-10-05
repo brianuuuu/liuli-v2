@@ -422,10 +422,38 @@ def test_mcp_stock_daily_bars_wrapper_never_refreshes(monkeypatch):
         local_only=True,
     )
 
-    result = get_daily_bars(db=object(), client=client, stock_id=1, refresh=True, limit=100)
+    result = get_daily_bars(db=object(), client=client, stock_id=1, limit=300)
 
-    assert calls["limit"] == 50
+    # 客户端通用上限是 50，日线工具单独放宽，300 根应原样传到业务层
+    assert calls["limit"] == 300
     assert result["items"] == [{"trade_date": "2026-06-26", "close": 10.0}]
+
+    get_daily_bars(db=object(), client=client, stock_id=1, limit=5000)
+    assert calls["limit"] == 800
+
+
+def test_cached_daily_bars_service_allows_limit_above_generic_page_cap():
+    from invest_assistant.modules.stock_analysis import service as stock_service
+
+    class FakeDb:
+        statement = None
+
+        def get(self, model, ident):
+            return object()
+
+        def scalars(self, statement):
+            self.statement = statement
+            return []
+
+    db = FakeDb()
+    # 不连库：只看下发的 SQL 带的 LIMIT，确认业务层不再把日线压回通用上限 100
+    stock_service.list_cached_stock_daily_bars(db, 1, limit=500)
+    assert db.statement.compile(compile_kwargs={"literal_binds": True}).string.rstrip().endswith("LIMIT 500")
+
+    stock_service.list_cached_stock_daily_bars(db, 1, limit=5000)
+    assert db.statement.compile(compile_kwargs={"literal_binds": True}).string.rstrip().endswith(
+        f"LIMIT {stock_service.DAILY_BAR_MAX_LIMIT}"
+    )
 
 
 def test_mcp_researcher_tool_returns_single_profile_file(tmp_path, monkeypatch):

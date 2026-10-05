@@ -39,6 +39,9 @@ from invest_assistant.shared.pagination import Page, make_page, normalize_limit,
 
 
 ARCHIVED_STATUS = "archived"
+# 日线按年看周期，通用分页上限 100 只够五个月；与 MCP 注册表里 get_daily_bars 的
+# max_result_limit 保持一致，约三年交易日。
+DAILY_BAR_MAX_LIMIT = 800
 
 MAJOR_A_SHARE_INDICES = [
     {"code": "000001.SH", "name": "上证指数"},
@@ -1701,7 +1704,7 @@ def list_cached_stock_daily_bars(
 ) -> list[StockDailyBar] | None:
     if db.get(Stock, stock_id) is None:
         return None
-    safe_limit = normalize_limit(limit)
+    safe_limit = normalize_limit(limit, maximum=DAILY_BAR_MAX_LIMIT)
     stmt = select(StockDailyBar).where(
         StockDailyBar.stock_id == stock_id,
         StockDailyBar.adj == adj,

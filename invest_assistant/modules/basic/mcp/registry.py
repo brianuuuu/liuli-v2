@@ -44,6 +44,7 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         "risk_level": "low",
         "service_name": "stock_analysis.service.list_cached_stock_daily_bars",
         # 日线要按年拉长周期，客户端 50/100 的通用上限不够用，这里单独放宽到约三年交易日。
+        # 业务层 stock_analysis.service.DAILY_BAR_MAX_LIMIT 也要同步放宽，否则会被压回 100。
         "max_result_limit": 800,
     },
     "knowledge_base.get_researcher_profile": {
