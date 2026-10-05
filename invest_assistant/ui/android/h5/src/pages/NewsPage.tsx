@@ -64,6 +64,18 @@ function NewsTimeline({ tab, author, onSelectAuthor, onClearAuthor }: { tab: New
     query.data?.pages.flatMap((page) => page.items).forEach((item) => map.set(item.id, item));
     return [...map.values()];
   }, [query.data]);
+  // sticky 只在父容器范围内吸附：日期标题必须和当天全部条目同处一个容器，
+  // 放进单条的容器里，那一条滚出去标题就跟着走了。
+  const days = useMemo(() => {
+    const groups: { day: string; items: typeof items }[] = [];
+    items.forEach((item) => {
+      const day = formatDay(item.publish_time ?? item.created_at);
+      const last = groups.at(-1);
+      if (last?.day === day) last.items.push(item);
+      else groups.push({ day, items: [item] });
+    });
+    return groups;
+  }, [items]);
   const refresh = async () => {
     queryClient.setQueryData(timelineQuery.queryKey, (current: typeof query.data) => current ? {
       ...current,
@@ -79,8 +91,7 @@ function NewsTimeline({ tab, author, onSelectAuthor, onClearAuthor }: { tab: New
     newsReturn.remember(tab, sectionRef.current, id);
     navigate(`/news/${id}`);
   };
-  let lastDay = "";
-  return <section ref={sectionRef}>{authorFilter ? <div className="news-author-filter"><span>作者：{authorFilter}</span><button type="button" aria-label="清除作者筛选" onClick={onClearAuthor}><X size={14} /></button></div> : null}<PullToRefresh ariaLabel="资讯下拉刷新" onRefresh={refresh}>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{items.map((item) => { const day = formatDay(item.publish_time ?? item.created_at); const showDay = day !== lastDay; lastDay = day; return <div key={item.id} data-return-id={item.id}>{showDay ? <div className="timeline-day">{day}</div> : null}{item.source_type === "sentiment" ? <SentimentCard item={item} onOpen={() => openItem(item.id)} onSelectAuthor={onSelectAuthor} /> : <article className="timeline-item" onClick={() => openItem(item.id)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article>}</div>; })}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</PullToRefresh></section>;
+  return <section ref={sectionRef}>{authorFilter ? <div className="news-author-filter"><span>作者：{authorFilter}</span><button type="button" aria-label="清除作者筛选" onClick={onClearAuthor}><X size={14} /></button></div> : null}<PullToRefresh ariaLabel="资讯下拉刷新" onRefresh={refresh}>{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState message="资讯加载失败" onRetry={() => void query.refetch()} /> : items.length ? <div className="timeline-list">{days.map((group) => <section key={`${group.day}-${group.items[0].id}`} className="timeline-day-group"><div className="timeline-day">{group.day}</div>{group.items.map((item) => <div key={item.id} data-return-id={item.id}>{item.source_type === "sentiment" ? <SentimentCard item={item} onOpen={() => openItem(item.id)} onSelectAuthor={onSelectAuthor} /> : <article className="timeline-item" onClick={() => openItem(item.id)}><div className="timeline-dot" /><time>{formatDateTime(item.publish_time ?? item.created_at).split(" ").at(-1)}</time><h2>{item.title}</h2><p>{item.content?.slice(0, 160)}</p><footer><span>{item.source_name}</span>{item.source_tags?.slice(0, 3).map((tag) => <em key={tag.id}>#{tag.tag?.name}</em>)}</footer></article>}</div>)}</section>)}{query.hasNextPage ? <button className="load-more" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "加载中…" : "加载更多"}</button> : null}</div> : <EmptyState title="暂无资讯" detail="当前筛选没有内容" />}</PullToRefresh></section>;
 }
 
 /** 舆情先看是谁说的，再看说了什么：标题只是正文前 40 字，不显示。 */

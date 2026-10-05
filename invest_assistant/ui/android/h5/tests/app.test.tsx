@@ -99,6 +99,37 @@ describe("mobile H5 app", () => {
     expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "36");
   });
 
+  it("keeps each news day header in the same container as all of that day's items", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/news";
+    const news = (id: number, title: string, publishTime: string) => ({
+      id, title, content: "", source_type: "news", source_name: "测试源", publish_time: publishTime, source_tags: []
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({
+        items: [
+          news(1, "当日第一条", "2026-10-05T06:00:00Z"),
+          news(2, "当日第二条", "2026-10-05T04:00:00Z"),
+          news(3, "前一日第一条", "2026-10-04T06:00:00Z")
+        ],
+        total: 3, limit: 30, offset: 0, has_more: false
+      }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    );
+
+    renderApp();
+
+    // 日期标题吸顶的范围就是它的父容器，同一天的条目必须都在这个容器里
+    const first = (await screen.findAllByText("当日第一条"))[0].closest(".timeline-day-group");
+    const second = screen.getAllByText("当日第二条")[0].closest(".timeline-day-group");
+    const previous = screen.getAllByText("前一日第一条")[0].closest(".timeline-day-group");
+    expect(first).not.toBeNull();
+    expect(second).toBe(first);
+    expect(previous).not.toBe(first);
+    expect(first?.querySelectorAll(".timeline-day")).toHaveLength(1);
+    expect(previous?.querySelectorAll(".timeline-day")).toHaveLength(1);
+  });
+
   it("replaces the news toolbar with current-tab pull-to-refresh and resets pagination", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/news";
