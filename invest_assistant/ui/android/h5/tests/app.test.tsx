@@ -2003,6 +2003,53 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("已拒绝 1 条推荐词")).toBeInTheDocument();
   });
 
+  it("shows unhandled task counts by type on the today welcome card", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const page = (total: number) => JSON.stringify({ items: [], total, limit: 1, offset: 0, has_more: total > 1 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const json = (body: string) => new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+        if (url.includes("/api/console/workbench-today")) return json(JSON.stringify({ market_indices: { items: [] } }));
+        if (url.includes("/api/market-radar/ai-tag-suggestions")) return json(page(5));
+        if (url.includes("/api/knowledge/research-feedback")) return json(JSON.stringify([{ id: 1, title: "a" }, { id: 2, title: "b" }]));
+        if (url.includes("/api/knowledge/notes")) return json(page(0));
+        if (url.includes("/api/alerts/events")) return json(page(3));
+        return json(page(0));
+      })
+    );
+
+    renderApp();
+
+    // 数量为 0 的笔记不出现
+    expect(await screen.findByText("待处理：推荐词 5 · 报告 2 · 预警 3")).toBeInTheDocument();
+    expect(screen.queryByText("重要信息、风险事件和研究记录集中在这里。")).not.toBeInTheDocument();
+  });
+
+  it("keeps the welcome description when there are no unhandled tasks", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const body = url.includes("/api/knowledge/research-feedback")
+          ? "[]"
+          : url.includes("/api/console/workbench-today")
+            ? JSON.stringify({ market_indices: { items: [] } })
+            : JSON.stringify({ items: [], total: 0, limit: 1, offset: 0, has_more: false });
+        return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+      })
+    );
+
+    renderApp();
+
+    expect(await screen.findByText("重要信息、风险事件和研究记录集中在这里。")).toBeInTheDocument();
+    expect(screen.queryByText(/待处理：/)).not.toBeInTheDocument();
+  });
+
   it("shows the web-aligned portfolio performance on the today dashboard", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";

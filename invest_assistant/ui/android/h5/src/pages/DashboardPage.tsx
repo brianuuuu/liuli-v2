@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpDown } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -85,6 +85,26 @@ function rankMovementDisplay(item: Pick<TagHeat, "rank_change" | "rank_movement"
     : { value: String(change), tone: "down" } as const;
 }
 
+/**
+ * 欢迎卡第三行的待办计数，口径与待办页四个页签逐一对齐。分页接口只取 1 条拿 total；
+ * 待导入报告接口不分页，直接数长度。缓存键单独放在 task-counts 下，不混进待办页
+ * 那几个列表的键：推荐词审核页会把 ai-tag-suggestions 下的缓存一律当分页列表改写。
+ */
+const TASK_COUNT_SOURCES = [
+  {
+    key: "suggestions",
+    label: "推荐词",
+    count: (signal: AbortSignal) => mobileApi.aiTagSuggestions({ status: "pending", limit: 1, offset: 0 }, signal).then((page) => page.total)
+  },
+  { key: "pending-reports", label: "报告", count: (signal: AbortSignal) => mobileApi.pendingReports(signal).then((rows) => rows.length) },
+  {
+    key: "notes",
+    label: "笔记",
+    count: () => mobileApi.notes({ limit: 1, offset: 0, status: "active", ungrouped: true, note_type: "mcp" }).then((page) => page.total)
+  },
+  { key: "alerts", label: "预警", count: (signal: AbortSignal) => mobileApi.unreadAlerts(0, 1, signal).then((page) => page.total) }
+] as const;
+
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>(() => lastDashboardTab() as DashboardTab);
   const pager = useRef<HorizontalTabPagerHandle<DashboardTab>>(null);
@@ -110,11 +130,25 @@ function TodayDashboard() {
   const todayReports = market.data?.today_reports;
   const reportTotal = todayReports?.total ?? 0;
   const reportItems = todayReports?.items ?? [];
+  // 待办页处理完回到看板时页面会重新挂载，每次挂载都重数，计数才跟得上。
+  const taskCounts = useQueries({
+    queries: TASK_COUNT_SOURCES.map((source) => ({
+      queryKey: ["task-counts", source.key],
+      queryFn: ({ signal }: { signal: AbortSignal }) => source.count(signal),
+      refetchOnMount: "always" as const
+    }))
+  });
+  // 只列有待办的类型；某一类拉取失败就略过它，全都没有时退回原来的说明文案。
+  const pendingSummary = TASK_COUNT_SOURCES
+    .map((source, index) => ({ label: source.label, count: taskCounts[index].data ?? 0 }))
+    .filter((item) => item.count > 0)
+    .map((item) => `${item.label} ${item.count}`)
+    .join(" · ");
   return (
     <PullToRefresh
       ariaLabel="今日看板下拉刷新"
       onRefresh={async () => {
-        const marketResult = await market.refetch();
+        const [marketResult] = await Promise.all([market.refetch(), ...taskCounts.map((query) => query.refetch())]);
         if (marketResult.isError) throw marketResult.error;
       }}
     >
@@ -122,7 +156,7 @@ function TodayDashboard() {
       <section className="welcome-card">
         <span>投研工作台</span>
         <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
-        <p>重要信息、风险事件和研究记录集中在这里。</p>
+        <p>{pendingSummary ? `待处理：${pendingSummary}` : "重要信息、风险事件和研究记录集中在这里。"}</p>
       </section>
       <SectionCard title="今日大盘">
         {market.isLoading ? <LoadingState /> : market.isError ? <ErrorState message="大盘行情加载失败" onRetry={() => void market.refetch()} /> : market.data?.market_indices.items.length ? (
