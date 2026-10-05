@@ -202,7 +202,6 @@ display_name: 组合微操大师
 
 ```json
 {
-  "portfolio_id": 1,
   "researcher_code": "portfolio_001",
   "data_as_of_date": "2026-09-24",
   "news_as_of": "2026-09-24T20:30+08:00",
@@ -236,6 +235,7 @@ display_name: 组合微操大师
 
 字段取值：
 
+- `portfolio_id`：按全部实盘组合的合计持仓出报告时省略（默认）；只研究某一个组合时，填 `portfolio.get_overview` 返回的 `portfolio_options[].id`，不得猜测或照抄示例。
 - `data_as_of_date` 为所用最后一根日K日期，`news_as_of` 为资讯截止时间，`target_trade_date` 为适用交易日，三者不得混用；`has_opportunity` 暂无法判断时为 null。
 - `action`：`add` / `reduce` / `hold` / `wait`；hold、wait 的 `quantity`、价格填 null；股数待核实时 `quantity` 也填 null。
 - `value_rank`：在全部持仓中的排序名次，1 为最靠中枢下方。

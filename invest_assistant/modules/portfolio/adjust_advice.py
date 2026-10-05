@@ -6,6 +6,8 @@
   建议里的价格区间是当时的实际价，分红除权后两者无法换算，所以收益基准统一取 T 收盘，
   价格是否触及区间只决定这条建议是否计入胜率。
 - 只评估增持、减持，以及 warning 及以上的风险警示；没有警示的维持、等待不算收益。
+- portfolio_id 为空表示全部实盘组合（研究员通常按所有账户的合计持仓出报告），
+  执行匹配时按标的在所有组合里找 T 日调仓。
 """
 
 import json
@@ -80,7 +82,7 @@ def import_advice(
     """把报告末尾 JSON 落成 ① ②，warning 及以上同时发预警。不提交，由调用方与回流状态一起提交。"""
     if db.scalar(select(PortfolioAdjustAdvice.id).where(PortfolioAdjustAdvice.feedback_id == feedback_id)) is not None:
         raise ValueError("该微操报告已导入，不能重复导入")
-    portfolio = _resolve_portfolio(db, payload.get("portfolio_id"))
+    portfolio_id = _resolve_portfolio_id(db, payload.get("portfolio_id"))
     target_trade_date = _required_date(payload, "target_trade_date")
     raw_items = payload.get("items")
     if not isinstance(raw_items, list):
@@ -90,7 +92,7 @@ def import_advice(
 
     for previous in db.scalars(
         select(PortfolioAdjustAdvice).where(
-            PortfolioAdjustAdvice.portfolio_id == portfolio.id,
+            _same_portfolio(portfolio_id),
             PortfolioAdjustAdvice.researcher_code == code,
             PortfolioAdjustAdvice.target_trade_date == target_trade_date,
             PortfolioAdjustAdvice.status == "active",
@@ -99,7 +101,7 @@ def import_advice(
         previous.status = "superseded"
 
     advice = PortfolioAdjustAdvice(
-        portfolio_id=portfolio.id,
+        portfolio_id=portfolio_id,
         feedback_id=feedback_id,
         report_id=report_id,
         researcher_code=code,
@@ -179,20 +181,22 @@ def _create_risk_alert(db: Session, stock: Stock, raw: dict, risk_level: str, ta
     return event.id
 
 
-def _resolve_portfolio(db: Session, value: Any) -> Portfolio:
-    if value is not None and not (isinstance(value, str) and not value.strip()):
-        try:
-            portfolio_id = int(value)
-        except Exception as exc:
-            raise ValueError("portfolio_id 必须是整数") from exc
-        portfolio = db.get(Portfolio, portfolio_id)
-        if portfolio is None:
-            raise ValueError(f"未找到组合: portfolio_id={portfolio_id}")
-        return portfolio
-    portfolios = list(db.scalars(select(Portfolio).limit(2)))
-    if len(portfolios) != 1:
-        raise ValueError("微操报告缺少字段: portfolio_id（存在多个组合时必须指定）")
-    return portfolios[0]
+def _resolve_portfolio_id(db: Session, value: Any) -> int | None:
+    """留空表示全部实盘组合；给了就必须是存在的组合。"""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        portfolio_id = int(value)
+    except Exception as exc:
+        raise ValueError("portfolio_id 必须是整数，或留空表示全部实盘组合") from exc
+    if db.get(Portfolio, portfolio_id) is None:
+        raise ValueError(f"未找到组合: portfolio_id={portfolio_id}（留空表示全部实盘组合）")
+    return portfolio_id
+
+
+def _same_portfolio(portfolio_id: int | None):
+    column = PortfolioAdjustAdvice.portfolio_id
+    return column.is_(None) if portfolio_id is None else column == portfolio_id
 
 
 def _resolve_stock(db: Session, value: Any, label: str) -> Stock:
@@ -343,13 +347,13 @@ def _fill_trigger_and_execution(
         touched = t_bar.high >= item.price_low
     item.trigger_status = "touched" if touched else "not_touched"
 
-    deltas = db.scalars(
-        select(PortfolioPositionChange.quantity_delta).where(
-            PortfolioPositionChange.portfolio_id == advice.portfolio_id,
-            PortfolioPositionChange.stock_id == item.stock_id,
-            PortfolioPositionChange.change_date == t_day,
-        )
-    ).all()
+    stmt = select(PortfolioPositionChange.quantity_delta).where(
+        PortfolioPositionChange.stock_id == item.stock_id,
+        PortfolioPositionChange.change_date == t_day,
+    )
+    if advice.portfolio_id is not None:
+        stmt = stmt.where(PortfolioPositionChange.portfolio_id == advice.portfolio_id)
+    deltas = db.scalars(stmt).all()
     sign = 1 if item.action == "add" else -1
     executed = sum(delta * sign for delta in deltas if delta * sign > 0)
     item.executed_quantity = executed
@@ -384,7 +388,8 @@ def _risk_verdict(item: PortfolioAdjustAdviceItem) -> str | None:
 
 
 def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, limit: int = 10) -> dict:
-    """最近 N 份微操报告及评估结果，外加基于全部历史的胜率与警示命中率统计。"""
+    """最近 N 份微操报告及评估结果，外加基于全部历史的胜率与警示命中率统计。
+    portfolio_id 为空返回全部报告；指定时只返回绑定该组合的报告，不含全部组合口径的报告。"""
     stmt = select(PortfolioAdjustAdvice).where(PortfolioAdjustAdvice.status == "active")
     if portfolio_id is not None:
         if db.get(Portfolio, portfolio_id) is None:

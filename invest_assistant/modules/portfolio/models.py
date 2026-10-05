@@ -156,7 +156,8 @@ class PortfolioAdjustAdvice(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolio.id"), nullable=False)
+    # 为空表示全部实盘组合：微操研究员看的是所有账户合在一起的持仓
+    portfolio_id: Mapped[int | None] = mapped_column(ForeignKey("portfolio.id"), nullable=True)
     # 回流记录和预警都允许用户删除，这两处只存 ID 不建外键，免得 PostgreSQL 拦下删除
     feedback_id: Mapped[int] = mapped_column(Integer, nullable=False)
     report_id: Mapped[int | None] = mapped_column(ForeignKey("report.id"), nullable=True)

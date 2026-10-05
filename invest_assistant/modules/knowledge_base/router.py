@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,8 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeResearcherCreate,
     KnowledgeResearcherRead,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge_base"], dependencies=[Depends(get_current_user)])
 
@@ -259,3 +263,8 @@ def import_research_feedback(feedback_id: int, db: Session = Depends(get_db)) ->
         detail = str(exc)
         status_code = 404 if "not found" in detail and "未找到股票" not in detail else 400
         raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        # 数据库等非校验错误也把原因带回前端，否则页面只能显示兜底的“未识别可导入的报告类型”
+        db.rollback()
+        logger.exception("research feedback import failed: feedback_id=%s", feedback_id)
+        raise HTTPException(status_code=500, detail=f"导入出错：{type(exc).__name__}: {exc}") from exc

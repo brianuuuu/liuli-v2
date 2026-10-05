@@ -309,3 +309,38 @@ def test_reviews_reject_unknown_portfolio():
     db = make_session()
     with pytest.raises(FileNotFoundError):
         adjust_advice.list_adjust_advice_reviews(db, portfolio_id=99)
+
+
+def test_report_without_portfolio_id_covers_all_portfolios(tmp_path, monkeypatch):
+    """研究员按所有账户的合计持仓出报告：不写 portfolio_id，执行匹配跨组合找调仓。"""
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+    db.add(Portfolio(name="华泰证券2"))
+    db.commit()
+    payload = advice_payload()
+    payload.pop("portfolio_id")
+    import_report(db, markdown=as_markdown(payload))
+    # 减持发生在第二个组合
+    db.add(PortfolioPositionChange(portfolio_id=2, stock_id=1, quantity_before=3600, quantity_after=3300, quantity_delta=-300, change_date=T))
+    seed_bars(db, trading_days(T, 6))
+
+    adjust_advice.evaluate_adjust_advice(db)
+
+    advice = db.scalar(select(PortfolioAdjustAdvice))
+    assert advice.portfolio_id is None
+    reduce_item = db.scalar(select(PortfolioAdjustAdviceItem).order_by(PortfolioAdjustAdviceItem.id).limit(1))
+    assert reduce_item.execution_status == "partial" and reduce_item.executed_quantity == 300
+    assert len(adjust_advice.list_adjust_advice_reviews(db)["reports"]) == 1
+    # 指定单个组合时不含全部组合口径的报告
+    assert adjust_advice.list_adjust_advice_reviews(db, portfolio_id=1)["reports"] == []
+
+
+def test_import_rejects_unknown_portfolio_id(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+    feedback = create_feedback(db, "实盘组合-2026-10-09-微操报告", advice_markdown(portfolio_id=9), researcher_code="portfolio_001")
+
+    with pytest.raises(ValueError, match="未找到组合: portfolio_id=9"):
+        import_research_feedback(db, feedback.id)

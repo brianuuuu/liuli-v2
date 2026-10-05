@@ -1081,19 +1081,38 @@ function ResearchFeedbackSection() {
     }
     setBulkImporting(true);
     try {
-      const results = await Promise.all(
-        pendingFeedback.map(async (record) => {
-          try {
-            await importKnowledgeResearchFeedback(record.id);
-            return true;
-          } catch {
-            return false;
-          }
-        })
-      );
-      const successCount = results.filter(Boolean).length;
-      const failureCount = results.length - successCount;
-      message.success(`一键导入完成：成功 ${successCount} 个，失败 ${failureCount} 个`);
+      const failures = (
+        await Promise.all(
+          pendingFeedback.map(async (record) => {
+            try {
+              await importKnowledgeResearchFeedback(record.id);
+              return null;
+            } catch (error) {
+              return { title: record.title, reason: getApiErrorDetail(error) || "未知错误" };
+            }
+          })
+        )
+      ).filter((item): item is { title: string; reason: string } => item !== null);
+      const successCount = pendingFeedback.length - failures.length;
+      const summary = `一键导入完成：成功 ${successCount} 个，失败 ${failures.length} 个`;
+      if (failures.length) {
+        // 逐条列出失败原因，否则只看到失败个数，还得一份份点开重试才知道哪里错了
+        Modal.warning({
+          title: summary,
+          width: 640,
+          content: (
+            <ul style={{ paddingLeft: 18, marginBottom: 0 }}>
+              {failures.map((item) => (
+                <li key={item.title}>
+                  {item.title}：{item.reason}
+                </li>
+              ))}
+            </ul>
+          )
+        });
+      } else {
+        message.success(summary);
+      }
       await feedback.refresh();
     } finally {
       setBulkImporting(false);
