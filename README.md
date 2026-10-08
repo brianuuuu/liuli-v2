@@ -343,16 +343,16 @@ sequenceDiagram
 
 ## ⚠️ 代码与文档一致性说明
 
-- 当前实现与协作已切换到 `docs/liuli_system_spec_v20.md` 作为系统规范基线；`v6` 文档仍在仓库中，主要用于历史追溯。
-- 某些设计文档提到的“完整 AI 能力”在代码中目前仍以配置与知识库结构预留为主，README 已按“Roadmap/待深化”表述。
-- 如遇文档描述与代码冲突，README 已优先反映代码当前可见实现。
+- 系统规范基线为 `docs/liuli_system_spec.md`（1.0.0 起按版本迭代，记录见 `docs/CHANGELOG.md`）；本 README 部分章节写于 MVP 阶段，与规范冲突时以规范为准。
 
 ---
 
 ## 📚 关键文档
 
-- 系统规范（当前基线）：`docs/liuli_system_spec_v20.md`（已切换为 v20）
-- 数据库规范：`docs/liuli_database_schema_spec_v5.md`
-- Web UI 规范：`docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md`
+- 系统规范（当前基线，含表结构与 API 汇总）：`docs/liuli_system_spec.md`
+- 版本迭代记录：`docs/CHANGELOG.md`
+- MVP 阶段规格归档：`docs/archive/liuli_system_spec_mvp.md`
+- 对外 MCP：`docs/liuli_mcp_design.md`、`docs/liuli_mcp_tools.md`
+- Android：`docs/liuli_android_app_spec.md`
 - 其它设计/计划：`docs/superpowers/specs/` 与 `docs/superpowers/plans/`
 
