@@ -41,6 +41,7 @@ export function parentPathForDetail(pathname: string): string | null {
   if (/^\/tracks\/\d+$/.test(pathname)) return "/dashboard";
   // 材料详情可以从看板信息流、赛道详情、标的详情三处进来，没有固定父页，兜底回看板。
   if (/^\/materials\/(track|stock)\/\d+$/.test(pathname)) return "/dashboard";
+  if (pathname === "/portfolio/trade/new") return "/dashboard";
   if (/^\/reports\/\d+$/.test(pathname)) return "/reports";
   if (pathname === "/reports") return "/dashboard";
   return null;

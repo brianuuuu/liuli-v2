@@ -484,6 +484,72 @@ export type PortfolioOverview = {
   allocation_rows?: Array<{ label: string; market_value: number; weight?: number | null; current_price?: number | null; quote_time?: string | null; day_pct?: number | null }>;
   pie_items?: Array<{ label: string; market_value: number; weight?: number | null; current_price?: number | null; quote_time?: string | null; day_pct?: number | null }>;
 };
+export type PortfolioPositionRow = {
+  id: number;
+  portfolio_id: number;
+  group_id?: number | null;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  quantity: number;
+  current_price?: number | null;
+  market_value?: number | null;
+};
+export type PortfolioGroup = {
+  id: number;
+  name: string;
+  target_weight?: number | null;
+};
+export type PortfolioDashboardDetail = {
+  portfolio: { id: number; name: string };
+  summary: { market_value?: number | null; cash_amount?: number | null };
+  positions: PortfolioPositionRow[];
+};
+export type PositionChange = {
+  id: number;
+  portfolio_id: number;
+  portfolio_name?: string | null;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  quantity_before: number;
+  quantity_after: number;
+  quantity_delta: number;
+  change_date: string;
+  price?: number | null;
+  price_source?: string | null;
+  reason_type?: string | null;
+  advice_item_id?: number | null;
+  advice_action?: string | null;
+  note?: string | null;
+};
+export type AdjustAdviceCandidate = {
+  id: number;
+  target_trade_date: string;
+  action: "add" | "reduce";
+  rating?: number | null;
+  quantity?: number | null;
+  price_low?: number | null;
+  price_high?: number | null;
+  core_logic?: string | null;
+};
+export type TradeWrite = {
+  stock_id: number;
+  side: "buy" | "sell" | "close";
+  quantity: number | null;
+  price: number | null;
+  trade_date: string;
+  reason_type: string | null;
+  advice_item_id: number | null;
+  sync_cash: boolean;
+  note: string | null;
+};
+export type TradeResult = {
+  change: PositionChange | null;
+  position_quantity_before: number;
+  position_quantity_after: number;
+  cash_synced: boolean;
+};
 export type PortfolioValuePoint = {
   snapshot_date: string;
   total_value: number;

@@ -21,6 +21,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioRead,
     PortfolioReviewCreate,
     PortfolioReviewRead,
+    PortfolioTradeCreate,
     PortfolioValueSnapshotRead,
 )
 
@@ -199,6 +200,14 @@ def delete_position(portfolio_id: int, position_id: int, db: Session = Depends(g
     if not deleted:
         raise HTTPException(status_code=404, detail="position not found")
     return {"success": True}
+
+
+@router.post("/{portfolio_id}/trades")
+def record_trade(portfolio_id: int, payload: PortfolioTradeCreate, db: Session = Depends(get_db)) -> dict:
+    try:
+        return service.record_trade(db, portfolio_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{portfolio_id}/positions/refresh-quotes")

@@ -1,11 +1,10 @@
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import {
-  createOrUpdatePosition,
   createPortfolio,
   createPortfolioCashFlow,
   deletePortfolio,
@@ -19,9 +18,9 @@ import {
   listPortfolioValueSnapshots,
   listPortfolios,
   refreshAllPortfolioQuotes,
+  recordPortfolioTrade,
   refreshPortfolioQuotes,
-  updatePortfolio,
-  updatePosition
+  updatePortfolio
 } from "../../api/portfolio";
 import { searchStocks } from "../../api/stocks";
 import { ChartCard } from "../../components/charts/ChartCard";
@@ -62,6 +61,7 @@ type PositionFormValue = {
   change_price?: number | null;
   change_reason_type?: PositionChangeReasonType;
   change_advice_item_id?: number;
+  change_sync_cash?: boolean;
 };
 
 type CashFlowFormValue = {
@@ -79,7 +79,8 @@ const flowTypeLabels: Record<string, string> = {
   withdraw: "出金",
   adjustment: "现金校准",
   dividend: "分红",
-  interest: "利息"
+  interest: "利息",
+  trade: "调仓"
 };
 
 const initialReviewPerformance: PortfolioReviewPerformance = {
@@ -170,6 +171,8 @@ function pnlColor(value?: number | null) {
 function flowAmountColor(record: PortfolioCashFlow) {
   if (record.flow_type === "withdraw") return "#047857";
   if (record.flow_type === "adjustment") return undefined;
+  // 调仓同步的现金流水带符号：买入扣现金为负，卖出回笼现金为正
+  if (record.flow_type === "trade" && record.amount < 0) return "#047857";
   return "#b42318";
 }
 
@@ -199,6 +202,7 @@ export function PortfolioPage() {
   const watchedChangeDate = Form.useWatch("change_date", positionForm);
   const watchedReasonType = Form.useWatch("change_reason_type", positionForm);
   const watchedPositionPortfolioId = Form.useWatch("portfolio_id", positionForm);
+  const watchedQuantity = Form.useWatch("quantity", positionForm);
   const [cashFlowForm] = Form.useForm<CashFlowFormValue>();
 
   const portfolios = useAsyncData(useCallback(listPortfolios, []), []);
@@ -302,13 +306,14 @@ export function PortfolioPage() {
   function openCreatePosition() {
     setEditingPosition(null);
     positionForm.resetFields();
+    positionForm.setFieldsValue({ change_sync_cash: true });
     setStockOptions([]);
     setPositionModalOpen(true);
   }
 
   function openEditPosition(record: PortfolioPosition) {
     setEditingPosition(record);
-    positionForm.setFieldsValue({ stock_id: record.stock_id, quantity: record.quantity });
+    positionForm.setFieldsValue({ stock_id: record.stock_id, quantity: record.quantity, change_sync_cash: true });
     setStockOptions([{ value: record.stock_id, label: `${record.stock_name || record.stock_code} ${record.stock_code || ""}`.trim(), searchText: `${record.stock_name || ""} ${record.stock_code || ""}` }]);
     setPositionModalOpen(true);
   }
@@ -339,25 +344,45 @@ export function PortfolioPage() {
     if (!portfolioId) return;
     setSaving(true);
     try {
-      const change = {
-        change_date: values.change_date || null,
-        change_note: values.change_note || null,
-        change_price: values.change_reason_type === "corporate_action" ? null : values.change_price ?? null,
-        change_reason_type: values.change_reason_type || null,
-        change_advice_item_id: values.change_reason_type === "ai_advice" ? values.change_advice_item_id ?? null : null
-      };
-      if (editingPosition) {
-        await updatePosition(portfolioId, editingPosition.id, { stock_id: values.stock_id, quantity: values.quantity, status: editingPosition.status || "active", ...change });
-      } else {
-        await createOrUpdatePosition(portfolioId, { stock_id: values.stock_id, quantity: values.quantity, status: "active", ...change });
+      // 表单填的是调整后总数，换算成相对最新持仓的一笔增量调仓；
+      // 现有股数现取，不用页面缓存，手机上刚记过的调仓也算得对
+      const latest = await getPortfolioDashboard(portfolioId);
+      const held = latest.positions.find((item) => item.stock_id === values.stock_id)?.quantity ?? 0;
+      const delta = Number(values.quantity) - Number(held);
+      if (delta === 0) {
+        message.info("股数没有变化");
+        return;
       }
+      const corporateAction = values.change_reason_type === "corporate_action";
+      await recordPortfolioTrade(portfolioId, {
+        stock_id: values.stock_id,
+        side: Number(values.quantity) === 0 ? "close" : delta > 0 ? "buy" : "sell",
+        quantity: Number(values.quantity) === 0 ? null : Math.abs(delta),
+        price: corporateAction ? null : values.change_price ?? null,
+        trade_date: values.change_date || null,
+        reason_type: values.change_reason_type || null,
+        advice_item_id: values.change_reason_type === "ai_advice" ? values.change_advice_item_id ?? null : null,
+        sync_cash: !corporateAction && Boolean(values.change_sync_cash),
+        note: values.change_note || null
+      });
       message.success(editingPosition ? "持仓已调整" : "持仓已录入");
       setPositionModalOpen(false);
-      await Promise.all([dashboard.refresh(), overview.refresh(), snapshots.refresh(), positionChanges.refresh()]);
+      await Promise.all([dashboard.refresh(), overview.refresh(), snapshots.refresh(), positionChanges.refresh(), cashFlows.refresh()]);
+    } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      message.error(typeof detail === "string" ? `保存失败：${detail}` : "保存失败，请重试");
     } finally {
       setSaving(false);
     }
   }
+
+  // 只列与本次加减方向一致的建议：加仓对应增持，减仓和清仓对应减持；方向未定时全列
+  const formPortfolioId = editingPosition?.portfolio_id ?? selectedPortfolioId ?? watchedPositionPortfolioId;
+  const heldQuantity = dashboard.data?.positions.find((item) => item.portfolio_id === formPortfolioId && item.stock_id === watchedStockId)?.quantity ?? 0;
+  const adviceDirection = watchedQuantity === undefined || watchedQuantity === null || Number(watchedQuantity) === Number(heldQuantity)
+    ? null
+    : Number(watchedQuantity) > Number(heldQuantity) ? "add" : "reduce";
+  const directionalCandidates = adviceDirection ? adviceCandidates.filter((item) => item.action === adviceDirection) : adviceCandidates;
 
   function selectAdviceCandidate(id?: number) {
     const candidate = adviceCandidates.find((item) => item.id === id);
@@ -1092,6 +1117,11 @@ export function PortfolioPage() {
           >
             <InputNumber min={0} precision={3} style={{ width: "100%" }} disabled={watchedReasonType === "corporate_action"} placeholder="实际成交价，选填" />
           </Form.Item>
+          {watchedReasonType === "corporate_action" ? null : (
+            <Form.Item name="change_sync_cash" label="同步现金" valuePropName="checked" extra="按 变动股数 × 调仓价格 增减现金余额；手续费、税费等误差仍靠现金校准">
+              <Switch />
+            </Form.Item>
+          )}
           <Form.Item name="change_reason_type" label="理由来源">
             <Select allowClear placeholder="选填，用于复盘对比 AI 建议和个人判断" options={reasonTypeOptions} />
           </Form.Item>
@@ -1099,13 +1129,13 @@ export function PortfolioPage() {
             <Form.Item
               name="change_advice_item_id"
               label="关联微操建议"
-              extra={adviceCandidates.length ? "关联后，这笔调仓直接算作该建议已执行" : "近 10 天没有这只标的的增持、减持建议，可不关联"}
+              extra={directionalCandidates.length ? "关联后，这笔调仓直接算作该建议已执行" : "近 10 天没有这只标的同方向的增持、减持建议，可不关联"}
             >
               <Select
                 allowClear
                 placeholder="选填"
                 onChange={selectAdviceCandidate}
-                options={adviceCandidates.map((item) => ({
+                options={directionalCandidates.map((item) => ({
                   value: item.id,
                   label: `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}${item.price_low !== null && item.price_low !== undefined ? ` · ${item.price_low}—${item.price_high}` : ""}`
                 }))}

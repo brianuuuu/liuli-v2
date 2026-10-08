@@ -629,6 +629,11 @@ def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> Non
         raise ValueError("advice item belongs to another stock")
 
 
+def advice_item_action(db: Session, advice_item_id: int) -> str | None:
+    item = db.get(PortfolioAdjustAdviceItem, advice_item_id)
+    return item.action if item is not None else None
+
+
 def refresh_item_execution(db: Session, advice_item_id: int) -> None:
     """调仓关联建议后立即重算执行情况；还没评估过的条目留给评估任务。"""
     item = db.get(PortfolioAdjustAdviceItem, advice_item_id)

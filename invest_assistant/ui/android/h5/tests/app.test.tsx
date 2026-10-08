@@ -2252,6 +2252,74 @@ describe("mobile H5 app", () => {
     ))).toHaveLength(siblingRequestCount);
   });
 
+  it("records a trade from the portfolio tab with an allocation preview", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/dashboard";
+    const setNavigationState = vi.fn();
+    window.LiuliNative = { setNavigationState };
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/portfolios/7/trades")) {
+        return json({ change: null, position_quantity_before: 1000, position_quantity_after: 1500, cash_synced: true });
+      }
+      if (url.includes("/api/portfolios/overview")) {
+        return json({ portfolio_options: [{ id: 7, name: "成长组合", base_currency: "CNY" }], summary: { total_value: 100000, cash_amount: 60000 }, pie_items: [] });
+      }
+      if (url.includes("/api/portfolios/7/dashboard")) {
+        return json({
+          portfolio: { id: 7, name: "成长组合" },
+          summary: { market_value: 40000, cash_amount: 60000 },
+          positions: [
+            { id: 1, portfolio_id: 7, group_id: 3, stock_id: 11, stock_name: "宁德时代", stock_code: "300750", quantity: 1000, current_price: 10, market_value: 10000 },
+            { id: 2, portfolio_id: 7, group_id: null, stock_id: 12, stock_name: "贵州茅台", stock_code: "600519", quantity: 100, current_price: 300, market_value: 30000 }
+          ]
+        });
+      }
+      if (url.includes("/api/portfolios/7/groups")) return json([{ id: 3, name: "卫星仓", target_weight: 0.2 }]);
+      if (url.includes("position-changes")) {
+        return json([{ id: 5, portfolio_id: 7, portfolio_name: "成长组合", stock_id: 12, stock_name: "贵州茅台", quantity_before: 200, quantity_after: 100, quantity_delta: -100, change_date: "2026-10-08", reason_type: "personal" }]);
+      }
+      return json({ items: [], total: 0, limit: 4, offset: 0, has_more: false, market_indices: { items: [] } });
+    }));
+
+    renderApp();
+    const portfolioTab = await screen.findByRole("tab", { name: "组合" });
+    fireEvent.click(portfolioTab);
+    expect(await screen.findByRole("heading", { name: "最近调仓" })).toBeInTheDocument();
+    expect(await screen.findByText("−100 股")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "成长组合" }));
+    fireEvent.click(await screen.findByRole("button", { name: "＋ 记一笔调仓" }));
+
+    expect(await screen.findByRole("heading", { name: "记一笔调仓" })).toBeInTheDocument();
+    await waitFor(() => expect(setNavigationState).toHaveBeenLastCalledWith("dashboard", false, true));
+    fireEvent.click(await screen.findByRole("button", { name: /宁德时代/ }));
+    expect(screen.getByText("持有 1,000 股")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "个人判断" }));
+    fireEvent.change(screen.getByPlaceholderText("本次成交数量"), { target: { value: "500" } });
+    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
+
+    expect(await screen.findByRole("heading", { name: "确认调仓" })).toBeInTheDocument();
+    expect(screen.getByText(/1,000 → 1,500（\+500）/)).toBeInTheDocument();
+    expect(screen.getByText(/10\.0% → 15\.0%/)).toBeInTheDocument();
+    expect(screen.getByText("分组：卫星仓 目标 20.0%")).toBeInTheDocument();
+    expect(screen.getByText(/60\.0% → 55\.0%/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认记录" }));
+
+    await waitFor(() => expect(window.location.hash).toBe("#/dashboard"));
+    const tradeCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("/api/portfolios/7/trades"));
+    expect(JSON.parse(String(tradeCall?.[1]?.body))).toMatchObject({
+      stock_id: 11,
+      side: "buy",
+      quantity: 500,
+      price: null,
+      reason_type: "personal",
+      advice_item_id: null,
+      sync_cash: true
+    });
+    expect(window.localStorage.getItem("liuli.mobile.trade.lastPortfolioId")).toBe("7");
+  });
+
   it("shows a dedicated treemap empty state when the portfolio has no target data", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";

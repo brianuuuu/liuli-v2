@@ -21,19 +21,19 @@ export type PortfolioPayload = {
   base_currency?: string;
 };
 
-export type PortfolioPositionPayload = {
+/** 按增量记一笔调仓：后端只改股数，持仓上的分组、目标权重、备注、行情缓存一律不动 */
+export type PortfolioTradePayload = {
   stock_id: number;
-  quantity: number;
-  group_id?: number | null;
+  side: "buy" | "sell" | "close";
+  quantity: number | null;
+  /** 留空时后端按调仓日收盘价估算，公司行为不估价 */
+  price?: number | null;
+  trade_date?: string | null;
+  reason_type?: PositionChangeReasonType | null;
+  advice_item_id?: number | null;
+  /** 按 变动股数 × 调仓价格 同步现金余额，公司行为不同步 */
+  sync_cash: boolean;
   note?: string | null;
-  status?: string;
-  /** 调仓留痕：只写进调仓记录，不落到持仓行上 */
-  change_date?: string | null;
-  change_note?: string | null;
-  /** 留空时后端按调仓日收盘价估算 */
-  change_price?: number | null;
-  change_reason_type?: PositionChangeReasonType | null;
-  change_advice_item_id?: number | null;
 };
 
 export type PortfolioCashPayload = {
@@ -131,13 +131,8 @@ export async function listPortfolioPositions(portfolioId: number): Promise<Portf
   return response.data;
 }
 
-export async function createOrUpdatePosition(portfolioId: number, payload: PortfolioPositionPayload): Promise<PortfolioPosition> {
-  const response = await apiClient.post<PortfolioPosition>(`/api/portfolios/${portfolioId}/positions`, payload);
-  return response.data;
-}
-
-export async function updatePosition(portfolioId: number, positionId: number, payload: PortfolioPositionPayload): Promise<PortfolioPosition> {
-  const response = await apiClient.put<PortfolioPosition>(`/api/portfolios/${portfolioId}/positions/${positionId}`, payload);
+export async function recordPortfolioTrade(portfolioId: number, payload: PortfolioTradePayload): Promise<Record<string, unknown>> {
+  const response = await apiClient.post<Record<string, unknown>>(`/api/portfolios/${portfolioId}/trades`, payload);
   return response.data;
 }
 

@@ -36,6 +36,9 @@ describe("mobile navigation", () => {
     // 没有这两条，原生返回键拿不到兜底路径会直接不响应，用户退不出详情页
     expect(parentPathForDetail("/stocks/7")).toBe("/dashboard");
     expect(parentPathForDetail("/tracks/7")).toBe("/dashboard");
+    // 记调仓从看板组合页进来，直接打开时也要能退回看板
+    expect(parentPathForDetail("/portfolio/trade/new")).toBe("/dashboard");
+    expect(sectionForPath("/portfolio/trade/new")).toBe("dashboard");
     expect(parentPathForDetail("/dashboard")).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.0**（2026-10-08，MVP 结束后的正式基线）
+> 当前版本：**1.0.1**（2026-10-09）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -21,9 +21,11 @@
 
 | 变更类型 | 版本号 | 示例 |
 |---|---|---|
-| 修复缺陷、口径微调、文案与样式调整 | 修订号 +1 | 1.0.1 |
-| 新增功能、新增表或列、新增接口或 MCP 工具、行为变更 | 次版本 +1 | 1.1.0 |
+| 常规迭代：缺陷修复、口径调整、小功能、增删列或接口 | 修订号 +1 | 1.0.1 |
+| 里程碑：一批功能形成新的业务能力 | 次版本 +1 | 1.1.0 |
 | 架构调整、模块边界重划、不兼容的数据模型重构 | 主版本 +1 | 2.0.0 |
+
+升哪一位由用户决定发版粒度，不按单个改动机械升级。
 
 ### 0.2 每次迭代必须同步
 
@@ -36,6 +38,7 @@
 
 | 版本 | 日期 | 摘要 |
 |---|---|---|
+| 1.0.1 | 2026-10-09 | 手机端记调仓（增量调仓接口、可选同步现金）；删除持仓成本价 |
 | 1.0.0 | 2026-10-08 | MVP 结束，按当前代码重写系统规格基线；旧规格归档 |
 
 ---
@@ -679,14 +682,17 @@ alert_event：event_level、title、message、status（unread / read / handled�
 候选、观察、重点跟踪由 stock_pool 承载，组合管理不放观察池、非实盘分组。
 ```
 
-Web 实盘持仓、调仓记录等页面支持"全部组合"视图。
+Web 实盘持仓、调仓记录等页面支持"全部组合"视图。系统只关心资源配置，不记持仓买入成本，也不计算浮盈浮亏。
 
 ### 14.2 持仓、现金与调仓
 
 ```text
 portfolio_group：实盘分组（core / satellite / defensive / cash / custom），目标权重、个股数量上限；
-portfolio_position：真实持仓数量、成本、实时价缓存（current_price、previous_close、quote_time、price_source）；
-portfolio_cash_balance / portfolio_cash_flow：现金余额与现金校准流水；
+portfolio_position：真实持仓数量与实时价缓存（current_price、previous_close、quote_time、price_source）；
+portfolio_cash_balance / portfolio_cash_flow：现金余额与现金流水；
+  flow_type：deposit 入金 / withdraw 出金 / adjustment 校准（覆盖余额）/ dividend 分红 / interest 利息 / trade 调仓同步；
+  trade 只由系统生成、金额带符号（买入为负），手动新增流水不接受 trade；
+  只有 deposit / withdraw 算外部资金，日盈亏、区间盈亏和复盘收益只扣减这两类；
 portfolio_value_snapshot：每日 17:00 保存含现金的组合总市值，UNIQUE(portfolio_id, snapshot_date)；
 portfolio_review：阶段性复盘记录。
 ```
@@ -695,7 +701,13 @@ portfolio_review：阶段性复盘记录。
 
 ```text
 调仓 = 个股持仓数量的变动，持仓新增、修改、删除自动留痕；不是成交流水，不记手续费、税费；
-调仓与现金互不推导，现金由 portfolio_cash_flow 单独校准；
+调仓可选择同步现金：按 变动股数 × 调仓价格 写一条 trade 流水并增减余额；公司行为和价格为空时不同步；
+  现金校准（adjustment）仍是余额的最终依据，手续费、税费等误差靠它修正；
+调仓统一走增量接口 POST /{id}/trades（side = buy / sell / close），Web 和手机端都用它：
+  同一事务里读最新持仓、只改股数，分组、目标权重、备注、行情缓存等其余字段不动；
+  卖出超过持仓拒绝；清仓删除持仓行；关联建议的方向须与 side 一致；sync_cash 默认 true；
+  Web 表单填调整后总数，页面现取最新持仓换算成增量；手机端直接填本次成交股数，不提供公司行为；
+整条覆盖的持仓接口（POST/PUT positions）保留但前端不再使用，它会把未传的持仓字段置空，不要用于调股数；
 change_date 默认当天，可补录；
 price 选填：留空按调仓日前复权收盘价估算（日线未同步时取持仓现价），price_source = manual / estimated；
 reason_type：ai_advice / personal / fund_allocation / corporate_action / other；公司行为不估价；
@@ -864,7 +876,8 @@ H5：invest_assistant/ui/android/h5，React + Vite + TypeScript + HashRouter + T
     与桌面 Web 源码、依赖、产物、进程完全隔离，只共享后端 REST 契约；不引入 Ant Design。
 H5 服务（server.mjs）监听 5174，把同源 /api/ 反向代理到 8000 的 API。
 底栏五项：看板 | 资讯 | 笔记 | 待办 | 我的（原生绘制）。
-定位：随身看板 + 资讯浏览 + 笔记收件箱 + 待办（预警、AI 推荐词、待处理报告、MCP 笔记）+ 报告阅读；
+定位：随身看板 + 资讯浏览 + 笔记收件箱 + 待办（预警、AI 推荐词、待处理报告、MCP 笔记）+ 报告阅读
+      + 记调仓（看板 → 组合"记一笔调仓"，/portfolio/trade/new，确认页预览仓位与现金占比变化）；
       不做标签库维护、数据源与任务管理、组合深度分析、关系图大屏、控制台。
 ```
 
@@ -1066,8 +1079,9 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/{id}/dashboard` | 单组合看板 |
 | GET / POST | `/{id}/groups` | 分组 |
 | PUT | `/{id}/groups/{group_id}` | 修改分组 |
-| GET / POST | `/{id}/positions` | 持仓 / 新增 |
-| PUT / DELETE | `/{id}/positions/{position_id}` | 修改 / 删除持仓（自动写调仓记录） |
+| GET / POST | `/{id}/positions` | 持仓 / 新增（整条覆盖，前端不再使用） |
+| POST | `/{id}/trades` | 增量记一笔调仓（buy / sell / close），只改股数，默认同步现金；Web 与手机端共用 |
+| PUT / DELETE | `/{id}/positions/{position_id}` | 修改（整条覆盖，前端不再使用）/ 删除持仓（自动写调仓记录） |
 | POST | `/{id}/positions/refresh-quotes` | 刷新该组合实时行情 |
 | GET / PUT | `/{id}/cash` | 现金余额 |
 | GET | `/{id}/position-changes` | 该组合调仓记录 |
@@ -1472,7 +1486,7 @@ id, portfolio_id, name, group_type, target_weight, max_stock_count, sort_order, 
 #### `portfolio_position`：实盘持仓与行情缓存
 
 ```text
-id, portfolio_id, group_id, stock_id, quantity, cost_price, current_price, previous_close, market_value, quote_time, price_source, target_weight, note, status, created_at, updated_at
+id, portfolio_id, group_id, stock_id, quantity, current_price, previous_close, market_value, quote_time, price_source, target_weight, note, status, created_at, updated_at
 ```
 
 #### `portfolio_position_change`：调仓记录（持仓数量变动自动留痕）

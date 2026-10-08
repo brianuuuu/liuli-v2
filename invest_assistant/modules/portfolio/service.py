@@ -25,6 +25,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioGroupCreate,
     PortfolioPositionCreate,
     PortfolioReviewCreate,
+    PortfolioTradeCreate,
 )
 from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.services.tushare import client as tushare_client
@@ -191,6 +192,131 @@ def _pop_change_fields(data: dict) -> dict:
     }
 
 
+MANUAL_CASH_FLOW_TYPES = {"deposit", "withdraw", "adjustment", "dividend", "interest"}
+# 调仓同步现金写的流水，只由系统生成；金额带符号，买入为负、卖出为正。
+TRADE_CASH_FLOW_TYPE = "trade"
+
+
+def sync_change_cash(db: Session, change: PortfolioPositionChange | None) -> PortfolioCashFlow | None:
+    """按 变动股数 × 调仓价格 增减现金，并留一条 trade 流水。
+
+    调仓和现金不强绑定：公司行为（送转、配股）不动现金，价格为空时无从计算也不动；
+    手续费、税费等误差仍靠现金校准修正。trade 不算外部资金，日盈亏和复盘收益不受影响。"""
+    if change is None or change.price is None or change.reason_type == "corporate_action":
+        return None
+    amount = -float(change.quantity_delta) * float(change.price)
+    if amount == 0:
+        return None
+    stock = db.get(Stock, change.stock_id)
+    stock_label = stock.stock_name if stock is not None else str(change.stock_id)
+    delta = float(change.quantity_delta)
+    if change.quantity_after == 0:
+        action_label = "清仓"
+    else:
+        action_label = f"{'+' if delta > 0 else '−'}{_format_quantity(abs(delta))} 股"
+    balance = _cash_balance_model(db, change.portfolio_id)
+    item = PortfolioCashFlow(
+        portfolio_id=change.portfolio_id,
+        flow_type=TRADE_CASH_FLOW_TYPE,
+        amount=amount,
+        currency=balance.currency or "CNY",
+        flow_date=change.change_date,
+        note=f"调仓 {stock_label} {action_label}",
+    )
+    db.add(item)
+    balance.amount = float(balance.amount or 0) + amount
+    return item
+
+
+def _format_quantity(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
+
+
+def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) -> dict:
+    """按增量记一笔调仓。
+
+    整条覆盖的持仓接口要求调用方回传全部字段，手机端缓存的股数一旦过期，算出的调整后股数就错；
+    这里在同一事务里读最新持仓、只改股数，持仓上的其他字段一律不动。"""
+    if db.get(Portfolio, portfolio_id) is None:
+        raise ValueError("portfolio not found")
+    if db.get(Stock, payload.stock_id) is None:
+        raise ValueError("stock not found")
+    reason_type = str(payload.reason_type or "").strip() or None
+    if reason_type is not None and reason_type not in REASON_TYPES:
+        raise ValueError(f"invalid reason_type: {reason_type}")
+    trade_date = payload.trade_date or _today_shanghai()
+    if trade_date > _today_shanghai():
+        raise ValueError("trade_date cannot be in the future")
+    if payload.side != "close" and (payload.quantity is None or payload.quantity <= 0):
+        raise ValueError("quantity must be positive")
+    if payload.advice_item_id is not None:
+        expected_action = "add" if payload.side == "buy" else "reduce"
+        if adjust_advice.advice_item_action(db, payload.advice_item_id) != expected_action:
+            raise ValueError("advice direction does not match trade side")
+
+    position = db.scalar(
+        select(PortfolioPosition).where(
+            PortfolioPosition.portfolio_id == portfolio_id,
+            PortfolioPosition.stock_id == payload.stock_id,
+        )
+    )
+    quantity_before = float(position.quantity or 0) if position is not None else 0.0
+    if payload.side == "buy":
+        quantity_after = quantity_before + float(payload.quantity)
+    elif position is None or quantity_before <= 0:
+        raise ValueError("position not found")
+    elif payload.side == "sell":
+        if float(payload.quantity) > quantity_before:
+            raise ValueError("sell quantity exceeds position")
+        quantity_after = quantity_before - float(payload.quantity)
+    else:
+        quantity_after = 0.0
+
+    fallback_price = position.current_price if position is not None else None
+    if position is None:
+        position = PortfolioPosition(portfolio_id=portfolio_id, stock_id=payload.stock_id, quantity=quantity_after, status="active")
+        db.add(position)
+    elif quantity_after == 0:
+        db.delete(position)
+    else:
+        position.quantity = quantity_after
+        if position.current_price is not None:
+            position.market_value = quantity_after * position.current_price
+
+    change = record_position_change(
+        db,
+        portfolio_id,
+        payload.stock_id,
+        quantity_before=quantity_before,
+        quantity_after=quantity_after,
+        note=payload.note,
+        change_date=trade_date,
+        price=payload.price,
+        reason_type=reason_type,
+        advice_item_id=payload.advice_item_id,
+        fallback_price=fallback_price,
+    )
+    cash_flow = sync_change_cash(db, change) if payload.sync_cash else None
+    db.commit()
+    if cash_flow is not None:
+        upsert_value_snapshot(db, portfolio_id, source="manual")
+    stock = db.get(Stock, payload.stock_id)
+    return {
+        "change": _position_change_dict(
+            change,
+            stock,
+            db.get(Portfolio, portfolio_id),
+            adjust_advice.advice_brief_by_item(db, {change.advice_item_id} if change.advice_item_id else set()),
+        )
+        if change is not None
+        else None,
+        "position_quantity_before": quantity_before,
+        "position_quantity_after": quantity_after,
+        "cash_flow": cash_flow,
+        "cash_synced": cash_flow is not None,
+    }
+
+
 def list_position_changes(
     db: Session,
     portfolio_id: int | None = None,
@@ -217,29 +343,37 @@ def list_position_changes(
         stmt = stmt.where(PortfolioPositionChange.change_date <= end_date)
     rows = db.execute(stmt.limit(max(1, int(limit)))).all()
     advice_by_item = adjust_advice.advice_brief_by_item(db, {change.advice_item_id for change, _, _ in rows if change.advice_item_id})
-    return [
-        {
-            "id": change.id,
-            "portfolio_id": change.portfolio_id,
-            "portfolio_name": portfolio.name,
-            "stock_id": change.stock_id,
-            "stock_code": stock.stock_code,
-            "stock_name": stock.stock_name,
-            "quantity_before": change.quantity_before,
-            "quantity_after": change.quantity_after,
-            "quantity_delta": change.quantity_delta,
-            "change_date": change.change_date,
-            "price": change.price,
-            "price_source": change.price_source,
-            "reason_type": change.reason_type,
-            "advice_item_id": change.advice_item_id,
-            "advice_target_trade_date": advice_by_item.get(change.advice_item_id, {}).get("target_trade_date"),
-            "advice_action": advice_by_item.get(change.advice_item_id, {}).get("action"),
-            "note": change.note,
-            "created_at": change.created_at,
-        }
-        for change, stock, portfolio in rows
-    ]
+    return [_position_change_dict(change, stock, portfolio, advice_by_item) for change, stock, portfolio in rows]
+
+
+def _position_change_dict(
+    change: PortfolioPositionChange,
+    stock: Stock,
+    portfolio: Portfolio,
+    advice_by_item: dict[int, dict] | None = None,
+) -> dict:
+    if advice_by_item is None:
+        advice_by_item = {}
+    return {
+        "id": change.id,
+        "portfolio_id": change.portfolio_id,
+        "portfolio_name": portfolio.name,
+        "stock_id": change.stock_id,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "quantity_before": change.quantity_before,
+        "quantity_after": change.quantity_after,
+        "quantity_delta": change.quantity_delta,
+        "change_date": change.change_date,
+        "price": change.price,
+        "price_source": change.price_source,
+        "reason_type": change.reason_type,
+        "advice_item_id": change.advice_item_id,
+        "advice_target_trade_date": advice_by_item.get(change.advice_item_id, {}).get("target_trade_date"),
+        "advice_action": advice_by_item.get(change.advice_item_id, {}).get("action"),
+        "note": change.note,
+        "created_at": change.created_at,
+    }
 
 
 def create_position(db: Session, portfolio_id: int, payload: PortfolioPositionCreate) -> PortfolioPosition:
@@ -444,7 +578,7 @@ def create_cash_flow(db: Session, portfolio_id: int, payload: PortfolioCashFlowC
     if db.get(Portfolio, portfolio_id) is None:
         raise ValueError("portfolio not found")
     flow_type = str(payload.flow_type or "").strip()
-    if flow_type not in {"deposit", "withdraw", "adjustment", "dividend", "interest"}:
+    if flow_type not in MANUAL_CASH_FLOW_TYPES:
         raise ValueError("unsupported cash flow type")
     amount = float(payload.amount or 0)
     flow_date = payload.flow_date or _today_shanghai()
@@ -1049,7 +1183,6 @@ def _position_dict(item: PortfolioPosition, stock: Stock) -> dict:
         "stock_name": stock.stock_name,
         "symbol": stock.symbol,
         "quantity": item.quantity,
-        "cost_price": item.cost_price,
         "current_price": current_price,
         "previous_close": previous_close,
         "market_value": market_value,

@@ -41,6 +41,9 @@ const TrackDetailPage = lazy(() => import("../pages/TrackDetailPage").then((modu
 const MaterialDetailPage = lazy(() => import("../pages/MaterialDetailPage").then((module) => ({
   default: module.MaterialDetailPage
 })));
+const TradeRecordPage = lazy(() => import("../pages/TradeRecordPage").then((module) => ({
+  default: module.TradeRecordPage
+})));
 const ReportsPage = lazy(() => import("../pages/DetailPages").then((module) => ({
   default: module.ReportsPage
 })));
@@ -74,9 +77,11 @@ function NativeRouteSync() {
   useEffect(() => {
     const isLogin = location.pathname === "/login";
     const isReportReader = /^\/reports\/\d+$/.test(location.pathname);
+    // 记调仓是全屏表单，收起底栏，避免和键盘、底部按钮挤在一起
+    const isTradeRecord = location.pathname === "/portfolio/trade/new";
     publishNavigationState(
       sectionForPath(location.pathname),
-      !isLogin && !isReportReader,
+      !isLogin && !isReportReader && !isTradeRecord,
       parentPathForDetail(location.pathname) !== null
     );
   }, [location.pathname]);
@@ -122,6 +127,7 @@ export function MobileApp() {
           <Route path="/stocks/:id" element={<RequireAuth><StockDetailPage /></RequireAuth>} />
           <Route path="/tracks/:id" element={<RequireAuth><TrackDetailPage /></RequireAuth>} />
           <Route path="/materials/:owner/:id" element={<RequireAuth><MaterialDetailPage /></RequireAuth>} />
+          <Route path="/portfolio/trade/new" element={<RequireAuth><TradeRecordPage /></RequireAuth>} />
           <Route path="/reports" element={<RequireAuth><ReportsPage /></RequireAuth>} />
           <Route path="/reports/:id" element={<RequireAuth><ReportReaderPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to={window.localStorage.getItem(tokenStorageKey) ? "/dashboard" : "/login"} replace />} />

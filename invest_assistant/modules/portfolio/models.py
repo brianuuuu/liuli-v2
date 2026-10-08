@@ -46,7 +46,6 @@ class PortfolioPosition(Base):
     group_id: Mapped[int | None] = mapped_column(ForeignKey("portfolio_group.id"), nullable=True, index=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
-    cost_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     market_value: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -243,7 +242,8 @@ def ensure_portfolio_schema(engine: Engine) -> None:
             "price_source": "ALTER TABLE portfolio_position ADD COLUMN price_source VARCHAR(64)",
         }
         needs_change = any(name not in columns for name in missing_alters)
-        cost_price_is_required = bool(columns.get("cost_price") and columns["cost_price"][3])
+        # 系统不关心买入成本，cost_price 已删除（Postgres 见 tools/migrations）；老库可能还是 NOT NULL，留着会让新增持仓插入失败
+        has_cost_price = "cost_price" in columns
         change_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(portfolio_position_change)")).all()}
         # 调仓价格与理由来源是后加的列，老库补一次。Postgres 走 tools/migrations 的迁移脚本。
         change_alters = {
@@ -253,35 +253,15 @@ def ensure_portfolio_schema(engine: Engine) -> None:
             "advice_item_id": "ALTER TABLE portfolio_position_change ADD COLUMN advice_item_id INTEGER",
         }
         missing_change_alters = [ddl for name, ddl in change_alters.items() if change_columns and name not in change_columns]
-        if needs_change or cost_price_is_required or missing_change_alters:
+        if needs_change or has_cost_price or missing_change_alters:
             _backup_sqlite_database(engine)
         for ddl in missing_change_alters:
             conn.execute(text(ddl))
         for name, ddl in missing_alters.items():
             if name not in columns:
                 conn.execute(text(ddl))
-        if cost_price_is_required:
-            conn.execute(text("PRAGMA foreign_keys=OFF"))
-            conn.execute(text("ALTER TABLE portfolio_position RENAME TO portfolio_position_old"))
-            PortfolioPosition.__table__.create(bind=conn)
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO portfolio_position (
-                        id, portfolio_id, group_id, stock_id, quantity, cost_price,
-                        current_price, previous_close, market_value, quote_time,
-                        price_source, target_weight, note, status, created_at, updated_at
-                    )
-                    SELECT
-                        id, portfolio_id, group_id, stock_id, quantity, cost_price,
-                        current_price, previous_close, market_value, quote_time,
-                        price_source, target_weight, note, status, created_at, updated_at
-                    FROM portfolio_position_old
-                    """
-                )
-            )
-            conn.execute(text("DROP TABLE portfolio_position_old"))
-            conn.execute(text("PRAGMA foreign_keys=ON"))
+        if has_cost_price:
+            conn.execute(text("ALTER TABLE portfolio_position DROP COLUMN cost_price"))
 
 
 def _backup_sqlite_database(engine: Engine) -> None:

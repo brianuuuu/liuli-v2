@@ -54,6 +54,7 @@ import {
   type TrackTabView
 } from "./trackLibraryGroups";
 import {
+  lastDashboardPortfolio,
   lastDashboardTab,
   lastPoolSort,
   lastPoolStatus,
@@ -61,6 +62,7 @@ import {
   lastTrackSort,
   lastTrackStatus,
   lastTrackView,
+  rememberDashboardPortfolio,
   rememberDashboardTab,
   rememberPoolSort,
   rememberPoolStatus,
@@ -70,6 +72,7 @@ import {
   rememberTrackView
 } from "./dashboardViewState";
 import type { TagHeat } from "../types/api";
+import { REASON_TYPE_LABELS, tradeDeltaLabel } from "./tradeRecord";
 import { formatDateTime, formatModule, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
@@ -647,8 +650,14 @@ function StockMaterialsView() {
 }
 
 function PortfolioDashboard() {
-  const [portfolioId, setPortfolioId] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const [portfolioId, setPortfolioIdState] = useState<number | null>(lastDashboardPortfolio);
+  const setPortfolioId = (id: number | null) => {
+    rememberDashboardPortfolio(id);
+    setPortfolioIdState(id);
+  };
   const overview = useQuery({ queryKey: ["portfolio-overview", portfolioId], queryFn: () => mobileApi.portfolioOverview(portfolioId), staleTime: 300_000 });
+  const trades = useQuery({ queryKey: ["portfolio-trades", portfolioId], queryFn: () => mobileApi.recentPositionChanges(portfolioId), staleTime: 300_000 });
   if (overview.isLoading) return <LoadingState />;
   if (overview.isError) return <ErrorState onRetry={() => void overview.refetch()} />;
   const summary = overview.data?.summary;
@@ -657,7 +666,7 @@ function PortfolioDashboard() {
     <PullToRefresh
       ariaLabel="组合页下拉刷新"
       onRefresh={async () => {
-        const result = await overview.refetch();
+        const [result] = await Promise.all([overview.refetch(), trades.refetch()]);
         if (result.isError) throw result.error;
       }}
     >
@@ -668,6 +677,13 @@ function PortfolioDashboard() {
           <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
           <Metric label="月度盈亏" value={formatMoney(summary?.month_pnl)} tone={(summary?.month_pnl ?? 0) >= 0 ? "up" : "down"} />
         </div>
+        <button
+          type="button"
+          className="primary-button trade-entry"
+          onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
+        >
+          ＋ 记一笔调仓
+        </button>
         <SectionCard title="今日表现">
           <div className="portfolio-day-row">
             <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
@@ -704,6 +720,20 @@ function PortfolioDashboard() {
               }))} />
             </Suspense>
           ) : <EmptyState title="暂无标的热力图数据" />}
+        </SectionCard>
+        <SectionCard title="最近调仓">
+          {trades.isError ? <ErrorState onRetry={() => void trades.refetch()} /> : trades.data?.length ? (
+            <div className="recent-trades">
+              {trades.data.map((item) => (
+                <div className="recent-trade" key={item.id}>
+                  <time>{item.change_date.slice(5)}</time>
+                  <strong>{item.stock_name || item.stock_code}{portfolioId === null && item.portfolio_name ? <small>{item.portfolio_name}</small> : null}</strong>
+                  <span className={item.quantity_after === 0 ? "" : valueTone(item.quantity_delta)}>{tradeDeltaLabel(item)}</span>
+                  <em>{item.reason_type ? REASON_TYPE_LABELS[item.reason_type] ?? item.reason_type : "—"}</em>
+                </div>
+              ))}
+            </div>
+          ) : <EmptyState title={trades.isLoading ? "加载中" : "暂无调仓记录"} />}
         </SectionCard>
         <SectionCard>
           <div className="portfolio-selector"><span>组合选择</span><div className="portfolio-segments" role="group" aria-label="组合选择">

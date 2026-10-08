@@ -269,7 +269,7 @@ def test_portfolio_flow():
     assert group.status_code == 200
     position = client.post(
         f"/api/portfolios/{portfolio.json()['id']}/positions",
-        json={"group_id": group.json()["id"], "stock_id": stock_id, "quantity": 100, "cost_price": 10.5, "current_price": 11, "target_weight": 0.2, "note": "实盘持仓", "status": "active"},
+        json={"group_id": group.json()["id"], "stock_id": stock_id, "quantity": 100, "current_price": 11, "target_weight": 0.2, "note": "实盘持仓", "status": "active"},
         headers=headers,
     )
     assert position.status_code == 200

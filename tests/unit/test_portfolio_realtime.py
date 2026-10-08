@@ -68,7 +68,6 @@ def test_create_or_update_position_uses_stock_and_quantity_without_cost(tmp_path
         assert first.id == second.id
         assert len(rows) == 1
         assert rows[0].quantity == 150
-        assert rows[0].cost_price is None
     finally:
         db.close()
 

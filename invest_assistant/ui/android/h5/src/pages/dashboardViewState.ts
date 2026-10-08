@@ -27,6 +27,17 @@ const state: DashboardViewState = {
   trackSort: DEFAULT_TRACK_SORT
 };
 
+// 组合页当前选中的组合，null 为全部；从记调仓页回来要停在原来的组合
+let portfolioId: number | null = null;
+
+export function rememberDashboardPortfolio(id: number | null) {
+  portfolioId = id;
+}
+
+export function lastDashboardPortfolio() {
+  return portfolioId;
+}
+
 export function rememberDashboardTab(tab: string) {
   state.tab = tab;
 }
@@ -91,4 +102,5 @@ export function resetDashboardViewState() {
   state.trackView = DEFAULT_TRACK_TAB_VIEW;
   state.trackStatus = DEFAULT_TRACK_STATUS;
   state.trackSort = DEFAULT_TRACK_SORT;
+  portfolioId = null;
 }

@@ -491,6 +491,39 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pending-report-card__actions .is-import { background: var(--blue); color: #fff; font-weight: 600; }
 .pending-report-card__actions .is-delete { border: 1px solid #fecaca; background: var(--panel); color: #dc2626; }
 
+/* 记一笔调仓：表单沿用推荐词审核的字段样式，只补选项列表、开关和确认页 */
+.trade-entry { width: 100%; }
+.trade-form { padding-bottom: 12px; }
+.trade-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.trade-form input:disabled { opacity: .7; }
+.trade-selected { display: flex; min-height: 44px; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-soft); }
+.trade-selected strong { min-width: 0; overflow: hidden; color: var(--text); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.trade-selected small { flex: 1 1 auto; color: var(--muted); white-space: nowrap; }
+.trade-options { display: grid; max-height: 240px; overflow-y: auto; border-radius: 9px; background: var(--panel); }
+.trade-options button { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; color: var(--text); text-align: left; }
+.trade-options button + button { border-top: 1px solid var(--border); }
+.trade-options button.is-active { background: var(--blue-soft); color: var(--blue); }
+.trade-options small { color: var(--muted); white-space: nowrap; }
+.trade-switch { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; }
+.trade-switch span { display: grid; gap: 3px; color: var(--text); font-size: 14px; }
+.trade-switch small { color: var(--muted); font-size: 12px; }
+.suggestion-review-form .trade-switch input { width: 22px; height: 22px; margin: 0; flex: 0 0 22px; accent-color: var(--blue); }
+.trade-more { justify-self: start; }
+.trade-hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.trade-confirm { display: grid; gap: 12px; }
+.trade-confirm h2 { margin: 0; font-size: var(--content-font-size); }
+.trade-confirm dl { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px 8px; margin: 0; padding: 14px; border-radius: 10px; background: var(--panel); }
+.trade-confirm dt { color: var(--muted); font-size: 13px; }
+.trade-confirm dd { display: grid; gap: 2px; margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.trade-confirm dd small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.recent-trades { display: grid; }
+.recent-trade { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto 64px; align-items: center; gap: 8px; min-height: 40px; font-size: 13px; }
+.recent-trade + .recent-trade { border-top: 1px solid var(--border); }
+.recent-trade time, .recent-trade em { color: var(--muted); font-size: 12px; font-style: normal; }
+.recent-trade em { text-align: right; }
+.recent-trade strong { display: grid; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.recent-trade strong small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.recent-trade span { font-weight: 650; white-space: nowrap; }
 .suggestion-review-detail { display: grid; gap: 16px; }
 .suggestion-review-summary { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
 .suggestion-review-summary h2 { margin: 0; font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; }

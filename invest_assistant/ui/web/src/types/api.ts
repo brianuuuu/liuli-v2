@@ -967,7 +967,6 @@ export type PortfolioPosition = {
   stock_name?: string | null;
   symbol?: string | null;
   quantity: number;
-  cost_price?: number | null;
   current_price?: number | null;
   previous_close?: number | null;
   market_value?: number | null;

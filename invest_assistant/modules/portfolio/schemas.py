@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -38,7 +39,6 @@ class PortfolioPositionCreate(BaseModel):
     group_id: int | None = None
     stock_id: int
     quantity: float
-    cost_price: float | None = None
     current_price: float | None = None
     previous_close: float | None = None
     market_value: float | None = None
@@ -53,6 +53,20 @@ class PortfolioPositionCreate(BaseModel):
     change_price: float | None = None
     change_reason_type: str | None = None
     change_advice_item_id: int | None = None
+
+
+class PortfolioTradeCreate(BaseModel):
+    """按增量记一笔调仓：只改持仓股数，持仓上的其他字段不动。"""
+
+    stock_id: int
+    side: Literal["buy", "sell", "close"]
+    quantity: float | None = None
+    price: float | None = None
+    trade_date: date | None = None
+    reason_type: str | None = None
+    advice_item_id: int | None = None
+    sync_cash: bool = True
+    note: str | None = None
 
 
 class PortfolioPositionChangeRead(BaseModel):

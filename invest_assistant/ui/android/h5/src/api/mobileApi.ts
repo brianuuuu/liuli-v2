@@ -11,8 +11,14 @@ import type {
   NoteGroup,
   PageDto,
   PendingReport,
+  AdjustAdviceCandidate,
+  PortfolioDashboardDetail,
+  PortfolioGroup,
   PortfolioOverview,
   PortfolioValuePoint,
+  PositionChange,
+  TradeResult,
+  TradeWrite,
   Report,
   SourceItem,
   StockDashboard,
@@ -84,6 +90,17 @@ export const mobileApi = {
     apiClient.get<PortfolioOverview>("/api/portfolios/overview", { portfolio_id: portfolioId }),
   portfolioSnapshots: (portfolioId?: number | null) =>
     apiClient.get<PortfolioValuePoint[]>("/api/portfolios/value-snapshots", { portfolio_id: portfolioId, days: 180 }),
+  portfolioDetail: (portfolioId: number) =>
+    apiClient.get<PortfolioDashboardDetail>(`/api/portfolios/${portfolioId}/dashboard`),
+  portfolioGroups: (portfolioId: number) =>
+    apiClient.get<PortfolioGroup[]>(`/api/portfolios/${portfolioId}/groups`),
+  recentPositionChanges: (portfolioId?: number | null, limit = 5) =>
+    apiClient.get<PositionChange[]>(portfolioId ? `/api/portfolios/${portfolioId}/position-changes` : "/api/portfolios/position-changes", { limit }),
+  adviceCandidates: (portfolioId: number, stockId: number, changeDate: string) =>
+    apiClient.get<AdjustAdviceCandidate[]>("/api/portfolios/adjust-advice/candidates", { portfolio_id: portfolioId, stock_id: stockId, change_date: changeDate }),
+  // 按增量记账：服务端读最新持仓、只改股数，手机端缓存的持仓数过期也不会算错
+  recordTrade: (portfolioId: number, write: TradeWrite) =>
+    apiClient.post<TradeResult>(`/api/portfolios/${portfolioId}/trades`, write),
   news: (query: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) =>
     apiClient.get<PageDto<SourceItem>>("/api/market-radar/source-items", query, signal),
   newsDetail: (id: number) => apiClient.get<SourceItem>(`/api/market-radar/source-items/${id}`),
