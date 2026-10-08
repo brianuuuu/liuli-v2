@@ -10,7 +10,6 @@ import {
   createPortfolioCashFlow,
   deletePortfolio,
   deletePosition,
-  getPortfolioCash,
   getPortfolioDashboard,
   getPortfolioOverview,
   getPortfolioReviewPerformance,
@@ -19,6 +18,7 @@ import {
   listPortfolioPositionChanges,
   listPortfolioValueSnapshots,
   listPortfolios,
+  refreshAllPortfolioQuotes,
   refreshPortfolioQuotes,
   updatePortfolio,
   updatePosition
@@ -54,6 +54,7 @@ type PortfolioFormValue = {
 };
 
 type PositionFormValue = {
+  portfolio_id?: number;
   stock_id: number;
   quantity: number;
   change_date?: string;
@@ -64,6 +65,7 @@ type PositionFormValue = {
 };
 
 type CashFlowFormValue = {
+  portfolio_id?: number;
   flow_type: string;
   amount: number;
   flow_date?: string;
@@ -196,6 +198,7 @@ export function PortfolioPage() {
   const watchedStockId = Form.useWatch("stock_id", positionForm);
   const watchedChangeDate = Form.useWatch("change_date", positionForm);
   const watchedReasonType = Form.useWatch("change_reason_type", positionForm);
+  const watchedPositionPortfolioId = Form.useWatch("portfolio_id", positionForm);
   const [cashFlowForm] = Form.useForm<CashFlowFormValue>();
 
   const portfolios = useAsyncData(useCallback(listPortfolios, []), []);
@@ -207,32 +210,17 @@ export function PortfolioPage() {
     useCallback(() => listPortfolioValueSnapshots(overviewPortfolioId, 180), [overviewPortfolioId]),
     []
   );
+  // 实盘持仓与调仓记录共用：null 表示所有组合
   const dashboard = useAsyncData<PortfolioDashboard | null>(
-    useCallback(async () => {
-      if (!selectedPortfolioId) return null;
-      return getPortfolioDashboard(selectedPortfolioId);
-    }, [selectedPortfolioId]),
-    null
-  );
-  const cash = useAsyncData(
-    useCallback(async () => {
-      if (!selectedPortfolioId) return null;
-      return getPortfolioCash(selectedPortfolioId);
-    }, [selectedPortfolioId]),
+    useCallback(() => getPortfolioDashboard(selectedPortfolioId), [selectedPortfolioId]),
     null
   );
   const cashFlows = useAsyncData<PortfolioCashFlow[]>(
-    useCallback(async () => {
-      if (!selectedPortfolioId) return [];
-      return listPortfolioCashFlows(selectedPortfolioId);
-    }, [selectedPortfolioId]),
+    useCallback(() => listPortfolioCashFlows(selectedPortfolioId), [selectedPortfolioId]),
     []
   );
   const positionChanges = useAsyncData<PortfolioPositionChange[]>(
-    useCallback(async () => {
-      if (!selectedPortfolioId) return [];
-      return listPortfolioPositionChanges(selectedPortfolioId);
-    }, [selectedPortfolioId]),
+    useCallback(() => listPortfolioPositionChanges(selectedPortfolioId), [selectedPortfolioId]),
     []
   );
   const reviewPerformance = useAsyncData<PortfolioReviewPerformance>(
@@ -241,36 +229,34 @@ export function PortfolioPage() {
   );
 
   useEffect(() => {
-    if (selectedPortfolioId || portfolios.loading) return;
-    setSelectedPortfolioId(portfolios.data[0]?.id ?? null);
-  }, [portfolios.data, portfolios.loading, selectedPortfolioId]);
-
-  useEffect(() => {
     if (!positionModalOpen || watchedReasonType !== "ai_advice" || !watchedStockId) {
       setAdviceCandidates([]);
       return;
     }
     const changeDate = /^\d{4}-\d{2}-\d{2}$/.test(watchedChangeDate || "") ? watchedChangeDate : null;
     let cancelled = false;
-    listAdjustAdviceCandidates(watchedStockId, changeDate, selectedPortfolioId).then((rows) => {
+    const portfolioId = editingPosition?.portfolio_id ?? watchedPositionPortfolioId ?? selectedPortfolioId;
+    listAdjustAdviceCandidates(watchedStockId, changeDate, portfolioId).then((rows) => {
       if (!cancelled) setAdviceCandidates(rows);
     });
     return () => {
       cancelled = true;
     };
-  }, [positionModalOpen, watchedReasonType, watchedStockId, watchedChangeDate, selectedPortfolioId]);
+  }, [positionModalOpen, watchedReasonType, watchedStockId, watchedChangeDate, watchedPositionPortfolioId, editingPosition, selectedPortfolioId]);
 
   const selectedPortfolio = useMemo(
     () => portfolios.data.find((item) => item.id === selectedPortfolioId) ?? null,
     [portfolios.data, selectedPortfolioId]
   );
+  const portfolioNames = useMemo(() => new Map(portfolios.data.map((item) => [item.id, item.name])), [portfolios.data]);
+  const portfolioScopeOptions = [{ value: 0, label: "所有组合" }, ...portfolios.data.map((item) => ({ value: item.id, label: item.name }))];
 
   async function reloadAll(nextPortfolioId?: number | null) {
     await portfolios.refresh();
     if (nextPortfolioId !== undefined) {
       setSelectedPortfolioId(nextPortfolioId);
     }
-    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cash.refresh(), cashFlows.refresh(), positionChanges.refresh(), reviewPerformance.refresh()]);
+    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cashFlows.refresh(), positionChanges.refresh(), reviewPerformance.refresh()]);
   }
 
   function openCreatePortfolio() {
@@ -328,7 +314,7 @@ export function PortfolioPage() {
   }
 
   function openCashFlow(flowType = "deposit") {
-    cashFlowForm.setFieldsValue({ flow_type: flowType, amount: undefined, flow_date: todayText(), note: "" });
+    cashFlowForm.setFieldsValue({ portfolio_id: undefined, flow_type: flowType, amount: undefined, flow_date: todayText(), note: "" });
     setCashFlowModalOpen(true);
   }
 
@@ -348,8 +334,9 @@ export function PortfolioPage() {
   }
 
   async function submitPosition() {
-    if (!selectedPortfolioId) return;
     const values = await positionForm.validateFields();
+    const portfolioId = editingPosition?.portfolio_id ?? selectedPortfolioId ?? values.portfolio_id;
+    if (!portfolioId) return;
     setSaving(true);
     try {
       const change = {
@@ -360,9 +347,9 @@ export function PortfolioPage() {
         change_advice_item_id: values.change_reason_type === "ai_advice" ? values.change_advice_item_id ?? null : null
       };
       if (editingPosition) {
-        await updatePosition(selectedPortfolioId, editingPosition.id, { stock_id: values.stock_id, quantity: values.quantity, status: editingPosition.status || "active", ...change });
+        await updatePosition(portfolioId, editingPosition.id, { stock_id: values.stock_id, quantity: values.quantity, status: editingPosition.status || "active", ...change });
       } else {
-        await createOrUpdatePosition(selectedPortfolioId, { stock_id: values.stock_id, quantity: values.quantity, status: "active", ...change });
+        await createOrUpdatePosition(portfolioId, { stock_id: values.stock_id, quantity: values.quantity, status: "active", ...change });
       }
       message.success(editingPosition ? "持仓已调整" : "持仓已录入");
       setPositionModalOpen(false);
@@ -380,11 +367,12 @@ export function PortfolioPage() {
   }
 
   async function submitCashFlow() {
-    if (!selectedPortfolioId) return;
     const values = await cashFlowForm.validateFields();
+    const portfolioId = selectedPortfolioId ?? values.portfolio_id;
+    if (!portfolioId) return;
     setSaving(true);
     try {
-      await createPortfolioCashFlow(selectedPortfolioId, {
+      await createPortfolioCashFlow(portfolioId, {
         flow_type: values.flow_type,
         amount: values.amount,
         flow_date: values.flow_date,
@@ -392,24 +380,22 @@ export function PortfolioPage() {
       });
       message.success("资金流水已记录");
       setCashFlowModalOpen(false);
-      await Promise.all([cash.refresh(), cashFlows.refresh(), overview.refresh(), snapshots.refresh()]);
+      await Promise.all([dashboard.refresh(), cashFlows.refresh(), overview.refresh(), snapshots.refresh()]);
     } finally {
       setSaving(false);
     }
   }
 
   async function removePosition(record: PortfolioPosition) {
-    if (!selectedPortfolioId) return;
-    await deletePosition(selectedPortfolioId, record.id);
+    await deletePosition(record.portfolio_id, record.id);
     message.success("持仓已删除");
     await Promise.all([dashboard.refresh(), overview.refresh(), snapshots.refresh(), positionChanges.refresh()]);
   }
 
   async function refreshQuotes() {
-    if (!selectedPortfolioId) return;
     setSaving(true);
     try {
-      const result = await refreshPortfolioQuotes(selectedPortfolioId);
+      const result = selectedPortfolioId ? await refreshPortfolioQuotes(selectedPortfolioId) : await refreshAllPortfolioQuotes();
       message.success(`实时价格已刷新：${result.updated_count} 个标的`);
       if (result.warnings.length) {
         message.warning(`有 ${result.warnings.length} 个标的未取到报价`);
@@ -487,7 +473,13 @@ export function PortfolioPage() {
     {
       title: "标的",
       dataIndex: "stock_name",
-      render: (value, record) => `${value || record.stock_code || record.stock_id}${record.stock_code ? ` ${record.stock_code}` : ""}`
+      width: 160,
+      render: (value, record) => (
+        <span style={{ whiteSpace: "nowrap" }}>
+          {value || record.stock_code || record.stock_id}
+          {record.stock_code && value ? <Typography.Text type="secondary"> {record.stock_code}</Typography.Text> : null}
+        </span>
+      )
     },
     { title: "调整前", dataIndex: "quantity_before", width: 110, align: "right", render: formatMoney },
     { title: "调整后", dataIndex: "quantity_after", width: 110, align: "right", render: formatMoney },
@@ -517,7 +509,7 @@ export function PortfolioPage() {
     {
       title: "理由来源",
       dataIndex: "reason_type",
-      width: 140,
+      width: 170,
       render: (value: string | null | undefined, record) =>
         value ? (
           <Space size={4}>
@@ -530,9 +522,27 @@ export function PortfolioPage() {
           </Space>
         ) : "-"
     },
-    { title: "调仓理由", dataIndex: "note", render: (value) => value || "-" },
+    {
+      title: "调仓理由",
+      dataIndex: "note",
+      width: 280,
+      ellipsis: { showTitle: false },
+      render: (value?: string | null) => (value ? <Tooltip title={value} placement="topLeft">{value}</Tooltip> : "-")
+    },
     { title: "记录时间", dataIndex: "created_at", width: 170, render: formatDateTime }
   ];
+
+  // 所有组合时在第二列标出每行属于哪个组合
+  function withPortfolioColumn<T extends { portfolio_id: number }>(columns: ColumnsType<T>): ColumnsType<T> {
+    if (selectedPortfolioId) return columns;
+    const portfolioColumn: ColumnsType<T>[number] = {
+      title: "组合",
+      dataIndex: "portfolio_id",
+      width: 110,
+      render: (value: number) => <span style={{ whiteSpace: "nowrap" }}>{portfolioNames.get(value) || value}</span>
+    };
+    return [columns[0], portfolioColumn, ...columns.slice(1)];
+  }
 
   function legendFormatter(data: PortfolioOverview["pie_items"]) {
     const total = data.reduce((sum, item) => sum + item.market_value, 0);
@@ -851,7 +861,7 @@ export function PortfolioPage() {
   }
 
   function renderPositions() {
-    if (!selectedPortfolioId) {
+    if (!portfolios.loading && !portfolios.data.length) {
       return <WorkbenchCard><EmptyAction description="暂无组合，请先新建组合" /></WorkbenchCard>;
     }
     const summary = dashboard.data?.summary;
@@ -861,11 +871,10 @@ export function PortfolioPage() {
           <Space wrap>
             <Select
               style={{ width: 260 }}
-              placeholder="选择组合"
-              value={selectedPortfolioId ?? undefined}
+              value={selectedPortfolioId ?? 0}
               loading={portfolios.loading}
-              options={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
-              onChange={setSelectedPortfolioId}
+              options={portfolioScopeOptions}
+              onChange={(value) => setSelectedPortfolioId(value === 0 ? null : value)}
             />
             <Button onClick={openCreatePortfolio}>新建组合</Button>
             <Button disabled={!selectedPortfolio} onClick={openRenamePortfolio}>重命名</Button>
@@ -877,7 +886,7 @@ export function PortfolioPage() {
         </WorkbenchCard>
         <div className="portfolio-summary metric-grid">
           <div className="metric-panel"><div className="metric-panel-label">当前市值</div><div className="metric-panel-value">{formatMoney(summary?.market_value)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">现金余额</div><div className="metric-panel-value">{formatMoney(cash.data?.amount)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">现金余额</div><div className="metric-panel-value">{formatMoney(summary?.cash_amount)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">当日盈亏</div><div className="metric-panel-value" style={{ color: pnlColor(summary?.day_pnl) }}>{formatMoney(summary?.day_pnl)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">当日涨跌幅</div><div className="metric-panel-value" style={{ color: pnlColor(summary?.day_pct) }}>{formatPercent(summary?.day_pct)}</div></div>
         </div>
@@ -889,7 +898,7 @@ export function PortfolioPage() {
               <Button onClick={() => openCashFlow("withdraw")}>出金</Button>
               <Button onClick={() => openCashFlow("adjustment")}>现金校准</Button>
               <Button onClick={openCreatePosition}>新增持仓</Button>
-              <Button onClick={refreshQuotes} loading={saving}>刷新当前组合</Button>
+              <Button onClick={refreshQuotes} loading={saving}>{selectedPortfolioId ? "刷新当前组合" : "刷新所有组合"}</Button>
             </Space>
           )}
         >
@@ -898,7 +907,7 @@ export function PortfolioPage() {
             size="small"
             loading={dashboard.loading}
             dataSource={dashboard.data?.positions ?? []}
-            columns={positionColumns}
+            columns={withPortfolioColumn(positionColumns)}
             locale={{ emptyText: <EmptyAction description="暂无实盘持仓，请新增持仓" /> }}
             pagination={false}
           />
@@ -908,7 +917,7 @@ export function PortfolioPage() {
   }
 
   function renderTrades() {
-    if (!selectedPortfolioId) {
+    if (!portfolios.loading && !portfolios.data.length) {
       return <WorkbenchCard><EmptyAction description="暂无组合，请先新建组合" /></WorkbenchCard>;
     }
     return (
@@ -917,14 +926,13 @@ export function PortfolioPage() {
           <Space wrap>
             <Select
               style={{ width: 260 }}
-              placeholder="选择组合"
-              value={selectedPortfolioId ?? undefined}
+              value={selectedPortfolioId ?? 0}
               loading={portfolios.loading}
-              options={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
-              onChange={setSelectedPortfolioId}
+              options={portfolioScopeOptions}
+              onChange={(value) => setSelectedPortfolioId(value === 0 ? null : value)}
             />
             {selectedPortfolio ? <Tag>{selectedPortfolio.base_currency}</Tag> : null}
-            <Typography.Text type="secondary">资金流水和持仓调整都只看当前组合</Typography.Text>
+            <Typography.Text type="secondary">资金流水和持仓调整跟随这里选的组合，与实盘持仓页共用</Typography.Text>
           </Space>
         </WorkbenchCard>
         <WorkbenchCard
@@ -942,7 +950,7 @@ export function PortfolioPage() {
             size="small"
             loading={cashFlows.loading}
             dataSource={cashFlows.data}
-            columns={cashFlowColumns}
+            columns={withPortfolioColumn(cashFlowColumns)}
             locale={{ emptyText: <EmptyAction description="暂无出入金记录" /> }}
             pagination={{ defaultPageSize: 20, showSizeChanger: true }}
           />
@@ -953,7 +961,7 @@ export function PortfolioPage() {
             size="small"
             loading={positionChanges.loading}
             dataSource={positionChanges.data}
-            columns={positionChangeColumns}
+            columns={withPortfolioColumn(positionChangeColumns)}
             locale={{ emptyText: <EmptyAction description="暂无调仓记录；在实盘持仓页调整股数后会自动留痕" /> }}
             pagination={{ defaultPageSize: 20, showSizeChanger: true }}
           />
@@ -1050,8 +1058,13 @@ export function PortfolioPage() {
           </Form.Item>
         </Form>
       </Modal>
-      <Modal title={editingPosition ? "调整股数" : "新增持仓"} open={positionModalOpen} onCancel={() => setPositionModalOpen(false)} onOk={submitPosition} confirmLoading={saving} destroyOnClose>
+      <Modal title={editingPosition ? `调整股数 · ${portfolioNames.get(editingPosition.portfolio_id) || ""}` : "新增持仓"} open={positionModalOpen} onCancel={() => setPositionModalOpen(false)} onOk={submitPosition} confirmLoading={saving} destroyOnClose>
         <Form form={positionForm} layout="vertical">
+          {!selectedPortfolioId && !editingPosition ? (
+            <Form.Item name="portfolio_id" label="组合" rules={[{ required: true, message: "请选择组合" }]}>
+              <Select placeholder="请选择组合" options={portfolios.data.map((item) => ({ value: item.id, label: item.name }))} />
+            </Form.Item>
+          ) : null}
           <Form.Item name="stock_id" label="标的" rules={[{ required: true, message: "请选择标的" }]}>
             <Select
               showSearch
@@ -1106,6 +1119,11 @@ export function PortfolioPage() {
       </Modal>
       <Modal title="记录资金流水" open={cashFlowModalOpen} onCancel={() => setCashFlowModalOpen(false)} onOk={submitCashFlow} confirmLoading={saving} destroyOnClose>
         <Form form={cashFlowForm} layout="vertical">
+          {!selectedPortfolioId ? (
+            <Form.Item name="portfolio_id" label="组合" rules={[{ required: true, message: "请选择组合" }]}>
+              <Select placeholder="请选择组合" options={portfolios.data.map((item) => ({ value: item.id, label: item.name }))} />
+            </Form.Item>
+          ) : null}
           <Form.Item name="flow_type" label="类型" rules={[{ required: true, message: "请选择类型" }]}>
             <Select
               options={[

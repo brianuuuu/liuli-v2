@@ -987,7 +987,8 @@ export type PortfolioSummary = {
   position_count: number;
   market_value: number;
   previous_market_value: number;
-  day_pnl: number;
+  cash_amount?: number | null;
+  day_pnl?: number | null;
   day_pct?: number | null;
   latest_quote_time?: string | null;
 };
@@ -998,7 +999,8 @@ export type PortfolioQuoteWarning = {
 };
 
 export type PortfolioDashboard = {
-  portfolio: Portfolio;
+  /** 所有组合时为 null */
+  portfolio: Portfolio | null;
   summary: PortfolioSummary;
   positions: PortfolioPosition[];
   warnings: PortfolioQuoteWarning[];

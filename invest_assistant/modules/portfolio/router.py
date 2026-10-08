@@ -75,6 +75,27 @@ def list_adjust_advice_reviews(portfolio_id: int | None = None, limit: int = 30,
         raise HTTPException(status_code=404, detail="portfolio not found") from exc
 
 
+# 以下四个不带组合 ID 的路由表示「所有组合」，必须注册在 /{portfolio_id} 之前
+@router.get("/dashboard")
+def get_all_dashboard(db: Session = Depends(get_db)) -> dict:
+    return service.get_all_dashboard(db)
+
+
+@router.post("/refresh-quotes")
+def refresh_all_quotes(db: Session = Depends(get_db)) -> dict:
+    return service.refresh_portfolio_realtime_quotes(db)
+
+
+@router.get("/position-changes", response_model=list[PortfolioPositionChangeRead])
+def list_all_position_changes(limit: int = 200, db: Session = Depends(get_db)) -> list:
+    return service.list_position_changes(db, None, limit)
+
+
+@router.get("/cash-flows", response_model=list[PortfolioCashFlowRead])
+def list_all_cash_flows(db: Session = Depends(get_db)) -> list:
+    return service.list_cash_flows(db, None)
+
+
 @router.get("/adjust-advice/candidates")
 def list_adjust_advice_candidates(
     stock_id: int,

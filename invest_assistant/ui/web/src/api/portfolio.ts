@@ -70,8 +70,9 @@ export async function deletePortfolio(portfolioId: number): Promise<{ success: b
   return response.data;
 }
 
-export async function getPortfolioDashboard(portfolioId: number): Promise<PortfolioDashboard> {
-  const response = await apiClient.get<PortfolioDashboard>(`/api/portfolios/${portfolioId}/dashboard`);
+/** portfolioId 为空表示所有组合 */
+export async function getPortfolioDashboard(portfolioId: number | null): Promise<PortfolioDashboard> {
+  const response = await apiClient.get<PortfolioDashboard>(portfolioId ? `/api/portfolios/${portfolioId}/dashboard` : "/api/portfolios/dashboard");
   return response.data;
 }
 
@@ -155,15 +156,16 @@ export async function updatePortfolioCash(portfolioId: number, payload: Portfoli
   return response.data;
 }
 
-export async function listPortfolioPositionChanges(portfolioId: number, limit = 200): Promise<PortfolioPositionChange[]> {
-  const response = await apiClient.get<PortfolioPositionChange[]>(`/api/portfolios/${portfolioId}/position-changes`, {
+export async function listPortfolioPositionChanges(portfolioId: number | null, limit = 200): Promise<PortfolioPositionChange[]> {
+  const url = portfolioId ? `/api/portfolios/${portfolioId}/position-changes` : "/api/portfolios/position-changes";
+  const response = await apiClient.get<PortfolioPositionChange[]>(url, {
     params: { limit }
   });
   return response.data;
 }
 
-export async function listPortfolioCashFlows(portfolioId: number): Promise<PortfolioCashFlow[]> {
-  const response = await apiClient.get<PortfolioCashFlow[]>(`/api/portfolios/${portfolioId}/cash-flows`);
+export async function listPortfolioCashFlows(portfolioId: number | null): Promise<PortfolioCashFlow[]> {
+  const response = await apiClient.get<PortfolioCashFlow[]>(portfolioId ? `/api/portfolios/${portfolioId}/cash-flows` : "/api/portfolios/cash-flows");
   return response.data;
 }
 
@@ -174,6 +176,11 @@ export async function createPortfolioCashFlow(portfolioId: number, payload: Port
 
 export async function refreshPortfolioQuotes(portfolioId: number): Promise<{ updated_count: number; warnings: { stock_code: string; message: string }[]; dashboard: PortfolioDashboard }> {
   const response = await apiClient.post<{ updated_count: number; warnings: { stock_code: string; message: string }[]; dashboard: PortfolioDashboard }>(`/api/portfolios/${portfolioId}/positions/refresh-quotes`);
+  return response.data;
+}
+
+export async function refreshAllPortfolioQuotes(): Promise<{ updated_count: number; warnings: { stock_code?: string; message: string }[] }> {
+  const response = await apiClient.post<{ updated_count: number; warnings: { stock_code?: string; message: string }[] }>("/api/portfolios/refresh-quotes");
   return response.data;
 }
 

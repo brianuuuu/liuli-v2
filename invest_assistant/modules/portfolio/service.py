@@ -376,8 +376,30 @@ def get_dashboard(db: Session, portfolio_id: int, performance_date: date | None 
         "portfolio": _portfolio_dict(portfolio),
         "summary": {
             **position_summary,
+            "cash_amount": cash_amount,
             "day_pnl": performance["day_pnl"],
             "day_pct": performance["day_pct"],
+        },
+        "positions": positions,
+        "warnings": [],
+    }
+
+
+def get_all_dashboard(db: Session) -> dict:
+    """所有组合的实盘持仓：持仓逐行列出不合并，当日盈亏沿用组合总览的口径。"""
+    positions = [
+        _position_dict(position, stock)
+        for portfolio in list_portfolios(db)
+        for position, stock in _position_rows(db, portfolio.id)
+    ]
+    overview = get_overview(db)["summary"]
+    return {
+        "portfolio": None,
+        "summary": {
+            **_summary(positions),
+            "cash_amount": overview["cash_amount"],
+            "day_pnl": overview["day_pnl"],
+            "day_pct": overview["day_pct"],
         },
         "positions": positions,
         "warnings": [],
@@ -449,14 +471,12 @@ def create_cash_flow(db: Session, portfolio_id: int, payload: PortfolioCashFlowC
     return item
 
 
-def list_cash_flows(db: Session, portfolio_id: int) -> list[PortfolioCashFlow]:
-    return list(
-        db.scalars(
-            select(PortfolioCashFlow)
-            .where(PortfolioCashFlow.portfolio_id == portfolio_id)
-            .order_by(PortfolioCashFlow.flow_date.desc(), PortfolioCashFlow.id.desc())
-        )
-    )
+def list_cash_flows(db: Session, portfolio_id: int | None) -> list[PortfolioCashFlow]:
+    """portfolio_id 为空返回所有组合的流水。"""
+    stmt = select(PortfolioCashFlow).order_by(PortfolioCashFlow.flow_date.desc(), PortfolioCashFlow.id.desc())
+    if portfolio_id is not None:
+        stmt = stmt.where(PortfolioCashFlow.portfolio_id == portfolio_id)
+    return list(db.scalars(stmt))
 
 
 def get_overview(db: Session, portfolio_id: int | None = None) -> dict:
