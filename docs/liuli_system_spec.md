@@ -7,6 +7,7 @@
 > 架构原则：业务与数据分层，模块内聚优先，复用后置抽象，AI 作为业务工具，不做过度平台化  
 ## 0. 历史版本更新点
 
+- v48：调仓记录增加调仓价格、理由来源和关联微操建议，修订 v33「不记买卖价格」的约定。`portfolio_position_change` 新增 `price`、`price_source`（`manual` 手填 / `estimated` 按调仓日前复权收盘价估算，调仓日日线未同步时取持仓现价）、`reason_type`（`ai_advice` AI建议 / `personal` 个人判断 / `fund_allocation` 资金调配 / `corporate_action` 公司行为 / `other` 其他）、`advice_item_id`（关联 `portfolio_adjust_advice_item`，只存 ID 不建外键）。价格选填，留空自动估算，公司行为不估价；仍不记手续费、税费，调仓不推算现金。理由来源选「AI建议」时可关联近 10 天同标的的增持、减持建议，关联后执行匹配以关联为准（不限 T 日），未关联的调仓仍按 T 日同标的同方向推断；关联已评估的建议时立即重算其执行情况。Web「组合复盘」新增「调仓来源对比」，按理由来源与加减仓方向统计实际调仓的 5/20/60 日效果和 20 日胜率，口径与微操复盘一致（收益基准取 T 日前复权收盘，不用手填价），公司行为不计入，查询时现算不落库。线上 PostgreSQL 需执行 `tools/migrations/2026-10-08_position_change_price_reason.sql`（只加列）。
 - v47：「待导入」判定增加正文末尾 JSON 校验，对全部可导入报告类型生效：末尾解析不到 JSON，或形状不对（趋势研究、赛道趋势研究要求数组，其余要求对象）的报告，不出现在安卓「待处理报告」里，也不进 Web 研究回流的一键导入；仍保留在研究回流列表，可阅读、删除，单独导入会提示缺 JSON。Web 一键导入改为直接取后端 `pending_import=true` 列表，与安卓同一份判定；有失败时用不阻塞的通知逐条列出失败原因。
 - v46：微操报告不再要求绑定单个组合。`portfolio_adjust_advice.portfolio_id` 改为可空，空值表示全部实盘组合：研究员按所有账户合在一起的持仓出报告，报告 JSON 省略 `portfolio_id`；执行匹配按标的在所有组合里找 T 日调仓；`list_adjust_advice_reviews` 不传 `portfolio_id` 返回全部报告，指定组合时只返回绑定该组合的报告。线上 PostgreSQL 需执行 `tools/migrations/2026-10-05_adjust_advice_portfolio_nullable.sql`（只放宽非空约束，不动数据）。研究回流导入接口对非校验类异常也返回具体原因（500），Web「一键导入」逐条列出失败原因，不再误报为「未识别可导入的报告类型」。
 - v45：Web 组合管理「组合复盘」页在收益曲线与盈亏日历下方新增「微操复盘」板块，数据来自 `GET /api/portfolios/adjust-advice`（复用 `list_adjust_advice_reviews`，返回结构与 MCP 工具一致，另含全部历史的 `summary`）。板块包括：增持与减持 20 日胜率、建议执行率、警示命中率、待评估数；微操报告列表（展开看逐只持仓的方向、价格区间、触及、执行、5/20/60 日收益、对错、风险）；信号表现表（样本不足 10 条置灰）与风险警示命中率表。维持、等待且无警示的条目默认隐藏。安卓端不做，第一版不含人工备注。
@@ -2900,6 +2901,10 @@ portfolio_position_change
 - quantity_after        -- 调整后数量，清仓为 0
 - quantity_delta        -- 冗余存，正数加仓负数减仓
 - change_date           -- 调仓日期，默认当天，允许补录
+- price                 -- 调仓价格，选填；留空按调仓日收盘价估算，公司行为为空
+- price_source          -- manual 手填 / estimated 估算
+- reason_type           -- ai_advice / personal / fund_allocation / corporate_action / other，选填
+- advice_item_id        -- 关联的微操建议条目，只在 reason_type = ai_advice 时有值
 - note                  -- 调仓理由
 - created_at
 ```
@@ -2909,7 +2914,7 @@ portfolio_position_change
 ```text
 portfolio_group 只用于实盘分组；
 portfolio_position 只记录真实持仓；
-portfolio_position_change 是调仓记录，只记个股数量变动，不记买卖价格、方向和费用；
+portfolio_position_change 是调仓记录，记个股数量变动、调仓价格和理由来源，不记手续费、税费，不是成交流水；
 调仓由持仓数量变动自动留痕，现金变动由 portfolio_cash_flow 的现金校准单独维护，两者不互相推导；
 候选 / 观察 / 重点跟踪 / 放弃 / 归档由 stock_pool 管理。
 ```
@@ -2980,7 +2985,7 @@ portfolio_adjust_advice_item     -- 每只持仓一条，含维持和等待
 收益 = 前复权 close(T+N) / close(T) - 1，同一份前复权序列计算，分红除权不影响；
 个股在评估日停牌时取此前最近收盘价，日线尚未同步到评估日时跳过；
 价格是否触及：增持看 T 日最低价 ≤ price_high，减持看 T 日最高价 ≥ price_low，T 日停牌视为未触及；
-执行匹配：T 日同标的、同方向的调仓数量合计（报告绑定了组合时只看该组合，否则跨全部组合），达到建议数量为 executed，不足为 partial；
+执行匹配：手动关联了该建议的调仓（不限日期），加上 T 日同标的、同方向且未关联其他建议的调仓，数量合计（推断部分在报告绑定了组合时只看该组合，否则跨全部组合），达到建议数量为 executed，不足为 partial；
 只评估 add、reduce 以及 warning 及以上的条目；
 verdict：增持 20 日收益 > +1% 或减持 20 日收益 < -1% 为 correct，反向超过 1% 为 wrong，其余 neutral；
 risk_verdict：20 日收益 - 沪深300 收益 < -3% 为 hit；

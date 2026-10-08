@@ -1049,8 +1049,46 @@ export type PortfolioPositionChange = {
   quantity_after: number;
   quantity_delta: number;
   change_date: string;
+  price?: number | null;
+  price_source?: "manual" | "estimated" | string | null;
+  reason_type?: PositionChangeReasonType | null;
+  advice_item_id?: number | null;
+  advice_target_trade_date?: string | null;
+  advice_action?: string | null;
   note?: string | null;
   created_at?: string | null;
+};
+
+export type PositionChangeReasonType = "ai_advice" | "personal" | "fund_allocation" | "corporate_action" | "other";
+
+export type AdjustAdviceCandidate = {
+  id: number;
+  target_trade_date: string;
+  action: "add" | "reduce" | string;
+  rating?: number | null;
+  quantity?: number | null;
+  price_low?: number | null;
+  price_high?: number | null;
+  core_logic?: string | null;
+};
+
+export type PositionChangeReviewRow = {
+  reason_type: PositionChangeReasonType | "unlabeled";
+  action: "add" | "reduce";
+  change_count: number;
+  samples: number;
+  correct: number;
+  wrong: number;
+  neutral: number;
+  win_rate?: number | null;
+  avg_effect_5d?: number | null;
+  avg_effect_20d?: number | null;
+  avg_effect_60d?: number | null;
+};
+
+export type PositionChangeReview = {
+  rules: string;
+  rows: PositionChangeReviewRow[];
 };
 
 export type PortfolioOverviewAllocationRow = {

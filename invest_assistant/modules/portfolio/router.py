@@ -1,10 +1,12 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from invest_assistant.bootstrap.database import get_db
 from invest_assistant.modules.basic.auth.dependencies import get_current_user
 from invest_assistant.modules.basic.auth.models import UserAccount
-from invest_assistant.modules.portfolio import adjust_advice, service
+from invest_assistant.modules.portfolio import adjust_advice, position_change_review, service
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashFlowCreate,
     PortfolioCashFlowRead,
@@ -69,6 +71,24 @@ def get_review_performance(
 def list_adjust_advice_reviews(portfolio_id: int | None = None, limit: int = 30, db: Session = Depends(get_db)) -> dict:
     try:
         return adjust_advice.list_adjust_advice_reviews(db, portfolio_id=portfolio_id, limit=min(max(limit, 1), 200))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="portfolio not found") from exc
+
+
+@router.get("/adjust-advice/candidates")
+def list_adjust_advice_candidates(
+    stock_id: int,
+    change_date: date | None = None,
+    portfolio_id: int | None = None,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return adjust_advice.list_advice_candidates(db, stock_id, change_date or service._today_shanghai(), portfolio_id)
+
+
+@router.get("/position-change-review")
+def review_position_changes(portfolio_id: int | None = None, start_date: date | None = None, db: Session = Depends(get_db)) -> dict:
+    try:
+        return position_change_review.review_position_changes(db, portfolio_id=portfolio_id, start_date=start_date)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="portfolio not found") from exc
 

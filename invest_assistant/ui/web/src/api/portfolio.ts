@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  AdjustAdviceCandidate,
   AdjustAdviceReviews,
   Portfolio,
   PortfolioCashBalance,
@@ -10,7 +11,9 @@ import type {
   PortfolioPosition,
   PortfolioPositionChange,
   PortfolioReviewPerformance,
-  PortfolioValueSnapshot
+  PortfolioValueSnapshot,
+  PositionChangeReasonType,
+  PositionChangeReview
 } from "../types/api";
 
 export type PortfolioPayload = {
@@ -27,6 +30,10 @@ export type PortfolioPositionPayload = {
   /** 调仓留痕：只写进调仓记录，不落到持仓行上 */
   change_date?: string | null;
   change_note?: string | null;
+  /** 留空时后端按调仓日收盘价估算 */
+  change_price?: number | null;
+  change_reason_type?: PositionChangeReasonType | null;
+  change_advice_item_id?: number | null;
 };
 
 export type PortfolioCashPayload = {
@@ -100,6 +107,20 @@ export async function getPortfolioReviewPerformance(
 export async function getAdjustAdviceReviews(portfolioId?: number | null, limit = 30): Promise<AdjustAdviceReviews> {
   const response = await apiClient.get<AdjustAdviceReviews>("/api/portfolios/adjust-advice", {
     params: { limit, ...(portfolioId ? { portfolio_id: portfolioId } : {}) }
+  });
+  return response.data;
+}
+
+export async function listAdjustAdviceCandidates(stockId: number, changeDate?: string | null, portfolioId?: number | null): Promise<AdjustAdviceCandidate[]> {
+  const response = await apiClient.get<AdjustAdviceCandidate[]>("/api/portfolios/adjust-advice/candidates", {
+    params: { stock_id: stockId, ...(changeDate ? { change_date: changeDate } : {}), ...(portfolioId ? { portfolio_id: portfolioId } : {}) }
+  });
+  return response.data;
+}
+
+export async function getPositionChangeReview(portfolioId?: number | null): Promise<PositionChangeReview> {
+  const response = await apiClient.get<PositionChangeReview>("/api/portfolios/position-change-review", {
+    params: portfolioId ? { portfolio_id: portfolioId } : undefined
   });
   return response.data;
 }

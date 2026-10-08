@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,6 +14,7 @@ import {
   getPortfolioDashboard,
   getPortfolioOverview,
   getPortfolioReviewPerformance,
+  listAdjustAdviceCandidates,
   listPortfolioCashFlows,
   listPortfolioPositionChanges,
   listPortfolioValueSnapshots,
@@ -31,7 +32,10 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { AdjustAdviceReview } from "./AdjustAdviceReview";
+import { PositionChangeReview } from "./PositionChangeReview";
+import { adviceActionLabels, reasonTypeColors, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
 import type {
+  AdjustAdviceCandidate,
   Portfolio,
   PortfolioCashFlow,
   PortfolioDashboard,
@@ -40,6 +44,7 @@ import type {
   PortfolioPositionChange,
   PortfolioReviewPerformance,
   PortfolioValueSnapshot,
+  PositionChangeReasonType,
   Stock
 } from "../../types/api";
 
@@ -53,6 +58,9 @@ type PositionFormValue = {
   quantity: number;
   change_date?: string;
   change_note?: string;
+  change_price?: number | null;
+  change_reason_type?: PositionChangeReasonType;
+  change_advice_item_id?: number;
 };
 
 type CashFlowFormValue = {
@@ -184,6 +192,10 @@ export function PortfolioPage() {
   const [saving, setSaving] = useState(false);
   const [portfolioForm] = Form.useForm<PortfolioFormValue>();
   const [positionForm] = Form.useForm<PositionFormValue>();
+  const [adviceCandidates, setAdviceCandidates] = useState<AdjustAdviceCandidate[]>([]);
+  const watchedStockId = Form.useWatch("stock_id", positionForm);
+  const watchedChangeDate = Form.useWatch("change_date", positionForm);
+  const watchedReasonType = Form.useWatch("change_reason_type", positionForm);
   const [cashFlowForm] = Form.useForm<CashFlowFormValue>();
 
   const portfolios = useAsyncData(useCallback(listPortfolios, []), []);
@@ -232,6 +244,21 @@ export function PortfolioPage() {
     if (selectedPortfolioId || portfolios.loading) return;
     setSelectedPortfolioId(portfolios.data[0]?.id ?? null);
   }, [portfolios.data, portfolios.loading, selectedPortfolioId]);
+
+  useEffect(() => {
+    if (!positionModalOpen || watchedReasonType !== "ai_advice" || !watchedStockId) {
+      setAdviceCandidates([]);
+      return;
+    }
+    const changeDate = /^\d{4}-\d{2}-\d{2}$/.test(watchedChangeDate || "") ? watchedChangeDate : null;
+    let cancelled = false;
+    listAdjustAdviceCandidates(watchedStockId, changeDate, selectedPortfolioId).then((rows) => {
+      if (!cancelled) setAdviceCandidates(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [positionModalOpen, watchedReasonType, watchedStockId, watchedChangeDate, selectedPortfolioId]);
 
   const selectedPortfolio = useMemo(
     () => portfolios.data.find((item) => item.id === selectedPortfolioId) ?? null,
@@ -325,7 +352,13 @@ export function PortfolioPage() {
     const values = await positionForm.validateFields();
     setSaving(true);
     try {
-      const change = { change_date: values.change_date || null, change_note: values.change_note || null };
+      const change = {
+        change_date: values.change_date || null,
+        change_note: values.change_note || null,
+        change_price: values.change_reason_type === "corporate_action" ? null : values.change_price ?? null,
+        change_reason_type: values.change_reason_type || null,
+        change_advice_item_id: values.change_reason_type === "ai_advice" ? values.change_advice_item_id ?? null : null
+      };
       if (editingPosition) {
         await updatePosition(selectedPortfolioId, editingPosition.id, { stock_id: values.stock_id, quantity: values.quantity, status: editingPosition.status || "active", ...change });
       } else {
@@ -336,6 +369,13 @@ export function PortfolioPage() {
       await Promise.all([dashboard.refresh(), overview.refresh(), snapshots.refresh(), positionChanges.refresh()]);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function selectAdviceCandidate(id?: number) {
+    const candidate = adviceCandidates.find((item) => item.id === id);
+    if (candidate?.core_logic && !positionForm.getFieldValue("change_note")) {
+      positionForm.setFieldsValue({ change_note: candidate.core_logic });
     }
   }
 
@@ -461,6 +501,34 @@ export function PortfolioPage() {
           {value > 0 ? `+${formatMoney(value)}` : formatMoney(value)}
         </Typography.Text>
       )
+    },
+    {
+      title: "调仓价格",
+      dataIndex: "price",
+      width: 110,
+      align: "right",
+      render: (value: number | null | undefined, record) =>
+        value === null || value === undefined ? "-" : record.price_source === "estimated" ? (
+          <Tooltip title="未填写，按调仓日收盘价估算">
+            <Typography.Text type="secondary">{formatMoney(value)} 估</Typography.Text>
+          </Tooltip>
+        ) : formatMoney(value)
+    },
+    {
+      title: "理由来源",
+      dataIndex: "reason_type",
+      width: 140,
+      render: (value: string | null | undefined, record) =>
+        value ? (
+          <Space size={4}>
+            <Tag color={reasonTypeColors[value]}>{reasonTypeLabels[value] || value}</Tag>
+            {record.advice_target_trade_date ? (
+              <Typography.Text type="secondary">
+                {record.advice_target_trade_date.slice(5)} {adviceActionLabels[record.advice_action || ""] || ""}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        ) : "-"
     },
     { title: "调仓理由", dataIndex: "note", render: (value) => value || "-" },
     { title: "记录时间", dataIndex: "created_at", width: 170, render: formatDateTime }
@@ -954,6 +1022,7 @@ export function PortfolioPage() {
             <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`}><EmptyAction description="暂无可用于复盘的盈亏记录" /></WorkbenchCard>
           )}
         </div>
+        <PositionChangeReview key={`change-${reviewRefreshKey}`} portfolioId={reviewPortfolioId} />
         <AdjustAdviceReview key={reviewRefreshKey} portfolioId={reviewPortfolioId} />
       </div>
     );
@@ -999,6 +1068,37 @@ export function PortfolioPage() {
           <Form.Item name="change_date" label="调仓日期" extra="留空按今天记录">
             <Input placeholder="YYYY-MM-DD" />
           </Form.Item>
+          <Form.Item
+            name="change_price"
+            label="调仓价格"
+            extra={
+              watchedReasonType === "corporate_action"
+                ? "公司行为不记价格"
+                : `留空按调仓日收盘价估算${editingPosition?.current_price ? `，现价 ${formatMoney(editingPosition.current_price)}` : ""}`
+            }
+          >
+            <InputNumber min={0} precision={3} style={{ width: "100%" }} disabled={watchedReasonType === "corporate_action"} placeholder="实际成交价，选填" />
+          </Form.Item>
+          <Form.Item name="change_reason_type" label="理由来源">
+            <Select allowClear placeholder="选填，用于复盘对比 AI 建议和个人判断" options={reasonTypeOptions} />
+          </Form.Item>
+          {watchedReasonType === "ai_advice" ? (
+            <Form.Item
+              name="change_advice_item_id"
+              label="关联微操建议"
+              extra={adviceCandidates.length ? "关联后，这笔调仓直接算作该建议已执行" : "近 10 天没有这只标的的增持、减持建议，可不关联"}
+            >
+              <Select
+                allowClear
+                placeholder="选填"
+                onChange={selectAdviceCandidate}
+                options={adviceCandidates.map((item) => ({
+                  value: item.id,
+                  label: `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}${item.price_low !== null && item.price_low !== undefined ? ` · ${item.price_low}—${item.price_high}` : ""}`
+                }))}
+              />
+            </Form.Item>
+          ) : null}
           <Form.Item name="change_note" label="调仓理由">
             <Input.TextArea rows={3} placeholder="选填，会记进调仓记录" />
           </Form.Item>

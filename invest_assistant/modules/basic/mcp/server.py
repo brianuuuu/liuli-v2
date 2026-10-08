@@ -122,8 +122,10 @@ MCP_TOOL_DESCRIPTIONS = {
     ),
     "portfolio.list_position_changes": (
         "查询调仓记录，用于组合复盘：按时间段回看某个组合或全部组合的持仓变动。"
-        "本系统不记录买卖成交，调仓只有个股数量的变动，返回的是调整前数量、调整后数量、增减量和调仓理由，"
-        "没有成交价、方向和费用；现金变化由现金校准单独维护，不要用调仓记录去推算成交金额。"
+        "本系统不记录买卖成交流水，调仓是个股数量的变动，返回调整前数量、调整后数量、增减量、调仓价格、"
+        "理由来源（ai_advice/personal/fund_allocation/corporate_action/other）、关联的微操建议和调仓理由；"
+        "price_source 为 estimated 的价格是按调仓日收盘价估算的，不是实际成交价；不记费用。"
+        "现金变化由现金校准单独维护，不要用调仓记录去推算现金。"
         "支持 portfolio_id（留空为全部组合）、stock_id、start_date、end_date、limit 过滤，按调仓日期倒序返回。"
     ),
     "portfolio.list_adjust_advice_reviews": (

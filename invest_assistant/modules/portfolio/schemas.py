@@ -50,6 +50,9 @@ class PortfolioPositionCreate(BaseModel):
     # 调仓留痕用，不写进 portfolio_position 本身
     change_date: date | None = None
     change_note: str | None = None
+    change_price: float | None = None
+    change_reason_type: str | None = None
+    change_advice_item_id: int | None = None
 
 
 class PortfolioPositionChangeRead(BaseModel):
@@ -63,6 +66,12 @@ class PortfolioPositionChangeRead(BaseModel):
     quantity_after: float
     quantity_delta: float
     change_date: date
+    price: float | None = None
+    price_source: str | None = None
+    reason_type: str | None = None
+    advice_item_id: int | None = None
+    advice_target_trade_date: date | None = None
+    advice_action: str | None = None
     note: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

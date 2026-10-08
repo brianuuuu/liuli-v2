@@ -60,7 +60,7 @@ class PortfolioPosition(Base):
 
 
 class PortfolioPositionChange(Base):
-    """调仓记录：只记个股数量的变动，不记买卖价格和费用，现金由现金校准单独维护。"""
+    """调仓记录：记个股数量的变动、调仓价格和理由来源，不记费用，现金由现金校准单独维护。"""
 
     __tablename__ = "portfolio_position_change"
     __table_args__ = (
@@ -75,6 +75,13 @@ class PortfolioPositionChange(Base):
     quantity_after: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     quantity_delta: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     change_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # 手填为 manual；留空时按调仓日收盘价估算为 estimated；公司行为不估价，两列都为空
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ai_advice / personal / fund_allocation / corporate_action / other，老记录为空
+    reason_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 关联的微操建议条目；建议条目随回流记录可能被删，只存 ID 不建外键
+    advice_item_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
@@ -237,8 +244,19 @@ def ensure_portfolio_schema(engine: Engine) -> None:
         }
         needs_change = any(name not in columns for name in missing_alters)
         cost_price_is_required = bool(columns.get("cost_price") and columns["cost_price"][3])
-        if needs_change or cost_price_is_required:
+        change_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(portfolio_position_change)")).all()}
+        # 调仓价格与理由来源是后加的列，老库补一次。Postgres 走 tools/migrations 的迁移脚本。
+        change_alters = {
+            "price": "ALTER TABLE portfolio_position_change ADD COLUMN price FLOAT",
+            "price_source": "ALTER TABLE portfolio_position_change ADD COLUMN price_source VARCHAR(16)",
+            "reason_type": "ALTER TABLE portfolio_position_change ADD COLUMN reason_type VARCHAR(32)",
+            "advice_item_id": "ALTER TABLE portfolio_position_change ADD COLUMN advice_item_id INTEGER",
+        }
+        missing_change_alters = [ddl for name, ddl in change_alters.items() if change_columns and name not in change_columns]
+        if needs_change or cost_price_is_required or missing_change_alters:
             _backup_sqlite_database(engine)
+        for ddl in missing_change_alters:
+            conn.execute(text(ddl))
         for name, ddl in missing_alters.items():
             if name not in columns:
                 conn.execute(text(ddl))

@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.portfolio import adjust_advice
 from invest_assistant.modules.portfolio.models import (
     Portfolio,
     PortfolioCashBalance,
@@ -16,6 +17,7 @@ from invest_assistant.modules.portfolio.models import (
     PortfolioValueSnapshot,
 )
 from invest_assistant.modules.stock_analysis import service as stock_analysis_service
+from invest_assistant.modules.stock_analysis.models import StockDailyBar
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashFlowCreate,
     PortfolioCashUpdate,
@@ -102,6 +104,9 @@ def update_group(db: Session, group_id: int, payload: PortfolioGroupCreate) -> P
     return item
 
 
+REASON_TYPES = {"ai_advice", "personal", "fund_allocation", "corporate_action", "other"}
+
+
 def record_position_change(
     db: Session,
     portfolio_id: int,
@@ -111,23 +116,79 @@ def record_position_change(
     quantity_after: float | None,
     note: str | None = None,
     change_date: date | None = None,
+    price: float | None = None,
+    reason_type: str | None = None,
+    advice_item_id: int | None = None,
+    fallback_price: float | None = None,
 ) -> PortfolioPositionChange | None:
-    """数量没变就不留痕；提交交给调用方，保证调仓和持仓在同一个事务里。"""
+    """数量没变就不留痕；提交交给调用方，保证调仓和持仓在同一个事务里。
+
+    价格留空时按调仓日收盘价估算并标为 estimated，公司行为（送转、配股等）不估价。
+    fallback_price 是持仓上的最新报价，调仓日日线还没同步时用它。"""
     before = float(quantity_before or 0)
     after = float(quantity_after or 0)
     if before == after:
         return None
+    reason_type = str(reason_type or "").strip() or None
+    if reason_type is not None and reason_type not in REASON_TYPES:
+        raise ValueError(f"invalid reason_type: {reason_type}")
+    change_date = change_date or _today_shanghai()
+    if advice_item_id is not None:
+        adjust_advice.validate_advice_link(db, advice_item_id, stock_id)
+        reason_type = "ai_advice"
+    if price is not None and price <= 0:
+        raise ValueError("price must be positive")
+    price_source = "manual" if price is not None else None
+    if price is None and reason_type != "corporate_action":
+        price = _estimate_change_price(db, stock_id, change_date, fallback_price)
+        price_source = "estimated" if price is not None else None
     item = PortfolioPositionChange(
         portfolio_id=portfolio_id,
         stock_id=stock_id,
         quantity_before=before,
         quantity_after=after,
         quantity_delta=after - before,
-        change_date=change_date or _today_shanghai(),
+        change_date=change_date,
+        price=price,
+        price_source=price_source,
+        reason_type=reason_type,
+        advice_item_id=advice_item_id,
         note=str(note or "").strip() or None,
     )
     db.add(item)
+    if advice_item_id is not None:
+        db.flush()
+        adjust_advice.refresh_item_execution(db, advice_item_id)
     return item
+
+
+def _estimate_change_price(db: Session, stock_id: int, change_date: date, fallback_price: float | None) -> float | None:
+    bar = db.scalar(
+        select(StockDailyBar)
+        .where(
+            StockDailyBar.stock_id == stock_id,
+            StockDailyBar.adj == "qfq",
+            StockDailyBar.source == "tushare",
+            StockDailyBar.trade_date <= change_date,
+        )
+        .order_by(StockDailyBar.trade_date.desc(), StockDailyBar.id.desc())
+        .limit(1)
+    )
+    # 调仓日当天的日线还没同步时，持仓上的实时报价比更早的收盘价更接近
+    if (bar is None or bar.trade_date < change_date) and fallback_price:
+        return float(fallback_price)
+    return float(bar.close) if bar is not None and bar.close else None
+
+
+def _pop_change_fields(data: dict) -> dict:
+    """PortfolioPositionCreate 里调仓留痕用的字段，不写进 portfolio_position 本身。"""
+    return {
+        "change_date": data.pop("change_date", None),
+        "note": data.pop("change_note", None),
+        "price": data.pop("change_price", None),
+        "reason_type": data.pop("change_reason_type", None),
+        "advice_item_id": data.pop("change_advice_item_id", None),
+    }
 
 
 def list_position_changes(
@@ -155,6 +216,7 @@ def list_position_changes(
     if end_date is not None:
         stmt = stmt.where(PortfolioPositionChange.change_date <= end_date)
     rows = db.execute(stmt.limit(max(1, int(limit)))).all()
+    advice_by_item = adjust_advice.advice_brief_by_item(db, {change.advice_item_id for change, _, _ in rows if change.advice_item_id})
     return [
         {
             "id": change.id,
@@ -167,6 +229,12 @@ def list_position_changes(
             "quantity_after": change.quantity_after,
             "quantity_delta": change.quantity_delta,
             "change_date": change.change_date,
+            "price": change.price,
+            "price_source": change.price_source,
+            "reason_type": change.reason_type,
+            "advice_item_id": change.advice_item_id,
+            "advice_target_trade_date": advice_by_item.get(change.advice_item_id, {}).get("target_trade_date"),
+            "advice_action": advice_by_item.get(change.advice_item_id, {}).get("action"),
             "note": change.note,
             "created_at": change.created_at,
         }
@@ -184,8 +252,7 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
     if db.get(Stock, payload.stock_id) is None:
         raise ValueError("stock not found")
     data = payload.model_dump()
-    change_date = data.pop("change_date", None)
-    change_note = data.pop("change_note", None)
+    change = _pop_change_fields(data)
     if data.get("market_value") is None and data.get("current_price") is not None:
         data["market_value"] = data["quantity"] * data["current_price"]
     item = db.scalar(
@@ -196,10 +263,12 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
     )
     if item is None:
         quantity_before = 0.0
+        fallback_price = None
         item = PortfolioPosition(portfolio_id=portfolio_id, **data)
         db.add(item)
     else:
         quantity_before = float(item.quantity or 0)
+        fallback_price = item.current_price
         for key, value in data.items():
             setattr(item, key, value)
     record_position_change(
@@ -208,8 +277,8 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
         payload.stock_id,
         quantity_before=quantity_before,
         quantity_after=payload.quantity,
-        note=change_note,
-        change_date=change_date,
+        fallback_price=fallback_price,
+        **change,
     )
     db.commit()
     db.refresh(item)
@@ -227,24 +296,26 @@ def update_position(db: Session, portfolio_id: int, position_id: int, payload: P
     if db.get(Stock, payload.stock_id) is None:
         raise ValueError("stock not found")
     data = payload.model_dump()
-    change_date = data.pop("change_date", None)
-    change_note = data.pop("change_note", None)
+    change = _pop_change_fields(data)
     if data.get("market_value") is None and data.get("current_price") is not None:
         data["market_value"] = data["quantity"] * data["current_price"]
     stock_id_before = item.stock_id
     quantity_before = float(item.quantity or 0)
+    fallback_price = item.current_price
     for key, value in data.items():
         setattr(item, key, value)
     if stock_id_before != payload.stock_id:
-        # 换标的等价于旧标的清零、新标的建仓，分成两条留痕
+        # 换标的等价于旧标的清零、新标的建仓，分成两条留痕；关联建议和价格只属于新标的
         record_position_change(
             db,
             portfolio_id,
             stock_id_before,
             quantity_before=quantity_before,
             quantity_after=0,
-            note=change_note,
-            change_date=change_date,
+            note=change["note"],
+            change_date=change["change_date"],
+            reason_type=change["reason_type"] if change["reason_type"] != "ai_advice" else None,
+            fallback_price=fallback_price,
         )
         record_position_change(
             db,
@@ -252,8 +323,7 @@ def update_position(db: Session, portfolio_id: int, position_id: int, payload: P
             payload.stock_id,
             quantity_before=0,
             quantity_after=payload.quantity,
-            note=change_note,
-            change_date=change_date,
+            **change,
         )
     else:
         record_position_change(
@@ -262,8 +332,8 @@ def update_position(db: Session, portfolio_id: int, position_id: int, payload: P
             payload.stock_id,
             quantity_before=quantity_before,
             quantity_after=payload.quantity,
-            note=change_note,
-            change_date=change_date,
+            fallback_price=fallback_price,
+            **change,
         )
     db.commit()
     db.refresh(item)
@@ -281,6 +351,7 @@ def delete_position(db: Session, portfolio_id: int, position_id: int) -> bool:
         quantity_before=item.quantity,
         quantity_after=0,
         note="删除持仓",
+        fallback_price=item.current_price,
     )
     db.delete(item)
     db.commit()

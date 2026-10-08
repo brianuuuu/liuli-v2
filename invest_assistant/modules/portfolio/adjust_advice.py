@@ -8,6 +8,7 @@
 - 只评估增持、减持，以及 warning 及以上的风险警示；没有警示的维持、等待不算收益。
 - portfolio_id 为空表示全部实盘组合（研究员通常按所有账户的合计持仓出报告），
   执行匹配时按标的在所有组合里找 T 日调仓。
+- 调仓记录手动关联了某条建议时，以关联为准（不限日期）；其余按 T 日、同标的、未关联其他建议的调仓推断。
 """
 
 import json
@@ -347,13 +348,20 @@ def _fill_trigger_and_execution(
         touched = t_bar.high >= item.price_low
     item.trigger_status = "touched" if touched else "not_touched"
 
-    stmt = select(PortfolioPositionChange.quantity_delta).where(
-        PortfolioPositionChange.stock_id == item.stock_id,
-        PortfolioPositionChange.change_date == t_day,
+    _fill_execution(db, item, advice, t_day)
+
+
+def _fill_execution(db: Session, item: PortfolioAdjustAdviceItem, advice: PortfolioAdjustAdvice, t_day: date) -> None:
+    inferred = (
+        (PortfolioPositionChange.stock_id == item.stock_id)
+        & (PortfolioPositionChange.change_date == t_day)
+        & PortfolioPositionChange.advice_item_id.is_(None)
     )
     if advice.portfolio_id is not None:
-        stmt = stmt.where(PortfolioPositionChange.portfolio_id == advice.portfolio_id)
-    deltas = db.scalars(stmt).all()
+        inferred = inferred & (PortfolioPositionChange.portfolio_id == advice.portfolio_id)
+    deltas = db.scalars(
+        select(PortfolioPositionChange.quantity_delta).where((PortfolioPositionChange.advice_item_id == item.id) | inferred)
+    ).all()
     sign = 1 if item.action == "add" else -1
     executed = sum(delta * sign for delta in deltas if delta * sign > 0)
     item.executed_quantity = executed
@@ -572,6 +580,73 @@ def _risk_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> 
         }
         for code, rows in sorted(grouped.items())
     ]
+
+
+# ---------------------------------------------------------------------------
+# 调仓关联建议
+# ---------------------------------------------------------------------------
+
+CANDIDATE_LOOKBACK_DAYS = 10
+
+
+def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfolio_id: int | None = None) -> list[dict]:
+    """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持；组合口径的报告只给对应组合。"""
+    stmt = (
+        select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice)
+        .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
+        .where(
+            PortfolioAdjustAdvice.status == "active",
+            PortfolioAdjustAdviceItem.stock_id == stock_id,
+            PortfolioAdjustAdviceItem.action.in_(DIRECTIONAL_ACTIONS),
+            PortfolioAdjustAdvice.target_trade_date <= change_date,
+            PortfolioAdjustAdvice.target_trade_date >= change_date - timedelta(days=CANDIDATE_LOOKBACK_DAYS),
+        )
+        .order_by(PortfolioAdjustAdvice.target_trade_date.desc(), PortfolioAdjustAdviceItem.id.desc())
+    )
+    if portfolio_id is not None:
+        stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None) | (PortfolioAdjustAdvice.portfolio_id == portfolio_id))
+    rows = db.execute(stmt.limit(10)).all()
+    return [
+        {
+            "id": item.id,
+            "target_trade_date": advice.target_trade_date,
+            "action": item.action,
+            "rating": item.rating,
+            "quantity": item.quantity,
+            "price_low": item.price_low,
+            "price_high": item.price_high,
+            "core_logic": _loads(item.detail_json).get("core_logic"),
+        }
+        for item, advice in rows
+    ]
+
+
+def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> None:
+    item = db.get(PortfolioAdjustAdviceItem, advice_item_id)
+    if item is None:
+        raise ValueError("advice item not found")
+    if item.stock_id != stock_id:
+        raise ValueError("advice item belongs to another stock")
+
+
+def refresh_item_execution(db: Session, advice_item_id: int) -> None:
+    """调仓关联建议后立即重算执行情况；还没评估过的条目留给评估任务。"""
+    item = db.get(PortfolioAdjustAdviceItem, advice_item_id)
+    if item is None or item.execution_status is None:
+        return
+    advice = db.get(PortfolioAdjustAdvice, item.advice_id)
+    _fill_execution(db, item, advice, advice.target_trade_date)
+
+
+def advice_brief_by_item(db: Session, item_ids: set[int]) -> dict[int, dict]:
+    if not item_ids:
+        return {}
+    rows = db.execute(
+        select(PortfolioAdjustAdviceItem.id, PortfolioAdjustAdviceItem.action, PortfolioAdjustAdvice.target_trade_date)
+        .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
+        .where(PortfolioAdjustAdviceItem.id.in_(item_ids))
+    ).all()
+    return {item_id: {"action": action, "target_trade_date": target} for item_id, action, target in rows}
 
 
 # ---------------------------------------------------------------------------

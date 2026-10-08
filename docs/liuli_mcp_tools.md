@@ -462,7 +462,7 @@
 
 查询调仓记录，供组合复盘按时间段回看持仓变动。
 
-**本系统不记录买卖成交。** 调仓的定义就是个股持仓数量的变动，所以返回里只有调整前后的数量、增减量和调仓理由，没有成交价、方向和费用；现金变化由现金校准（`portfolio_cash_flow` 的 `adjustment`）单独维护，两者不互相推导，不要拿调仓记录去反推成交金额。
+**本系统不记录买卖成交流水。** 调仓的定义是个股持仓数量的变动，另记调仓价格和理由来源，不记手续费和税费；现金变化由现金校准（`portfolio_cash_flow` 的 `adjustment`）单独维护，两者不互相推导，不要拿调仓记录去推算现金。
 
 | 参数 | 类型 | 是否必填 | 默认 | 说明 |
 |---|---|---|---|---|
@@ -486,6 +486,11 @@
 | `items[].quantity_before` / `quantity_after` | number | 调整前与调整后数量 |
 | `items[].quantity_delta` | number | 数量变化，正数加仓、负数减仓 |
 | `items[].change_date` / `created_at` | string | 调仓日期与记录创建时间 |
+| `items[].price` | number \| null | 调仓价格；老记录和公司行为为空 |
+| `items[].price_source` | string \| null | `manual` 手填的实际成交价；`estimated` 未填写、按调仓日收盘价估算 |
+| `items[].reason_type` | string \| null | 理由来源：`ai_advice` AI建议、`personal` 个人判断、`fund_allocation` 资金调配、`corporate_action` 公司行为（送转、配股、打新中签）、`other` 其他；老记录为空 |
+| `items[].advice_item_id` | int \| null | 关联的微操建议条目 ID，对应 `list_adjust_advice_reviews` 里 `reports[].items[].id` |
+| `items[].advice_target_trade_date` / `advice_action` | string \| null | 关联建议的适用交易日与方向（`add`/`reduce`） |
 | `items[].note` | string \| null | 调仓理由 |
 
 新建持仓是 `0 → N`，清仓和删除持仓是 `N → 0`。

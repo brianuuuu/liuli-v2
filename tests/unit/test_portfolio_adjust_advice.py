@@ -344,3 +344,58 @@ def test_import_rejects_unknown_portfolio_id(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="未找到组合: portfolio_id=9"):
         import_research_feedback(db, feedback.id)
+
+
+def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatch):
+    from invest_assistant.modules.portfolio import position_change_review, service as portfolio_service
+
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+    import_report(db)
+    days = trading_days(T, 70)
+    # 关联调仓在 T+1，要多一天日线才算得出它的 20 日收益
+    seed_bars(db, days[:22])
+    reduce_item = db.scalar(select(PortfolioAdjustAdviceItem).where(PortfolioAdjustAdviceItem.action == "reduce"))
+
+    candidates = adjust_advice.list_advice_candidates(db, stock_id=1, change_date=days[1], portfolio_id=1)
+    assert [row["id"] for row in candidates] == [reduce_item.id]
+    assert candidates[0]["core_logic"] == "进入中枢上方，分批减持。"
+    assert adjust_advice.list_advice_candidates(db, stock_id=2, change_date=days[1]) == []
+
+    adjust_advice.evaluate_adjust_advice(db)
+    assert reduce_item.execution_status == "not_executed"
+
+    # T+1 才执行、手动关联建议：不按日期推断也算执行，并且立即重算
+    linked = portfolio_service.record_position_change(
+        db, 1, 1, quantity_before=3600, quantity_after=3000, change_date=days[1], price=40.2, advice_item_id=reduce_item.id
+    )
+    db.commit()
+    assert linked.reason_type == "ai_advice" and linked.price_source == "manual"
+    assert reduce_item.execution_status == "executed" and reduce_item.executed_quantity == 600
+
+    # 留空价格按调仓日前复权收盘价估算；公司行为不估价
+    personal = portfolio_service.record_position_change(
+        db, 1, 1, quantity_before=3000, quantity_after=3500, change_date=days[0], reason_type="personal"
+    )
+    corporate = portfolio_service.record_position_change(
+        db, 1, 2, quantity_before=1000, quantity_after=1300, change_date=days[0], reason_type="corporate_action"
+    )
+    db.commit()
+    assert personal.price == 40.0 and personal.price_source == "estimated"
+    assert corporate.price is None and corporate.price_source is None
+
+    with pytest.raises(ValueError):
+        portfolio_service.record_position_change(db, 1, 2, quantity_before=0, quantity_after=1, advice_item_id=reduce_item.id)
+    with pytest.raises(ValueError):
+        portfolio_service.record_position_change(db, 1, 2, quantity_before=0, quantity_after=1, reason_type="guess")
+
+    listed = {row["id"]: row for row in portfolio_service.list_position_changes(db, 1)}
+    assert listed[linked.id]["advice_action"] == "reduce" and listed[linked.id]["advice_target_trade_date"] == T
+
+    review = position_change_review.review_position_changes(db, portfolio_id=1)
+    rows = {(row["reason_type"], row["action"]): row for row in review["rows"]}
+    assert set(rows) == {("ai_advice", "reduce"), ("personal", "add")}
+    # 春秋航空单边下跌：减仓对，加仓错
+    assert rows[("ai_advice", "reduce")]["correct"] == 1
+    assert rows[("personal", "add")]["wrong"] == 1 and rows[("personal", "add")]["win_rate"] == 0
