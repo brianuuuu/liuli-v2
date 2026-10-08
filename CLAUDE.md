@@ -38,7 +38,6 @@
 - The confirmed Web chart stack is ECharts via `echarts` and `echarts-for-react`.
 - Do not add `lightweight-charts` until K-line or intraday market charts are implemented.
 - Web theme defaults to light mode and must implement light, dark, and follow-system theme switching in the first Web version. Functional debugging and visual acceptance focus on the light theme first; dark mode can be refined later.
-- Future Web UI work must follow `docs/superpowers/specs/2026-05-16-liuli-web-ui-spec.md` for typography, colors, layout, lines, tables, buttons, light theme, and dark theme constraints.
 - Tag words, business entities, and business bindings are different concepts:
   - `tag` is a language entry and discrete semantic anchor.
   - `stock`, `track`, and `hotword` are business entities.

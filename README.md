@@ -1,358 +1,152 @@
-# Liuli v2
+# Liuli v2（琉璃）
 
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=222)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Default-003B57?logo=sqlite&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-线上-4169E1?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-> 面向个人投资者的“研究-执行-复盘”辅助系统。将新闻、公告、赛道、标的、预警与组合管理串成可持续演进的数据与认知闭环。
+> 面向个人投资者的投资辅助系统。把信息流、行情、公告、舆情和外部 AI 研究，转化为"发现赛道 → 筛选标的 → 等待时机 → 调整组合 → 沉淀认知"的闭环。系统不直接给出买卖指令。
+
+当前版本 **1.0.0**（2026-10-08）。系统规格以 [docs/liuli_system_spec.md](docs/liuli_system_spec.md) 为准，版本迭代见 [docs/CHANGELOG.md](docs/CHANGELOG.md)。
 
 ---
 
-## ✨ 快速开始
+## 快速开始
 
-### 1) 一键启动（Windows）
+### 线上（阿里云 Ubuntu + RDS PostgreSQL）
+
+只能用标准脚本整体启停，不要手工单独启停某个进程：
+
+```bash
+bash start_ubuntu_pg.sh   # 启动 API、Worker、桌面 Web、手机 H5
+bash stop.sh
+```
+
+### 本地开发（Windows）
 
 ```powershell
 .\start.bat
-```
-
-启动后访问：
-
-- Web: <http://127.0.0.1:5173>
-- API Health: <http://127.0.0.1:8000/api/health>
-
-停止：
-
-```powershell
 .\stop.bat
 ```
 
-默认账号：`admin / admin123`
+本地未设置 `DATABASE_URL` 时使用 SQLite `var/db/liuli.sqlite3`。这只是开发便利，线上数据库是 PostgreSQL。
 
-### 2) 手动启动
+| 服务 | 地址 |
+|---|---|
+| API | <http://127.0.0.1:8000/api/health>（OpenAPI：`/docs`） |
+| 桌面 Web | <http://127.0.0.1:5173> |
+| 手机 H5 | <http://127.0.0.1:5174> |
+| 对外 MCP | `http://127.0.0.1:8000/mcp/` |
 
-```powershell
-# API
-python -m uvicorn invest_assistant.main:app --host 127.0.0.1 --port 8000
-
-# Worker（任务执行轮询）
-python -m invest_assistant.worker
-
-# Web
-cd invest_assistant\ui\web
-npm.cmd install --no-audit --no-fund
-npm.cmd run dev -- --host 127.0.0.1 --port 5173
-```
+首次启动会创建默认账号 `admin / admin123`，请登录后立即修改密码。
 
 ---
 
-## 🧭 系统架构
-
-当前实现采用「FastAPI + 模块化后端 + React Web + SQLite（默认）」的单体分层架构：
-
-- **前端层**：`invest_assistant/ui/web` 提供业务工作台与控制台。
-- **API 层**：`invest_assistant/main.py` + `bootstrap/app.py` 组装 FastAPI 与所有业务路由。
-- **领域模块层**：`invest_assistant/modules/*` 按业务模块拆分 `models/schemas/service/router/jobs`。
-- **任务调度与执行层**：
-  - APScheduler 工厂（已实现）
-  - Job Center 任务注册、手动触发、运行日志
-  - Worker 轮询执行 `job_run_request`
-- **数据层**：SQLAlchemy + 默认 SQLite `var/db/liuli.sqlite3`。
-- **文件层**：`var/raw`、`var/processed`、`var/reports`、`var/exports` 等目录承载原始/处理后资产。
-- **AI 相关模块**：知识库包含知识笔记、对内 Prompt、对外 Skills、研究员和研究回流；配置层预留 `openai_api_key`、`qwen_api_key`，复杂研究由外部 AI 执行器完成并通过 MCP 回流。
-- **外部数据源**：已见到巨潮资讯（公告财报）与财联社新闻抓取任务。
-
-### 架构图（Mermaid）
+## 系统组成
 
 ```mermaid
 flowchart LR
-  U[用户 / 研究员] --> W[Web React + Ant Design + ECharts]
-  W --> API[FastAPI API]
-
-  API --> M1[Market Radar]
-  API --> M2[Track Discovery]
-  API --> M3[Stock Analysis]
-  API --> M4[Alert Center]
-  API --> M5[Portfolio]
-  API --> M6[Knowledge Base]
-  API --> MB[Basic Modules]
-  API --> MC[Console]
-
-  MB --> JC[Job Center]
-  JC --> WRK[Worker Polling]
-  JC --> SCH[APScheduler Factory]
-
-  WRK --> D1[巨潮 CNInfo]
-  WRK --> D2[财联社 CLS]
-
-  M1 --> DB[(SQLite / SQLAlchemy)]
-  M2 --> DB
-  M3 --> DB
-  M4 --> DB
-  M5 --> DB
-  M6 --> DB
-  MB --> DB
-
-  WRK --> FS[var/raw & var/processed & var/reports]
+  W[桌面 Web<br/>React + Ant Design] --> API
+  H5[Android 原生壳 + 手机 H5] --> API
+  EXT[Codex / ChatGPT 等<br/>MCP Client] -->|Bearer Token| MCP[/mcp]
+  MCP --> API[FastAPI API]
+  API --> DB[(PostgreSQL)]
+  API --> FS[var/ 报告与公告文件]
+  WRK[Worker<br/>APScheduler + 任务轮询] --> DB
+  WRK --> FS
+  WRK --> SRC[Tushare / AkShare / 巨潮 / 富途 / DeepSeek]
 ```
 
----
-
-## 🧱 技术栈
-
-| 层级 | 技术 |
-|---|---|
-| 前端（Web） | React 18, TypeScript, Vite 5, Ant Design 6, React Router 6, Axios, ECharts + echarts-for-react |
-| 后端（API） | Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2 |
-| 调度/任务 | APScheduler, 自研 Job Center + Worker 轮询执行 |
-| 鉴权 | python-jose, passlib[bcrypt], python-multipart |
-| 数据库 | SQLite（默认，`database_url` 可通过环境变量覆盖） |
-| 测试 | Pytest（unit + integration） |
-
----
-
-## 🧩 核心功能（按业务模块）
-
-> 说明聚焦“解决什么问题 / 主要能力 / 数据流向”。
-
-### 1) Market Radar（市场雷达）
-- **解决问题**：把分散信息流（新闻、标签、热度）汇总成可观测市场脉搏。
-- **主要能力**：新闻入库、标签抽取、热度快照、标签关系快照、候选标签管理。
-- **数据流向**：外部新闻/公告 → `source_item` → 标签/热度/关系计算 → 前端工作台展示。
-
-### 2) Track Discovery（赛道发现）
-- **解决问题**：从热点线索沉淀“赛道假设—证据—关联标的”的研究对象。
-- **主要能力**：候选赛道生成、赛道别名、赛道论点、证据、验证指标、关联标的维护。
-- **数据流向**：市场雷达标签热度/人工输入 → `track*` 数据表 → 赛道页面与详情页。
-
-### 3) Stock Analysis（标的分析）
-- **解决问题**：把个股研究过程结构化，便于评分、对比、复盘。
-- **主要能力**：标的池、研究笔记、评分快照、对比组、标的与赛道关系、投资论点。
-- **数据流向**：股票主数据 + 研究输入 → `stock_*` 研究表 → 标的分析视图。
-
-### 4) Alert Center（预警中心）
-- **解决问题**：将规则化监控转成可追踪告警事件。
-- **主要能力**：预警规则管理、规则执行任务、预警事件生成与状态流转。
-- **数据流向**：规则配置 + 市场/研究数据 → 规则评估任务 → `alert_event`。
-
-### 5) Portfolio（组合管理）
-- **解决问题**：将研究与实际持仓、调仓、复盘对齐。
-- **主要能力**：组合、分组、持仓、复盘记录。
-- **数据流向**：用户维护组合数据 → `portfolio*` 表 → 组合工作台展示。
-
-### 6) Knowledge Base（知识库）
-- **解决问题**：把研究经验沉淀成可复用的策略资产。
-- **主要能力**：知识笔记、对内 Prompt、对外 Skills、研究员 profile、研究回流。
-- **数据流向**：研究笔记/复盘输入 → 对外 Skill 与研究员 profile → 外部 AI 研究协作 → MCP 回流。
-- **研究员文件**：`external/researchers/{researcher_code}/profile.md` 使用 frontmatter 记录编号和展示名，再保存“简介 / 价值观 / 方法论”三段正文。
-
-```markdown
----
-researcher_code: analyst_001
-display_name: A股标的研究员
----
-
-## 简介 intro
-```
-
-### 7) Console（控制台）
-- **定位**：运维与配置面板，不承载业务能力归属。
-- **主要能力**：系统状态、任务中心、数据源管理入口、基础库/配置巡检。
-- **数据流向**：Console 操作 → 基础模块（job_center/system_config/stock_master 等）→ DB。
-
----
-
-## 🔌 API 总览（按模块）
-
-> 仅列关键前缀与代表性端点，完整定义以各模块 `router.py` 为准。
-
-| 模块 | 前缀 | 代表性端点 |
+| 进程 | 端口 | 职责 |
 |---|---|---|
-| Health | `/api` | `GET /health` |
-| Auth | `/api/auth` | `POST /login`, `POST /logout`, `GET /me` |
-| Stock Master | `/api/stocks` | `GET /`, `GET /search`, `POST /import`, `GET/PUT /{stock_id}`, `GET/POST /{stock_id}/aliases` |
-| System Config | `/api/system-config` | `GET/POST /`, `GET/PUT /{config_key}` |
-| Job Center | `/api/jobs` | `GET /`, `POST /sync-definitions`, `GET /run-requests`, `GET/PUT /{job_name}`, `POST /{job_name}/run`, `GET /{job_name}/logs` |
-| Report Library | `/api/reports` | `GET/POST /`, `GET/PUT/DELETE /{report_id}`, `GET /{report_id}/content`, `GET /{report_id}/download` |
-| Disclosure Library | `/api/disclosures` | `GET/POST /`, `POST /fetch`, `GET/PUT /{id}`, `POST /{id}/download`, `POST /{id}/parse`, `GET /{id}/file`, `GET /{id}/parsed`, `POST /{id}/to-source-item` |
-| Market Radar | `/api/market-radar` | `GET /overview`, `GET/POST /source-items`, `POST /source-items/sync-cls`, `GET/POST /tags`, `GET /rankings`, `GET /graphs/stock-track`, `GET /tag-candidates` |
-| Track Discovery | `/api/track-discovery` | `GET/POST /tracks`, `GET/PUT /tracks/{id}`, `GET/POST /tracks/{id}/evidence`, `GET/POST /tracks/{id}/stocks`, `POST /tracks/{id}/status` |
-| Stock Analysis | `/api/stock-analysis` | `GET/POST/PUT /pool`, `GET /candidates`, `GET /stocks/{id}`, `GET/POST /stocks/{id}/notes`, `GET/POST /stocks/{id}/scores`, `GET/POST /compare-groups`, `GET /reports` |
-| Alert Center | `/api/alerts` | `GET/POST/PUT/DELETE /rules`, `GET/POST /events`, `POST /events/{id}/read`, `POST /events/{id}/handle` |
-| Portfolio | `/api/portfolios` | `GET/POST /`, `GET/PUT /{id}`, `GET/POST /{id}/groups`, `GET/POST/PUT/DELETE /{id}/positions`, `GET/POST /{id}/review` |
-| Knowledge Base | `/api/knowledge` | `GET/POST/PUT/DELETE /notes`, `GET/POST/PUT/DELETE /prompts`, `GET /external-skills`, `GET /external-skills/files`, `GET /external-skills/files/content`, `GET/POST/PUT /researchers`, `GET/POST/PUT /research-feedback`, MCP `knowledge_base.upload_research_feedback` |
-| Console | `/api/console` | `GET /dashboard`, `GET /system-status`, `GET /data-sources`, `GET /ai-logs` |
+| API | 8000 | 鉴权、业务读写、手动任务请求、报告读取，挂载 `/mcp` |
+| Worker | — | 定时抓取、打标、热度聚合、行情同步、日报、预警、微操评估 |
+| 桌面 Web | 5173 | 完整研究工作台与控制台 |
+| 手机 H5 | 5174 | 供 Android 原生壳加载，并把 `/api/` 代理到 8000 |
+
+API 与 Worker 不互相调用，只通过数据库、`var/` 文件和任务请求表协作。
 
 ---
 
-## 🗂️ 项目目录结构（关键）
+## 业务模块
+
+| 模块 | 作用 | 主要内容 |
+|---|---|---|
+| 市场雷达 | 发现市场在关注什么 | 信息流（财联社、富途、东方财富、巨潮公告、社交媒体舆情）、标签热度榜、关系图谱、AI 推荐词、市场热词、每日日报 |
+| 赛道发现 | 判断方向是否值得跟踪 | 赛道库、赛道动态材料、六维评分与 S—D 评级、资金热度档位、赛道对比 |
+| 标的分析 | 找出能承接赛道的公司 | 标的池、标的事件材料、评级 / 估值 / 趋势快照、K 线、标的对比 |
+| 预警中心 | 跟踪时机与风险 | 热度规则、任务失败规则、微操风险警示 |
+| 组合管理 | 管理实盘资产结构 | 实盘持仓、调仓记录（含价格与理由来源）、现金、每日市值、组合复盘、微操建议跟踪与评估 |
+| 知识库 | 沉淀认知并对接外部 AI | 知识笔记、对内 Prompt、对外 Skills、研究员 profile、研究回流导入 |
+| 控制台 | 操作面板 | 系统状态、任务中心、数据源、股票基础库、标签索引、公告财报库、系统配置、AI 审计日志 |
+
+外部 AI 研究协作链路：外部执行器读取 Skills 和研究员 profile，经 MCP 查询琉璃数据，把 Markdown 报告回流到知识库，再按标题自动导入评级、估值、趋势、赛道趋势、微操等业务表。
+
+Android 底栏为 看板 / 资讯 / 笔记 / 待办 / 我的，定位是随身查看和处理待办，不承担控制台和深度分析。
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 后端 | Python 3.11+、FastAPI、Pydantic v2、SQLAlchemy 2、APScheduler、python-jose（JWT） |
+| 数据库 | 线上 PostgreSQL（psycopg 3）；本地开发可用 SQLite |
+| 桌面 Web | React 18、TypeScript、Vite 5、Ant Design 6、ECharts（echarts-for-react）、lightweight-charts（K 线） |
+| Android | Kotlin + Jetpack Compose 原生壳（单 WebView）+ 独立手机 H5（React、Vite、TanStack Query、ECharts） |
+| 对外 MCP | MCP Python SDK（FastMCP，Streamable HTTP） |
+| 数据源 | Tushare、AkShare、巨潮资讯、富途快讯 |
+| AI | DeepSeek |
+
+---
+
+## 目录结构
 
 ```text
 .
-├── invest_assistant/                     # 后端主包
-│   ├── main.py                           # FastAPI 入口
-│   ├── worker.py                         # Worker 入口（轮询执行任务）
-│   ├── bootstrap/                        # 启动与基础设施（配置/日志/DB/调度）
-│   ├── shared/                           # 通用工具与基础类型
+├── invest_assistant/
+│   ├── main.py / worker.py          # API 与 Worker 入口
+│   ├── bootstrap/                   # 配置、数据库、日志、调度
 │   ├── modules/
-│   │   ├── basic/                        # 基础能力（auth/job/report/disclosure/stock/config）
-│   │   ├── market_radar/                 # 市场雷达
-│   │   ├── track_discovery/              # 赛道发现
-│   │   ├── stock_analysis/               # 标的分析
-│   │   ├── alert_center/                 # 预警中心
-│   │   ├── portfolio/                    # 组合管理
-│   │   ├── knowledge_base/               # 知识库
-│   │   └── console/                      # 控制台路由
-│   └── ui/web/                           # React Web 前端
-├── tests/                                # 单元 + 集成测试
-├── docs/                                 # 系统规范、数据库规范、UI/实施文档
-├── var/                                  # 运行时数据目录（db/logs/raw/processed/...）
-├── start.bat                             # Windows 一键启动
-├── stop.bat                              # Windows 一键停止
-├── pyproject.toml                        # Python 依赖与测试配置
-└── README.md
+│   │   ├── basic/                   # auth、stock_master、system_config、job_center、
+│   │   │                            # report_library、disclosure_library、ai_audit、mcp
+│   │   ├── market_radar/  track_discovery/  stock_analysis/
+│   │   ├── alert_center/  portfolio/  knowledge_base/
+│   │   └── console/
+│   ├── services/                    # tushare、akshare、deepseek client
+│   ├── shared/                      # 无业务含义的通用工具
+│   └── ui/
+│       ├── web/                     # 桌面 Web
+│       └── android/{app,h5}/        # Android 原生壳与手机 H5
+├── tests/                           # pytest
+├── tools/migrations/                # 线上 PostgreSQL 列变更脚本
+├── docs/                            # 系统规格、CHANGELOG、专题文档、归档
+├── var/                             # 运行时数据（不进 Git）
+├── start_ubuntu_pg.sh / start.sh / stop.sh
+└── start.bat / stop.bat
 ```
 
 ---
 
-## 🔄 数据流与业务流程
+## 开发约定
 
-### 1) 核心数据加工流
-
-```mermaid
-flowchart LR
-  A[外部数据源<br/>CNInfo / CLS / 待扩展] --> B[采集任务 Job]
-  B --> C[标准化清洗]
-  C --> D[(SQLite)]
-  D --> E[标签抽取/热度聚合/关系聚合]
-  E --> F[赛道/标的/预警/知识沉淀]
-  F --> G[Web 工作台展示]
-```
-
-### 2) 用户交互请求流
-
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant W as Web
-  participant A as FastAPI
-  participant M as Domain Module
-  participant DB as SQLite
-  participant J as JobCenter/Worker
-
-  U->>W: 页面操作（查询/新增/触发任务）
-  W->>A: HTTP API 请求
-  A->>M: 进入对应模块 service
-  M->>DB: 读写数据
-  alt 手动触发任务
-    M->>J: 写入 job_run_request
-    J->>DB: 更新执行状态/日志
-  end
-  DB-->>M: 返回结果
-  M-->>A: 统一响应
-  A-->>W: JSON
-  W-->>U: 列表/图表/状态反馈
-```
+- 业务能力收敛在所属模块内（`models / schemas / service / router / jobs`），两个以上模块真实复用才上移 `services` 或 `shared`；Console 只是操作面板，不拥有业务能力。
+- 新表在 API 启动时由 `create_all` 自动创建；**已有表加列或改列必须写 `tools/migrations/YYYY-MM-DD_<name>.sql`，在线上 PostgreSQL 手工执行**。
+- 定时任务在模块 `jobs.py` 中注册，命名为 `模块名.动作名`，由任务中心同步到 `job_config`。
+- 每次功能变更都要同步：在 `docs/CHANGELOG.md` 追加版本条目，修改 `docs/liuli_system_spec.md` 对应章节和版本号。
+- 提交说明采用 Conventional Commits：`<type>(<scope>): <中文 subject>`。
+- 部分测试会重建或清空数据库，运行前先确认目标库，并先备份 `var/db/liuli.sqlite3`。
 
 ---
 
-## 🗃️ 数据库设计（核心表摘要）
+## 文档
 
-> 完整字段请以 `models.py` 与数据库规范文档为准。
-
-| 表名 | 用途 | 关键字段（示例） | 关系摘要 |
-|---|---|---|---|
-| `user_account` | 账号与鉴权 | `username`, `password_hash`, `is_active` | 基础认证 |
-| `job_config` / `job_run_request` / `job_run_log` | 任务配置、执行请求、执行日志 | `job_name`, `status`, `requested_at` | Job Center 核心链路 |
-| `stock` / `stock_alias` | 股票主数据与别名 | `symbol`, `name`, `exchange` | 被多个业务模块引用 |
-| `company_disclosure` | 公告财报库 | `title`, `source_url`, `publish_time` | 可转写 `source_item` |
-| `report` | 报告索引 | `title`, `source`, `publish_time` | 报告库 |
-| `tag` / `source_item` / `source_tag` | 市场标签与信息源 | `tag_type`, `content`, `source_name` | 雷达核心输入输出 |
-| `tag_heat_snapshot` / `tag_edge_snapshot` / `tag_candidate` | 热度与关系快照、候选标签 | `window`, `heat_score`, `edge_weight` | 支撑可视化分析 |
-| `track*` 系列表 | 赛道对象、证据、指标、关联标的 | `track_name`, `thesis`, `evidence_type` | 连接市场雷达与标的分析 |
-| `stock_pool` / `stock_research_note` / `stock_score_snapshot` / `stock_track_relation` | 标的研究数据 | `symbol`, `score_total`, `track_id` | 标的研究主链路 |
-| `alert_rule` / `alert_event` | 预警规则与事件 | `rule_type`, `triggered_at`, `status` | 规则执行产物 |
-| `portfolio` / `portfolio_position` / `portfolio_review` | 组合、持仓、复盘 | `name`, `symbol`, `review_date` | 投资执行与复盘 |
-| `knowledge_note` / `knowledge_prompt` / `knowledge_researcher` / `knowledge_research_feedback` | 知识沉淀 | `title`, `prompt_key`, `profile_path`, `report_id, report_path, researcher_code, skill_name, business_module, source, status` | 笔记、内部 Prompt、文件目录型外部 Skill、研究员体系和研究回流 |
-
----
-
-## 🧪 开发规范（项目内落地版）
-
-### 代码风格
-- 后端遵循“模块内 `models/schemas/service/router/jobs` 分层”。
-- 通用能力放 `shared/`，避免跨模块复制逻辑。
-- 保持路径短、单函数职责单一。
-
-### 模块划分原则
-- 业务能力归属固定在六大业务模块。
-- Console 仅做运营操作入口，不抢占业务域职责。
-- `basic/*` 负责共性底座（认证、任务、配置、基础库、资料库）。
-
-### 命名规范
-- Python 包/文件：`snake_case`。
-- 数据表：`snake_case` 单数/业务语义名（以现有模型为准）。
-- Job 名称：`module.action`（如 `market_radar.fetch_news`）。
-
-### 日志规范
-- 运行日志沉淀到 `var/logs`，任务日志入 `job_run_log`。
-- 任务执行状态需覆盖 `pending/running/success/failed` 流转。
-
-### 错误处理
-- 对外接口统一响应结构（见 `shared/response.py`）。
-- 外部依赖失败要可追踪（任务 message 或 error_message）。
-
-### 测试规范
-- `tests/unit`：模块功能与服务逻辑。
-- `tests/integration`：应用启动与路由集成。
-- 提交前至少执行 `pytest -q --basetemp=var/cache/pytest`。
-
-### 新增功能放置建议
-- 新业务能力：`invest_assistant/modules/<new_module>/`。
-- 新基础能力：`invest_assistant/modules/basic/<new_basic_module>/`。
-- 新页面：`invest_assistant/ui/web/src/pages/<module>/`。
-- 新 API 客户端：`invest_assistant/ui/web/src/api/`。
-
----
-
-## 🛣️ Roadmap（基于当前代码与文档推断）
-
-> 注意：以下是路线图，不代表全部已完成。
-
-### ✅ 已完成
-- 后端 6 大业务模块 + basic 基础模块 + console 路由骨架。
-- Job Center + Worker 任务执行闭环。
-- Web 首版导航、主题切换、模块工作台基础页面。
-- 市场雷达与公告库的部分外部数据抓取链路。
-
-### 🚧 开发中
-- Web 各模块深层详情页与高密度交互完善。
-- 图表数据与真实业务字段的更细绑定。
-- Console 运维体验持续优化（任务中心、日志抽屉等）。
-
-### 📝 计划中
-- 更完整的 AI 分析链路落地（当前为结构与入口预留）。
-- Android 端实现。
-- Web 路由懒加载与 chunk 拆分优化。
-- K 线/分时图能力（届时再评估引入 `lightweight-charts`）。
-
----
-
-## ⚠️ 代码与文档一致性说明
-
-- 系统规范基线为 `docs/liuli_system_spec.md`（1.0.0 起按版本迭代，记录见 `docs/CHANGELOG.md`）；本 README 部分章节写于 MVP 阶段，与规范冲突时以规范为准。
-
----
-
-## 📚 关键文档
-
-- 系统规范（当前基线，含表结构与 API 汇总）：`docs/liuli_system_spec.md`
-- 版本迭代记录：`docs/CHANGELOG.md`
-- MVP 阶段规格归档：`docs/archive/liuli_system_spec_mvp.md`
-- 对外 MCP：`docs/liuli_mcp_design.md`、`docs/liuli_mcp_tools.md`
-- Android：`docs/liuli_android_app_spec.md`
-- 其它设计/计划：`docs/superpowers/specs/` 与 `docs/superpowers/plans/`
-
+| 文档 | 内容 |
+|---|---|
+| [docs/liuli_system_spec.md](docs/liuli_system_spec.md) | 系统规格：架构、部署、模块规则、API 汇总、表结构 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本迭代记录 |
+| [docs/liuli_mcp_design.md](docs/liuli_mcp_design.md)、[docs/liuli_mcp_tools.md](docs/liuli_mcp_tools.md) | 对外 MCP 设计与工具清单 |
+| [docs/liuli_android_app_spec.md](docs/liuli_android_app_spec.md) | Android 原生壳与手机 H5 规格 |
+| [docs/archive/liuli_system_spec_mvp.md](docs/archive/liuli_system_spec_mvp.md) | MVP 阶段（v7–v48）规格归档，只作历史追溯 |

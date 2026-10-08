@@ -23,6 +23,8 @@ MVP 阶段结束，发布正式版。
 - 按当前代码重写 `docs/liuli_system_spec.md`，只描述现状，不再在正文里保留演进过程；版本演进改记在本文件。
 - 表结构（54 张）由 SQLAlchemy 模型元数据生成；API 按各模块 `router.py` 整理；任务清单按 `JOB_REGISTRY` 整理。
 - 明确线上基线是阿里云 RDS PostgreSQL，SQLite 只是本地开发便利；明确 schema 管理规则（新表 create_all，列变更走 `tools/migrations/*.sql`）。
+- README 按 1.0.0 现状重写，详细 API 与表结构不再在 README 重复，统一指向 spec。
+- CLAUDE.md / AGENTS.md 删除对不存在的 Web UI 规格文件（`2026-05-16-liuli-web-ui-spec.md`）的约束。
 
 **按代码核实后修正的旧规格描述**
 
