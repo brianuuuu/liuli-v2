@@ -28,3 +28,17 @@ export function formatMoney(value?: number | null) {
 export function formatNumber(value?: number | null, digits = 0) {
   return (value ?? 0).toLocaleString("zh-CN", { maximumFractionDigits: digits });
 }
+
+const MODULE_LABELS: Record<string, string> = {
+  market_radar: "市场雷达",
+  track_discovery: "赛道发现",
+  stock_analysis: "个股分析",
+  alert_center: "预警中心",
+  portfolio: "投资组合",
+  knowledge_base: "知识库"
+};
+
+export function formatModule(value?: string | null) {
+  if (!value) return "";
+  return MODULE_LABELS[value] ?? value;
+}

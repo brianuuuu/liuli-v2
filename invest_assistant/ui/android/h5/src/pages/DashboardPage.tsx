@@ -70,7 +70,7 @@ import {
   rememberTrackView
 } from "./dashboardViewState";
 import type { TagHeat } from "../types/api";
-import { formatDateTime, formatMoney, formatNumber } from "../utils/format";
+import { formatDateTime, formatModule, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
 const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
@@ -201,7 +201,7 @@ function TodayDashboard() {
             title={item.title}
             // 凌晨 3 点入库的那篇日报内容是昨天的，标题日期会比入库日期早一天，
             // 所以把入库时间显示出来，免得对着"今日报告"里的昨日标题发愣。
-            meta={[item.source_module, item.created_at ? formatDateTime(item.created_at) : null].filter(Boolean).join(" · ")}
+            meta={[formatModule(item.source_module), item.created_at ? formatDateTime(item.created_at) : null].filter(Boolean).join(" · ")}
             onClick={() => navigate(`/reports/${item.id}`)}
           />
         )) : <EmptyState title="今天还没有新报告" detail="市场雷达日报每天凌晨 3 点生成，研究回流导入后也会出现在这里" />}
