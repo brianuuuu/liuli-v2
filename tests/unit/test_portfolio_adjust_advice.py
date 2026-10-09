@@ -184,6 +184,43 @@ def test_reimport_same_trade_date_supersedes_previous(tmp_path, monkeypatch):
     assert statuses == ["superseded", "active"]
 
 
+def test_risk_alert_only_raised_when_new_or_upgraded(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+
+    def report(day: date, level: str):
+        payload = advice_payload(target_trade_date=day.isoformat())
+        payload["items"][1]["risk_alert"]["risk_level"] = level
+        title = f"实盘组合-{day.isoformat()}-微操报告"
+        feedback = create_feedback(db, title, as_markdown(payload), researcher_code="portfolio_001")
+        import_research_feedback(db, feedback.id)
+
+    def alert_count() -> int:
+        return db.scalar(select(func.count(AlertEvent.id)))
+
+    report(T, "warning")
+    assert alert_count() == 1
+    # 次日维持同级警示：入库但不再推送
+    report(T + timedelta(days=1), "warning")
+    assert alert_count() == 1
+    # 同日重导与被作废的那份比较，也不重复推送
+    report(T + timedelta(days=1), "warning")
+    assert alert_count() == 1
+    # 升级为严重：推送
+    report(T + timedelta(days=2), "severe")
+    assert alert_count() == 2
+    # 降到观察后再回到警示：算新出现，推送
+    report(T + timedelta(days=3), "watch")
+    report(T + timedelta(days=4), "warning")
+    assert alert_count() == 3
+    warning_items = db.scalars(
+        select(PortfolioAdjustAdviceItem).where(PortfolioAdjustAdviceItem.risk_level.in_(("warning", "severe")))
+    ).all()
+    # 不推送的警示照常入库，参与命中率评估
+    assert len(warning_items) == 5
+
+
 def test_import_rejects_invalid_item_without_partial_rows(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     db = make_session()

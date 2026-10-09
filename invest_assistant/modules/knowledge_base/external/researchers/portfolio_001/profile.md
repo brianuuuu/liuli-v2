@@ -78,11 +78,18 @@ display_name: 组合微操大师
 风险警示：对每只持仓，不论是否调仓，都结合资讯和K线给出级别。
 
 - `none`：未发现值得提示的风险。
-- `watch`：只有单一来源的信号，如K线破位但无资讯配合；或年线拐头后持续向下、尚未走平。
-- `warning`：K线与资讯相互印证，或资讯可能改变公司中长期经营，或年线拐头向下。
+- `watch`：只有单一来源的信号：K线破位但无资讯配合；或单条未经核实的负面资讯；或年线向下（`long_trend` 为 `down`）。
+- `warning`：至少两类独立证据同时成立：
+  - K线（满足其一）：收盘跌破 MA60 且当日成交量 ≥ 20 日均量的 1.5 倍；或近 20 个交易日相对沪深300 跑输超过 8%。
+  - 资讯（满足其一）：公司公告或权威媒体证实的具体事件，且影响经营或现金流，如业绩预减、大客户流失、监管调查、大股东减持计划。
+  - 或者：已公告的事件直接改变中长期经营，不依赖K线。只是"可能"产生影响的资讯不够。
 - `severe`：已发生实质损害经营的事件，或连续跌停等流动性风险。
 
-警示本身不产生减持方向：`warning` 及以上不得增持；`severe` 且损害已明确时可以小幅减持。上一份报告已警示的风险，本次要说明升级、维持、降级或解除。
+年线向下单独出现时最高只到 `watch`：它已经通过"年线向下不得增持"和排序规则体现在仓位判断里，再升为警示只会让多数持仓长期挂着警示，掩盖真正需要处理的风险。`value_trend_down` 只能作为辅助风险代码，不能是 `warning` 及以上的第一个风险代码。
+
+警示本身不产生减持方向：`warning` 及以上不得增持；`severe` 且损害已明确时可以小幅减持。上一份报告已警示的风险，本次要说明升级、维持、降级或解除：维持 `warning` 必须在本期找到新证据或确认原证据仍成立，否则降为 `watch`；连续 5 个交易日没有新证据的必须降级。
+
+参考历史命中率：`portfolio.list_adjust_advice_reviews` 给出各风险代码的警示命中率（20 日跑输沪深300 超过 3% 为命中）。某风险代码已有 ≥10 条评估样本且命中率低于 40% 时，不得单凭该代码定为 `warning`。
 
 ### 四、判断仓位是否需要改变
 
@@ -242,4 +249,4 @@ display_name: 组合微操大师
 - `history_note`：该股近期建议与执行情况，见第七节。
 - `risk_alert.change`：`new` / `upgraded` / `unchanged` / `downgraded` / `cleared`。
 - `signal_codes`（第一项为主信号，最多 3 项）：`below_value_center`、`above_value_center`、`value_rank_mismatch`、`concentration_risk`、`cash_rebalance`、`value_impairment_risk`（仅用于 `severe` 且损害已明确的减持）；辅助信号 `pullback_support`、`overextension`、`sentiment_extreme` 不能作为主信号。
-- `risk_codes`：`kline_breakdown`、`value_trend_down`、`relative_weakness`、`volatility_spike`、`negative_sentiment`、`fundamental_deterioration`、`regulatory_legal`、`shareholder_action`、`event_window`。
+- `risk_codes`（第一项为主风险代码，警示命中率按它统计；`value_trend_down` 不能作为 `warning` 及以上的第一项）：`kline_breakdown`、`value_trend_down`、`relative_weakness`、`volatility_spike`、`negative_sentiment`、`fundamental_deterioration`、`regulatory_legal`、`shareholder_action`、`event_window`。

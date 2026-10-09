@@ -57,6 +57,7 @@ RISK_CODES = {
 }
 RISK_LEVELS = {"none", "watch", "warning", "severe"}
 ALERT_RISK_LEVELS = {"warning": "warning", "severe": "critical"}
+RISK_LEVEL_RANK = {"none": 0, "watch": 1, "warning": 2, "severe": 3}
 RISK_LEVEL_LABELS = {"warning": "警示", "severe": "严重"}
 VALUE_ZONES = {"deep_below", "below", "around", "above", "far_above"}
 LONG_TRENDS = {"up", "flat", "down"}
@@ -80,7 +81,7 @@ def import_advice(
     report_id: int | None,
     researcher_code: str | None,
 ) -> PortfolioAdjustAdvice:
-    """把报告末尾 JSON 落成 ① ②，warning 及以上同时发预警。不提交，由调用方与回流状态一起提交。"""
+    """把报告末尾 JSON 落成 ① ②，warning 及以上且比上一份报告新出现或升级时发预警。不提交，由调用方与回流状态一起提交。"""
     if db.scalar(select(PortfolioAdjustAdvice.id).where(PortfolioAdjustAdvice.feedback_id == feedback_id)) is not None:
         raise ValueError("该微操报告已导入，不能重复导入")
     portfolio_id = _resolve_portfolio_id(db, payload.get("portfolio_id"))
@@ -90,6 +91,8 @@ def import_advice(
         raise ValueError("微操报告缺少字段: items（必须是数组）")
     code = _optional_text(payload.get("researcher_code")) or _optional_text(researcher_code)
     snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
+    # 要在作废同日旧报告之前取：同日重导时，上一份就是被作废的那份
+    previous_levels = _previous_risk_levels(db, portfolio_id, code, target_trade_date)
 
     for previous in db.scalars(
         select(PortfolioAdjustAdvice).where(
@@ -124,10 +127,36 @@ def import_advice(
             raise ValueError(f"items 第 {index + 1} 项必须是 JSON 对象")
         item, stock = _build_item(db, advice.id, raw, index)
         db.add(item)
-        if item.risk_level in ALERT_RISK_LEVELS:
+        # 同一标的连续多份报告维持同级警示时只在第一次推送：警示照常入库并参与命中率评估，
+        # 但不再每天往待办里塞一条一样的未读预警。不看研究员填的 change，以入库数据为准。
+        previous_rank = RISK_LEVEL_RANK.get(previous_levels.get(stock.id, "none"), 0)
+        if item.risk_level in ALERT_RISK_LEVELS and RISK_LEVEL_RANK[item.risk_level] > previous_rank:
             item.alert_event_id = _create_risk_alert(db, stock, raw, item.risk_level, target_trade_date)
     db.flush()
     return advice
+
+
+def _previous_risk_levels(db: Session, portfolio_id: int | None, researcher_code: str | None, target_trade_date: date) -> dict[int, str]:
+    """同口径、同研究员、适用交易日不晚于本次的最近一份有效报告里，各标的的风险级别。"""
+    previous_id = db.scalar(
+        select(PortfolioAdjustAdvice.id)
+        .where(
+            _same_portfolio(portfolio_id),
+            PortfolioAdjustAdvice.researcher_code == researcher_code,
+            PortfolioAdjustAdvice.target_trade_date <= target_trade_date,
+            PortfolioAdjustAdvice.status == "active",
+        )
+        .order_by(PortfolioAdjustAdvice.target_trade_date.desc(), PortfolioAdjustAdvice.id.desc())
+        .limit(1)
+    )
+    if previous_id is None:
+        return {}
+    rows = db.execute(
+        select(PortfolioAdjustAdviceItem.stock_id, PortfolioAdjustAdviceItem.risk_level).where(
+            PortfolioAdjustAdviceItem.advice_id == previous_id
+        )
+    ).all()
+    return {stock_id: risk_level for stock_id, risk_level in rows}
 
 
 def _build_item(db: Session, advice_id: int, raw: dict, index: int) -> tuple[PortfolioAdjustAdviceItem, Stock]:
