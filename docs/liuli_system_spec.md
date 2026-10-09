@@ -29,7 +29,7 @@
 
 ### 0.2 每次迭代必须同步
 
-1. 在 `docs/CHANGELOG.md` 顶部追加版本条目：日期、变更内容、原因、影响面（Web / Android / MCP / 数据库）。
+1. 在 `docs/CHANGELOG.md` 顶部追加版本条目：日期、变更内容、原因、影响面（Web / Android / MCP / 数据库）。以功能调整为主，纯样式调整一行带过，写法见 CHANGELOG 的"记录规则"。
 2. 修改本文件对应章节，使正文始终等于当前系统；**不在正文里写"vX 改为……"这类演进描述**，演进只写进 CHANGELOG。
 3. 涉及线上 PostgreSQL 的列变更，必须提供 `tools/migrations/YYYY-MM-DD_<name>.sql`，并在 CHANGELOG 条目中写明脚本路径。
 4. 修改本文件顶部的"当前版本"。
