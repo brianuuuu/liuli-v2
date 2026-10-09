@@ -8,7 +8,10 @@
 -- 适用：阿里云线上 PostgreSQL。
 --       本地 SQLite 由 ensure_portfolio_schema 启动时自动删列（删之前先备份）。
 --
--- 执行顺序不敏感：线上该列可空，代码已不读不写，重启前后执行都可以。
+-- 执行顺序：必须先部署 1.0.1 代码并重启，再执行本脚本。
+--   1.0.0 及更早的代码模型里还有 cost_price，查询持仓会 SELECT 这一列；
+--   先删列再部署，旧代码所有持仓相关接口（含 workbench-today 今日大盘/组合）都会 500。
+--   误删后的恢复：ALTER TABLE portfolio_position ADD COLUMN IF NOT EXISTS cost_price DOUBLE PRECISION;
 -- 安全性：只删这一列，不动其他数据。幂等，可重复执行。
 --
 -- 执行方式：

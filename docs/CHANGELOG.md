@@ -36,7 +36,7 @@
 - Android H5：新页面和组合页卡片。
 - Web：持仓表单改走增量接口，新增同步现金开关和流水类型标签。
 - MCP：`portfolio.get_overview` 的持仓不再含 `cost_price`。
-- 数据库：线上 PostgreSQL 执行 `tools/migrations/2026-10-09_drop_position_cost_price.sql`（执行前线上 9 行持仓、cost_price 非空 0 行；该列可空，重启前后执行均可）。本地 SQLite 启动时自动删列，删之前先备份。
+- 数据库：线上 PostgreSQL 执行 `tools/migrations/2026-10-09_drop_position_cost_price.sql`（执行前线上 9 行持仓、cost_price 非空 0 行）。**必须先部署 1.0.1 并重启，再执行脚本**：旧代码查询持仓会读这一列，先删列会让所有持仓相关接口 500。本地 SQLite 启动时自动删列，删之前先备份。
 
 ## 1.0.0 — 2026-10-08
 
