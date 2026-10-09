@@ -2206,10 +2206,12 @@ describe("mobile H5 app", () => {
     fireEvent.click(portfolioTab);
     await waitFor(() => expect(portfolioTab).toHaveAttribute("aria-selected", "true"));
 
-    const selector = await screen.findByText("组合选择");
+    const selector = await screen.findByRole("heading", { name: "组合选择" });
     const today = screen.getByRole("heading", { name: "今日表现" });
     const allocation = screen.getByRole("heading", { name: "标的组合" });
     const treemap = screen.getByRole("heading", { name: "标的热力图" });
+    const recentTrades = screen.getByRole("heading", { name: "最近调仓" });
+    const tradeEntry = screen.getByRole("button", { name: "＋ 记一笔调仓" });
     const totalValue = screen.getByText("总市值");
 
     expect(screen.getByText("月度盈亏")).toBeInTheDocument();
@@ -2217,7 +2219,9 @@ describe("mobile H5 app", () => {
     expect(totalValue.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(allocation.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(treemap.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(treemap.compareDocumentPosition(recentTrades) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(recentTrades.compareDocumentPosition(tradeEntry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tradeEntry.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "标的市值占比" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("刷新标的组合")).not.toBeInTheDocument();
     expect(screen.getByLabelText("标的组合图")).toBeInTheDocument();

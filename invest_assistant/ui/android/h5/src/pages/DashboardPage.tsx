@@ -677,13 +677,6 @@ function PortfolioDashboard() {
           <Metric label="现金余额" value={formatMoney(summary?.cash_amount)} />
           <Metric label="月度盈亏" value={formatMoney(summary?.month_pnl)} tone={(summary?.month_pnl ?? 0) >= 0 ? "up" : "down"} />
         </div>
-        <button
-          type="button"
-          className="primary-button trade-entry"
-          onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
-        >
-          ＋ 记一笔调仓
-        </button>
         <SectionCard title="今日表现">
           <div className="portfolio-day-row">
             <span className={(summary?.day_pnl ?? 0) >= 0 ? "positive" : "negative"}>{formatSignedMoney(summary?.day_pnl)}</span>
@@ -735,11 +728,18 @@ function PortfolioDashboard() {
             </div>
           ) : <EmptyState title={trades.isLoading ? "加载中" : "暂无调仓记录"} />}
         </SectionCard>
-        <SectionCard>
-          <div className="portfolio-selector"><span>组合选择</span><div className="portfolio-segments" role="group" aria-label="组合选择">
+        <button
+          type="button"
+          className="primary-button trade-entry"
+          onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
+        >
+          ＋ 记一笔调仓
+        </button>
+        <SectionCard title="组合选择">
+          <div className="portfolio-segments" role="group" aria-label="组合选择">
             <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>全部</button>
             {overview.data?.portfolio_options?.map((item) => <button type="button" className={portfolioId === item.id ? "is-active" : ""} onClick={() => setPortfolioId(item.id)} key={item.id}>{item.name}</button>)}
-          </div></div>
+          </div>
         </SectionCard>
       </div>
     </PullToRefresh>

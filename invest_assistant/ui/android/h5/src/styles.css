@@ -327,7 +327,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .today-portfolio-total strong { font-size: 22px; }
 .today-portfolio-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 12px; color: var(--muted); font-size: 11px; }
 .today-portfolio-stats span, .today-portfolio-stats time { min-width: 0; }
-.portfolio-selector { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
 .portfolio-segments, .pill-segments { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .portfolio-segments::-webkit-scrollbar, .pill-segments::-webkit-scrollbar { display: none; }
 .portfolio-segments button, .pill-segments button { flex: 0 0 auto; padding: 7px 11px; border-radius: 999px; color: var(--muted); font-size: 13px; white-space: nowrap; }
@@ -521,8 +520,8 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .recent-trade + .recent-trade { border-top: 1px solid var(--border); }
 .recent-trade time, .recent-trade em { color: var(--muted); font-size: 12px; font-style: normal; }
 .recent-trade em { text-align: right; }
-.recent-trade strong { display: grid; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.recent-trade strong small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.recent-trade strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.recent-trade strong small { margin-left: 6px; color: var(--muted); font-size: 11px; font-weight: 400; }
 .recent-trade span { font-weight: 650; white-space: nowrap; }
 .suggestion-review-detail { display: grid; gap: 16px; }
 .suggestion-review-summary { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
