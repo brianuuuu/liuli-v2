@@ -2300,7 +2300,9 @@ describe("mobile H5 app", () => {
     fireEvent.click(await screen.findByRole("button", { name: /宁德时代/ }));
     expect(screen.getByText("持有 1,000 股")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "个人判断" }));
-    fireEvent.change(screen.getByPlaceholderText("本次成交数量"), { target: { value: "500" } });
+    fireEvent.change(screen.getByPlaceholderText("输入股数"), { target: { value: "500" } });
+    expect(screen.getByText("持有 1,000 → 1,500 股")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /同步现金/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
 
     expect(await screen.findByRole("heading", { name: "确认调仓" })).toBeInTheDocument();

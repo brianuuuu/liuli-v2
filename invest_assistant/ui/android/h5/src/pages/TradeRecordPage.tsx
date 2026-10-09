@@ -56,7 +56,6 @@ export function TradeRecordPage() {
   const [adviceId, setAdviceId] = useState<number | null>(null);
   const [syncCash, setSyncCash] = useState(true);
   const [note, setNote] = useState("");
-  const [showMore, setShowMore] = useState(false);
   const [step, setStep] = useState<"edit" | "confirm">("edit");
 
   const overview = useQuery({ queryKey: ["portfolio-overview", null], queryFn: () => mobileApi.portfolioOverview(null), staleTime: 300_000 });
@@ -190,126 +189,162 @@ export function TradeRecordPage() {
   }
 
   const searchResults = search.data ?? [];
+  // 持仓列表的占比按组合总资产（持仓市值 + 现金）算，和确认页口径一致
+  const totalValue = positions.reduce((sum, item) => sum + Number(item.market_value ?? 0), 0) + Number(detail.data?.summary.cash_amount ?? 0);
+  const showQuantityPreview = Boolean(stock) && quantity !== null && quantity > 0 && quantityAfter >= 0;
   return (
     <DetailFrame title="记一笔调仓">
-      <div className="suggestion-review-form trade-form">
-        <label>组合
-          {fixedPortfolioId ? <input value={portfolioName} disabled /> : (
-            <select
-              value={portfolioId ?? ""}
-              onChange={(event) => {
-                setPortfolioId(Number(event.target.value) || null);
-                setStock(null);
-                setAdviceId(null);
-              }}
-            >
-              <option value="">请选择组合</option>
-              {portfolioOptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-            </select>
+      <div className="trade-form">
+        <section className="trade-card">
+          {fixedPortfolioId ? (
+            <div className="trade-row"><span>组合</span><b>{portfolioName}</b></div>
+          ) : (
+            <div className="trade-row trade-row--stack">
+              <span>组合</span>
+              <div className="portfolio-segments" role="group" aria-label="组合">
+                {portfolioOptions.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={portfolioId === item.id ? "is-active" : ""}
+                    onClick={() => {
+                      if (portfolioId === item.id) return;
+                      setPortfolioId(item.id);
+                      setStock(null);
+                      setAdviceId(null);
+                    }}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-        </label>
-
-        <div className="trade-field">
-          <span>标的</span>
           {stock ? (
-            <div className="trade-selected">
-              <strong>{stockLabel}</strong>
-              <small>{holding ? `持有 ${formatTradeQuantity(held)} 股` : "未持有，记为新建仓"}</small>
+            <div className="trade-row">
+              <span>标的</span>
+              <div className="trade-selected">
+                <strong>{stockLabel}</strong>
+                <small>{holding ? `持有 ${formatTradeQuantity(held)} 股` : "未持有，记为新建仓"}</small>
+              </div>
               <button type="button" className="text-button" onClick={() => setStock(null)}>更换</button>
             </div>
           ) : (
-            <>
-              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索名称 / 代码 / 拼音" disabled={!portfolioId} />
+            <div className="trade-row trade-row--stack">
+              <span>标的</span>
+              <input className="trade-search" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索名称 / 代码 / 拼音" disabled={!portfolioId} />
               <div className="trade-options">
                 {keyword.trim()
                   ? searchResults.map((item) => (
                     <button type="button" key={item.id} onClick={() => pickStock({ id: item.id, name: item.stock_name || item.name || item.stock_code || "未命名标的", code: item.stock_code })}>
-                      <strong>{item.stock_name || item.name || item.stock_code}</strong><small>{item.stock_code}</small>
+                      <strong>{item.stock_name || item.name || item.stock_code}<small>{item.stock_code}</small></strong>
                     </button>
                   ))
                   : positions.map((item) => (
                     <button type="button" key={item.stock_id} onClick={() => pickStock({ id: item.stock_id, name: item.stock_name || item.stock_code || "未命名标的", code: item.stock_code })}>
-                      <strong>{item.stock_name || item.stock_code}</strong><small>{formatTradeQuantity(item.quantity)} 股</small>
+                      <strong>{item.stock_name || item.stock_code}<small>{item.stock_code}</small></strong>
+                      <em>{totalValue > 0 ? `${formatRatio(Number(item.market_value ?? 0) / totalValue)} · ` : ""}{formatTradeQuantity(item.quantity)} 股</em>
                     </button>
                   ))}
               </div>
-            </>
+            </div>
           )}
-        </div>
+        </section>
 
-        <div className="trade-field">
-          <span>方向</span>
-          <div className="portfolio-segments" role="group" aria-label="方向">
-            {TRADE_SIDE_OPTIONS.map((item) => (
-              <button type="button" key={item.key} className={side === item.key ? "is-active" : ""} disabled={item.key !== "buy" && held <= 0} onClick={() => changeSide(item.key)}>{item.label}</button>
-            ))}
+        <section className="trade-card">
+          <div className="trade-row trade-row--stack">
+            <span>方向</span>
+            <div className="trade-sides" role="group" aria-label="方向">
+              {TRADE_SIDE_OPTIONS.map((item) => (
+                <button
+                  type="button"
+                  key={item.key}
+                  className={`trade-side trade-side--${item.key === "buy" ? "buy" : "sell"}${side === item.key ? " is-active" : ""}`}
+                  disabled={item.key !== "buy" && held <= 0}
+                  onClick={() => changeSide(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {stock && !holding ? <small className="trade-hint">未持有，只能买入</small> : null}
           </div>
-        </div>
+          <label className="trade-row">
+            <span>成交股数</span>
+            <span className="trade-input">
+              <input
+                inputMode="decimal"
+                value={side === "close" ? String(held) : quantityText}
+                disabled={side === "close"}
+                onChange={(event) => setQuantityText(event.target.value)}
+                placeholder="输入股数"
+              />
+              <em>股</em>
+            </span>
+          </label>
+          {showQuantityPreview ? <div className="trade-preview">持有 {formatTradeQuantity(held)} → {formatTradeQuantity(quantityAfter)} 股</div> : null}
+          <label className="trade-row">
+            <span>成交价</span>
+            <span className="trade-input">
+              <input inputMode="decimal" value={priceText} onChange={(event) => setPriceText(event.target.value)} placeholder={holding?.current_price ? `现价 ${holding.current_price}` : "留空按收盘价估算"} />
+            </span>
+          </label>
+          <label className="trade-row">
+            <span>日期</span>
+            <span className="trade-input">
+              <input type="date" value={tradeDate} max={today} onChange={(event) => setTradeDate(event.target.value || today)} />
+            </span>
+          </label>
+        </section>
 
-        <label>成交股数
-          <input
-            inputMode="decimal"
-            value={side === "close" ? String(held) : quantityText}
-            disabled={side === "close"}
-            onChange={(event) => setQuantityText(event.target.value)}
-            placeholder="本次成交数量"
-          />
-        </label>
-
-        <div className="trade-field">
-          <span>理由来源</span>
-          <div className="portfolio-segments" role="group" aria-label="理由来源">
-            {TRADE_REASON_OPTIONS.map((item) => (
-              <button
-                type="button"
-                key={item.key}
-                className={reasonType === item.key ? "is-active" : ""}
-                onClick={() => {
-                  setReasonType(reasonType === item.key ? null : item.key);
-                  setAdviceId(null);
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
+        <section className="trade-card">
+          <div className="trade-row trade-row--stack">
+            <span>理由来源</span>
+            <div className="portfolio-segments" role="group" aria-label="理由来源">
+              {TRADE_REASON_OPTIONS.map((item) => (
+                <button
+                  type="button"
+                  key={item.key}
+                  className={reasonType === item.key ? "is-active" : ""}
+                  onClick={() => {
+                    setReasonType(reasonType === item.key ? null : item.key);
+                    setAdviceId(null);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
+          {reasonType === "ai_advice" ? (
+            <div className="trade-row trade-row--stack">
+              <span>关联微操建议</span>
+              {!stock ? <small className="trade-hint">先选择标的</small> : candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
+                <div className="trade-options">
+                  {matchingCandidates.map((item: AdjustAdviceCandidate) => (
+                    <button type="button" key={item.id} className={adviceId === item.id ? "is-active" : ""} onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}>
+                      <strong>{item.target_trade_date} {item.action === "add" ? "增持" : "减持"}{item.quantity ? ` ${formatTradeQuantity(item.quantity)} 股` : ""}</strong>
+                      <em>{item.price_low !== null && item.price_low !== undefined ? `${item.price_low}—${item.price_high}` : ""}</em>
+                    </button>
+                  ))}
+                </div>
+              ) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
+            </div>
+          ) : null}
+          <label className="trade-row">
+            <span>同步现金<small>按 股数 × 成交价 调整现金</small></span>
+            <input type="checkbox" role="switch" className="trade-switch" checked={syncCash} onChange={(event) => setSyncCash(event.target.checked)} />
+          </label>
+          <label className="trade-row">
+            <span>备注</span>
+            <span className="trade-input"><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="选填" /></span>
+          </label>
+        </section>
+
+        <div className="trade-footer">
+          {stock && error ? <span className="form-error">{error}</span> : null}
+          <button type="button" className="primary-button" disabled={Boolean(error) || detail.isLoading} onClick={() => setStep("confirm")}>下一步</button>
         </div>
-
-        {reasonType === "ai_advice" ? (
-          <div className="trade-field">
-            <span>关联微操建议</span>
-            {!stock ? <small className="trade-hint">先选择标的</small> : candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
-              <div className="trade-options">
-                {matchingCandidates.map((item: AdjustAdviceCandidate) => (
-                  <button type="button" key={item.id} className={adviceId === item.id ? "is-active" : ""} onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}>
-                    <strong>{item.target_trade_date} {item.action === "add" ? "增持" : "减持"}{item.quantity ? ` ${formatTradeQuantity(item.quantity)} 股` : ""}</strong>
-                    <small>{item.price_low !== null && item.price_low !== undefined ? `${item.price_low}—${item.price_high}` : ""}</small>
-                  </button>
-                ))}
-              </div>
-            ) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
-          </div>
-        ) : null}
-
-        <label className="trade-switch">
-          <span>同步现金<small>按 股数 × 成交价 增减现金余额，手续费等误差仍靠现金校准</small></span>
-          <input type="checkbox" checked={syncCash} onChange={(event) => setSyncCash(event.target.checked)} />
-        </label>
-
-        <label>备注<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="选填" /></label>
-
-        <button type="button" className="text-button trade-more" onClick={() => setShowMore(!showMore)}>{showMore ? "收起" : "更多：成交价、日期"}</button>
-        {showMore ? (
-          <>
-            <label>成交价
-              <input inputMode="decimal" value={priceText} onChange={(event) => setPriceText(event.target.value)} placeholder={holding?.current_price ? `留空按收盘价估算，现价 ${holding.current_price}` : "留空按收盘价估算"} />
-            </label>
-            <label>日期<input type="date" value={tradeDate} max={today} onChange={(event) => setTradeDate(event.target.value || today)} /></label>
-          </>
-        ) : null}
-
-        {stock && error ? <span className="form-error">{error}</span> : null}
-        <button type="button" className="primary-button" disabled={Boolean(error) || detail.isLoading} onClick={() => setStep("confirm")}>下一步</button>
       </div>
     </DetailFrame>
   );
