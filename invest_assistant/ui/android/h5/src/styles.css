@@ -493,14 +493,18 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 /* 记一笔调仓：白卡片分组，卡内为“左标签、右取值”的行；底部按钮吸底 */
 .trade-entry { width: 100%; }
 /* 92px = 顶栏 48 + 内容区上下内边距 14 + 30：内容不满一屏时按钮仍落在屏幕底部 */
-.trade-form { display: grid; min-height: calc(100dvh - 92px); grid-template-rows: auto auto auto 1fr; gap: 12px; }
+.trade-form { display: flex; min-height: calc(100dvh - 92px); flex-direction: column; gap: 12px; }
 .trade-card { overflow: hidden; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
 .trade-row { display: flex; min-height: 50px; align-items: center; gap: 12px; padding: 0 14px; color: var(--text); font-size: 14px; }
-.trade-row + .trade-row, .trade-preview + .trade-row { border-top: 1px solid var(--border); }
-.trade-row > span:first-child { display: grid; flex: 0 0 auto; gap: 2px; color: var(--muted); }
-.trade-row > span:first-child small { color: var(--subtle); font-size: 12px; }
-.trade-row > b { margin-left: auto; font-weight: 600; }
+/* 分割线只留给“左标签右取值”的行，且左侧缩进；上下排布的分区和持仓列表靠留白分隔 */
+.trade-row { position: relative; }
+.trade-row:not(.trade-row--stack):not(:first-child)::before { position: absolute; top: 0; right: 0; left: 14px; height: 1px; background: var(--border); content: ""; }
+/* 小标题：13px 中粗灰字；取值：15px 常规深色字，靠字号和字重区分层级 */
+.trade-row > span:first-child { display: grid; flex: 0 0 auto; gap: 2px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.trade-row > span:first-child small { color: var(--subtle); font-size: 12px; font-weight: 400; }
+.trade-row > b { margin-left: auto; font-size: 15px; font-weight: 400; }
 .trade-row--stack { display: grid; align-items: stretch; gap: 10px; padding: 12px 14px; }
+.trade-row--stack + .trade-row--stack { padding-top: 4px; }
 .trade-input { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: 4px; }
 .trade-input input { width: 100%; min-width: 0; height: 48px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
 .trade-input input::placeholder { color: var(--subtle); }
@@ -510,25 +514,30 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-search { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; outline: 0; background: var(--panel-soft); color: var(--text); }
 .trade-search:focus { border-color: var(--blue); }
 .trade-options { display: grid; margin: 0 -14px -12px; }
-.trade-options button { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; border-top: 1px solid var(--border); color: var(--text); text-align: left; }
+.trade-options__title { padding: 6px 14px; color: var(--subtle); font-size: 12px; }
+.trade-options button { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; color: var(--text); text-align: left; }
+.trade-options button:active { background: var(--panel-soft); }
 .trade-options button.is-active { background: var(--blue-soft); color: var(--blue); }
-.trade-options strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.trade-options strong { min-width: 0; overflow: hidden; font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .trade-options strong small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .trade-options em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }
 .trade-selected { display: grid; min-width: 0; flex: 1 1 auto; justify-items: end; gap: 2px; }
-.trade-selected strong { max-width: 100%; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.trade-selected strong { max-width: 100%; overflow: hidden; font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .trade-selected small { color: var(--muted); font-size: 12px; }
 .trade-sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px; background: var(--panel-soft); }
-.trade-side { height: 36px; border-radius: 7px; color: var(--text); font-size: 14px; font-weight: 600; }
+.trade-side { height: 36px; border-radius: 7px; color: var(--muted); font-size: 14px; }
 .trade-side:disabled { color: var(--subtle); opacity: .55; }
-.trade-side--buy.is-active { background: #dc2626; color: #fff; }
-.trade-side--sell.is-active { background: #16a34a; color: #fff; }
+.trade-side.is-active { font-weight: 600; }
+.trade-side--buy.is-active { background: rgba(220, 38, 38, .1); color: #dc2626; }
+.trade-side--sell.is-active { background: rgba(22, 163, 74, .12); color: #16a34a; }
 .trade-switch { position: relative; width: 44px; height: 26px; flex: 0 0 44px; margin: 0 0 0 auto; border-radius: 13px; appearance: none; background: var(--border); transition: background .15s; }
 .trade-switch::before { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(17, 24, 39, .25); content: ""; transition: transform .15s; }
 .trade-switch:checked { background: var(--blue); }
 .trade-switch:checked::before { transform: translateX(18px); }
-.trade-footer { align-self: end; position: sticky; z-index: 5; bottom: 0; display: grid; gap: 8px; margin: 0 -14px -30px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--panel); }
-.trade-footer .form-error { margin: 0; }
+.trade-footer { position: sticky; z-index: 5; bottom: 0; display: grid; gap: 8px; margin: auto -14px -30px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--panel); }
+.trade-date { position: relative; }
+.trade-date b { color: var(--text); font-size: 15px; font-weight: 400; }
+.trade-date input { position: absolute; inset: 0; opacity: 0; }
 .trade-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .trade-confirm { display: grid; gap: 12px; }
 .trade-confirm h2 { margin: 0; font-size: var(--content-font-size); }

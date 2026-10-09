@@ -234,6 +234,7 @@ export function TradeRecordPage() {
               <span>标的</span>
               <input className="trade-search" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索名称 / 代码 / 拼音" disabled={!portfolioId} />
               <div className="trade-options">
+                {portfolioId ? <div className="trade-options__title">{keyword.trim() ? "搜索结果" : "当前持仓"}</div> : null}
                 {keyword.trim()
                   ? searchResults.map((item) => (
                     <button type="button" key={item.id} onClick={() => pickStock({ id: item.id, name: item.stock_name || item.name || item.stock_code || "未命名标的", code: item.stock_code })}>
@@ -251,6 +252,8 @@ export function TradeRecordPage() {
           )}
         </section>
 
+        {/* 先选标的再展开交易和记录：没选标的时这两张卡全是不可用状态，只会干扰 */}
+        {stock ? <>
         <section className="trade-card">
           <div className="trade-row trade-row--stack">
             <span>方向</span>
@@ -267,7 +270,7 @@ export function TradeRecordPage() {
                 </button>
               ))}
             </div>
-            {stock && !holding ? <small className="trade-hint">未持有，只能买入</small> : null}
+            {!holding ? <small className="trade-hint">未持有，只能买入</small> : null}
           </div>
           <label className="trade-row">
             <span>成交股数</span>
@@ -286,13 +289,22 @@ export function TradeRecordPage() {
           <label className="trade-row">
             <span>成交价</span>
             <span className="trade-input">
-              <input inputMode="decimal" value={priceText} onChange={(event) => setPriceText(event.target.value)} placeholder={holding?.current_price ? `现价 ${holding.current_price}` : "留空按收盘价估算"} />
+              <input inputMode="decimal" value={priceText} onChange={(event) => setPriceText(event.target.value)} placeholder={holding?.current_price ? `现价 ${holding.current_price}` : "默认收盘价"} />
             </span>
           </label>
           <label className="trade-row">
             <span>日期</span>
-            <span className="trade-input">
-              <input type="date" value={tradeDate} max={today} onChange={(event) => setTradeDate(event.target.value || today)} />
+            {/* 原生日期框盖在文字上、本身透明：显示"今天"，点击仍弹系统日期选择 */}
+            <span className="trade-input trade-date">
+              <b>{tradeDate === today ? "今天" : tradeDate}</b>
+              <input
+                type="date"
+                aria-label="日期"
+                value={tradeDate}
+                max={today}
+                onClick={(event) => event.currentTarget.showPicker?.()}
+                onChange={(event) => setTradeDate(event.target.value || today)}
+              />
             </span>
           </label>
         </section>
@@ -319,7 +331,7 @@ export function TradeRecordPage() {
           {reasonType === "ai_advice" ? (
             <div className="trade-row trade-row--stack">
               <span>关联微操建议</span>
-              {!stock ? <small className="trade-hint">先选择标的</small> : candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
+              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
                 <div className="trade-options">
                   {matchingCandidates.map((item: AdjustAdviceCandidate) => (
                     <button type="button" key={item.id} className={adviceId === item.id ? "is-active" : ""} onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}>
@@ -340,10 +352,13 @@ export function TradeRecordPage() {
             <span className="trade-input"><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="选填" /></span>
           </label>
         </section>
+        </> : null}
 
         <div className="trade-footer">
-          {stock && error ? <span className="form-error">{error}</span> : null}
-          <button type="button" className="primary-button" disabled={Boolean(error) || detail.isLoading} onClick={() => setStep("confirm")}>下一步</button>
+          {/* 不可用时按钮直接写原因，不用猜哪里没填 */}
+          <button type="button" className="primary-button" disabled={Boolean(error) || detail.isLoading} onClick={() => setStep("confirm")}>
+            {detail.isLoading ? "加载中…" : error ?? "下一步"}
+          </button>
         </div>
       </div>
     </DetailFrame>
