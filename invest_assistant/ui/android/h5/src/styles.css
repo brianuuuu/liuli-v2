@@ -492,21 +492,21 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 
 /* 记一笔调仓：白卡片分组，卡内为“左标签、右取值”的行；底部按钮吸底 */
 .trade-entry { width: 100%; }
-/* 92px = 顶栏 48 + 内容区上下内边距 14 + 30：内容不满一屏时按钮仍落在屏幕底部 */
-.trade-form { display: flex; min-height: calc(100dvh - 92px); flex-direction: column; gap: 12px; }
+/* 底部按钮固定在屏幕底部，表单底部留出按钮高度 */
+.trade-form { display: grid; gap: 12px; padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
 .trade-card { overflow: hidden; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
-.trade-row { display: flex; min-height: 50px; align-items: center; gap: 12px; padding: 0 14px; color: var(--text); font-size: 14px; }
+.trade-row { display: flex; min-height: 48px; align-items: center; gap: 12px; padding: 0 14px; color: var(--text); font-size: 14px; }
 /* 分割线只留给“左标签右取值”的行，且左侧缩进；上下排布的分区和持仓列表靠留白分隔 */
 .trade-row { position: relative; }
 .trade-row:not(.trade-row--stack):not(:first-child)::before { position: absolute; top: 0; right: 0; left: 14px; height: 1px; background: var(--border); content: ""; }
-/* 小标题：13px 中粗灰字；取值：15px 常规深色字，靠字号和字重区分层级 */
-.trade-row > span:first-child { display: grid; flex: 0 0 auto; gap: 2px; color: var(--muted); font-size: 13px; font-weight: 600; }
+/* 三级字体沿用全站口径：字段标题 14px/650；标的名称同列表行 .list-row__body strong 14px/560；取值常规字重；次要信息 12px 灰色 */
+.trade-row > span:first-child { display: grid; flex: 0 0 auto; gap: 2px; color: var(--text); font-size: 14px; font-weight: 650; }
 .trade-row > span:first-child small { color: var(--subtle); font-size: 12px; font-weight: 400; }
-.trade-row > b { margin-left: auto; font-size: 15px; font-weight: 400; }
+.trade-row > b { margin-left: auto; font-size: 14px; font-weight: 400; }
 .trade-row--stack { display: grid; align-items: stretch; gap: 10px; padding: 12px 14px; }
 .trade-row--stack + .trade-row--stack { padding-top: 4px; }
 .trade-input { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: 4px; }
-.trade-input input { width: 100%; min-width: 0; height: 48px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
+.trade-input input { width: 100%; min-width: 0; height: 48px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; }
 .trade-input input::placeholder { color: var(--subtle); }
 .trade-input input:disabled { opacity: .7; }
 .trade-input em { color: var(--muted); font-style: normal; }
@@ -515,14 +515,14 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-search:focus { border-color: var(--blue); }
 .trade-options { display: grid; margin: 0 -14px -12px; }
 .trade-options__title { padding: 6px 14px; color: var(--subtle); font-size: 12px; }
-.trade-options button { display: flex; min-height: 46px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; color: var(--text); text-align: left; }
+.trade-options button { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; color: var(--text); text-align: left; }
 .trade-options button:active { background: var(--panel-soft); }
 .trade-options button.is-active { background: var(--blue-soft); color: var(--blue); }
-.trade-options strong { min-width: 0; overflow: hidden; font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.trade-options strong { min-width: 0; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .trade-options strong small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .trade-options em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }
 .trade-selected { display: grid; min-width: 0; flex: 1 1 auto; justify-items: end; gap: 2px; }
-.trade-selected strong { max-width: 100%; overflow: hidden; font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.trade-selected strong { max-width: 100%; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .trade-selected small { color: var(--muted); font-size: 12px; }
 .trade-sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px; background: var(--panel-soft); }
 .trade-side { height: 36px; border-radius: 7px; color: var(--muted); font-size: 14px; }
@@ -534,9 +534,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-switch::before { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(17, 24, 39, .25); content: ""; transition: transform .15s; }
 .trade-switch:checked { background: var(--blue); }
 .trade-switch:checked::before { transform: translateX(18px); }
-.trade-footer { position: sticky; z-index: 5; bottom: 0; display: grid; gap: 8px; margin: auto -14px -30px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--panel); }
+.trade-footer { position: fixed; z-index: 5; right: 0; bottom: 0; left: 0; display: grid; gap: 8px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--panel); }
 .trade-date { position: relative; }
-.trade-date b { color: var(--text); font-size: 15px; font-weight: 400; }
+.trade-date b { color: var(--text); font-size: 14px; font-weight: 400; }
 .trade-date input { position: absolute; inset: 0; opacity: 0; }
 .trade-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .trade-confirm { display: grid; gap: 12px; }
