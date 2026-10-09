@@ -50,10 +50,10 @@ bash stop.sh
 flowchart LR
   W[桌面 Web<br/>React + Ant Design] --> API
   H5[Android 原生壳 + 手机 H5] --> API
-  EXT[Codex / ChatGPT 等<br/>MCP Client] -->|Bearer Token| MCP[/mcp]
+  EXT[Codex / ChatGPT 等<br/>MCP Client] -->|Bearer Token| MCP["/mcp"]
   MCP --> API[FastAPI API]
   API --> DB[(PostgreSQL)]
-  API --> FS[var/ 报告与公告文件]
+  API --> FS["var/ 报告与公告文件"]
   WRK[Worker<br/>APScheduler + 任务轮询] --> DB
   WRK --> FS
   WRK --> SRC[Tushare / AkShare / 巨潮 / 富途 / DeepSeek]
