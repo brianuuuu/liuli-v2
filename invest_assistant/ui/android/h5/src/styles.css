@@ -649,7 +649,7 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 
 /* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
 .track-list { display: grid; gap: 8px; }
-.track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease; }
+.track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); text-align: left; transition: background .15s ease; }
 html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft); }
 .track-list-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .track-list-row__head strong { overflow: hidden; font-size: 15px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
