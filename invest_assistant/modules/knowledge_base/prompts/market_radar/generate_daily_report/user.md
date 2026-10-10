@@ -21,8 +21,17 @@
 
 ```text
 report_meta
+previous_report
 hot_tags
+source_items
 sentiment_items
+```
+
+`previous_report` 是前一天日报的一句话结论，没有时为 null：
+
+```text
+report_date
+summary
 ```
 
 `hot_tags` 包括：
@@ -30,19 +39,27 @@ sentiment_items
 * 热门标的 Top5
 * 热门赛道 Top5
 * 热门热词 Top10
-* 每个标签在报告时间窗口内关联的 source_item 信息流
 
-每个标签可能包含：
+每个标签包含：
 
 ```text
 tag_id
 tag_name
 tag_type
 rank
-related_source_items
+heat              热度
+source_item_ids   报告时间窗口内命中该标签的信息流编号，重要的在前、新的在前，最多 20 条
 ```
 
-每条信息流可能包含：
+`heat` 包含：
+
+```text
+today                 报告日命中次数
+prev_7d_avg           此前 7 天日均命中次数
+prev_7d_active_days   此前 7 天中出现过的天数（0～7）
+```
+
+`source_items` 是所有被热门标签引用的信息流，按 source_item_id 去重，每条只出现一次。每条包含：
 
 ```text
 source_item_id
@@ -66,9 +83,9 @@ content           观点正文，过长时截断
 content_truncated 正文是否被截断
 ```
 
-同一条舆情可能同时出现在 `hot_tags` 和 `sentiment_items` 中，按 source_item_id 合并，不要重复写入。
+`source_item_ids` 中的编号在 `source_items` 或 `sentiment_items` 中查找；已在 `sentiment_items` 中的舆情不会在 `source_items` 中重复出现。
 
-同一条信息流可能同时出现在多个标签下。分析时应自动合并重复信息，不要重复写入日报。
+同一条信息流可能被多个标签引用。分析时应自动合并重复信息，不要重复写入日报。
 
 ## 三、联网参考约束
 
@@ -126,6 +143,13 @@ content_truncated 正文是否被截断
 
 ### 4. 市场异动和突然热点
 
+用 `heat` 判断热度变化，不要只凭排名：
+
+* `prev_7d_active_days` 为 0：此前 7 天未出现，属于新出现的话题。
+* `today` 明显高于 `prev_7d_avg`（例如 3 倍以上）：突然升温。
+* `today` 与 `prev_7d_avg` 接近、且 `prev_7d_active_days` 较多：持续热点，不是异动。
+* 描述异动时可写出具体数字，例如「命中 18 次，此前 7 天日均 2.1 次」。
+
 重点识别：
 
 * 热门标签突然升温；
@@ -145,6 +169,8 @@ content_truncated 正文是否被截断
 ### 5. 关键变量
 
 关键变量是能够改变原有判断的新增事实。
+
+`previous_report` 给出了前一天的结论，可作为「此前市场预期」的参照：新事实增强、削弱或推翻了昨天的判断时，要明确写出来。不要复述昨天的结论；没有新事实的内容不写。
 
 分析格式应尽量包含：
 

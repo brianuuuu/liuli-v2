@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.6**（2026-10-10）
+> 当前版本：**1.0.7**（2026-10-10）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -529,7 +529,10 @@ rank_change = previous_rank_no - current_rank_no；rank_movement = up / down / f
 `market_radar.generate_daily_report` 每天 03:00 用 DeepSeek 生成前一自然日的 Markdown 日报，写入报告库。
 
 ```text
-输入 hot_tags        → 热门标的 Top5 / 赛道 Top5 / 热词 Top10 及其当日命中信息流（全文，带 source_type）
+输入 previous_report → 前一天日报的一句话结论（报告库 summary），没有为 null
+输入 hot_tags        → 热门标的 Top5 / 赛道 Top5 / 热词 Top10；每个带 heat（当日命中、此前 7 天日均、此前 7 天出现天数）
+                       与 source_item_ids（重要优先、新的优先，每个标签最多 20 条）
+输入 source_items    → 热门标签引用的信息流全文，按编号去重，每条只发一次；已在 sentiment_items 中的不重复
 输入 sentiment_items → 当日全部舆情，不论是否命中热门标签；重要优先、新的优先，最多 100 条，正文截至 500 字
 跳过                 → 两者都为空时不调用 AI
 输出                 → 舆情单独成「舆情观察」一节；舆情只作情绪信号，不得单独支撑重大事件与关键变量

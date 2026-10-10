@@ -43,7 +43,7 @@ def make_session():
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
-def test_daily_report_payload_uses_natural_day_entity_dedup_and_full_content():
+def test_daily_report_payload_dedups_source_items_and_carries_heat_history():
     SessionLocal = make_session()
     db = SessionLocal()
     try:
@@ -108,8 +108,11 @@ def test_daily_report_payload_uses_natural_day_entity_dedup_and_full_content():
         assert "entity_name" not in stock_tags[0]
         assert "heat_score" not in stock_tags[0]
         assert "source_count" not in stock_tags[0]
-        related = stock_tags[0]["related_source_items"]
-        assert related == [
+        assert stock_tags[0]["source_item_ids"] == [second_inside.id, first_inside.id]
+        # 窗口外那条落在前 7 天里：日均 1/7，出现 1 天。
+        assert stock_tags[0]["heat"] == {"today": 2, "prev_7d_avg": 0.1, "prev_7d_active_days": 1}
+        # first_inside 命中了四个标签，全文只发一次。
+        assert payload["source_items"] == [
             {
                 "source_item_id": second_inside.id,
                 "source_type": "announcement",
@@ -121,11 +124,10 @@ def test_daily_report_payload_uses_natural_day_entity_dedup_and_full_content():
                 "source_type": "news",
                 "content": "完整正文第一段。\n完整正文第二段，不能被截断。",
                 "publish_time": "2026-06-13T09:10:00+08:00",
-            }
+            },
         ]
-        assert "summary" not in related[0]
-        assert "title" not in related[0]
-        assert "source_name" not in related[0]
+        assert all(first_inside.id in item["source_item_ids"] for item in payload["hot_tags"])
+        assert payload["previous_report"] is None
         assert payload["sentiment_items"] == []
     finally:
         db.close()
@@ -205,7 +207,7 @@ def test_generate_daily_report_writes_markdown_report_and_ai_log(tmp_path, monke
         class FakeDeepSeek:
             @staticmethod
             def generate_market_daily_report(payload, prompt, model):
-                assert payload["hot_tags"][0]["related_source_items"][0]["content"] == "完整正文"
+                assert payload["source_items"][0]["content"] == "完整正文"
                 assert "琉璃系统的市场雷达分析员" in prompt.system_prompt
                 assert "# 市场雷达日报｜2026-06-13" in prompt.user_prompt
                 assert model == "deepseek-v4-pro"
@@ -276,5 +278,57 @@ def test_generate_daily_report_runs_with_sentiment_only(tmp_path, monkeypatch):
 
         assert result.success is True
         assert result.extra["sentiment_count"] == 1
+    finally:
+        db.close()
+
+
+def test_daily_report_payload_limits_sources_per_tag_and_links_sentiment_by_id():
+    SessionLocal = make_session()
+    db = SessionLocal()
+    try:
+        hotword = Hotword(name="固态电池", status="active")
+        tag = Tag(name="固态电池", type="hotword", status="active")
+        db.add_all([hotword, tag])
+        db.flush()
+        db.add(HotwordTagRelation(hotword_id=hotword.id, tag_id=tag.id, status="active"))
+        news = [
+            SourceItem(source_type="news", source_name="财联社", title=f"新闻{i}", content=f"新闻{i}", publish_time=datetime(2026, 6, 13, 8, i, 0))
+            for i in range(25)
+        ]
+        post = SourceItem(source_type="sentiment", source_name="股吧", author="散户甲", title="帖子", content="固态电池要起飞", publish_time=datetime(2026, 6, 13, 7, 0, 0), is_important=True)
+        db.add_all([*news, post])
+        db.flush()
+        db.add_all([SourceTag(source_item_id=item.id, tag_id=tag.id, extractor="test") for item in [*news, post]])
+        db.commit()
+
+        payload = build_daily_report_payload(db, date(2026, 6, 13))
+
+        ids = payload["hot_tags"][0]["source_item_ids"]
+        assert len(ids) == 20
+        assert ids[0] == post.id
+        assert payload["hot_tags"][0]["heat"]["today"] == 26
+        # 帖子已在舆情块，source_items 不再重复放全文。
+        assert post.id not in {item["source_item_id"] for item in payload["source_items"]}
+        assert len(payload["source_items"]) == 19
+        assert payload["sentiment_items"][0]["source_item_id"] == post.id
+    finally:
+        db.close()
+
+
+def test_daily_report_payload_includes_previous_report_summary():
+    SessionLocal = make_session()
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                Report(title="市场雷达日报｜2026-06-12", report_type="daily", source_module="market_radar", target_type="market_daily", summary="> 固态电池主线延续，关注量产节奏。", file_format="md", file_path="reports/a.md", generated_by="ai", status="published"),
+                Report(title="市场雷达日报｜2026-06-11", report_type="daily", source_module="market_radar", target_type="market_daily", summary="更早的结论", file_format="md", file_path="reports/b.md", generated_by="ai", status="published"),
+            ]
+        )
+        db.commit()
+
+        payload = build_daily_report_payload(db, date(2026, 6, 13))
+
+        assert payload["previous_report"] == {"report_date": "2026-06-12", "summary": "固态电池主线延续，关注量产节奏。"}
     finally:
         db.close()
