@@ -42,6 +42,12 @@ def test_build_sentiment_source_item_uses_import_time_and_generated_title():
     assert since == datetime(2026, 9, 26, 0, 0, tzinfo=BEIJING_TZ)
 
 
+def test_build_sentiment_source_item_accepts_guba():
+    payload, _ = service.build_sentiment_source_item(item(platform="股吧"), NOW)
+
+    assert payload.source_name == "股吧"
+
+
 def test_build_sentiment_source_item_truncates_title_and_content():
     payload, _ = service.build_sentiment_source_item(item(content="观" * 2500), NOW)
 
@@ -77,7 +83,7 @@ def test_import_sentiment_items_is_idempotent_and_isolates_failures():
     again = service.import_sentiment_items(db, batch, now=NOW.replace(hour=16))
 
     assert (first["created"], first["duplicated"]) == (3, 0)
-    assert first["failed"] == [{"index": 3, "reason": "platform 只允许 雪球 / 微博 / 知乎"}]
+    assert first["failed"] == [{"index": 3, "reason": "platform 只允许 雪球 / 微博 / 知乎 / 股吧"}]
     assert (again["created"], again["duplicated"]) == (0, 3)
     assert again["ids"] == first["ids"]
     rows = db.query(SourceItem).order_by(SourceItem.id).all()

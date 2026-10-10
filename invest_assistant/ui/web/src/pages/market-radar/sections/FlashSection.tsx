@@ -21,7 +21,8 @@ const sourceFilterOptions = [
   { value: "cninfo", label: "巨潮" },
   { value: "雪球", label: "雪球" },
   { value: "微博", label: "微博" },
-  { value: "知乎", label: "知乎" }
+  { value: "知乎", label: "知乎" },
+  { value: "股吧", label: "股吧" }
 ];
 
 const sourceTypeNames: Record<string, string> = Object.fromEntries(sourceTypeOptions.map((option) => [option.value, option.label]));

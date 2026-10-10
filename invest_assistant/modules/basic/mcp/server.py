@@ -48,8 +48,8 @@ MCP_TOOL_DESCRIPTIONS = {
         "正文默认截断到 content_chars 个字符并标记 content_truncated，需要全文时把 content_chars 设为 0。"
     ),
     "market_radar.import_sentiment_items": (
-        "批量导入雪球、微博、知乎上的大V观点到市场雷达信息流，每次最多 200 条。"
-        "每条填 platform（雪球/微博/知乎）、author、date（YYYY-MM-DD）、content（最长 2000 字）。"
+        "批量导入雪球、微博、知乎、股吧上的大V观点到市场雷达信息流，每次最多 200 条。"
+        "每条填 platform（雪球/微博/知乎/股吧）、author、date（YYYY-MM-DD）、content（最长 2000 字）。"
         "important 可选，标记值得重点关注的观点。"
         "同平台同作者同正文的重复导入会被跳过，可以整批重导。"
         "受控写入工具，需加入 allowed_tools。"

@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.4**（2026-10-09）
+> 当前版本：**1.0.5**（2026-10-10）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -279,7 +279,7 @@ MCP_PUBLIC_BASE_URL          MCP 对外地址，推导 host/origin 校验
 | 财联社快讯 | AkShare | `services/akshare` | `market_radar` |
 | 富途快讯 | 富途官网快讯接口（直连，15 秒超时，按 `seqMark` 翻页，带 `level` 重要标记） | `market_radar/futu_client.py` | `market_radar` |
 | 东方财富个股新闻 | AkShare | `services/akshare` | `market_radar` |
-| 社交媒体舆情（雪球 / 微博 / 知乎） | 外部程序经 MCP 批量导入 | `market_radar.import_sentiment_items` | `market_radar` |
+| 社交媒体舆情（雪球 / 微博 / 知乎 / 股吧） | 外部程序经 MCP 批量导入 | `market_radar.import_sentiment_items` | `market_radar` |
 | AI | DeepSeek | `services/deepseek` | 各模块 `ai.py` / 任务 |
 
 ```text
@@ -482,7 +482,7 @@ related_type / related_id：可选回链原始业务对象（company_disclosure�
 **舆情导入**（只经 MCP `market_radar.import_sentiment_items`）：
 
 ```text
-platform   → source_name，只允许 雪球 / 微博 / 知乎
+platform   → source_name，只允许 雪球 / 微博 / 知乎 / 股吧
 author     → author，按平台显示名原样保存，不跨平台合并；作者不做成 tag
 date       → 不入库，只用于校验（不晚于今天）和限定去重范围
 content    → content，去首尾空白，最长 2000 字

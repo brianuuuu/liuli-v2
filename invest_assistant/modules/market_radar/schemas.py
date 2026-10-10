@@ -41,7 +41,7 @@ class SourceItemCreate(BaseModel):
 class SentimentImportItem(BaseModel):
     """MCP 舆情导入的单条输入。字段只做类型约束，取值校验在服务层逐条做，一条不合法不拖垮整批。"""
 
-    platform: str = Field(description="平台：雪球 / 微博 / 知乎")
+    platform: str = Field(description="平台：雪球 / 微博 / 知乎 / 股吧")
     author: str = Field(description="作者名，按平台上的显示名原样填写")
     date: str = Field(description="发布日期 YYYY-MM-DD，只要日期")
     content: str = Field(description="观点正文，纯文本，最长 2000 字")
