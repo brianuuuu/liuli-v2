@@ -28,6 +28,11 @@ from invest_assistant.shared.time_utils import BEIJING_TZ, beijing_now
 
 DAILY_REPORT_JOB_NAME = "market_radar.generate_daily_report"
 DEFAULT_DAILY_REPORT_MODEL = "deepseek-v4-pro"
+SENTIMENT_SOURCE_TYPE = "sentiment"
+# 舆情单独成节，不依赖是否命中热门标签。量大且重复度高，按"重要优先、新的优先"截一段，
+# 正文再截短，避免一天的帖子把提示词撑爆。
+DAILY_REPORT_SENTIMENT_LIMIT = 100
+DAILY_REPORT_SENTIMENT_CONTENT_CHARS = 500
 
 
 def default_report_date(now: datetime | None = None) -> date:
@@ -86,6 +91,7 @@ def build_daily_report_payload(
             "window_end": _iso_beijing(window_end_exclusive - timedelta(seconds=1)),
         },
         "hot_tags": hot_tags,
+        "sentiment_items": _sentiment_items(db, report_date),
     }
 
 
@@ -100,7 +106,8 @@ def generate_daily_report(
     target_date = report_date or default_report_date()
     payload = build_daily_report_payload(db, target_date)
     source_item_count = sum(len(item["related_source_items"]) for item in payload["hot_tags"])
-    if not payload["hot_tags"] or source_item_count <= 0:
+    sentiment_count = len(payload["sentiment_items"])
+    if source_item_count + sentiment_count <= 0:
         return JobResult(
             success=True,
             message="no hot tags or related source items for report date",
@@ -177,6 +184,7 @@ def generate_daily_report(
             "model": active_model,
             "hot_tags_count": len(payload["hot_tags"]),
             "source_item_count": source_item_count,
+            "sentiment_count": sentiment_count,
         },
     )
 
@@ -299,11 +307,35 @@ def _related_source_items(db: Session, tag_id: int, report_date: date) -> list[d
     return [
         {
             "source_item_id": item.id,
+            "source_type": item.source_type,
             "content": item.content,
             "publish_time": _iso_beijing(item.publish_time) if item.publish_time is not None else None,
         }
         for item in rows
     ]
+
+
+def _sentiment_items(db: Session, report_date: date) -> list[dict[str, Any]]:
+    rows = db.scalars(
+        select(SourceItem)
+        .where(SourceItem.source_type == SENTIMENT_SOURCE_TYPE, _window_condition(report_date))
+        .order_by(SourceItem.is_important.desc(), SourceItem.publish_time.desc().nullslast(), SourceItem.id.desc())
+        .limit(DAILY_REPORT_SENTIMENT_LIMIT)
+    )
+    result = []
+    for item in rows:
+        content = item.content or ""
+        result.append(
+            {
+                "source_item_id": item.id,
+                "platform": item.source_name,
+                "author": item.author,
+                "important": bool(item.is_important),
+                "content": content[:DAILY_REPORT_SENTIMENT_CONTENT_CHARS],
+                "content_truncated": len(content) > DAILY_REPORT_SENTIMENT_CONTENT_CHARS,
+            }
+        )
+    return result
 
 
 def _iso_beijing(value: datetime) -> str:

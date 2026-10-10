@@ -112,19 +112,21 @@ def test_daily_report_payload_uses_natural_day_entity_dedup_and_full_content():
         assert related == [
             {
                 "source_item_id": second_inside.id,
+                "source_type": "announcement",
                 "content": "第二条完整正文，也必须输入。",
                 "publish_time": "2026-06-13T10:30:00+08:00",
             },
             {
                 "source_item_id": first_inside.id,
+                "source_type": "news",
                 "content": "完整正文第一段。\n完整正文第二段，不能被截断。",
                 "publish_time": "2026-06-13T09:10:00+08:00",
             }
         ]
         assert "summary" not in related[0]
         assert "title" not in related[0]
-        assert "source_type" not in related[0]
         assert "source_name" not in related[0]
+        assert payload["sentiment_items"] == []
     finally:
         db.close()
 
@@ -164,6 +166,8 @@ def test_daily_report_default_prompt_is_markdown_professional_and_concise():
     assert "近期" in combined_prompt
     assert "外部参考" in combined_prompt
     assert "不要输出买入、卖出、目标价、仓位比例" in combined_prompt
+    assert "sentiment_items" in combined_prompt
+    assert "## 四、舆情观察" in combined_prompt
 
 
 def test_daily_report_job_does_not_expose_source_item_limit_param():
@@ -223,5 +227,54 @@ def test_generate_daily_report_writes_markdown_report_and_ai_log(tmp_path, monke
         assert ai_log.task_name == DAILY_REPORT_JOB_NAME
         assert ai_log.status == "success"
         assert ai_log.total_tokens == 30
+    finally:
+        db.close()
+
+
+def test_daily_report_payload_lists_day_sentiment_important_first_and_truncated():
+    SessionLocal = make_session()
+    db = SessionLocal()
+    try:
+        db.add_all(
+            [
+                SourceItem(source_type="sentiment", source_name="股吧", author="散户甲", title="普通", content="普通观点", publish_time=datetime(2026, 6, 13, 11, 0, 0)),
+                SourceItem(source_type="sentiment", source_name="雪球", author="大V乙", title="重要", content="看多" * 400, publish_time=datetime(2026, 6, 13, 9, 0, 0), is_important=True),
+                SourceItem(source_type="sentiment", source_name="微博", author="大V丙", title="窗口外", content="昨天的观点", publish_time=datetime(2026, 6, 12, 23, 0, 0)),
+                SourceItem(source_type="news", source_name="财联社", title="新闻", content="新闻不进舆情块", publish_time=datetime(2026, 6, 13, 10, 0, 0)),
+            ]
+        )
+        db.commit()
+
+        items = build_daily_report_payload(db, date(2026, 6, 13))["sentiment_items"]
+
+        assert [(item["platform"], item["author"], item["important"]) for item in items] == [("雪球", "大V乙", True), ("股吧", "散户甲", False)]
+        assert len(items[0]["content"]) == 500
+        assert items[0]["content_truncated"] is True
+        assert items[1]["content_truncated"] is False
+    finally:
+        db.close()
+
+
+def test_generate_daily_report_runs_with_sentiment_only(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    SessionLocal = make_session()
+    db = SessionLocal()
+    try:
+        db.add(SourceItem(source_type="sentiment", source_name="股吧", author="散户甲", title="观点", content="观点正文", publish_time=datetime(2026, 6, 13, 9, 0, 0)))
+        prompt_payload = next(item for item in DEFAULT_KNOWLEDGE_PROMPTS if item.prompt_key == DAILY_REPORT_JOB_NAME)
+        db.add(KnowledgePrompt(**prompt_payload.model_dump()))
+        db.commit()
+
+        class FakeDeepSeek:
+            @staticmethod
+            def generate_market_daily_report(payload, prompt, model):
+                assert payload["hot_tags"] == []
+                assert payload["sentiment_items"][0]["platform"] == "股吧"
+                return {"content": "# 市场雷达日报｜2026-06-13\n\n舆情偏谨慎。", "usage": {}}
+
+        result = generate_daily_report(db, report_date=date(2026, 6, 13), deepseek=FakeDeepSeek)
+
+        assert result.success is True
+        assert result.extra["sentiment_count"] == 1
     finally:
         db.close()
