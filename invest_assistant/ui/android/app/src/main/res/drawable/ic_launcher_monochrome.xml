@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主题图标用的单色层：系统只取透明度重新着色，所以用实心剪影；内缩与前景层一致，
+     主题图标和普通图标里的六边形一样大。 -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="25%">
+    <vector
+        android:width="64dp"
+        android:height="64dp"
+        android:viewportWidth="64"
+        android:viewportHeight="64">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M32,6 L54.5,19 L54.5,45 L32,58 L9.5,45 L9.5,19 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineJoin="round"
+            android:strokeWidth="6" />
+    </vector>
+</inset>
