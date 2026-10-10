@@ -254,7 +254,7 @@ main() {
   printf '\nExternal verification command:\n'
   printf "  curl -i -X POST -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}' %s\n" "$HTTPS_MCP_URL"
   printf 'Expected result: HTTP 200. Configure ChatGPT with authentication set to None, then run Scan Tools.\n'
-  printf 'Rollback command: %s/restore_liuli_mcp_https.sh\n' "$PROJECT_ROOT"
+  printf 'Rollback command: %s/tools/ops/restore_liuli_mcp_https.sh\n' "$PROJECT_ROOT"
 }
 
 main "$@"

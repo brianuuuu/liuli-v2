@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.7**（2026-10-10）
+> 当前版本：**1.0.8**（2026-10-10）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -171,7 +171,7 @@ AI 推荐词 = ai_tag_suggestion.status = pending
 | 服务器 | 阿里云 ECS，Ubuntu，项目目录 `/home/liuli-v2`，Python 虚拟环境 `/home/liuli-v2/.venv` |
 | 数据库 | 阿里云 RDS **PostgreSQL**（驱动 `psycopg` 3；`DATABASE_URL` 的 `postgresql://` 自动规范为 `postgresql+psycopg://`） |
 | 文件存储 | 服务器本地 `var/`（报告、公告原文与解析文本、日志、PID） |
-| MCP 公网 HTTPS | Caddy 反向代理到 `127.0.0.1:8000/mcp/`，由 `configure_liuli_mcp_https.sh` / `restore_liuli_mcp_https.sh` 管理 |
+| MCP 公网 HTTPS | Caddy 反向代理到 `127.0.0.1:8000/mcp/`，由 `tools/ops/configure_liuli_mcp_https.sh` / `tools/ops/restore_liuli_mcp_https.sh` 管理 |
 
 **线上服务只能用标准脚本整体启停**：
 
