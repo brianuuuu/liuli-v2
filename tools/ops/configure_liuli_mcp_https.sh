@@ -168,6 +168,8 @@ https://$PUBLIC_HOST {
 	@liuli_mcp path /mcp /mcp/*
 
 	handle @liuli_mcp {
+		# Claude.ai strips the trailing slash; avoid the upstream 307 to the unreachable :8000 origin.
+		rewrite /mcp /mcp/
 		reverse_proxy 127.0.0.1:8000 {
 			header_up Host $UPSTREAM_HOST
 			header_up Origin $UPSTREAM_ORIGIN

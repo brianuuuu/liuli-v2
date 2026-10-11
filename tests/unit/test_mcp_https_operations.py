@@ -12,6 +12,7 @@ def test_caddy_exposes_public_https_mcp_by_injecting_existing_bearer_token():
     script = read("tools/ops/configure_liuli_mcp_https.sh")
 
     assert "@liuli_mcp path /mcp /mcp/*" in script
+    assert "rewrite /mcp /mcp/" in script
     assert "reverse_proxy 127.0.0.1:8000" in script
     assert 'header_up Authorization "Bearer $MCP_BEARER_TOKEN"' in script
     assert "/.well-known/oauth" not in script
