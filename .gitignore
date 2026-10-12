@@ -41,3 +41,8 @@ var/reports/*
 var/exports/*
 !var/exports/.gitkeep
 docs/prototypes/liuli-android-v1
+
+# secrets
+var/secrets/
+*.pem
+*.key
