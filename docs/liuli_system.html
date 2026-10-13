@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>liuli 系统架构图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 1800px; background: #f6f8fc; font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; color: #1f2a44; padding: 28px 32px 30px; }
+  .title { text-align: center; }
+  .title h1 { font-size: 40px; font-weight: 800; color: #142a5c; letter-spacing: 1px; }
+  .title p { margin-top: 6px; font-size: 15px; color: #5a6680; }
+  .title p b { color: #2f5bd3; }
+
+  .panel { background: #fff; border: 1.5px solid #c9d6f0; border-radius: 14px; padding: 14px 16px; }
+  .ph { font-size: 17px; font-weight: 700; color: #1d3d8f; margin-bottom: 10px; display: flex; align-items: baseline; gap: 10px; }
+  .ph small { font-size: 12.5px; font-weight: 400; color: #6b7690; }
+
+  /* loop */
+  .loop { margin-top: 18px; padding: 16px 18px 14px; }
+  .loop-row { display: flex; align-items: stretch; gap: 0; }
+  .lnode { flex: 1; border-radius: 10px; padding: 9px 8px; text-align: center; border: 1.5px solid; background: #fff; }
+  .lnode .n { font-size: 16px; font-weight: 700; }
+  .lnode .c { font-size: 11.5px; color: #66708a; margin-top: 2px; font-family: Consolas, monospace; }
+  .lnode .l { font-size: 12px; margin-top: 3px; }
+  .arr { width: 30px; display: flex; align-items: center; justify-content: center; color: #4a63a8; font-size: 20px; font-weight: 700; }
+  .c-radar { border-color: #3b82f6; color: #1e4fb8; background: #eff5ff; }
+  .c-track { border-color: #16a34a; color: #12733a; background: #eefaf2; }
+  .c-stock { border-color: #7c3aed; color: #5b24b8; background: #f5f0ff; }
+  .c-alert { border-color: #f59e0b; color: #a35f00; background: #fff7e8; }
+  .c-port  { border-color: #ef4444; color: #b42323; background: #fff0f0; }
+  .c-kb    { border-color: #0891b2; color: #0b6a83; background: #ebf9fc; }
+  .c-ext   { border-color: #64748b; color: #334155; background: #f3f5f8; }
+  .loop-back { margin-top: 10px; border: 1.5px dashed #0891b2; border-radius: 10px; padding: 7px 12px; font-size: 13px; color: #0b6a83; text-align: center; background: #f4fcfe; }
+
+  /* main grid */
+  .main { display: grid; grid-template-columns: 300px 1fr 300px; gap: 16px; margin-top: 16px; }
+  .col { display: flex; flex-direction: column; gap: 14px; }
+
+  .card { border: 1px solid #d9e2f3; border-radius: 9px; padding: 8px 10px; background: #fbfcff; margin-bottom: 8px; }
+  .card:last-child { margin-bottom: 0; }
+  .card .t { font-size: 14px; font-weight: 700; color: #22325a; display: flex; justify-content: space-between; }
+  .card .t .port { font-family: Consolas, monospace; font-size: 12px; color: #2f5bd3; font-weight: 600; }
+  .card .d { font-size: 12px; color: #5d6782; margin-top: 3px; line-height: 1.5; }
+  .mono { font-family: Consolas, monospace; }
+
+  .proto { font-size: 12px; color: #2f5bd3; text-align: center; margin: 2px 0 8px; }
+
+  /* backend */
+  .backend { padding: 14px 16px 16px; border-color: #9fb5e6; }
+  .proc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .proc { border-radius: 10px; padding: 9px 12px; border: 1.5px solid; }
+  .proc .t { font-size: 15px; font-weight: 700; }
+  .proc .d { font-size: 12px; margin-top: 3px; line-height: 1.55; color: #4c5670; }
+  .p-api { border-color: #2f5bd3; background: #eef3ff; color: #1d3d8f; }
+  .p-wk { border-color: #0f9f6e; background: #ecfaf4; color: #0b6b4b; }
+  .bridge { font-size: 12px; text-align: center; color: #6b7690; margin: -4px 0 10px; }
+  .bridge b { color: #b45309; font-weight: 600; }
+
+  .sec { border: 1.5px solid #dbe3f3; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: #fcfdff; }
+  .sec:last-child { margin-bottom: 0; }
+  .sec-h { font-size: 14.5px; font-weight: 700; color: #1d3d8f; margin-bottom: 8px; }
+  .sec-h span { font-weight: 400; color: #6b7690; font-size: 12px; margin-left: 6px; }
+
+  .biz { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .bm { border-radius: 9px; padding: 8px 8px; border: 1.5px solid; background: #fff; }
+  .bm .n { font-size: 14px; font-weight: 700; }
+  .bm .c { font-family: Consolas, monospace; font-size: 11px; opacity: .85; }
+  .bm ul { list-style: none; margin-top: 5px; font-size: 11.5px; color: #4c5670; line-height: 1.55; }
+  .bm ul li::before { content: "· "; color: #9aa5c0; }
+  .bm .f { margin-top: 5px; font-family: Consolas, monospace; font-size: 10.5px; color: #7a849e; line-height: 1.45; border-top: 1px dashed #e1e6f0; padding-top: 4px; }
+
+  .two { display: grid; grid-template-columns: 1.55fr 1fr; gap: 12px; }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .chip { border: 1px solid #d5ddef; border-radius: 7px; padding: 5px 7px; background: #fff; }
+  .chip .n { font-family: Consolas, monospace; font-size: 12px; font-weight: 700; color: #2b3a66; }
+  .chip .d { font-size: 11px; color: #6b7690; line-height: 1.4; margin-top: 1px; }
+  .chip.hl { border-color: #8b5cf6; background: #f7f3ff; }
+  .chip.hl .n { color: #5b24b8; }
+  .chips3 { grid-template-columns: repeat(3, 1fr); }
+
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12px; }
+  .fb { border: 1px solid #cfd9ee; background: #fff; border-radius: 6px; padding: 3px 7px; font-family: Consolas, "Microsoft YaHei", monospace; font-size: 11.5px; color: #2b3a66; white-space: nowrap; }
+  .fb.k { background: #eef3ff; border-color: #9fb5e6; font-weight: 700; }
+  .fa { color: #7183b3; font-weight: 700; }
+  .flow-line { margin-bottom: 7px; }
+  .flow-line:last-child { margin-bottom: 0; }
+  .fl { font-size: 12px; font-weight: 700; color: #6b7690; width: 64px; flex: none; }
+
+  /* storage */
+  .storage { margin-top: 16px; display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 16px; }
+  .tbl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .tg { border: 1px solid #dbe3f3; border-radius: 8px; padding: 6px 8px; background: #fbfcff; }
+  .tg .n { font-size: 12.5px; font-weight: 700; color: #22325a; }
+  .tg .d { font-family: Consolas, monospace; font-size: 10px; color: #66708a; line-height: 1.5; margin-top: 2px; overflow-wrap: break-word; }
+
+  .legend { margin-top: 14px; display: flex; justify-content: center; gap: 28px; font-size: 12.5px; color: #5a6680; }
+  .legend span b { color: #2f5bd3; }
+  .principle { margin-top: 8px; text-align: center; font-size: 13px; color: #5a6680; }
+  .principle b { color: #1d3d8f; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <h1>liuli（琉璃）系统架构图</h1>
+  <p>个人投资辅助系统 ｜ 单用户安全登录 ｜ 业务模块内聚 ｜ AI 作为业务工具 ｜ 规格版本 <b>1.0.12</b>（2026-10-13）</p>
+</div>
+
+<!-- 核心投资闭环 -->
+<div class="panel loop">
+  <div class="ph">核心投资闭环 <small>市场雷达发现信号 → 赛道发现解释信号 → 标的分析承接 → 预警等待时机 → 组合行动 → 知识库沉淀并回流</small></div>
+  <div class="loop-row">
+    <div class="lnode c-radar"><div class="n">市场雷达</div><div class="c">market_radar</div><div class="l">信号层 · 市场在关注什么</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-track"><div class="n">赛道发现</div><div class="c">track_discovery</div><div class="l">判断层 · 方向值不值得跟</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-stock"><div class="n">标的分析</div><div class="c">stock_analysis</div><div class="l">研究层 · 谁能承接赛道</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-alert"><div class="n">预警中心</div><div class="c">alert_center</div><div class="l">时机层 · 热度 / 任务 / 风险</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-port"><div class="n">组合管理</div><div class="c">portfolio</div><div class="l">行动层 · 实盘持仓与调仓</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-kb"><div class="n">知识库</div><div class="c">knowledge_base</div><div class="l">认知沉淀层 · 笔记 / Skills / 研究员</div></div>
+    <div class="arr">→</div>
+    <div class="lnode c-ext"><div class="n">外部 AI 研究</div><div class="c">via MCP</div><div class="l">Codex / ChatGPT 执行复杂研究</div></div>
+  </div>
+  <div class="loop-back">⟲ 研究回流：外部 AI 经 MCP 上传报告 → 报告库 + knowledge_research_feedback → 按标题识别导入 → 回写 标的快照 / 赛道趋势快照 / 微操建议 → 风险升级生成预警事件</div>
+</div>
+
+<div class="main">
+
+  <!-- 左：客户端 -->
+  <div class="col">
+    <div class="panel">
+      <div class="ph">客户端 <small>只共享后端 REST 契约</small></div>
+      <div class="card">
+        <div class="t">桌面 Web <span class="port">:5173</span></div>
+        <div class="d">React 18 + Vite 5 + TS + React Router 6<br>Ant Design 6 · ECharts · lightweight-charts（K 线）<br>react-markdown · 浅色 / 深色 / 跟随系统</div>
+      </div>
+      <div class="card">
+        <div class="t">一级菜单</div>
+        <div class="d">工作台 · 市场雷达 · 赛道发现 · 标的分析 · 预警中心 · 组合管理 · 知识库 · 控制台<br>二级菜单为模块页签（moduleTabs）</div>
+      </div>
+      <div class="card">
+        <div class="t">Android 原生薄壳</div>
+        <div class="d">Kotlin + Jetpack Compose + 单 WebView + DataStore<br>底栏：看板 | 资讯 | 笔记 | 待办 | 我的</div>
+      </div>
+      <div class="card">
+        <div class="t">手机 H5 <span class="port">:5174</span></div>
+        <div class="d">React + Vite + HashRouter + TanStack Query + ECharts<br>server.mjs 同源反代 /api → :8000<br>随身看板 · 资讯 · 笔记收件箱 · 待办 · 报告 · 记调仓</div>
+      </div>
+      <div class="proto">↓ HTTPS / REST · JWT Bearer（3 天）</div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">对外 MCP 客户端</div>
+      <div class="card">
+        <div class="t">Codex / ChatGPT 等</div>
+        <div class="d">外部 AI 执行器：读研究员 profile 与素材，<br>完成研究后上传报告回流</div>
+      </div>
+      <div class="card">
+        <div class="t">舆情采集程序</div>
+        <div class="d">雪球 / 微博 / 知乎 / 股吧<br>经 import_sentiment_items 批量导入（≤200 条）</div>
+      </div>
+      <div class="proto">↓ Caddy HTTPS → 127.0.0.1:8000/mcp/<br>Streamable HTTP · 独立 Bearer Token</div>
+    </div>
+  </div>
+
+  <!-- 中：后端 -->
+  <div class="panel backend">
+    <div class="ph">invest_assistant 后端 <small>Python · FastAPI · SQLAlchemy · APScheduler · 阿里云 ECS（Ubuntu）· bash start_ubuntu_pg.sh / stop.sh 整体启停</small></div>
+
+    <div class="proc-row">
+      <div class="proc p-api">
+        <div class="t">API 进程 <span class="mono" style="font-size:12px">uvicorn main:app :8000</span></div>
+        <div class="d">/api/*：鉴权、查询、增删改、写手动任务请求、读报告<br>/mcp：FastMCP 挂载 · 启动时 create_all_tables + ensure_*_schema + 同步 Prompt<br>不执行重任务</div>
+      </div>
+      <div class="proc p-wk">
+        <div class="t">Worker 进程 <span class="mono" style="font-size:12px">python -m invest_assistant.worker</span></div>
+        <div class="d">APScheduler（Asia/Shanghai）执行定时任务<br>每 5 秒轮询 job_run_request · 每 30 秒同步调度配置<br>执行各模块 jobs.py → 写 job_run_log</div>
+      </div>
+    </div>
+    <div class="bridge">API 与 Worker 不直接互调，只经 <b>数据库 · var/ 文件 · job_run_request · job_run_log</b> 协作</div>
+
+    <div class="sec">
+      <div class="sec-h">modules · 六大业务模块 <span>标准文件 models / schemas / service / router / jobs，按需 ai.py、client、领域子文件</span></div>
+      <div class="biz">
+        <div class="bm c-radar"><div class="n">市场雷达</div><div class="c">/api/market-radar</div>
+          <ul><li>信息流 source_item</li><li>规则打标 / 回溯打标</li><li>热度榜 24h·7d·30d</li><li>共现图谱</li><li>AI 推荐词审核</li><li>市场热词 · 日报</li></ul>
+          <div class="f">futu_client · daily_report<br>backfill_requests</div></div>
+        <div class="bm c-track"><div class="n">赛道发现</div><div class="c">/api/track-discovery</div>
+          <ul><li>赛道库 active/candidate</li><li>赛道材料审核</li><li>趋势快照六维评分</li><li>评级 S–D · 热度档 T0–T4</li><li>赛道对比 · 状态历史</li></ul>
+          <div class="f">scoring · ai<br>material_generation</div></div>
+        <div class="bm c-stock"><div class="n">标的分析</div><div class="c">/api/stock-analysis</div>
+          <ul><li>标的池 stock_pool</li><li>标的材料 · 事件审核</li><li>评级 / 估值 / 趋势快照</li><li>标的-赛道绑定</li><li>日线 + MA · 指数行情</li></ul>
+          <div class="f">ai</div></div>
+        <div class="bm c-alert"><div class="n">预警中心</div><div class="c">/api/alerts</div>
+          <ul><li>heat 规则</li><li>job_failure 规则</li><li>微操风险警示（导入即推送）</li><li>事件 unread/read/handled</li><li>预警复盘</li></ul>
+          <div class="f">jobs: evaluate_rules</div></div>
+        <div class="bm c-port"><div class="n">组合管理</div><div class="c">/api/portfolios</div>
+          <ul><li>实盘分组 · 持仓 · 现金</li><li>增量调仓 /trades（幂等）</li><li>每日市值快照</li><li>组合复盘 · 来源对比</li><li>微操建议导入与评估</li></ul>
+          <div class="f">adjust_advice<br>position_change_review</div></div>
+        <div class="bm c-kb"><div class="n">知识库</div><div class="c">/api/knowledge</div>
+          <ul><li>知识笔记 · 分组</li><li>对内 Prompt（文件同步）</li><li>对外 Skills（只读）</li><li>研究员 profile</li><li>研究回流与导入</li></ul>
+          <div class="f">prompts/ · external/<br>skills · researchers</div></div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="sec">
+        <div class="sec-h">modules/basic · 基础模块</div>
+        <div class="chips">
+          <div class="chip"><div class="n">auth</div><div class="d">单用户登录 · JWT · pbkdf2</div></div>
+          <div class="chip"><div class="n">stock_master</div><div class="d">A 股主数据 · 拼音简称检索</div></div>
+          <div class="chip"><div class="n">system_config</div><div class="d">运行配置 + runtime_state</div></div>
+          <div class="chip"><div class="n">job_center</div><div class="d">注册表 · 调度 · 派发 · 日志</div></div>
+          <div class="chip"><div class="n">report_library</div><div class="d">报告索引 · 阅读入口</div></div>
+          <div class="chip"><div class="n">disclosure_library</div><div class="d">巨潮公告 · 下载 · PDF 解析</div></div>
+          <div class="chip"><div class="n">ai_audit</div><div class="d">每次 AI 请求审计</div></div>
+          <div class="chip hl"><div class="n">mcp</div><div class="d">对外 MCP 协议层 · 18 个工具</div></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-h">console · 操作面板 <span>只有 router.py，不拥有业务能力</span></div>
+        <div class="chips chips3">
+          <div class="chip"><div class="d">系统状态</div></div>
+          <div class="chip"><div class="d">任务中心</div></div>
+          <div class="chip"><div class="d">数据源</div></div>
+          <div class="chip"><div class="d">股票基础库</div></div>
+          <div class="chip"><div class="d">标签索引</div></div>
+          <div class="chip"><div class="d">公告财报库</div></div>
+          <div class="chip"><div class="d">系统配置</div></div>
+          <div class="chip"><div class="d">AI 审计日志</div></div>
+          <div class="chip"><div class="d mono">/api/console</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="sec">
+        <div class="sec-h">bootstrap · services · shared</div>
+        <div class="chips">
+          <div class="chip"><div class="n">bootstrap</div><div class="d">app · config · database · logging · scheduler</div></div>
+          <div class="chip"><div class="n">services</div><div class="d">tushare · akshare · deepseek · ai_debug_logger</div></div>
+          <div class="chip"><div class="n">shared</div><div class="d">enums · errors · response · pagination · time_utils · db_types · file_utils</div></div>
+          <div class="chip"><div class="n">原则</div><div class="d">client 贴近使用模块；≥2 模块稳定复用才上移 services</div></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="sec-h">MCP 调用链</div>
+        <div class="flow">
+          <span class="fb">auth 鉴权</span><span class="fa">→</span><span class="fb">registry 权限</span><span class="fa">→</span><span class="fb">tools/* 包装</span><span class="fa">→</span><span class="fb">projection 裁剪</span><span class="fa">→</span><span class="fb">service 执行</span><span class="fa">→</span><span class="fb k">业务模块 service</span>
+        </div>
+        <div class="d" style="font-size:11.5px;color:#6b7690;margin-top:6px;line-height:1.5">14 个只读 + 4 个受控写入；不暴露删除、SQL、任意文件、Shell、任务触发<br>日志 var/logs/mcp_debug.log</div>
+      </div>
+    </div>
+
+    <div class="sec" style="margin-top:12px">
+      <div class="sec-h">关键数据流</div>
+      <div class="flow flow-line"><span class="fl">标签模型</span>
+        <span class="fb">source_item 信息流</span><span class="fa">→</span><span class="fb">source_tag</span><span class="fa">→</span><span class="fb k">tag 语言入口</span><span class="fa">→</span><span class="fb">stock / track / hotword_tag_relation</span><span class="fa">→</span><span class="fb k">stock · track · hotword</span><span class="fa">⇢</span><span class="fb">stock_track_relation（研究确认）</span>
+      </div>
+      <div class="flow flow-line"><span class="fl">热度材料</span>
+        <span class="fb">tag</span><span class="fa">→</span><span class="fb">tag_heat_snapshot / tag_edge_snapshot</span><span class="fa">→</span><span class="fb">实体热度</span><span class="fa">→</span><span class="fb">track_material / stock_material（pending）</span><span class="fa">→</span><span class="fb">人工或 AI 审核 confirmed</span>
+      </div>
+      <div class="flow flow-line"><span class="fl">AI 新词</span>
+        <span class="fb">当日 news</span><span class="fa">→</span><span class="fb">DeepSeek</span><span class="fa">→</span><span class="fb">ai_tag_suggestion（pending）</span><span class="fa">→</span><span class="fb">人工审核</span><span class="fa">→</span><span class="fb">建/绑 tag</span><span class="fa">→</span><span class="fb">回溯打标</span>
+      </div>
+      <div class="flow flow-line"><span class="fl">研究回流</span>
+        <span class="fb">upload_research_feedback</span><span class="fa">→</span><span class="fb">report + 回流记录</span><span class="fa">→</span><span class="fb">标题「对象-日期-类型」识别</span><span class="fa">→</span><span class="fb">stock_score / valuation / trend</span><span class="fb">track_trend_snapshot</span><span class="fb">portfolio_adjust_advice</span>
+      </div>
+      <div class="flow flow-line"><span class="fl">手动任务</span>
+        <span class="fb">控制台</span><span class="fa">→</span><span class="fb">API 写 job_run_request</span><span class="fa">→</span><span class="fb">Worker 轮询执行</span><span class="fa">→</span><span class="fb">job_run_log</span><span class="fa">→</span><span class="fb">失败触发 job_failure 预警</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：外部数据源 -->
+  <div class="col">
+    <div class="panel">
+      <div class="ph">外部数据源 <small>行情看交易 · 新闻看注意力</small></div>
+      <div class="card">
+        <div class="t">Tushare</div>
+        <div class="d">A 股基础库 → stock_master<br>前复权日线 / 指数日线 → stock_analysis<br>实时行情 → portfolio、主要指数</div>
+      </div>
+      <div class="card">
+        <div class="t">AkShare</div>
+        <div class="d">财联社快讯 · 东方财富个股新闻 → market_radar<br>基础库兜底</div>
+      </div>
+      <div class="card">
+        <div class="t">富途快讯</div>
+        <div class="d">官网接口直连 · seqMark 翻页 · level 重要标记<br>market_radar/futu_client.py</div>
+      </div>
+      <div class="card">
+        <div class="t">巨潮资讯</div>
+        <div class="d">公告元数据 / 原文 → disclosure_library<br>转写摘要型信息流参与热度</div>
+      </div>
+      <div class="card">
+        <div class="t">社交舆情</div>
+        <div class="d">雪球 / 微博 / 知乎 / 股吧<br>只经 MCP 导入 → source_item(sentiment)</div>
+      </div>
+      <div class="card" style="border-color:#c4b5fd;background:#faf7ff">
+        <div class="t">DeepSeek <span class="port" style="color:#7c3aed">AI</span></div>
+        <div class="d">deepseek-v4-flash（日报用 Pro）<br>热词候选 · 事件审核 · 市场雷达日报<br>Prompt：knowledge_base/prompts<br>每次请求写 ai_request_log</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">定时任务 <small>北京时间 · 21 个注册任务</small></div>
+      <div class="d" style="font-size:12px;color:#4c5670;line-height:1.7">
+        <span class="mono">*/5</span> 规则打标 · 预警规则<br>
+        <span class="mono">*/10</span> 热度聚合 · 共现聚合<br>
+        <span class="mono">*/30</span> 财联社 / 富途快讯<br>
+        <span class="mono">03:00</span> 市场雷达日报<br>
+        <span class="mono">08:00 / 08:30</span> 个股新闻 / 巨潮公告<br>
+        <span class="mono">16:30</span> DeepSeek 热词候选<br>
+        <span class="mono">17:00</span> 组合市值快照<br>
+        <span class="mono">18:30</span> 日线同步（工作日）<br>
+        <span class="mono">19:15</span> 微操建议评估（工作日）
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 存储 -->
+<div class="storage">
+  <div class="panel">
+    <div class="ph">阿里云 RDS PostgreSQL <small>psycopg 3 · timestamptz 北京时间 · 新表 create_all，列变更走 tools/migrations/*.sql</small></div>
+    <div class="tbl-grid">
+      <div class="tg"><div class="n">基础</div><div class="d">user_account · stock · system_config · runtime_state · ai_request_log</div></div>
+      <div class="tg"><div class="n">任务 / 文档</div><div class="d">job_config · job_run_request · job_run_log · report · company_disclosure</div></div>
+      <div class="tg"><div class="n">市场雷达</div><div class="d">source_item · source_tag · tag · hotword · *_tag_relation · tag_heat/edge_snapshot · ai_tag_suggestion</div></div>
+      <div class="tg"><div class="n">赛道发现</div><div class="d">track · track_material · track_trend_snapshot · track_status_history</div></div>
+      <div class="tg"><div class="n">标的分析</div><div class="d">stock_pool · stock_track_relation · stock_material · stock_score/valuation/trend_snapshot · stock_research_note · stock_thesis · stock_compare_group · stock_daily_bar · market_index_*</div></div>
+      <div class="tg"><div class="n">预警中心</div><div class="d">alert_rule · alert_event</div></div>
+      <div class="tg"><div class="n">组合管理</div><div class="d">portfolio · portfolio_group/position · cash_balance/flow · position_change · value_snapshot · review · adjust_advice(_item)</div></div>
+      <div class="tg"><div class="n">知识库</div><div class="d">knowledge_note(_group/_tag_relation) · knowledge_prompt · knowledge_researcher · knowledge_research_feedback</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph">var/ 文件存储 <small>服务器本地，不进 Git</small></div>
+    <div class="d" style="font-size:12.5px;color:#4c5670;line-height:1.75" class="mono">
+      <span class="mono">reports/{module}/YYYY-MM/</span> 报告本体<br>
+      <span class="mono">raw/disclosures/</span> 公告原文<br>
+      <span class="mono">processed/disclosures/</span> 解析文本 / Markdown<br>
+      <span class="mono">logs/</span> api · worker · web · h5 · mcp_debug<br>
+      <span class="mono">run/</span> 进程 PID　<span class="mono">cache/ · exports/</span><br>
+      <span class="mono">db/</span> 仅本地开发 SQLite
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph">工程支撑</div>
+    <div class="d" style="font-size:12.5px;color:#4c5670;line-height:1.75">
+      <span class="mono">docs/</span> 系统规格 · CHANGELOG · MCP · Android<br>
+      <span class="mono">tools/</span> migrations · dev · db · ops · jobs · export<br>
+      <span class="mono">tests/</span> pytest 单元 / 集成<br>
+      <span class="mono">data/</span> 种子 · 样例 · 导入导出模板<br>
+      <span class="mono">start.sh</span> 拉起 API · Worker · Web · H5<br>
+      <span class="mono">old/</span> 旧项目，仅作功能参考
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <span><b>业务与数据分层</b>：modules 有业务逻辑和数据 · services 只做外部接口 · shared 无业务含义</span>
+  <span><b>页面路径 ≠ 能力归属</b>：console 是操作面板，能力归属 basic/* 与六大业务模块</span>
+</div>
+<div class="principle">不直接输出买卖指令 · 不做多人 SaaS · 不做中心化 AI Gateway · 不把热度误当投资价值 · 复杂研究由外部 AI 执行、结果经研究回流沉淀</div>
+
+</body>
+</html>
