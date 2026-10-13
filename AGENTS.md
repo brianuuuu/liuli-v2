@@ -14,6 +14,7 @@
 - Before running any command or test that deletes, drops, resets, recreates, truncates, or otherwise clears database data, confirm with the user first. This includes tests or helpers that call `drop_all`, `create_all` after dropping tables, `reset_db`, migration reset commands, or any command that might point at `var/db/liuli.sqlite3`.
 - CRITICAL DATABASE BACKUP CONSTRAINT: Under all circumstances, BEFORE running any test, script, command, or helper that clears, truncates, deletes, or modifies a database table (including partial deletions like filtering on source_type), the agent MUST first create a backup copy of the database file `var/db/liuli.sqlite3` in `var/db/recovery/`. Failing to perform a backup before any table clear or delete operation is strictly UNACCEPTABLE.
 - Do not run tests that clear any database, even an apparently isolated test database, unless the user has explicitly approved that exact command in the current conversation. Treat function names such as `reset_db`, `drop_all`, `truncate`, `delete_all`, `recreate`, and migration reset helpers as destructive until proven otherwise. Prefer non-destructive tests, static checks, targeted unit tests without database resets, or explain the verification gap instead of silently clearing data.
+- 任何表结构修改（新增、删除或修改表、列、类型、默认值、约束、索引，以及对应的 `tools/migrations/*.sql` 迁移脚本）都必须先把改动方案提交给用户审核，用户明确同意后才能动手；不得在功能开发中顺手修改表结构。
 
 ## Web And Mobile Constraints
 
