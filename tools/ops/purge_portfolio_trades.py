@@ -8,12 +8,15 @@
   portfolio_adjust_advice_item 关联微操建议时的执行情况
   portfolio_value_snapshot    同步现金后当天的组合市值快照
 
-用法（默认只预览，不写库）：
-  python tools/ops/purge_portfolio_trades.py                       # 预览今天的调仓
-  python tools/ops/purge_portfolio_trades.py --portfolio-id 3      # 只看某个组合
-  python tools/ops/purge_portfolio_trades.py --apply               # 备份后执行
+线上 DATABASE_URL 只在 start_ubuntu_pg.sh 里 export，直接运行会落到默认的 SQLite，
+所以先在当前 shell 导出同一个连接串，并用项目 venv 的 python（默认只预览，不写库）：
+  eval "$(grep '^export DATABASE_URL=' start_ubuntu_pg.sh)"
+  /home/liuli-v2/.venv/bin/python tools/ops/purge_portfolio_trades.py                    # 预览今天的调仓
+  /home/liuli-v2/.venv/bin/python tools/ops/purge_portfolio_trades.py --portfolio-id 3   # 只看某个组合
+  /home/liuli-v2/.venv/bin/python tools/ops/purge_portfolio_trades.py --apply            # 备份后执行
 
 执行前会把所有要动的行导出到 var/db/recovery/ 下的 JSON；SQLite 库另外整库复制一份。
+连到 SQLite 时默认拒绝执行，本地调试需加 --allow-sqlite。
 """
 from __future__ import annotations
 
@@ -125,8 +128,8 @@ def plan(db: Session, day: date, portfolio_id: int | None) -> dict:
             select(PortfolioAdjustAdviceItem)
             .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
             .where(
-                (PortfolioAdjustAdviceItem.id.in_({c.advice_item_id for c in changes if c.advice_item_id}))
-                | (PortfolioAdjustAdviceItem.stock_id.in_(stock_ids) & (PortfolioAdjustAdvice.target_trade_date == day))
+                (PortfolioAdjustAdviceItem.id.in_(sorted({c.advice_item_id for c in changes if c.advice_item_id})))
+                | (PortfolioAdjustAdviceItem.stock_id.in_(sorted(stock_ids)) & (PortfolioAdjustAdvice.target_trade_date == day))
             )
         )
     ) if changes else []
@@ -180,7 +183,7 @@ def backup(db: Session, day: date, result: dict) -> Path:
         shutil.copy2(db_path, copied)
         print(f"已整库备份：{copied}")
     recovery_dir.mkdir(parents=True, exist_ok=True)
-    portfolio_ids = {p["portfolio_id"] for p in result["positions"]}
+    portfolio_ids = sorted({p["portfolio_id"] for p in result["positions"]})
     payload = {
         "date": day,
         "database": engine.url.render_as_string(hide_password=True),
@@ -254,11 +257,17 @@ def main() -> None:
     parser.add_argument("--date", type=date.fromisoformat, default=None, help="调仓日期，默认今天（上海时区）")
     parser.add_argument("--portfolio-id", type=int, default=None, help="只处理某个组合")
     parser.add_argument("--apply", action="store_true", help="备份后真正执行；不加只预览")
+    parser.add_argument("--allow-sqlite", action="store_true", help="允许连 SQLite（仅本地调试）")
     args = parser.parse_args()
     day = args.date or service._today_shanghai()
 
-    db = SessionLocal()
     print(f"数据库：{engine.url.render_as_string(hide_password=True)}")
+    if engine.url.get_backend_name() == "sqlite" and not args.allow_sqlite:
+        print("当前连的是 SQLite，线上是 PostgreSQL。请先执行：")
+        print("  eval \"$(grep '^export DATABASE_URL=' start_ubuntu_pg.sh)\"")
+        print("本地调试 SQLite 请加 --allow-sqlite。")
+        sys.exit(2)
+    db = SessionLocal()
     result = plan(db, day, args.portfolio_id)
     print_plan(db, day, result)
     if not result["changes"]:
