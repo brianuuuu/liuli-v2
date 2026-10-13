@@ -619,7 +619,7 @@ CANDIDATE_LOOKBACK_DAYS = 10
 
 
 def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfolio_id: int | None = None) -> list[dict]:
-    """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持；组合口径的报告只给对应组合。"""
+    """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持、还没被关联过；组合口径的报告只给对应组合。"""
     stmt = (
         select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice)
         .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
@@ -629,6 +629,9 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
             PortfolioAdjustAdviceItem.action.in_(DIRECTIONAL_ACTIONS),
             PortfolioAdjustAdvice.target_trade_date <= change_date,
             PortfolioAdjustAdvice.target_trade_date >= change_date - timedelta(days=CANDIDATE_LOOKBACK_DAYS),
+            ~PortfolioAdjustAdviceItem.id.in_(
+                select(PortfolioPositionChange.advice_item_id).where(PortfolioPositionChange.advice_item_id.is_not(None))
+            ),
         )
         .order_by(PortfolioAdjustAdvice.target_trade_date.desc(), PortfolioAdjustAdviceItem.id.desc())
     )
@@ -656,6 +659,9 @@ def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> Non
         raise ValueError("advice item not found")
     if item.stock_id != stock_id:
         raise ValueError("advice item belongs to another stock")
+    # 报告里的一个标的只对应一笔调仓，不分批；重复关联会让执行情况和复盘重复计数
+    if db.scalar(select(PortfolioPositionChange.id).where(PortfolioPositionChange.advice_item_id == advice_item_id).limit(1)) is not None:
+        raise ValueError("advice item already linked")
 
 
 def advice_item_action(db: Session, advice_item_id: int) -> str | None:

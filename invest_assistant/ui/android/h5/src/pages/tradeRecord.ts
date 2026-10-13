@@ -124,6 +124,19 @@ function ratio(value: number, total: number): number | null {
   return total > 0 ? value / total : null;
 }
 
+/**
+ * 记调仓的幂等键：进确认页生成一次，确认页上的重试都沿用它，服务端只记一次。
+ * H5 走 http 时不是安全上下文，crypto.randomUUID 不可用，退回时间戳加随机数。
+ */
+export function newTradeRequestId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    // 非安全上下文直接走下面的兜底
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 const LAST_PORTFOLIO_KEY = "liuli.mobile.trade.lastPortfolioId";
 
 export function rememberTradePortfolio(portfolioId: number) {

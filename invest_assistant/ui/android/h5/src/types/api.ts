@@ -543,12 +543,15 @@ export type TradeWrite = {
   advice_item_id: number | null;
   sync_cash: boolean;
   note: string | null;
+  client_request_id: string;
 };
 export type TradeResult = {
   change: PositionChange | null;
   position_quantity_before: number;
   position_quantity_after: number;
-  cash_synced: boolean;
+  /** 幂等重试命中已记录的调仓时为 null */
+  cash_synced: boolean | null;
+  duplicate?: boolean;
 };
 export type PortfolioValuePoint = {
   snapshot_date: string;

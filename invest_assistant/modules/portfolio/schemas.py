@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PortfolioCreate(BaseModel):
@@ -67,6 +67,8 @@ class PortfolioTradeCreate(BaseModel):
     advice_item_id: int | None = None
     sync_cash: bool = True
     note: str | None = None
+    # 幂等键：客户端每次确认生成一个，重试沿用同一个值，服务端只记一次
+    client_request_id: str | None = Field(default=None, max_length=64)
 
 
 class PortfolioPositionChangeRead(BaseModel):

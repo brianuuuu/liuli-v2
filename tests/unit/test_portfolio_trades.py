@@ -110,7 +110,9 @@ def test_sell_and_close():
     assert position_of(db, portfolio).quantity == 700
 
     result = trade(db, portfolio, stock, side="close", quantity=None, reason_type="fund_allocation")
-    assert position_of(db, portfolio) is None
+    closed = position_of(db, portfolio)
+    assert closed.quantity == 0
+    assert closed.status == "closed"
     assert result["position_quantity_after"] == 0
     assert result["change"]["quantity_after"] == 0
     assert result["change"]["reason_type"] == "fund_allocation"
@@ -268,3 +270,68 @@ def test_trade_route_returns_json_when_cash_synced():
     assert body["cash_synced"] is True
     assert body["cash_flow"]["flow_type"] == "trade"
     assert body["cash_flow"]["amount"] == pytest.approx(3_000)
+
+
+def test_close_keeps_position_settings_and_rebuy_restores_them():
+    db = make_session()
+    portfolio, stock = seed(db)
+
+    trade(db, portfolio, stock, side="close", quantity=None)
+    assert service.list_positions(db, portfolio.id) == []
+    assert service.get_dashboard(db, portfolio.id)["positions"] == []
+    with pytest.raises(ValueError, match="position not found"):
+        trade(db, portfolio, stock, side="sell", quantity=100)
+
+    trade(db, portfolio, stock, quantity=300)
+    position = position_of(db, portfolio)
+    assert (position.quantity, position.status) == (300, "active")
+    assert (position.target_weight, position.note) == (0.2, "核心持仓")
+    assert [item.id for item in service.list_positions(db, portfolio.id)] == [position.id]
+
+
+def test_same_client_request_id_records_once():
+    db = make_session()
+    portfolio, stock = seed(db)
+
+    first = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0, client_request_id="req-1")
+    again = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0, client_request_id="req-1")
+
+    assert first["duplicate"] is False
+    assert again["duplicate"] is True
+    assert again["change"]["id"] == first["change"]["id"]
+    assert position_of(db, portfolio).quantity == 700
+    assert cash_of(db, portfolio) == pytest.approx(100_000 + 4_500)
+    assert len(list(db.scalars(select(PortfolioCashFlow)))) == 1
+
+    trade(db, portfolio, stock, side="sell", quantity=300, price=15.0, client_request_id="req-2")
+    assert position_of(db, portfolio).quantity == 400
+
+
+def test_advice_item_can_be_linked_only_once():
+    from invest_assistant.modules.portfolio import adjust_advice
+
+    db = make_session()
+    portfolio, stock = seed(db)
+    item = seed_advice_item(db, portfolio, stock, "reduce")
+    assert [row["id"] for row in adjust_advice.list_advice_candidates(db, stock.id, date.today(), portfolio.id)] == [item.id]
+
+    trade(db, portfolio, stock, side="sell", quantity=200, reason_type="ai_advice", advice_item_id=item.id)
+    with pytest.raises(ValueError, match="already linked"):
+        trade(db, portfolio, stock, side="sell", quantity=200, reason_type="ai_advice", advice_item_id=item.id)
+
+    assert position_of(db, portfolio).quantity == 800
+    assert adjust_advice.list_advice_candidates(db, stock.id, date.today(), portfolio.id) == []
+
+
+def test_snapshot_failure_after_commit_still_returns_result(monkeypatch):
+    db = make_session()
+    portfolio, stock = seed(db)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("snapshot failed")
+
+    monkeypatch.setattr(service, "upsert_value_snapshot", broken)
+    result = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0)
+
+    assert result["cash_synced"] is True
+    assert position_of(db, portfolio).quantity == 700

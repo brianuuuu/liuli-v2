@@ -2321,7 +2321,8 @@ describe("mobile H5 app", () => {
       price: null,
       reason_type: "personal",
       advice_item_id: null,
-      sync_cash: true
+      sync_cash: true,
+      client_request_id: expect.stringMatching(/\S{8,}/)
     });
     expect(window.localStorage.getItem("liuli.mobile.trade.lastPortfolioId")).toBe("7");
   });

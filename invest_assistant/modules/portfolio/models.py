@@ -65,6 +65,22 @@ class PortfolioPositionChange(Base):
     __table_args__ = (
         Index("ix_portfolio_position_change_portfolio_id", "portfolio_id"),
         Index("ix_portfolio_position_change_change_date", "change_date"),
+        # 一条微操建议条目（报告里的一个标的）只能被一笔调仓关联
+        Index(
+            "uq_portfolio_position_change_advice_item",
+            "advice_item_id",
+            unique=True,
+            postgresql_where=text("advice_item_id IS NOT NULL"),
+            sqlite_where=text("advice_item_id IS NOT NULL"),
+        ),
+        # 记调仓的幂等键：客户端重试同一次提交时带同一个值，只记一次
+        Index(
+            "uq_portfolio_position_change_client_request",
+            "client_request_id",
+            unique=True,
+            postgresql_where=text("client_request_id IS NOT NULL"),
+            sqlite_where=text("client_request_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -81,6 +97,7 @@ class PortfolioPositionChange(Base):
     reason_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # 关联的微操建议条目；建议条目随回流记录可能被删，只存 ID 不建外键
     advice_item_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    client_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
@@ -251,6 +268,7 @@ def ensure_portfolio_schema(engine: Engine) -> None:
             "price_source": "ALTER TABLE portfolio_position_change ADD COLUMN price_source VARCHAR(16)",
             "reason_type": "ALTER TABLE portfolio_position_change ADD COLUMN reason_type VARCHAR(32)",
             "advice_item_id": "ALTER TABLE portfolio_position_change ADD COLUMN advice_item_id INTEGER",
+            "client_request_id": "ALTER TABLE portfolio_position_change ADD COLUMN client_request_id VARCHAR(64)",
         }
         missing_change_alters = [ddl for name, ddl in change_alters.items() if change_columns and name not in change_columns]
         if needs_change or has_cost_price or missing_change_alters:
@@ -262,6 +280,16 @@ def ensure_portfolio_schema(engine: Engine) -> None:
                 conn.execute(text(ddl))
         if has_cost_price:
             conn.execute(text("ALTER TABLE portfolio_position DROP COLUMN cost_price"))
+        # create_all 不给已有表补索引；老库有重复关联时建索引会失败，需先人工清理
+        if change_columns:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolio_position_change_advice_item "
+                "ON portfolio_position_change (advice_item_id) WHERE advice_item_id IS NOT NULL"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolio_position_change_client_request "
+                "ON portfolio_position_change (client_request_id) WHERE client_request_id IS NOT NULL"
+            ))
 
 
 def _backup_sqlite_database(engine: Engine) -> None:

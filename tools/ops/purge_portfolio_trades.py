@@ -148,7 +148,7 @@ def print_plan(db: Session, day: date, result: dict) -> None:
         )
     print("== 持仓回滚 ==")
     for p in result["positions"]:
-        action = "重建持仓" if p["position"] is None and p["target"] > 0 else "删除持仓" if p["target"] == 0 else "改股数"
+        action = "重建持仓" if p["position"] is None and p["target"] > 0 else "清仓" if p["target"] == 0 else "改股数"
         print(f"  组合{p['portfolio_id']} {p['stock_name']}：{p['current']:g} → {p['target']:g} 股（{action}）")
         if p["position"] is None and p["target"] > 0:
             print("    ⚠ 清仓时持仓行已被删除，分组、目标仓位、备注无法恢复，需要回 App 重新设置")
@@ -216,8 +216,11 @@ def apply(db: Session, day: date, result: dict) -> None:
     for p in result["positions"]:
         position, target = p["position"], p["target"]
         if target == 0:
+            # 和记调仓的清仓一致：保留持仓行，股数归零并标为 closed
             if position is not None:
-                db.delete(position)
+                position.quantity = 0
+                position.status = service.CLOSED_POSITION_STATUS
+                position.market_value = 0.0
         elif position is None:
             price = p["last_price"]
             db.add(
@@ -232,6 +235,7 @@ def apply(db: Session, day: date, result: dict) -> None:
             )
         else:
             position.quantity = target
+            position.status = "active"
             if position.current_price is not None:
                 position.market_value = target * position.current_price
     for _, flow in result["flows"]:

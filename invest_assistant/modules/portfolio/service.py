@@ -1,7 +1,9 @@
 from datetime import date, datetime, timezone
+import logging
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
@@ -30,6 +32,8 @@ from invest_assistant.modules.portfolio.schemas import (
 )
 from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.services.tushare import client as tushare_client
+
+logger = logging.getLogger(__name__)
 
 
 def create_portfolio(db: Session, payload: PortfolioCreate, user_id: int | None) -> Portfolio:
@@ -105,6 +109,9 @@ def update_group(db: Session, group_id: int, payload: PortfolioGroupCreate) -> P
     db.refresh(item)
     return item
 
+
+# 清仓后保留持仓行（分组、目标仓位、备注不丢），列表和统计一律排除
+CLOSED_POSITION_STATUS = "closed"
 
 REASON_TYPES = {"ai_advice", "personal", "fund_allocation", "corporate_action", "other"}
 
@@ -237,7 +244,13 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
     """按增量记一笔调仓。
 
     整条覆盖的持仓接口要求调用方回传全部字段，手机端缓存的股数一旦过期，算出的调整后股数就错；
-    这里在同一事务里读最新持仓、只改股数，持仓上的其他字段一律不动。"""
+    这里在同一事务里读最新持仓、只改股数，持仓上的其他字段一律不动。
+    client_request_id 是幂等键：网络中断后客户端拿同一个值重试，只返回第一次的结果，不重复记账。"""
+    request_id = str(payload.client_request_id or "").strip() or None
+    if request_id is not None:
+        recorded = _change_by_request_id(db, request_id)
+        if recorded is not None:
+            return _recorded_trade_result(db, portfolio_id, recorded)
     if db.get(Portfolio, portfolio_id) is None:
         raise ValueError("portfolio not found")
     if db.get(Stock, payload.stock_id) is None:
@@ -254,7 +267,9 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
         expected_action = "add" if payload.side == "buy" else "reduce"
         if adjust_advice.advice_item_action(db, payload.advice_item_id) != expected_action:
             raise ValueError("advice direction does not match trade side")
+        adjust_advice.validate_advice_link(db, payload.advice_item_id, payload.stock_id)
 
+    # 清仓只把股数归零、标为 closed，不删行：分组、目标仓位、备注留着，再买入时原样恢复
     position = db.scalar(
         select(PortfolioPosition).where(
             PortfolioPosition.portfolio_id == portfolio_id,
@@ -277,12 +292,13 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
     if position is None:
         position = PortfolioPosition(portfolio_id=portfolio_id, stock_id=payload.stock_id, quantity=quantity_after, status="active")
         db.add(position)
-    elif quantity_after == 0:
-        db.delete(position)
     else:
         position.quantity = quantity_after
+        position.status = "active" if quantity_after > 0 else CLOSED_POSITION_STATUS
         if position.current_price is not None:
             position.market_value = quantity_after * position.current_price
+        elif quantity_after == 0:
+            position.market_value = 0.0
 
     change = record_position_change(
         db,
@@ -297,10 +313,27 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
         advice_item_id=payload.advice_item_id,
         fallback_price=fallback_price,
     )
+    if change is not None:
+        change.client_request_id = request_id
     cash_flow = sync_change_cash(db, change) if payload.sync_cash else None
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 并发的同一次重试或同一条建议被抢先关联，以唯一索引为准
+        db.rollback()
+        recorded = _change_by_request_id(db, request_id) if request_id is not None else None
+        if recorded is not None:
+            return _recorded_trade_result(db, portfolio_id, recorded)
+        if payload.advice_item_id is not None:
+            raise ValueError("advice item already linked") from None
+        raise
     if cash_flow is not None:
-        upsert_value_snapshot(db, portfolio_id, source="manual")
+        try:
+            upsert_value_snapshot(db, portfolio_id, source="manual")
+        except Exception:
+            # 调仓已经提交，快照失败不能让接口报错，否则客户端会当作没记上而重试；定时任务会补快照
+            db.rollback()
+            logger.exception("调仓后更新组合 %s 市值快照失败", portfolio_id)
     stock = db.get(Stock, payload.stock_id)
     return {
         "change": _position_change_dict(
@@ -316,6 +349,30 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
         # ORM 对象交给 FastAPI 序列化会在 commit 之后抛 500，前端误以为失败而重复记账
         "cash_flow": PortfolioCashFlowRead.model_validate(cash_flow).model_dump() if cash_flow is not None else None,
         "cash_synced": cash_flow is not None,
+        "duplicate": False,
+    }
+
+
+def _change_by_request_id(db: Session, request_id: str) -> PortfolioPositionChange | None:
+    return db.scalar(select(PortfolioPositionChange).where(PortfolioPositionChange.client_request_id == request_id))
+
+
+def _recorded_trade_result(db: Session, portfolio_id: int, change: PortfolioPositionChange) -> dict:
+    """同一个幂等键再次提交：不再改持仓和现金，原样返回第一次记下的调仓。"""
+    if change.portfolio_id != portfolio_id:
+        raise ValueError("client_request_id already used by another portfolio")
+    return {
+        "change": _position_change_dict(
+            change,
+            db.get(Stock, change.stock_id),
+            db.get(Portfolio, change.portfolio_id),
+            adjust_advice.advice_brief_by_item(db, {change.advice_item_id} if change.advice_item_id else set()),
+        ),
+        "position_quantity_before": change.quantity_before,
+        "position_quantity_after": change.quantity_after,
+        "cash_flow": None,
+        "cash_synced": None,
+        "duplicate": True,
     }
 
 
@@ -422,7 +479,13 @@ def create_or_update_position(db: Session, portfolio_id: int, payload: Portfolio
 
 
 def list_positions(db: Session, portfolio_id: int) -> list[PortfolioPosition]:
-    return list(db.scalars(select(PortfolioPosition).where(PortfolioPosition.portfolio_id == portfolio_id).order_by(PortfolioPosition.id.asc())))
+    return list(
+        db.scalars(
+            select(PortfolioPosition)
+            .where(PortfolioPosition.portfolio_id == portfolio_id, PortfolioPosition.status != CLOSED_POSITION_STATUS)
+            .order_by(PortfolioPosition.id.asc())
+        )
+    )
 
 
 def update_position(db: Session, portfolio_id: int, position_id: int, payload: PortfolioPositionCreate) -> PortfolioPosition | None:
@@ -1152,7 +1215,7 @@ def _position_rows(db: Session, portfolio_id: int) -> list[tuple[PortfolioPositi
         db.execute(
             select(PortfolioPosition, Stock)
             .join(Stock, Stock.id == PortfolioPosition.stock_id)
-            .where(PortfolioPosition.portfolio_id == portfolio_id)
+            .where(PortfolioPosition.portfolio_id == portfolio_id, PortfolioPosition.status != CLOSED_POSITION_STATUS)
             .order_by(PortfolioPosition.id.asc())
         ).all()
     )
@@ -1295,7 +1358,14 @@ def _allocation_rows(allocation: dict[int, dict], total_value: float) -> list[di
 
 
 def _portfolio_has_positions(db: Session, portfolio_id: int) -> bool:
-    return bool(db.scalar(select(func.count(PortfolioPosition.id)).where(PortfolioPosition.portfolio_id == portfolio_id)) or 0)
+    return bool(
+        db.scalar(
+            select(func.count(PortfolioPosition.id)).where(
+                PortfolioPosition.portfolio_id == portfolio_id, PortfolioPosition.status != CLOSED_POSITION_STATUS
+            )
+        )
+        or 0
+    )
 
 
 def _portfolio_daily_performance(

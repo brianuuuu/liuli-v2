@@ -16,6 +16,7 @@ import {
   estimateAllocation,
   formatTradeQuantity,
   lastTradePortfolio,
+  newTradeRequestId,
   quantityAfterTrade,
   rememberTradePortfolio,
   validateTradeDraft,
@@ -57,6 +58,8 @@ export function TradeRecordPage() {
   const [syncCash, setSyncCash] = useState(true);
   const [note, setNote] = useState("");
   const [step, setStep] = useState<"edit" | "confirm">("edit");
+  // 每次进确认页换一个；确认页上点重试沿用同一个，网络中断后重试不会重复记账
+  const [requestId, setRequestId] = useState("");
 
   const overview = useQuery({ queryKey: ["portfolio-overview", null], queryFn: () => mobileApi.portfolioOverview(null), staleTime: 300_000 });
   const portfolioOptions = overview.data?.portfolio_options ?? [];
@@ -118,7 +121,8 @@ export function TradeRecordPage() {
       reason_type: reasonType,
       advice_item_id: reasonType === "ai_advice" ? adviceId : null,
       sync_cash: syncCash,
-      note: note.trim() || null
+      note: note.trim() || null,
+      client_request_id: requestId
     }),
     onSuccess: async () => {
       rememberTradePortfolio(portfolioId as number);
@@ -129,6 +133,12 @@ export function TradeRecordPage() {
         client.invalidateQueries({ queryKey: ["workbench-today"] })
       ]);
       navigate("/dashboard", { replace: true });
+    },
+    onError: () => {
+      // 失败也可能已经记上（比如响应途中断网），刷新看板，返回后看到的是真实持仓
+      void client.invalidateQueries({ queryKey: ["portfolio-trades"] });
+      void client.invalidateQueries({ queryKey: ["portfolio-detail"] });
+      void client.invalidateQueries({ queryKey: ["portfolio-overview"] });
     }
   });
 
@@ -176,7 +186,7 @@ export function TradeRecordPage() {
             {note.trim() ? <><dt>备注</dt><dd>{note.trim()}</dd></> : null}
           </dl>
           <p className="trade-hint">占比按当前持仓和现价估算，最终以记录后的数据为准。</p>
-          {submit.isError ? <span className="form-error">{submit.error instanceof ApiError && submit.error.detail ? `记录失败：${submit.error.detail}` : "记录失败，请重试"}</span> : null}
+          {submit.isError ? <span className="form-error">{submit.error instanceof ApiError && submit.error.detail ? `记录失败：${submit.error.detail}` : "记录结果未知，可直接重试，不会重复记录"}</span> : null}
           <div className="suggestion-review-submit">
             <button type="button" className="text-button" disabled={submit.isPending} onClick={() => setStep("edit")}>返回修改</button>
             <button type="button" className="primary-button" disabled={submit.isPending} onClick={() => submit.mutate()}>
@@ -356,7 +366,16 @@ export function TradeRecordPage() {
 
         <div className="trade-footer">
           {/* 不可用时按钮直接写原因，不用猜哪里没填 */}
-          <button type="button" className="primary-button" disabled={Boolean(error) || detail.isLoading} onClick={() => setStep("confirm")}>
+          <button
+            type="button"
+            className="primary-button"
+            disabled={Boolean(error) || detail.isLoading}
+            onClick={() => {
+              setRequestId(newTradeRequestId());
+              submit.reset();
+              setStep("confirm");
+            }}
+          >
             {detail.isLoading ? "加载中…" : error ?? "下一步"}
           </button>
         </div>

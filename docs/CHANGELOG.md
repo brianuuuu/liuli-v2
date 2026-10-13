@@ -15,6 +15,21 @@
 
 ---
 
+## 1.0.11 — 2026-10-13
+
+- **变更**：
+  - 记调仓支持幂等键 `client_request_id`：手机端每次进确认页生成一个，确认页上重试沿用；同一个值只记一次，重复提交原样返回第一次的调仓（`duplicate = true`）。
+  - 清仓改为软删除：持仓行保留，`quantity = 0`、`status = closed`，分组、目标权重、备注不丢；持仓列表和统计排除 closed，再买入时复用该行。
+  - 一条微操建议条目（报告里的一个标的）只能被一笔调仓关联，不分批；候选列表隐藏已关联的条目。
+  - 调仓提交后更新市值快照失败只记日志，不再让接口报错。
+  - 手机端记调仓失败且无明确原因时提示"记录结果未知，可直接重试，不会重复记录"，并刷新看板数据。
+  - `tools/ops/purge_portfolio_trades.py` 回滚清仓时按软删除处理。
+- **原因**：1.0.10 修复的 500 让同一笔调仓被重复提交 10 次、同一条建议被关联 6 次，清仓还删掉了持仓行上的设置。
+- **影响**：后端 `POST /api/portfolios/{id}/trades` 新增可选字段 `client_request_id`、响应新增 `duplicate`；建议候选接口过滤已关联条目；Android H5 记调仓页；Web 不变（Web 按调整后总数现取最新持仓换算增量，重试天然不重复）。
+- **数据库**：`portfolio_position_change` 新增列 `client_request_id` 和两个部分唯一索引，迁移脚本 `tools/migrations/2026-10-13_position_change_idempotency.sql`，执行前先跑同名 `_precheck.sql` 确认没有被重复关联的建议。
+
+---
+
 ## 1.0.10 — 2026-10-13
 
 - **变更**：修复记调仓接口在同步现金时返回 500：响应里的 `cash_flow` 是 ORM 对象，FastAPI 序列化失败，而此时调仓、持仓和现金已经提交；改为按 `PortfolioCashFlowRead` 输出。补一条走 HTTP 路由的测试。新增运维脚本 `tools/ops/purge_portfolio_trades.py`，按日期撤销调仓并恢复持仓、现金、微操建议执行情况和当日市值快照，默认只预览，`--apply` 前先导出要改动的行。

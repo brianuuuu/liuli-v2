@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.10**（2026-10-13）
+> 当前版本：**1.0.11**（2026-10-13）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -718,13 +718,19 @@ portfolio_review：阶段性复盘记录。
   现金校准（adjustment）仍是余额的最终依据，手续费、税费等误差靠它修正；
 调仓统一走增量接口 POST /{id}/trades（side = buy / sell / close），Web 和手机端都用它：
   同一事务里读最新持仓、只改股数，分组、目标权重、备注、行情缓存等其余字段不动；
-  卖出超过持仓拒绝；清仓删除持仓行；关联建议的方向须与 side 一致；sync_cash 默认 true；
+  卖出超过持仓拒绝；关联建议的方向须与 side 一致；sync_cash 默认 true；
+  清仓不删行：quantity 归零、status = closed，分组、目标权重、备注保留；持仓列表和统计排除 closed，
+    再买入时复用该行并恢复 active；Web 的"删除持仓"仍是物理删除；
+  client_request_id 幂等键：手机端每次进确认页生成一个，确认页重试沿用；同一个值只记一次，
+    重复提交原样返回第一次的调仓（duplicate = true），不再改持仓和现金；
+  调仓提交后更新市值快照失败只记日志，不让接口报错（定时任务会补），避免客户端误判失败而重试；
   Web 表单填调整后总数，页面现取最新持仓换算成增量；手机端直接填本次成交股数，不提供公司行为；
 整条覆盖的持仓接口（POST/PUT positions）保留但前端不再使用，它会把未传的持仓字段置空，不要用于调股数；
 change_date 默认当天，可补录；
 price 选填：留空按调仓日前复权收盘价估算（日线未同步时取持仓现价），price_source = manual / estimated；
 reason_type：ai_advice / personal / fund_allocation / corporate_action / other；公司行为不估价；
-advice_item_id：reason_type = ai_advice 时可关联近 10 天同标的的增持/减持建议，只存 ID。
+advice_item_id：reason_type = ai_advice 时可关联近 10 天同标的的增持/减持建议，只存 ID；
+  一条建议条目（报告里的一个标的）只能被一笔调仓关联，不分批（部分唯一索引）；候选列表不再给出已关联的条目。
 ```
 
 "组合复盘"页的"调仓来源对比"：按理由来源 × 加减方向统计实际调仓的 5/20/60 日效果和 20 日胜率，口径与微操复盘一致（收益基准取 T 日前复权收盘，不用手填价），公司行为不计入，查询时现算。
@@ -1506,12 +1512,14 @@ id, portfolio_id, name, group_type, target_weight, max_stock_count, sort_order, 
 
 ```text
 id, portfolio_id, group_id, stock_id, quantity, current_price, previous_close, market_value, quote_time, price_source, target_weight, note, status, created_at, updated_at
+status：active 持有中 / closed 已清仓（quantity = 0，保留行和设置，列表与统计排除）
 ```
 
 #### `portfolio_position_change`：调仓记录（持仓数量变动自动留痕）
 
 ```text
-id, portfolio_id, stock_id, quantity_before, quantity_after, quantity_delta, change_date, price, price_source, reason_type, advice_item_id, note, created_at
+id, portfolio_id, stock_id, quantity_before, quantity_after, quantity_delta, change_date, price, price_source, reason_type, advice_item_id, client_request_id, note, created_at
+唯一：advice_item_id 非空时唯一；client_request_id 非空时唯一（记调仓幂等键）
 ```
 
 #### `portfolio_review`：组合复盘
