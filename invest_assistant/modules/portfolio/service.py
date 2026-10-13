@@ -20,6 +20,7 @@ from invest_assistant.modules.stock_analysis import service as stock_analysis_se
 from invest_assistant.modules.stock_analysis.models import StockDailyBar
 from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashFlowCreate,
+    PortfolioCashFlowRead,
     PortfolioCashUpdate,
     PortfolioCreate,
     PortfolioGroupCreate,
@@ -312,7 +313,8 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
         else None,
         "position_quantity_before": quantity_before,
         "position_quantity_after": quantity_after,
-        "cash_flow": cash_flow,
+        # ORM 对象交给 FastAPI 序列化会在 commit 之后抛 500，前端误以为失败而重复记账
+        "cash_flow": PortfolioCashFlowRead.model_validate(cash_flow).model_dump() if cash_flow is not None else None,
         "cash_synced": cash_flow is not None,
     }
 

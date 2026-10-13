@@ -237,3 +237,34 @@ def test_advice_link_must_match_trade_side():
     result = trade(db, portfolio, stock, reason_type="ai_advice", advice_item_id=add_item.id)
     assert result["change"]["advice_item_id"] == add_item.id
     assert result["change"]["advice_action"] == "add"
+
+
+def test_trade_route_returns_json_when_cash_synced():
+    """走 HTTP 路由：同步现金时响应序列化失败会在 commit 之后返回 500，手机端误以为失败而重复记账。"""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sqlalchemy.pool import StaticPool
+
+    from invest_assistant.bootstrap.database import get_db
+    from invest_assistant.modules.basic.auth.dependencies import get_current_user
+    from invest_assistant.modules.portfolio.router import router
+
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine)
+    db = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)()
+    portfolio, stock = seed(db)
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: None
+
+    response = TestClient(app).post(
+        f"/api/portfolios/{portfolio.id}/trades",
+        json={"stock_id": stock.id, "side": "sell", "quantity": 200, "price": 15.0, "sync_cash": True},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["cash_synced"] is True
+    assert body["cash_flow"]["flow_type"] == "trade"
+    assert body["cash_flow"]["amount"] == pytest.approx(3_000)
