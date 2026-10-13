@@ -619,7 +619,9 @@ CANDIDATE_LOOKBACK_DAYS = 10
 
 
 def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfolio_id: int | None = None) -> list[dict]:
-    """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持、还没被关联过；组合口径的报告只给对应组合。"""
+    """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持；组合口径的报告只给对应组合。
+
+    已被调仓关联过的条目照样返回、带上 linked_change，前端置灰标"已关联"，排在可选条目之后。"""
     stmt = (
         select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice)
         .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
@@ -629,16 +631,19 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
             PortfolioAdjustAdviceItem.action.in_(DIRECTIONAL_ACTIONS),
             PortfolioAdjustAdvice.target_trade_date <= change_date,
             PortfolioAdjustAdvice.target_trade_date >= change_date - timedelta(days=CANDIDATE_LOOKBACK_DAYS),
-            ~PortfolioAdjustAdviceItem.id.in_(
-                select(PortfolioPositionChange.advice_item_id).where(PortfolioPositionChange.advice_item_id.is_not(None))
-            ),
         )
         .order_by(PortfolioAdjustAdvice.target_trade_date.desc(), PortfolioAdjustAdviceItem.id.desc())
     )
     if portfolio_id is not None:
         stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None) | (PortfolioAdjustAdvice.portfolio_id == portfolio_id))
     rows = db.execute(stmt.limit(10)).all()
-    return [
+    linked = {
+        change.advice_item_id: change
+        for change in db.scalars(
+            select(PortfolioPositionChange).where(PortfolioPositionChange.advice_item_id.in_([item.id for item, _ in rows]))
+        )
+    } if rows else {}
+    candidates = [
         {
             "id": item.id,
             "target_trade_date": advice.target_trade_date,
@@ -648,9 +653,19 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
             "price_low": item.price_low,
             "price_high": item.price_high,
             "core_logic": _loads(item.detail_json).get("core_logic"),
+            "linked_change": (
+                {
+                    "id": linked[item.id].id,
+                    "change_date": linked[item.id].change_date,
+                    "quantity_delta": linked[item.id].quantity_delta,
+                }
+                if item.id in linked
+                else None
+            ),
         }
         for item, advice in rows
     ]
+    return sorted(candidates, key=lambda row: row["linked_change"] is not None)
 
 
 def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> None:

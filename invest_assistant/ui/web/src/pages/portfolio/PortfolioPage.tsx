@@ -1129,7 +1129,13 @@ export function PortfolioPage() {
             <Form.Item
               name="change_advice_item_id"
               label="关联微操建议"
-              extra={directionalCandidates.length ? "关联后，这笔调仓直接算作该建议已执行" : "近 10 天没有这只标的同方向的增持、减持建议，可不关联"}
+              extra={
+                !directionalCandidates.length
+                  ? "近 10 天没有这只标的同方向的增持、减持建议，可不关联"
+                  : directionalCandidates.every((item) => item.linked_change)
+                    ? "这些建议都已关联过调仓，可不关联"
+                    : "关联后，这笔调仓直接算作该建议已执行；一条建议只能关联一次"
+              }
             >
               <Select
                 allowClear
@@ -1137,7 +1143,12 @@ export function PortfolioPage() {
                 onChange={selectAdviceCandidate}
                 options={directionalCandidates.map((item) => ({
                   value: item.id,
-                  label: `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}${item.price_low !== null && item.price_low !== undefined ? ` · ${item.price_low}—${item.price_high}` : ""}`
+                  disabled: Boolean(item.linked_change),
+                  label: `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}${
+                    item.linked_change
+                      ? ` · 已关联 ${item.linked_change.change_date.slice(5)} ${item.linked_change.quantity_delta > 0 ? "+" : "−"}${Math.abs(item.linked_change.quantity_delta)}股`
+                      : item.price_low !== null && item.price_low !== undefined ? ` · ${item.price_low}—${item.price_high}` : ""
+                  }`
                 }))}
               />
             </Form.Item>

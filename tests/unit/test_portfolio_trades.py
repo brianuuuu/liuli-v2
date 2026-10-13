@@ -205,10 +205,10 @@ def test_manual_cash_flow_rejects_trade_type():
         service.create_cash_flow(db, portfolio.id, PortfolioCashFlowCreate(flow_type="trade", amount=100))
 
 
-def seed_advice_item(db: Session, portfolio: Portfolio, stock: Stock, action: str) -> PortfolioAdjustAdviceItem:
+def seed_advice_item(db: Session, portfolio: Portfolio, stock: Stock, action: str, feedback_id: int = 1) -> PortfolioAdjustAdviceItem:
     advice = PortfolioAdjustAdvice(
         portfolio_id=portfolio.id,
-        feedback_id=1,
+        feedback_id=feedback_id,
         data_as_of_date=date.today(),
         target_trade_date=date.today(),
         status="active",
@@ -320,7 +320,24 @@ def test_advice_item_can_be_linked_only_once():
         trade(db, portfolio, stock, side="sell", quantity=200, reason_type="ai_advice", advice_item_id=item.id)
 
     assert position_of(db, portfolio).quantity == 800
-    assert adjust_advice.list_advice_candidates(db, stock.id, date.today(), portfolio.id) == []
+    # 已关联的照样列出，带上关联的那笔调仓，供前端置灰标注
+    [linked] = adjust_advice.list_advice_candidates(db, stock.id, date.today(), portfolio.id)
+    assert linked["id"] == item.id
+    assert linked["linked_change"]["quantity_delta"] == -200
+    assert linked["linked_change"]["change_date"] == date.today()
+
+
+def test_advice_candidates_list_unlinked_before_linked():
+    from invest_assistant.modules.portfolio import adjust_advice
+
+    db = make_session()
+    portfolio, stock = seed(db)
+    older = seed_advice_item(db, portfolio, stock, "reduce", feedback_id=1)
+    newer = seed_advice_item(db, portfolio, stock, "reduce", feedback_id=2)
+    trade(db, portfolio, stock, side="sell", quantity=100, reason_type="ai_advice", advice_item_id=newer.id)
+
+    rows = adjust_advice.list_advice_candidates(db, stock.id, date.today(), portfolio.id)
+    assert [(row["id"], row["linked_change"] is not None) for row in rows] == [(older.id, False), (newer.id, True)]
 
 
 def test_snapshot_failure_after_commit_still_returns_result(monkeypatch):

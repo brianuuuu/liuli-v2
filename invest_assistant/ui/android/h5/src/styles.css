@@ -518,6 +518,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-options button { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; color: var(--text); text-align: left; }
 .trade-options button:active { background: var(--panel-soft); }
 .trade-options button.is-active { background: var(--blue-soft); color: var(--blue); }
+/* 已被调仓关联过的建议：一条建议只能关联一次，置灰但保留可见 */
+.trade-options button:disabled { color: var(--subtle); }
+.trade-options button:disabled:active { background: none; }
 .trade-options strong { min-width: 0; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .trade-options strong small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .trade-options em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }

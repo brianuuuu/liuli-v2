@@ -1071,6 +1071,8 @@ export type AdjustAdviceCandidate = {
   price_low?: number | null;
   price_high?: number | null;
   core_logic?: string | null;
+  /** 已被调仓关联时给出那笔调仓；一条建议只能关联一次，下拉里置灰 */
+  linked_change?: { id: number; change_date: string; quantity_delta: number } | null;
 };
 
 export type PositionChangeReviewRow = {

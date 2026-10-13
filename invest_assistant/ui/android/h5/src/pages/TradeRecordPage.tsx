@@ -16,6 +16,7 @@ import {
   estimateAllocation,
   formatTradeQuantity,
   lastTradePortfolio,
+  linkedChangeLabel,
   newTradeRequestId,
   quantityAfterTrade,
   rememberTradePortfolio,
@@ -341,16 +342,23 @@ export function TradeRecordPage() {
           {reasonType === "ai_advice" ? (
             <div className="trade-row trade-row--stack">
               <span>关联微操建议</span>
-              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
+              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (<>
+                {matchingCandidates.every((item) => item.linked_change) ? <small className="trade-hint">这些建议都已关联过调仓，可不关联</small> : null}
                 <div className="trade-options">
                   {matchingCandidates.map((item: AdjustAdviceCandidate) => (
-                    <button type="button" key={item.id} className={adviceId === item.id ? "is-active" : ""} onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}>
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={adviceId === item.id ? "is-active" : ""}
+                      disabled={Boolean(item.linked_change)}
+                      onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}
+                    >
                       <strong>{item.target_trade_date} {item.action === "add" ? "增持" : "减持"}{item.quantity ? ` ${formatTradeQuantity(item.quantity)} 股` : ""}</strong>
-                      <em>{item.price_low !== null && item.price_low !== undefined ? `${item.price_low}—${item.price_high}` : ""}</em>
+                      <em>{item.linked_change ? `已关联 · ${linkedChangeLabel(item.linked_change)}` : item.price_low !== null && item.price_low !== undefined ? `${item.price_low}—${item.price_high}` : ""}</em>
                     </button>
                   ))}
                 </div>
-              ) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
+              </>) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
             </div>
           ) : null}
           <label className="trade-row">

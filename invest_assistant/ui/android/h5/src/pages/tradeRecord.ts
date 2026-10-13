@@ -166,3 +166,9 @@ export function tradeDeltaLabel(change: { quantity_delta: number; quantity_after
   const sign = change.quantity_delta > 0 ? "+" : "−";
   return `${sign}${formatTradeQuantity(Math.abs(change.quantity_delta))} 股`;
 }
+
+/** 候选建议已被关联时的说明：哪天、加减多少股，例如 "10-13 −500 股"。 */
+export function linkedChangeLabel(change: { change_date: string; quantity_delta: number }): string {
+  const sign = change.quantity_delta > 0 ? "+" : "−";
+  return `${change.change_date.slice(5)} ${sign}${formatTradeQuantity(Math.abs(change.quantity_delta))} 股`;
+}

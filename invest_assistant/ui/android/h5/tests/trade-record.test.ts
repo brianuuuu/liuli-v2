@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   adviceActionForSide,
   estimateAllocation,
+  linkedChangeLabel,
+  newTradeRequestId,
   quantityAfterTrade,
   tradeDeltaLabel,
   validateTradeDraft,
@@ -96,5 +98,16 @@ describe("trade record", () => {
     expect(tradeDeltaLabel({ quantity_delta: 500, quantity_after: 1500 })).toBe("+500 股");
     expect(tradeDeltaLabel({ quantity_delta: -300, quantity_after: 700 })).toBe("−300 股");
     expect(tradeDeltaLabel({ quantity_delta: -700, quantity_after: 0 })).toBe("清仓");
+  });
+
+  it("labels the trade an advice is already linked to", () => {
+    expect(linkedChangeLabel({ change_date: "2026-10-13", quantity_delta: -500 })).toBe("10-13 −500 股");
+    expect(linkedChangeLabel({ change_date: "2026-10-12", quantity_delta: 1200 })).toBe("10-12 +1,200 股");
+  });
+
+  it("creates a distinct request id per confirmation", () => {
+    const first = newTradeRequestId();
+    expect(first.length).toBeGreaterThanOrEqual(8);
+    expect(newTradeRequestId()).not.toBe(first);
   });
 });
