@@ -491,7 +491,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pending-report-card__actions .is-delete { border: 1px solid #fecaca; background: var(--panel); color: #dc2626; }
 
 /* 记一笔调仓：白卡片分组，卡内为“左标签、右取值”的行；底部按钮吸底 */
-.trade-entry { width: 100%; }
 /* 底部按钮固定在屏幕底部，表单底部留出按钮高度 */
 .trade-form { display: grid; gap: 12px; padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
 .trade-card { overflow: hidden; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }

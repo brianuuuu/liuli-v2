@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Plus } from "lucide-react";
 import { lazy, Suspense, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -119,7 +119,7 @@ export function DashboardPage() {
         if (key === "market") return <MarketDashboard active={key === tab} />;
         if (key === "track") return <TrackDashboard active={key === tab} />;
         if (key === "stock") return <StockDashboard active={key === tab} />;
-        return <PortfolioDashboard />;
+        return <PortfolioDashboard active={key === tab} />;
       }} />
     </MobilePageFrame>
   );
@@ -649,7 +649,7 @@ function StockMaterialsView() {
   );
 }
 
-function PortfolioDashboard() {
+function PortfolioDashboard({ active }: { active: boolean }) {
   const navigate = useNavigate();
   const [portfolioId, setPortfolioIdState] = useState<number | null>(lastDashboardPortfolio);
   const setPortfolioId = (id: number | null) => {
@@ -728,13 +728,17 @@ function PortfolioDashboard() {
             </div>
           ) : <EmptyState title={trades.isLoading ? "加载中" : "暂无调仓记录"} />}
         </SectionCard>
-        <button
-          type="button"
-          className="primary-button trade-entry"
-          onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
-        >
-          ＋ 记一笔调仓
-        </button>
+        {active ? createPortal(
+          <button
+            type="button"
+            className="floating-button"
+            aria-label="记一笔调仓"
+            onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
+          >
+            <Plus />
+          </button>,
+          document.body
+        ) : null}
         <SectionCard title="组合选择">
           <div className="portfolio-segments" role="group" aria-label="组合选择">
             <button type="button" className={portfolioId === null ? "is-active" : ""} onClick={() => setPortfolioId(null)}>全部</button>
