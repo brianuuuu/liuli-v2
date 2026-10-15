@@ -1,3 +1,5 @@
+import type { KnowledgeNote } from "../api/knowledge";
+
 export type TokenResponse = {
   access_token: string;
   token_type: string;
@@ -294,7 +296,7 @@ export type TrackMaterial = {
   id: number;
   track_id: number;
   track_name?: string | null;
-  material_type: "source_item" | "knowledge_note" | string;
+  material_type: "source_item" | string;
   material_id: number;
   material_title?: string | null;
   material_summary?: string | null;
@@ -377,6 +379,7 @@ export type TrackDetailSummary = {
   pending_material_count: number;
   high_importance_material_count: number;
   bound_stock_count: number;
+  note_count?: number;
   // 资讯热度：7d 窗口内带该赛道标签的资讯条数；heat_change 是相对一天前的变化。
   latest_heat_score?: number | null;
   heat_change?: number | null;
@@ -444,6 +447,8 @@ export type TrackDetail = {
   trend_snapshots: TrackTrendSnapshotBrief[];
   materials: TrackMaterial[];
   stocks: TrackDetailStockRelation[];
+  // 笔记经标签归属到赛道：笔记打的标签绑定在这条赛道上就算。
+  notes?: KnowledgeNote[];
   tags: TagBinding[];
 };
 
@@ -536,17 +541,6 @@ export type StockPoolItem = {
   status: string;
   source?: string | null;
   reason?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-export type StockResearchNote = {
-  id: number;
-  stock_id: number;
-  note_type: string;
-  title: string;
-  content: string;
-  related_track_id?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -675,7 +669,7 @@ export type StockTrackTagBinding = StockTrackRelation;
 export type StockMaterial = {
   id: number;
   stock_id: number;
-  material_type: "source_item" | "knowledge_note" | string;
+  material_type: "source_item" | "company_disclosure" | string;
   material_id: number;
   impact_direction?: "positive" | "negative" | "neutral" | "noise" | string | null;
   importance_level?: "high" | "medium" | "low" | string | null;
@@ -827,7 +821,6 @@ export type StockDashboardNoteSummary = {
   note_type: string;
   title: string;
   content: string;
-  related_track_id?: number | null;
   updated_at?: string | null;
 };
 
@@ -944,7 +937,8 @@ export type StockDetail = {
   materials: StockMaterial[];
   disclosures: StockDetailDisclosure[];
   tracks: StockTrackRelation[];
-  notes: StockResearchNote[];
+  // 笔记经标签归属到标的：笔记打的标签绑定在这只股票上就算。
+  notes: KnowledgeNote[];
   tags: TagBinding[];
 };
 

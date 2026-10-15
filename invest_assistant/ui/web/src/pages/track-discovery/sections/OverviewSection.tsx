@@ -28,8 +28,7 @@ const confidenceLabel: Record<string, string> = {
 };
 
 const materialTypeLabel: Record<string, string> = {
-  source_item: "信息流",
-  knowledge_note: "笔记"
+  source_item: "信息流"
 };
 
 const importanceLabel: Record<string, string> = {

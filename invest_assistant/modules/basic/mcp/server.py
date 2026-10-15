@@ -68,8 +68,9 @@ MCP_TOOL_DESCRIPTIONS = {
         "支持 status、q、limit、offset 过滤。归档赛道等同已删除，不会返回，status 也不接受 archived。"
     ),
     "track_discovery.get_track_detail": (
-        "按已知 track_id 获取赛道详情。默认只返回赛道基础信息、汇总、最新快照、相关标的和标签；"
-        "需要研究材料、历史快照或热度趋势时用 sections 显式指定（materials/snapshots/stocks/tags/heat），"
+        "按已知 track_id 获取赛道详情。默认只返回赛道基础信息、汇总、最新快照、相关标的、用户笔记和标签；"
+        "用户笔记是用户本人的重大判断，分量高于材料，分析时优先参考。"
+        "需要研究材料、历史快照或热度趋势时用 sections 显式指定（materials/snapshots/stocks/notes/tags/heat），"
         "列表字段按 list_limit 截断并给出 {字段}_total。仅在已知 track_id 时调用，不要猜测 ID。"
     ),
     "stock_analysis.list_pool": (
@@ -81,7 +82,8 @@ MCP_TOOL_DESCRIPTIONS = {
     "stock_analysis.get_stock_profile": (
         "按已知 stock_id 获取本地股票画像和分析信息。仅在已知 stock_id 时调用；"
         "不要把股票代码或证券代码直接当 stock_id，缺少 ID 时先用 stock_analysis.list_pool 查询。"
-        "默认只返回基础信息、汇总、最新评分、最新估值和赛道绑定；需要材料、公告、笔记、标签或历史序列时"
+        "默认只返回基础信息、汇总、最新评分、最新估值、赛道绑定和用户笔记；"
+        "用户笔记是用户本人的重大判断，分量高于材料，分析时优先参考。需要材料、公告、标签或历史序列时"
         "用 sections 显式指定（score_history/valuation_history/materials/disclosures/notes/tags），"
         "列表字段按 history_limit 截断并给出 {字段}_total，history_limit 取值为 1 到 100。"
     ),

@@ -16,7 +16,8 @@ STOCK_PROFILE_SECTIONS: dict[str, tuple[str, ...]] = {
     "notes": ("notes",),
     "tags": ("tags",),
 }
-DEFAULT_STOCK_PROFILE_SECTIONS = ("score", "valuation", "tracks")
+# 笔记是用户本人的重大想法，数量少、分量最重，默认带上。
+DEFAULT_STOCK_PROFILE_SECTIONS = ("score", "valuation", "tracks", "notes")
 DEFAULT_STOCK_PROFILE_HISTORY_LIMIT = 20
 MAX_STOCK_PROFILE_HISTORY_LIMIT = 100
 

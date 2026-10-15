@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.market_radar.models import SourceItem
+from invest_assistant.modules.knowledge_base.models import KnowledgeNote, KnowledgeNoteTagRelation
+from invest_assistant.modules.market_radar.models import SourceItem, StockTagRelation, Tag
 from invest_assistant.modules.stock_analysis.models import (
     StockMaterial,
     StockPoolItem,
-    StockResearchNote,
     StockScoreSnapshot,
     StockTrackRelation,
     StockValuationSnapshot,
@@ -140,13 +140,16 @@ def test_stock_dashboard_aggregates_pool_scores_materials_and_summary():
                 analysis_date=date(2026, 5, 31),
                 researcher="tester",
             ),
-            StockResearchNote(
-                stock_id=focused_stock.id,
-                note_type="核心逻辑",
-                title="机器人订单兑现",
-                content="订单和核心部件交付进度持续改善",
-                related_track_id=robot_track.id,
-            ),
+        ]
+    )
+    stock_tag = Tag(name="重点科技", type="stock", source="manual", status="active")
+    note = KnowledgeNote(title="机器人订单兑现", content="订单和核心部件交付进度持续改善", note_type="", status="active")
+    db.add_all([stock_tag, note])
+    db.flush()
+    db.add_all(
+        [
+            StockTagRelation(stock_id=focused_stock.id, tag_id=stock_tag.id, source="manual", status="active"),
+            KnowledgeNoteTagRelation(note_id=note.id, tag_id=stock_tag.id),
         ]
     )
     source = SourceItem(
@@ -171,7 +174,7 @@ def test_stock_dashboard_aggregates_pool_scores_materials_and_summary():
             ),
             StockMaterial(
                 stock_id=focused_stock.id,
-                material_type="knowledge_note",
+                material_type="company_disclosure",
                 material_id=1,
                 impact_direction="neutral",
                 importance_level="medium",
@@ -364,7 +367,7 @@ def test_stock_dashboard_ranks_hot_stocks_by_material_activity():
     db.add(
         StockMaterial(
             stock_id=first.id,
-            material_type="knowledge_note",
+            material_type="company_disclosure",
             material_id=101,
             importance_level="high",
             status="confirmed",

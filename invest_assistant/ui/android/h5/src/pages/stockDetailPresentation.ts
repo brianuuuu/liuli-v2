@@ -9,8 +9,8 @@ export const STOCK_DETAIL_SECTIONS: { value: StockDetailSection; label: string }
   { value: "rating", label: "评级" },
   { value: "valuation", label: "估值" },
   { value: "trend", label: "趋势" },
-  { value: "materials", label: "材料" },
-  { value: "notes", label: "笔记" }
+  { value: "notes", label: "笔记" },
+  { value: "materials", label: "材料" }
 ];
 
 export const SCORE_DIMENSIONS: { key: keyof StockScoreSnapshot; label: string }[] = [

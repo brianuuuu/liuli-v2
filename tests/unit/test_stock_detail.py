@@ -8,11 +8,11 @@ from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.disclosure_library.service import disclosure_to_stock_analysis
 from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.knowledge_base.models import KnowledgeNote, KnowledgeNoteTagRelation
 from invest_assistant.modules.market_radar.models import SourceItem, StockTagRelation, Tag
 from invest_assistant.modules.stock_analysis.models import (
     StockMaterial,
     StockPoolItem,
-    StockResearchNote,
     StockScoreSnapshot,
     StockTrackRelation,
     StockValuationSnapshot,
@@ -82,13 +82,19 @@ def test_stock_detail_aggregates_current_stock_research_data():
                 primary_model="profit",
                 researcher="analyst",
             ),
-            StockResearchNote(
-                stock_id=stock.id,
-                note_type="thesis",
-                title="份额提升",
-                content="空调和海外业务份额继续提升。",
-                related_track_id=track.id,
-            ),
+        ]
+    )
+    other_tag = Tag(name="光伏", type="track", source="manual", status="active")
+    tagged = KnowledgeNote(title="份额提升", content="空调和海外业务份额继续提升。", note_type="", status="active")
+    archived = KnowledgeNote(title="旧判断", content="已归档的判断", note_type="", status="archived")
+    unrelated = KnowledgeNote(title="光伏", content="与美的无关", note_type="", status="active")
+    db.add_all([other_tag, tagged, archived, unrelated])
+    db.flush()
+    db.add_all(
+        [
+            KnowledgeNoteTagRelation(note_id=tagged.id, tag_id=tag.id),
+            KnowledgeNoteTagRelation(note_id=archived.id, tag_id=tag.id),
+            KnowledgeNoteTagRelation(note_id=unrelated.id, tag_id=other_tag.id),
         ]
     )
     source = SourceItem(
@@ -124,7 +130,10 @@ def test_stock_detail_aggregates_current_stock_research_data():
     assert [item["report_period"] for item in detail["valuation_history"]] == ["2025A", "2026Q1"]
     assert detail["tracks"][0]["track"]["name"] == "智能家电"
     assert detail["tags"][0]["tag"]["name"] == "白电龙头"
-    assert detail["notes"][0]["title"] == "份额提升"
+    # 笔记经标签归属：打了该股绑定标签的正常笔记才算，归档的和别的标签的不算
+    assert [note.title for note in detail["notes"]] == ["份额提升"]
+    assert detail["notes"][0].tags[0].name == "白电龙头"
+    assert detail["summary"]["note_count"] == 1
     assert detail["materials"][0]["material_title"] == "美的集团海外业务增长"
     assert detail["summary"]["material_count"] == 1
     assert detail["summary"]["high_importance_material_count"] == 1
@@ -236,7 +245,6 @@ def test_get_stock_material_detail_covers_three_material_types():
         source_url="https://example.com/midea",
         publish_time=datetime(2026, 5, 31, 9, 30, tzinfo=timezone.utc),
     )
-    note = StockResearchNote(stock_id=stock.id, note_type="thesis", title="份额提升", content="## 份额\n\n继续提升")
     disclosure = CompanyDisclosure(
         stock_id=stock.id,
         source="cninfo",
@@ -247,7 +255,7 @@ def test_get_stock_material_detail_covers_three_material_types():
         parsed_text_path="var/disclosures/000333-2025A.txt",
         parse_status="parsed",
     )
-    db.add_all([source, note, disclosure])
+    db.add_all([source, disclosure])
     db.flush()
     from_source = StockMaterial(
         stock_id=stock.id,
@@ -258,13 +266,10 @@ def test_get_stock_material_detail_covers_three_material_types():
         status="confirmed",
         note="验证海外逻辑",
     )
-    from_note = StockMaterial(
-        stock_id=stock.id, material_type="knowledge_note", material_id=note.id, status="pending"
-    )
     from_disclosure = StockMaterial(
         stock_id=stock.id, material_type="company_disclosure", material_id=disclosure.id, status="pending"
     )
-    db.add_all([from_source, from_note, from_disclosure])
+    db.add_all([from_source, from_disclosure])
     db.commit()
 
     detail = get_stock_material_detail(db, from_source.id)
@@ -274,8 +279,6 @@ def test_get_stock_material_detail_covers_three_material_types():
     # 列表字段仍然是截断过的，正文是完整的
     assert detail["material_summary"].endswith("...")
     assert detail["material_content"] == long_body
-
-    assert get_stock_material_detail(db, from_note.id)["material_content"] == "## 份额\n\n继续提升"
 
     disclosure_detail = get_stock_material_detail(db, from_disclosure.id)
     assert disclosure_detail["material_content"] is None

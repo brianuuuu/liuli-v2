@@ -51,14 +51,14 @@ describe("标的详情路由", () => {
 describe("标的详情分区", () => {
   it("默认进入概览，评级、估值、趋势各自独立成页", () => {
     expect(DEFAULT_STOCK_DETAIL_SECTION).toBe("overview");
-    expect(STOCK_DETAIL_SECTIONS.map((item) => item.label)).toEqual(["概览", "评级", "估值", "趋势", "材料", "笔记"]);
+    expect(STOCK_DETAIL_SECTIONS.map((item) => item.label)).toEqual(["概览", "评级", "估值", "趋势", "笔记", "材料"]);
     expect(STOCK_DETAIL_SECTIONS.map((item) => item.value)).toEqual([
       "overview",
       "rating",
       "valuation",
       "trend",
-      "materials",
-      "notes"
+      "notes",
+      "materials"
     ]);
   });
 });

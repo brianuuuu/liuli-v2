@@ -234,6 +234,7 @@ export type TrackDetail = {
     pending_material_count: number;
     high_importance_material_count: number;
     bound_stock_count: number;
+    note_count?: number;
     // 资讯热度：7d 窗口内带该赛道标签的资讯条数；heat_change 是相对一天前的变化。
     latest_heat_score?: number | null;
     heat_change?: number | null;
@@ -242,6 +243,8 @@ export type TrackDetail = {
   latest_snapshot?: TrackTrendSnapshot | null;
   trend_snapshots: TrackTrendSnapshotBrief[];
   materials: TrackMaterial[];
+  // 笔记经标签归属到赛道：笔记打的标签绑定在这条赛道上就算。
+  notes?: KnowledgeNote[];
   stocks: Array<{
     id: number;
     stock_id: number;
@@ -259,7 +262,7 @@ export type TrackMaterial = {
   id: number;
   track_id: number;
   track_name?: string | null;
-  // material_type + material_id 指向材料本体（source_item / knowledge_note）；
+  // material_type + material_id 指向材料本体（source_item）；笔记不进材料表。
   // 列表里的 id 是关联记录 id，材料详情接口按它取。
   material_type: string;
   material_id: number;
@@ -394,14 +397,6 @@ export type StockDetailMaterial = {
   material_time?: string | null;
 };
 
-export type StockDetailNote = {
-  id: number;
-  note_type: string;
-  title: string;
-  content: string;
-  updated_at?: string | null;
-};
-
 export type StockDetail = {
   stock: {
     id: number;
@@ -426,7 +421,8 @@ export type StockDetail = {
     source_url?: string | null;
   }>;
   tracks: Array<{ id: number; track?: { id?: number; name?: string | null } | null }>;
-  notes: StockDetailNote[];
+  // 笔记经标签归属到标的：笔记打的标签绑定在这只股票上就算。
+  notes: KnowledgeNote[];
 };
 
 export type StockPoolTrack = {

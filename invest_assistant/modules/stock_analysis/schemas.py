@@ -1,6 +1,8 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from invest_assistant.modules.knowledge_base.schemas import KnowledgeNoteRead
 
 
 class StockPoolCreate(BaseModel):
@@ -20,21 +22,6 @@ class StockPoolRead(StockPoolCreate):
     expectation_gap_rate: float | None = None
     trend_level: str | None = None
     tracks: list[dict] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-
-class StockResearchNoteCreate(BaseModel):
-    note_type: str
-    title: str
-    content: str
-    related_track_id: int | None = None
-
-
-class StockResearchNoteRead(StockResearchNoteCreate):
-    id: int
-    stock_id: int
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -246,6 +233,10 @@ StockTrackTagBindingUpdate = StockTrackRelationUpdate
 StockTrackTagBindingRead = StockTrackRelationRead
 
 
+# 笔记与材料并列，经标签归属到标的，不作为材料引用。
+STOCK_MATERIAL_TYPES = {"source_item", "company_disclosure"}
+
+
 class StockMaterialCreate(BaseModel):
     material_type: str
     material_id: int
@@ -253,6 +244,13 @@ class StockMaterialCreate(BaseModel):
     importance_level: str | None = None
     status: str = "pending"
     note: str | None = None
+
+    @field_validator("material_type")
+    @classmethod
+    def validate_material_type(cls, value: str) -> str:
+        if value not in STOCK_MATERIAL_TYPES:
+            raise ValueError("material_type must be source_item or company_disclosure")
+        return value
 
 
 class StockMaterialUpdate(BaseModel):
@@ -361,7 +359,7 @@ class StockDetailRead(BaseModel):
     materials: list[StockMaterialRead] = Field(default_factory=list)
     disclosures: list[StockDetailDisclosure] = Field(default_factory=list)
     tracks: list[StockTrackRelationRead] = Field(default_factory=list)
-    notes: list[StockResearchNoteRead] = Field(default_factory=list)
+    notes: list[KnowledgeNoteRead] = Field(default_factory=list)
     tags: list[dict] = Field(default_factory=list)
 
 
@@ -490,7 +488,6 @@ class StockDashboardNoteSummary(BaseModel):
     note_type: str
     title: str
     content: str
-    related_track_id: int | None = None
     updated_at: datetime | None = None
 
 

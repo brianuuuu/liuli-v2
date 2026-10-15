@@ -21,7 +21,7 @@ export type TrackPayload = {
 };
 
 export type TrackMaterialPayload = {
-  material_type: "source_item" | "knowledge_note";
+  material_type: "source_item";
   material_id: number;
   direction?: string | null;
   importance_level?: string | null;

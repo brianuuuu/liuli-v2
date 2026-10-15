@@ -8,10 +8,12 @@ TRACK_DETAIL_SECTIONS: dict[str, tuple[str, ...]] = {
     "materials": ("materials",),
     "snapshots": ("trend_snapshots",),
     "stocks": ("stocks",),
+    "notes": ("notes",),
     "tags": ("tags",),
     "heat": ("heat_trends",),
 }
-DEFAULT_TRACK_DETAIL_SECTIONS = ("stocks", "tags")
+# 笔记是用户本人的重大想法，数量少、分量最重，默认带上。
+DEFAULT_TRACK_DETAIL_SECTIONS = ("stocks", "notes", "tags")
 DEFAULT_TRACK_DETAIL_LIST_LIMIT = 20
 
 
@@ -57,6 +59,7 @@ def get_track_detail(
                 trim_field(detail, "materials", list_limit),
                 trim_field(detail, "trend_snapshots", list_limit),
                 trim_field(detail, "stocks", list_limit),
+                trim_field(detail, "notes", list_limit),
                 trim_field(detail, "heat_trends", list_limit),
             ]
         )

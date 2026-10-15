@@ -47,13 +47,6 @@ def test_stock_analysis_core_flow():
     assert tags.status_code == 200
     assert tags.json() == []
 
-    note = client.post(
-        f"/api/stock-analysis/stocks/{stock_id}/notes",
-        json={"note_type": "research", "title": "核心逻辑", "content": "银行科技金融受益", "related_track_id": None},
-        headers=headers,
-    )
-    assert note.status_code == 200
-
     score = client.post(
         f"/api/stock-analysis/stocks/{stock_id}/scores",
         json={

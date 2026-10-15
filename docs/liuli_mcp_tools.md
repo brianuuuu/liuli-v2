@@ -230,7 +230,7 @@
 | 参数 | 类型 | 是否必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `track_id` | int | 是 | — | 赛道 ID |
-| `sections` | string[] \| null | 否 | `["stocks","tags"]` | 可选 `materials` / `snapshots` / `stocks` / `tags` / `heat`，未选中的整段不返回 |
+| `sections` | string[] \| null | 否 | `["stocks","notes","tags"]` | 可选 `materials` / `snapshots` / `stocks` / `notes` / `tags` / `heat`，未选中的整段不返回 |
 | `list_limit` | int | 否 | `20` | 列表字段各自的条数上限 |
 
 #### 应答内容
@@ -240,11 +240,12 @@
 | 字段路径 | 类型 | 返回条件 | 说明 |
 |---|---|---|---|
 | `data.track` | object | 始终 | 赛道基础信息，字段同 4.4 |
-| `data.summary` | object | 始终 | 汇总信息，含 `tag_count`、`material_count`、`pending_material_count`、`high_importance_material_count`、`bound_stock_count`、`latest_heat_score`、`last_updated_at` |
+| `data.summary` | object | 始终 | 汇总信息，含 `tag_count`、`material_count`、`pending_material_count`、`high_importance_material_count`、`bound_stock_count`、`note_count`、`latest_heat_score`、`last_updated_at` |
 | `data.latest_snapshot` | object \| null | 始终 | 最新分析快照 |
 | `data.materials` | object[] | `sections` 含 `materials` | 赛道材料 |
 | `data.analysis_snapshots` | object[] | `sections` 含 `snapshots` | 分析快照 |
 | `data.stocks` | object[] | `sections` 含 `stocks` | 绑定标的 |
+| `data.notes` | object[] | `sections` 含 `notes` | 用户笔记：打了该赛道 active 标签的知识笔记，分量高于材料；取最新 `list_limit` 条 |
 | `data.tags` | object[] | `sections` 含 `tags` | 仅包含 active 标签绑定 |
 | `data.heat_trends` | object[] | `sections` 含 `heat` | 热度趋势 |
 
@@ -283,7 +284,7 @@
 | 参数 | 类型 | 是否必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `stock_id` | int | 是 | — | 标的主键 ID |
-| `sections` | string[] \| null | 否 | `["score","valuation","tracks"]` | 可选 `score` / `score_history` / `valuation` / `valuation_history` / `materials` / `disclosures` / `tracks` / `notes` / `tags`，未选中的整段不返回；历史序列必须显式选择 |
+| `sections` | string[] \| null | 否 | `["score","valuation","tracks","notes"]` | 可选 `score` / `score_history` / `valuation` / `valuation_history` / `materials` / `disclosures` / `tracks` / `notes` / `tags`，未选中的整段不返回；历史序列必须显式选择 |
 | `history_limit` | int | 否 | `20` | 各列表字段的条数上限，取值范围 1～100 |
 
 #### 应答内容
@@ -302,7 +303,7 @@
 | `data.materials` | object[] | `sections` 含 `materials` | 取最新 `history_limit` 条 |
 | `data.disclosures` | object[] | `sections` 含 `disclosures` | 取最新 `history_limit` 条 |
 | `data.tracks` | object[] | `sections` 含 `tracks` | 不裁剪 |
-| `data.notes` | object[] | `sections` 含 `notes` | 取最新 `history_limit` 条 |
+| `data.notes` | object[] | `sections` 含 `notes` | 用户笔记：打了该标的 active 标签的知识笔记，分量高于材料；取最新 `history_limit` 条 |
 | `data.tags` | object[] | `sections` 含 `tags` | 取前 `history_limit` 条 |
 
 `summary` 里的计数始终是全量口径。标的不存在抛 `[NOT_FOUND]`。

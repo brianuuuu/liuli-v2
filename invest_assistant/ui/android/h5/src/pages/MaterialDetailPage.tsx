@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
-import { MarkdownBody } from "../components/MarkdownBody";
 import { ErrorState, LoadingState } from "../components/Ui";
 import { DetailFrame } from "./DetailPages";
 import type { MaterialOwner } from "../components/MaterialCard";
@@ -66,11 +65,9 @@ export function MaterialDetailPage() {
         <h2>{material.material_title?.trim() || "未命名材料"}</h2>
         <p className="material-detail__meta">{metadata}</p>
         {tags.length ? <div className="material-detail__tags">{tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
-        {/* 笔记正文是 Markdown，资讯正文是纯文本，公告正文没入库，这时只能靠原文链接。 */}
+        {/* 资讯正文是纯文本，公告正文没入库，这时只能靠原文链接。 */}
         {material.material_content?.trim() ? (
-          material.material_type === "knowledge_note"
-            ? <MarkdownBody content={material.material_content} />
-            : <p className="material-detail__content">{material.material_content}</p>
+          <p className="material-detail__content">{material.material_content}</p>
         ) : (
           <p className="material-detail__content material-detail__content--empty">
             {material.material_type === "company_disclosure" ? "公告正文未入库，点下方链接看原文。" : "这条材料没有正文。"}

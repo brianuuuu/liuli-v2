@@ -5,11 +5,12 @@ from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+from invest_assistant.modules.knowledge_base.entity_notes import list_track_notes
+from invest_assistant.modules.knowledge_base.models import KnowledgeNoteTagRelation
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.schemas import TagBindingCreate
 from invest_assistant.modules.market_radar.service import bind_track_tag, list_track_tag_bindings, rank_change_reference_stat_time
-from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockResearchNote, StockScoreSnapshot, StockTrackRelation
+from invest_assistant.modules.stock_analysis.models import StockCompareGroup, StockScoreSnapshot, StockTrackRelation
 from invest_assistant.modules.track_discovery.models import (
     Track,
     TrackMaterial,
@@ -433,6 +434,7 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
     snapshot_rows = list_trend_snapshots(db, track.id, limit=TRACK_DETAIL_SNAPSHOT_LIMIT)
     snapshots = [_trend_snapshot_brief(item) for item in snapshot_rows]
     stocks = _track_detail_stocks(db, track.id)
+    notes = list_track_notes(db, track.id)
     active_tag_ids = [int(item["tag"]["id"]) for item in tags if item.get("tag")]
     if include_heat_trends:
         heat_trends = _track_detail_heat_trends(
@@ -451,6 +453,7 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
         *(item.get("created_at") for item in snapshots),
         *(item.get("updated_at") for item in stocks),
         *(item.get("updated_at") for item in tags),
+        *(item.updated_at for item in notes),
     ]
 
     return {
@@ -461,6 +464,7 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
             "pending_material_count": material_stats["pending"],
             "high_importance_material_count": material_stats["high_importance"],
             "bound_stock_count": active_stock_count,
+            "note_count": len(notes),
             "latest_heat_score": latest_heat_score,
             "heat_change": heat_change,
             "last_updated_at": _max_datetime(last_updated_candidates),
@@ -470,6 +474,7 @@ def get_track_detail(db: Session, track_id: int, include_heat_trends: bool = Tru
         "trend_snapshots": snapshots,
         "materials": materials,
         "stocks": stocks,
+        "notes": notes,
         "tags": tags,
     }
 
@@ -497,11 +502,11 @@ def delete_candidate_track(db: Session, track_id: int) -> bool:
     if tag_ids:
         db.execute(delete(SourceTag).where(SourceTag.tag_id.in_(tag_ids)))
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.tag_id.in_(tag_ids)))
+        db.execute(delete(KnowledgeNoteTagRelation).where(KnowledgeNoteTagRelation.tag_id.in_(tag_ids)))
         db.execute(delete(TrackTagRelation).where(TrackTagRelation.track_id == track_id))
         db.execute(delete(Tag).where(Tag.id.in_(tag_ids)))
 
     db.execute(delete(StockTrackRelation).where(StockTrackRelation.track_id == track_id))
-    db.execute(update(StockResearchNote).where(StockResearchNote.related_track_id == track_id).values(related_track_id=None))
     db.execute(update(StockCompareGroup).where(StockCompareGroup.track_id == track_id).values(track_id=None))
     db.execute(delete(TrackStatusHistory).where(TrackStatusHistory.track_id == track_id))
     db.execute(delete(TrackMaterial).where(TrackMaterial.track_id == track_id))
@@ -627,9 +632,6 @@ def _material_content(db: Session, item: TrackMaterial) -> str | None:
     if item.material_type == "source_item":
         source = db.get(SourceItem, item.material_id)
         return source.content if source is not None else None
-    if item.material_type == "knowledge_note":
-        note = db.get(KnowledgeNote, item.material_id)
-        return note.content if note is not None else None
     return None
 
 
@@ -1038,16 +1040,13 @@ def _material_dict(db: Session, item: TrackMaterial) -> dict:
 
 def _material_dicts(db: Session, items: list[TrackMaterial], track_by_id: dict[int, Track] | None = None) -> list[dict]:
     source_ids = [item.material_id for item in items if item.material_type == "source_item"]
-    note_ids = [item.material_id for item in items if item.material_type == "knowledge_note"]
     source_by_id = {source.id: source for source in db.scalars(select(SourceItem).where(SourceItem.id.in_(source_ids)))} if source_ids else {}
-    note_by_id = {note.id: note for note in db.scalars(select(KnowledgeNote).where(KnowledgeNote.id.in_(note_ids)))} if note_ids else {}
-    return [_material_dict_from_references(item, source_by_id, note_by_id, track_by_id or {}) for item in items]
+    return [_material_dict_from_references(item, source_by_id, track_by_id or {}) for item in items]
 
 
 def _material_dict_from_references(
     item: TrackMaterial,
     source_by_id: dict[int, SourceItem],
-    note_by_id: dict[int, KnowledgeNote],
     track_by_id: dict[int, Track],
 ) -> dict:
     material = {
@@ -1077,15 +1076,6 @@ def _material_dict_from_references(
                 material_source_name=source.source_name,
                 material_url=source.source_url,
                 material_time=source.publish_time or source.created_at,
-            )
-    elif item.material_type == "knowledge_note":
-        note = note_by_id.get(item.material_id)
-        if note is not None:
-            material.update(
-                material_title=note.title,
-                material_summary=_summary(note.content),
-                material_source_name="knowledge_note",
-                material_time=note.updated_at or note.created_at,
             )
     return material
 

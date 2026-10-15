@@ -18,6 +18,7 @@ import {
 import type { TrackTrendSnapshotPayload, TrackMaterialPayload, TrackPayload, TrackTagStockBindingPayload } from "../../api/trackDiscovery";
 import { chartBackgroundColor, chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
 import { EmptyAction } from "../../components/common/EmptyAction";
+import { EntityNotesPanel } from "../../components/common/EntityNotesPanel";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -61,8 +62,7 @@ import {
 } from "./sections/shared";
 
 const materialTypeLabels: Record<string, string> = {
-  source_item: "信息流",
-  knowledge_note: "知识笔记"
+  source_item: "信息流"
 };
 
 const materialStatusLabels: Record<string, string> = {
@@ -291,6 +291,7 @@ export function TrackDetailPage() {
               items={[
                 { key: "overview", label: "概览", children: <OverviewTab data={data} onEdit={() => openEdit(data.track)} onStatus={() => openStatus(data.track)} /> },
                 { key: "research", label: "研究结论", children: <ResearchTab data={data} /> },
+                { key: "notes", label: "笔记", children: <EntityNotesPanel notes={data.notes ?? []} tags={data.tags} defaultTagName={data.track.name} onCreated={detail.refresh} /> },
                 { key: "heat", label: "热度", children: <HeatTab data={data} /> },
                 {
                   key: "materials",
@@ -344,7 +345,7 @@ export function TrackDetailPage() {
       <Modal title="引用材料" open={materialOpen} onCancel={() => setMaterialOpen(false)} onOk={submitMaterial} destroyOnHidden forceRender width={680}>
         <Form form={materialForm} layout="vertical" preserve={false}>
           <div className="track-detail-form-grid">
-            <Form.Item name="material_type" label="来源" rules={[{ required: true }]}><Select options={[{ value: "source_item", label: "信息流" }, { value: "knowledge_note", label: "知识笔记" }]} /></Form.Item>
+            <Form.Item name="material_type" label="来源" rules={[{ required: true }]}><Select options={[{ value: "source_item", label: "信息流" }]} /></Form.Item>
             <Form.Item name="material_id" label="材料 ID" rules={[{ required: true, message: "请输入材料 ID" }]}><InputNumber min={1} style={{ width: "100%" }} /></Form.Item>
             <Form.Item name="direction" label="方向"><Select allowClear options={[{ value: "support", label: "支持" }, { value: "weaken", label: "削弱" }, { value: "neutral", label: "中性" }, { value: "noise", label: "噪音" }]} /></Form.Item>
             <Form.Item name="importance_level" label="重要性"><Select allowClear options={[{ value: "high", label: "high" }, { value: "medium", label: "medium" }, { value: "low", label: "low" }]} /></Form.Item>

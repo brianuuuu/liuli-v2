@@ -15,6 +15,22 @@
 
 ---
 
+## 1.0.14 — 2026-10-15
+
+- **变更**：
+  - 笔记与材料并列，经标签归属到标的和赛道：笔记打的标签只要绑定在某个标的或赛道上（`stock_tag_relation` / `track_tag_relation`，status=active），就出现在它的详情里，查询时实时关联，不落中间记录。标的详情和赛道详情返回 `notes` 与 `summary.note_count`。
+  - 删除 `stock_research_note` 表及 `GET/POST /api/stock-analysis/stocks/{id}/notes`；Web 标的详情、赛道详情的"笔记"分区直接写知识笔记，默认带上该实体绑定的标签。
+  - 材料只剩自动化流程产出：`track_material` 只收 `source_item`，`stock_material` 只收 `source_item` / `company_disclosure`，不再接受 `knowledge_note`。Web 标的事件页去掉"撰写笔记"。
+  - MCP `get_stock_profile`、`get_track_detail` 默认 sections 加入 `notes`；赛道详情新增 `notes` 分区。
+  - 删除候选赛道连带删除标签时，一并删除这些标签上的笔记标签关联，笔记保留。
+  - Android 标的详情、赛道详情的"笔记"分区改用笔记卡片，排在"材料"之前，点开进笔记编辑页。
+- **原因**：笔记是用户本人的重大想法，数量少、分量高于材料，不需要确认；原先标的笔记单独存在 `stock_research_note`，笔记页里打了标的标签的笔记在标的详情看不到。另外 `stock_material` 的 `knowledge_note` 类型实际指向 `stock_research_note`，与赛道和规格的含义冲突。
+- **影响**：后端 stock_analysis、track_discovery、knowledge_base（新增 `entity_notes.py`）、MCP；Web 标的详情、标的事件页、赛道详情、赛道材料；Android H5 标的详情、赛道详情、材料详情。数据库：
+  1. 部署前执行 `tools/migrations/2026-10-15_notes_by_tag_precheck.sql`（只读）和 `tools/migrations/2026-10-15_notes_detach_from_materials.sql`（给赛道材料里的笔记补赛道标签后删除 `knowledge_note` 类型的材料行）；
+  2. 部署并重启后执行 `tools/migrations/2026-10-15_drop_stock_research_note.sql`（表非空时中止）。
+
+---
+
 ## 1.0.13 — 2026-10-14
 
 - **变更**：手机组合页"记一笔调仓"改为右下角悬浮按钮，样式同笔记页新增按钮。

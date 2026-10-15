@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.market_radar.service import WINDOWS, aggregate_heat
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
@@ -79,14 +78,14 @@ def test_track_dashboard_aggregates_heat_materials_relations_and_analysis():
     add_heat(db, robot_tag_a.id, "30d", now, 80, 1)
     add_heat(db, ai_tag.id, "7d", now, 77, 3)
     source = SourceItem(source_type="news", source_name="manual", title="机器人订单提升", content="机器人订单和执行器关注度提升", publish_time=now)
-    note = KnowledgeNote(title="AI算力复盘", content="算力需求仍需要持续跟踪", note_type="review")
+    ai_source = SourceItem(source_type="news", source_name="manual", title="AI算力复盘", content="算力需求仍需要持续跟踪", publish_time=now)
     stock = Stock(stock_code="000001", stock_name="测试标的")
-    db.add_all([source, note, stock])
+    db.add_all([source, ai_source, stock])
     db.flush()
     db.add_all(
         [
             TrackMaterial(track_id=robot.id, material_type="source_item", material_id=source.id, direction="support", importance_level="high", status="pending"),
-            TrackMaterial(track_id=ai.id, material_type="knowledge_note", material_id=note.id, direction="neutral", importance_level="medium", status="confirmed"),
+            TrackMaterial(track_id=ai.id, material_type="source_item", material_id=ai_source.id, direction="neutral", importance_level="medium", status="confirmed"),
             StockTrackRelation(stock_id=stock.id, track_id=robot.id, conviction=80, status="active"),
             TrackTrendSnapshot(
                 track_id=robot.id,

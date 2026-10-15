@@ -11,8 +11,6 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockCompareGroupRead,
     StockPoolCreate,
     StockPoolRead,
-    StockResearchNoteCreate,
-    StockResearchNoteRead,
     StockScoreComparisonRead,
     StockScoreSnapshotCreate,
     StockScoreSnapshotRead,
@@ -120,16 +118,6 @@ def stock_daily_bars(
     if rows is None:
         raise HTTPException(status_code=404, detail="stock not found")
     return rows
-
-
-@router.get("/stocks/{stock_id}/notes", response_model=list[StockResearchNoteRead])
-def list_notes(stock_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_notes(db, stock_id)
-
-
-@router.post("/stocks/{stock_id}/notes", response_model=StockResearchNoteRead)
-def create_note(stock_id: int, payload: StockResearchNoteCreate, db: Session = Depends(get_db)):
-    return service.create_note(db, stock_id, payload)
 
 
 @router.get("/stocks/{stock_id}/scores", response_model=list[StockScoreSnapshotRead])

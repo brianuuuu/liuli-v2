@@ -64,7 +64,7 @@ export function MaterialsSection() {
   const formInitialValues = useMemo(() => {
     if (drawerMode === "edit" && editingMaterial) {
       return {
-        material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+        material_type: "source_item",
         material_id: editingMaterial.material_id,
         direction: editingMaterial.direction || null,
         importance_level: editingMaterial.importance_level || null,
@@ -85,7 +85,7 @@ export function MaterialsSection() {
     if (drawerOpen) {
       if (drawerMode === "edit" && editingMaterial) {
         form.setFieldsValue({
-          material_type: editingMaterial.material_type === "knowledge_note" ? "knowledge_note" : "source_item",
+          material_type: "source_item",
           material_id: editingMaterial.material_id,
           direction: editingMaterial.direction || null,
           importance_level: editingMaterial.importance_level || null,
@@ -453,7 +453,6 @@ export function MaterialsSection() {
               options={[
                 { value: "all", label: "类型：全部" },
                 { value: "source_item", label: "类型：信息流" },
-                { value: "knowledge_note", label: "类型：知识笔记" },
               ]}
               style={{ width: 130 }}
               onChange={setTypeFilter}

@@ -1,4 +1,4 @@
-import type { Page, StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockResearchNote, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockTrendSnapshot, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { Page, StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockTrendSnapshot, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -7,13 +7,6 @@ export type StockPoolPayload = {
   source?: string;
   reason?: string | null;
   track_ids?: number[];
-};
-
-export type StockNotePayload = {
-  note_type: string;
-  title: string;
-  content: string;
-  related_track_id?: number | null;
 };
 
 export type StockScorePayload = {
@@ -115,16 +108,6 @@ export async function updateStockPoolItem(poolId: number, payload: StockPoolPayl
 
 export async function listStockCandidates(): Promise<StockPoolItem[]> {
   const response = await apiClient.get<StockPoolItem[]>("/api/stock-analysis/candidates");
-  return response.data;
-}
-
-export async function listStockNotes(stockId: number): Promise<StockResearchNote[]> {
-  const response = await apiClient.get<StockResearchNote[]>(`/api/stock-analysis/stocks/${stockId}/notes`);
-  return response.data;
-}
-
-export async function createStockNote(stockId: number, payload: StockNotePayload): Promise<StockResearchNote> {
-  const response = await apiClient.post<StockResearchNote>(`/api/stock-analysis/stocks/${stockId}/notes`, payload);
   return response.data;
 }
 

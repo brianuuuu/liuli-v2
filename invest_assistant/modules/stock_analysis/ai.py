@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.market_radar.models import SourceItem
-from invest_assistant.modules.stock_analysis.models import StockMaterial, StockResearchNote
+from invest_assistant.modules.stock_analysis.models import StockMaterial
 from invest_assistant.services.deepseek import client as deepseek_client
 
 VALID_DECISIONS = {"confirmed", "ignored"}
@@ -44,15 +44,6 @@ def _material_reference(db: Session, item: StockMaterial) -> dict[str, Any]:
                 source_name=source.source_name,
                 source_url=source.source_url,
                 event_time=_isoformat(source.publish_time or source.created_at),
-            )
-    elif item.material_type == "knowledge_note":
-        note = db.get(StockResearchNote, item.material_id)
-        if note is not None:
-            reference.update(
-                title=note.title,
-                summary=_clean_text(note.content),
-                source_name=note.note_type or "knowledge_note",
-                event_time=_isoformat(note.updated_at or note.created_at),
             )
     elif item.material_type == "company_disclosure":
         disclosure = db.get(CompanyDisclosure, item.material_id)

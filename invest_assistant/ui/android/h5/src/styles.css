@@ -766,11 +766,8 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .valuation-assumption-row em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }
 .valuation-assumption-row i { flex: 0 0 auto; margin-left: 0; }
 .valuation-assumption-empty { margin: 0; color: var(--subtle); font-size: 12px; }
-.stock-detail-note { padding: 12px 0; }
-.stock-detail-note + .stock-detail-note { border-top: 1px solid var(--border); }
-.stock-detail-note h3 { margin: 0; font-size: var(--content-font-size); font-weight: 650; }
-.stock-detail-note p { margin: 6px 0 0; font-size: 12px; line-height: 1.62; white-space: pre-wrap; overflow-wrap: anywhere; }
-.stock-detail-note footer { margin-top: 8px; color: var(--subtle); font-size: 11px; }
+/* 详情页笔记放在卡片里，卡片已有内边距，笔记卡左右不再留白。 */
+.entity-note-list .note-card { padding-inline: 0; cursor: pointer; }
 .detail-page { width: 100%; min-width: 0; max-width: 100%; min-height: 100dvh; overflow-x: clip; background: var(--bg); }
 .detail-header { position: sticky; z-index: 20; top: 0; display: grid; height: 48px; align-items: center; grid-template-columns: 48px 1fr 48px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .detail-header button { display: grid; height: 48px; place-items: center; }

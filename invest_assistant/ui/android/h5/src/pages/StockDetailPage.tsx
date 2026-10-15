@@ -27,6 +27,7 @@ import {
   type StockDetailSection
 } from "./stockDetailPresentation";
 import { DetailFrame } from "./DetailPages";
+import { EntityNotesSection } from "../components/EntityNotes";
 import type { StockDetail, StockTrendSnapshot } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
 
@@ -67,8 +68,8 @@ export function StockDetailPage() {
         {section === "rating" ? <RatingSection detail={detail} /> : null}
         {section === "valuation" ? <ValuationSection detail={detail} /> : null}
         {section === "trend" ? <TrendSection detail={detail} /> : null}
-        {section === "materials" ? <MaterialsSection detail={detail} /> : null}
         {section === "notes" ? <NotesSection detail={detail} /> : null}
+        {section === "materials" ? <MaterialsSection detail={detail} /> : null}
       </div>
     </DetailFrame>
   );
@@ -359,16 +360,5 @@ function MaterialsSection({ detail }: { detail: StockDetail }) {
 }
 
 function NotesSection({ detail }: { detail: StockDetail }) {
-  if (!detail.notes.length) return <SectionCard title="研究笔记"><EmptyState title="暂无研究笔记" /></SectionCard>;
-  return (
-    <SectionCard title="研究笔记">
-      {detail.notes.map((item) => (
-        <article className="stock-detail-note" key={item.id}>
-          <h3>{item.title}</h3>
-          <p>{item.content}</p>
-          <footer>{item.note_type} · {formatDateTime(item.updated_at)}</footer>
-        </article>
-      ))}
-    </SectionCard>
-  );
+  return <EntityNotesSection notes={detail.notes} emptyDetail="给笔记打上这只股票绑定的标签，就会出现在这里" />;
 }

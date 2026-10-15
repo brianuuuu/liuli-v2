@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+from invest_assistant.modules.knowledge_base.models import KnowledgeNote, KnowledgeNoteTagRelation
 from invest_assistant.modules.market_radar.models import SourceItem, Tag, TagHeatSnapshot, TrackTagRelation
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery import router, service
@@ -101,6 +101,7 @@ def test_track_detail_returns_stable_empty_structure():
         "pending_material_count": 0,
         "high_importance_material_count": 0,
         "bound_stock_count": 0,
+        "note_count": 0,
         "latest_heat_score": None,
         "heat_change": None,
         "last_updated_at": track.updated_at,
@@ -110,6 +111,7 @@ def test_track_detail_returns_stable_empty_structure():
     assert detail["trend_snapshots"] == []
     assert detail["materials"] == []
     assert detail["stocks"] == []
+    assert detail["notes"] == []
     assert detail["tags"] == []
 
 
@@ -152,9 +154,17 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
         content="机器人订单和核心零部件关注度提升",
         publish_time=now,
     )
-    note = KnowledgeNote(title="机器人复盘", content="复盘材料", note_type="review")
-    db.add_all([source, note])
+    note = KnowledgeNote(title="机器人复盘", content="复盘材料", note_type="review", status="active")
+    # 打的是已停用绑定的标签，不算这条赛道的笔记
+    stale_note = KnowledgeNote(title="执行器旧想法", content="旧想法", note_type="", status="active")
+    db.add_all([source, note, stale_note])
     db.flush()
+    db.add_all(
+        [
+            KnowledgeNoteTagRelation(note_id=note.id, tag_id=active_tag.id),
+            KnowledgeNoteTagRelation(note_id=stale_note.id, tag_id=archived_tag.id),
+        ]
+    )
 
     db.add_all(
         [
@@ -165,14 +175,6 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
                 direction="support",
                 importance_level="high",
                 status="pending",
-            ),
-            TrackMaterial(
-                track_id=track.id,
-                material_type="knowledge_note",
-                material_id=note.id,
-                direction="neutral",
-                importance_level="medium",
-                status="confirmed",
             ),
             StockTrackRelation(stock_id=stock.id, track_id=track.id, relation_type="core", conviction=0.9, reason="核心受益", status="active"),
             StockTrackRelation(stock_id=inactive_stock.id, track_id=track.id, relation_type="watch", conviction=0.3, status="disabled"),
@@ -186,7 +188,7 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     detail = service.get_track_detail(db, track.id)
 
     assert detail["summary"]["tag_count"] == 1
-    assert detail["summary"]["material_count"] == 2
+    assert detail["summary"]["material_count"] == 1
     assert detail["summary"]["pending_material_count"] == 1
     assert detail["summary"]["high_importance_material_count"] == 1
     assert detail["summary"]["bound_stock_count"] == 1
@@ -195,9 +197,10 @@ def test_track_detail_aggregates_materials_stocks_tags_heat_and_snapshots():
     # 环比基线是一天前的同窗口点：45 - 31
     assert detail["summary"]["heat_change"] == 14
     assert [item["tag"]["name"] for item in detail["tags"]] == ["机器人"]
-    material_titles = {item["material_type"]: item["material_title"] for item in detail["materials"]}
-    assert material_titles["source_item"] == "机器人订单提升"
-    assert material_titles["knowledge_note"] == "机器人复盘"
+    assert [item["material_title"] for item in detail["materials"]] == ["机器人订单提升"]
+    # 笔记与材料并列，经标签归属到赛道
+    assert [item.title for item in detail["notes"]] == ["机器人复盘"]
+    assert detail["summary"]["note_count"] == 1
     assert detail["stocks"][0]["stock_name"] == "重点科技"
     assert detail["stocks"][0]["stock_code"] == "300001"
     assert detail["stocks"][1]["stock_name"] == "观察制造"
@@ -225,8 +228,7 @@ def test_get_material_detail_returns_full_content_and_track_name():
         source_url="https://example.com/pharma",
         publish_time=beijing_now(),
     )
-    note = KnowledgeNote(title="创新药复盘", content="## 复盘\n\n授权节奏比预期快", note_type="review")
-    db.add_all([source, note])
+    db.add(source)
     db.flush()
     from_source = TrackMaterial(
         track_id=track.id,
@@ -237,10 +239,7 @@ def test_get_material_detail_returns_full_content_and_track_name():
         status="confirmed",
         note="等三季度授权落地",
     )
-    from_note = TrackMaterial(
-        track_id=track.id, material_type="knowledge_note", material_id=note.id, status="pending"
-    )
-    db.add_all([from_source, from_note])
+    db.add(from_source)
     db.commit()
 
     detail = service.get_material_detail(db, from_source.id)
@@ -252,8 +251,5 @@ def test_get_material_detail_returns_full_content_and_track_name():
     # 列表字段仍然是截断过的，正文是完整的，两者不能混为一谈
     assert detail["material_summary"].endswith("...")
     assert detail["material_content"] == long_body
-
-    note_detail = service.get_material_detail(db, from_note.id)
-    assert note_detail["material_content"] == "## 复盘\n\n授权节奏比预期快"
 
     assert service.get_material_detail(db, 9999) is None

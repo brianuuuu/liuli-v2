@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.13**（2026-10-14）
+> 当前版本：**1.0.14**（2026-10-15）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -157,7 +157,8 @@ AI 推荐词 = ai_tag_suggestion.status = pending
 结构化附属内容（JSON）存 TEXT，不用 JSONB，查询要用的字段才单独成列；
 派生值可冗余存储以便 SQL 排序筛选，但口径只在一处代码定义（如 track_discovery/scoring.py）；
 允许被删除的来源对象（研究回流、预警事件、微操建议条目）在引用方只存 ID，不建外键；
-材料引用表（track_material / stock_material）不保存原文，标题正文从源表读取。
+材料引用表（track_material / stock_material）不保存原文，标题正文从源表读取；
+笔记不进材料引用表，经标签归属到标的和赛道（见 15.2）。
 ```
 
 ---
@@ -563,7 +564,7 @@ latest_snapshot_id 是看板排序的快捷指针。
 ### 11.3 赛道材料 track_material
 
 ```text
-材料来源只有 source_item（信息流）和 knowledge_note（笔记）；
+材料来源只有 source_item（信息流）；笔记与材料并列，经标签归属到赛道（见 15.2）；
 UNIQUE(track_id, material_type, material_id)；
 direction：support / weaken / neutral / noise；importance_level：high / medium / low；
 信息流命中赛道 → 自动生成 pending；用户主动引用 → 直接 confirmed；
@@ -633,8 +634,10 @@ AI 不直接创建 stock，只能推荐已有 A 股进入标的池；
 stock_tag_relation：这只股票叫什么（主入口：标的详情 → 标签；辅入口：控制台股票基础库）。
 stock_track_relation：这只股票属于哪个赛道（UNIQUE(stock_id, track_id)；relation_type、conviction、reason）；
   主入口标的详情，辅入口赛道详情。
-stock_material：与 track_material 平行，impact_direction = positive / negative / neutral / noise；
+stock_material：与 track_material 平行，来源为 source_item（信息流）和 company_disclosure（公告财报）；
+  impact_direction = positive / negative / neutral / noise；
   信息流命中 → pending，主动引用 → confirmed；可由 review_stock_events_deepseek 辅助审核。
+标的笔记：不建表、不进 stock_material，经标签归属（见 15.2）。
 ```
 
 ### 12.4 研究快照（均由研究回流导入，纯追加）
@@ -663,7 +666,7 @@ market_index_daily_bar：主要指数日线，沪深300 日线同时充当交易
 market_index_realtime_quote：六个 A 股主要指数实时报价缓存。
 ```
 
-其余表：`stock_research_note`（研究笔记）、`stock_thesis`（投资假设）、`stock_compare_group`（对比组）。
+其余表：`stock_thesis`（投资假设）、`stock_compare_group`（对比组）。
 
 ---
 
@@ -801,6 +804,24 @@ group_id = NULL 即"未分组"（收件箱）；list_notes 支持 ungrouped 与 
 MCP knowledge_base.create_note：只收 content，单行、≤ 80 字，同一 client 五分钟内同正文幂等；
   平台侧写死 group_id=NULL、note_type=mcp、related_module=<client 名>、status=active；不提供更新和删除。
 Android 待办"笔记"只收 note_type=mcp 的未分组笔记，点开进笔记编辑页归组和打标签。
+```
+
+笔记与材料是并列的两类信息，分量不同：
+
+| | 笔记 knowledge_note | 材料 track_material / stock_material |
+|---|---|---|
+| 来源 | 用户本人的重大想法，数量很少 | 自动化流程产出（信息流命中、公告拉取） |
+| 确认 | 不需要确认，没有方向、重要性等研判字段 | pending → confirmed / ignored，带方向和重要性 |
+| 归属 | 经标签实时关联，不落中间记录 | 引用表一行一条 |
+| 分量 | 高于材料，分析时优先参考 | 证据与线索 |
+
+```text
+标的笔记 = 状态为 active 的 knowledge_note，且其某个 tag 出现在该标的 status=active 的 stock_tag_relation 中；
+赛道笔记同理，换成 track_tag_relation。
+查询时实时关联（knowledge_base/entity_notes.py），笔记去掉标签或实体解绑标签即不再归属；全量返回，不分页。
+标的详情 / 赛道详情的 notes 字段即此结果，summary.note_count 为条数；Web、Android 详情页均有"笔记"分区，
+  Web 详情页可直接"记一笔"，写入 knowledge_note 并默认带上该实体绑定的标签。
+删除候选赛道连带删除其标签时，一并删除这些标签上的 knowledge_note_tag_relation，笔记本身保留。
 ```
 
 ### 15.3 研究员
@@ -1057,7 +1078,6 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/stocks/{stock_id}` | 标的主页 |
 | GET | `/stocks/{stock_id}/detail` | 详情聚合 |
 | GET | `/stocks/{stock_id}/daily-bars` | 日线 / K 线 |
-| GET / POST | `/stocks/{stock_id}/notes` | 研究笔记 |
 | GET / POST | `/stocks/{stock_id}/scores` | 评分快照 |
 | DELETE | `/scores/{score_id}` | 删除评分 |
 | GET / POST | `/stocks/{stock_id}/trends` | 趋势快照 |
@@ -1191,7 +1211,8 @@ report_library.upload_markdown_report    Markdown 报告写入 var/reports/{sour
 
 ```text
 stock_analysis.list_pool 是外部获取 stock_id 的入口（标的池范围内按代码/名称/拼音/简称模糊匹配），不暴露全量股票表。
-详情类工具默认返回精简集，材料、公告、笔记、标签、历史序列经 sections 显式索取并按条数裁剪，
+详情类工具默认返回精简集，默认集包含笔记（用户本人判断，分量高于材料）；
+  材料、公告、标签、历史序列经 sections 显式索取；列表字段按条数裁剪，
   裁剪信息经 {字段}_total 与 truncated 回传；裁剪只在 MCP 层做，业务 service 返回结构不变。
 错误统一带前缀：[FORBIDDEN] / [NOT_FOUND] / [INVALID_ARGUMENT] / [INTERNAL]。
 不暴露：删除或清空数据、直接 SQL、任意文件读写、Shell、任意任务触发、修改组合/预警/标签/赛道/标的。
@@ -1383,7 +1404,7 @@ id, name, description, status, current_view, industry_phase, market_phase, confi
 id, track_id, material_type, material_id, direction, importance_level, status, note, created_at, updated_at
 ```
 
-唯一：(track_id, material_type, material_id)
+唯一：(track_id, material_type, material_id)；material_type 只有 source_item。
 
 #### `track_trend_snapshot`：赛道趋势研究快照（六维评分 + 派生评级）
 
@@ -1403,12 +1424,6 @@ id, track_id, old_status, new_status, old_industry_phase, new_industry_phase, ol
 
 ```text
 id, stock_id, status, source, reason, created_at, updated_at
-```
-
-#### `stock_research_note`：标的研究笔记
-
-```text
-id, stock_id, note_type, title, content, related_track_id, created_at, updated_at
 ```
 
 #### `stock_score_snapshot`：标的评级快照
@@ -1478,6 +1493,8 @@ id, stock_id, thesis_text, key_logic, validation_indicators, falsification_condi
 ```text
 id, stock_id, material_type, material_id, impact_direction, importance_level, status, note, created_at, updated_at
 ```
+
+material_type：source_item / company_disclosure。
 
 唯一：(stock_id, material_type, material_id)
 

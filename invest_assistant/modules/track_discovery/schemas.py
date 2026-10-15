@@ -2,10 +2,12 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from invest_assistant.modules.knowledge_base.schemas import KnowledgeNoteRead
 from invest_assistant.modules.track_discovery.scoring import SCORE_MAX, SCORE_MIN
 
 
-MATERIAL_TYPES = {"source_item", "knowledge_note"}
+# 笔记与材料并列，经标签归属到赛道，不作为材料引用。
+MATERIAL_TYPES = {"source_item"}
 MATERIAL_DIRECTIONS = {"support", "weaken", "neutral", "noise"}
 MATERIAL_IMPORTANCE = {"high", "medium", "low"}
 MATERIAL_STATUSES = {"pending", "confirmed", "ignored"}
@@ -101,7 +103,7 @@ class TrackMaterialCreate(BaseModel):
     @classmethod
     def validate_material_type(cls, value: str) -> str:
         if value not in MATERIAL_TYPES:
-            raise ValueError("material_type must be source_item or knowledge_note")
+            raise ValueError("material_type must be source_item")
         return value
 
     @field_validator("direction")
@@ -307,6 +309,7 @@ class TrackDetailSummary(BaseModel):
     pending_material_count: int = 0
     high_importance_material_count: int = 0
     bound_stock_count: int = 0
+    note_count: int = 0
     # 资讯热度：最新 7d 窗口内带该赛道标签的资讯条数，heat_change 是相对一天前的变化。
     latest_heat_score: float | None = None
     heat_change: float | None = None
@@ -349,4 +352,5 @@ class TrackDetailRead(BaseModel):
     trend_snapshots: list[TrackTrendSnapshotBrief] = Field(default_factory=list)
     materials: list[TrackMaterialRead] = Field(default_factory=list)
     stocks: list[TrackDetailStockRelation] = Field(default_factory=list)
+    notes: list[KnowledgeNoteRead] = Field(default_factory=list)
     tags: list[dict] = Field(default_factory=list)

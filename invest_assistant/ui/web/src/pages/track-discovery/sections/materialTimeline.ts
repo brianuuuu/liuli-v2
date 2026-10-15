@@ -16,7 +16,6 @@ export const materialStatusOptions: Array<{ value: MaterialStatusFilter; label: 
 
 export const materialTypeOptions = [
   { value: "source_item", label: "信息流" },
-  { value: "knowledge_note", label: "知识笔记" },
 ];
 
 export const materialDirectionOptions = [

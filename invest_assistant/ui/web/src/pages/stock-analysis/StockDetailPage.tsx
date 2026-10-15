@@ -10,7 +10,6 @@ import { useLiuliTheme } from "../../app/theme";
 import { listTracks } from "../../api/trackDiscovery";
 import {
   bindStockTrackRelation,
-  createStockNote,
   disableStockTrackRelation,
   getStockDailyBars,
   getStockDetail,
@@ -19,6 +18,7 @@ import {
 } from "../../api/stockAnalysis";
 import { chartBackgroundColor, chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
 import { EmptyAction } from "../../components/common/EmptyAction";
+import { EntityNotesPanel } from "../../components/common/EntityNotesPanel";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -27,7 +27,6 @@ import type {
   StockDetailValuationSnapshot,
   StockDailyBar,
   StockMaterial,
-  StockResearchNote,
   StockScoreSnapshot,
   StockTrackRelation,
   StockTrendSnapshot
@@ -63,13 +62,6 @@ import {
   valuationModelLabel
 } from "./valuationPresentation";
 
-type NoteFormValues = {
-  note_type: string;
-  title: string;
-  content: string;
-  related_track_id?: number;
-};
-
 type TrackBindingFormValues = {
   track_id: number;
   relation_type?: string;
@@ -79,7 +71,6 @@ type TrackBindingFormValues = {
 
 const materialTypeLabels: Record<string, string> = {
   source_item: "信息流",
-  knowledge_note: "研究笔记",
   company_disclosure: "公告财报"
 };
 
@@ -127,9 +118,7 @@ export function StockDetailPage() {
   const detail = useAsyncData(useCallback(() => (stockId ? getStockDetail(stockId) : Promise.resolve(null)), [stockId]), null);
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const stockPool = useAsyncData(useCallback(() => listStockPool(), []), []);
-  const [noteOpen, setNoteOpen] = useState(false);
   const [bindingOpen, setBindingOpen] = useState(false);
-  const [noteForm] = Form.useForm<NoteFormValues>();
   const [bindingForm] = Form.useForm<TrackBindingFormValues>();
 
   const trackOptions = useMemo(() => tracks.data.map((track) => ({ value: track.id, label: track.name })), [tracks.data]);
@@ -147,20 +136,6 @@ export function StockDetailPage() {
   function switchStock(targetStockId: number) {
     if (!targetStockId || targetStockId === stockId) return;
     navigate(`/stock-analysis/stocks/${targetStockId}`);
-  }
-
-  async function submitNote() {
-    const values = await noteForm.validateFields();
-    await createStockNote(stockId, {
-      note_type: values.note_type,
-      title: values.title,
-      content: values.content,
-      related_track_id: values.related_track_id || null
-    });
-    message.success("研究笔记已新增");
-    noteForm.resetFields();
-    setNoteOpen(false);
-    await detail.refresh();
   }
 
   async function submitBinding() {
@@ -233,6 +208,11 @@ export function StockDetailPage() {
                 { key: "valuation", label: "估值", children: <ValuationTab data={data} /> },
                 { key: "trend", label: "趋势", children: <TrendTab data={data} /> },
                 {
+                  key: "notes",
+                  label: "笔记",
+                  children: <EntityNotesPanel notes={data.notes} tags={data.tags} defaultTagName={data.stock.stock_name} onCreated={detail.refresh} />
+                },
+                {
                   key: "materials",
                   label: "材料公告",
                   children: (
@@ -253,8 +233,7 @@ export function StockDetailPage() {
                       onDisableBinding={disableBinding}
                     />
                   )
-                },
-                { key: "notes", label: "研究笔记", children: <NotesTab data={data} onAddNote={() => setNoteOpen(true)} /> }
+                }
               ]}
             />
           </div>
@@ -271,19 +250,6 @@ export function StockDetailPage() {
             <Form.Item name="conviction" label="确信度"><InputNumber min={0} max={1} step={0.1} style={{ width: "100%" }} /></Form.Item>
           </div>
           <Form.Item name="reason" label="判断理由"><Input.TextArea rows={3} /></Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal title="新增研究笔记" open={noteOpen} onCancel={() => setNoteOpen(false)} onOk={submitNote} destroyOnHidden forceRender width={680}>
-        <Form form={noteForm} layout="vertical" preserve={false}>
-          <div className="stock-detail-form-grid compact">
-            <Form.Item name="note_type" label="类型" rules={[{ required: true, message: "请输入类型" }]}>
-              <Select options={[{ value: "thesis", label: "投资逻辑" }, { value: "risk", label: "风险" }, { value: "memo", label: "备忘" }]} />
-            </Form.Item>
-            <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}><Input /></Form.Item>
-            <Form.Item name="related_track_id" label="关联赛道"><Select allowClear showSearch options={trackOptions} loading={tracks.loading} /></Form.Item>
-          </div>
-          <Form.Item name="content" label="内容" rules={[{ required: true, message: "请输入内容" }]}><Input.TextArea rows={5} /></Form.Item>
         </Form>
       </Modal>
     </>
@@ -398,8 +364,7 @@ function OverviewTab({ data }: { data: StockDetail }) {
               </div>
               {latestNote ? (
                 <div className="stock-detail-note-summary stock-rating-latest-note">
-                  <Typography.Text type="secondary">最新研究笔记 · {latestNote.note_type} / {formatTime(latestNote.updated_at)}</Typography.Text>
-                  <Typography.Title level={5}>{latestNote.title}</Typography.Title>
+                  <Typography.Text type="secondary">最新笔记 · {formatTime(latestNote.created_at)}</Typography.Text>
                   <Typography.Paragraph ellipsis={{ rows: 3, expandable: true, symbol: "展开" }}>{latestNote.content}</Typography.Paragraph>
                 </div>
               ) : null}
@@ -407,8 +372,7 @@ function OverviewTab({ data }: { data: StockDetail }) {
           ) : (
             latestNote ? (
               <div className="stock-detail-note-summary">
-                <Typography.Text type="secondary">{latestNote.note_type} / {formatTime(latestNote.updated_at)}</Typography.Text>
-                <Typography.Title level={5}>{latestNote.title}</Typography.Title>
+                <Typography.Text type="secondary">最新笔记 · {formatTime(latestNote.created_at)}</Typography.Text>
                 <Typography.Paragraph>{latestNote.content}</Typography.Paragraph>
               </div>
             ) : <EmptyAction description="暂无评级画像和研究判断" />
@@ -1054,28 +1018,6 @@ function RelationsTab({
             {data.tags.length ? data.tags.map((item) => <Tag key={item.id}>{item.tag?.name || "-"}</Tag>) : <Typography.Text type="secondary">暂无标签</Typography.Text>}
           </div>
           <Table rowKey="id" size="small" dataSource={data.tracks} columns={relationColumns} pagination={{ defaultPageSize: 8 }} />
-        </div>
-      </div>
-    </WorkbenchCard>
-  );
-}
-
-function NotesTab({ data, onAddNote }: { data: StockDetail; onAddNote: () => void }) {
-  const noteColumns: ColumnsType<StockResearchNote> = [
-    { title: "类型", dataIndex: "note_type", width: 110 },
-    { title: "标题", dataIndex: "title" },
-    { title: "关联赛道", dataIndex: "related_track_id", width: 100, render: (value) => value || "-" },
-    { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime }
-  ];
-  return (
-    <WorkbenchCard>
-      <div className="stock-detail-panel">
-        <div className="stock-detail-panel-toolbar">
-          <span>研究笔记</span>
-          <Button size="small" type="primary" onClick={onAddNote}>新增笔记</Button>
-        </div>
-        <div className="stock-detail-panel-section first">
-          <Table rowKey="id" size="small" dataSource={data.notes} columns={noteColumns} pagination={{ defaultPageSize: 8 }} />
         </div>
       </div>
     </WorkbenchCard>

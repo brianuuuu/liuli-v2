@@ -9,6 +9,7 @@ from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
+from invest_assistant.modules.knowledge_base.entity_notes import list_stock_notes
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, StockTagRelation
 from invest_assistant.modules.stock_analysis.models import (
     MarketIndexDailyBar,
@@ -16,7 +17,6 @@ from invest_assistant.modules.stock_analysis.models import (
     StockCompareGroup,
     StockDailyBar,
     StockPoolItem,
-    StockResearchNote,
     StockScoreSnapshot,
     StockTrackRelation,
     StockTrendSnapshot,
@@ -27,7 +27,6 @@ from invest_assistant.modules.track_discovery.models import Track
 from invest_assistant.modules.stock_analysis.schemas import (
     StockCompareGroupCreate,
     StockPoolCreate,
-    StockResearchNoteCreate,
     StockScoreSnapshotCreate,
     StockTrackRelationCreate,
     StockTrackRelationUpdate,
@@ -566,8 +565,7 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
     materials = list_stock_materials(db, stock_id)
     disclosures = [_disclosure_dict(item) for item in _stock_disclosures(db, stock_id, materials)]
     tracks = list_track_relations(db, stock_id)
-    notes = list_notes(db, stock_id)
-    note_rows = [_note_dict(item) for item in notes]
+    notes = list_stock_notes(db, stock_id)
     tags = _stock_tag_bindings(db, stock_id)
     last_updated_candidates = [
         stock.updated_at,
@@ -594,7 +592,7 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         "materials": materials,
         "disclosures": disclosures,
         "tracks": tracks,
-        "notes": note_rows,
+        "notes": notes,
         "tags": tags,
     }
 
@@ -693,19 +691,6 @@ def _trend_snapshot_dict(item: StockTrendSnapshot) -> dict:
     data["stock_id"] = item.stock_id
     data["created_at"] = item.created_at
     return data
-
-
-def _note_dict(item: StockResearchNote) -> dict:
-    return {
-        "id": item.id,
-        "stock_id": item.stock_id,
-        "note_type": item.note_type,
-        "title": item.title,
-        "content": item.content,
-        "related_track_id": item.related_track_id,
-        "created_at": item.created_at,
-        "updated_at": item.updated_at,
-    }
 
 
 def _stock_tag_bindings(db: Session, stock_id: int) -> list[dict]:
@@ -1124,19 +1109,15 @@ def _valuation_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, 
 
 
 def _latest_note(db: Session, stock_id: int) -> dict | None:
-    item = db.scalar(
-        select(StockResearchNote)
-        .where(StockResearchNote.stock_id == stock_id)
-        .order_by(StockResearchNote.updated_at.desc(), StockResearchNote.id.desc())
-    )
-    if item is None:
+    notes = list_stock_notes(db, stock_id)
+    if not notes:
         return None
+    item = notes[0]
     return {
         "id": item.id,
         "note_type": item.note_type,
         "title": item.title,
         "content": _summary(item.content, limit=180) or "",
-        "related_track_id": item.related_track_id,
         "updated_at": item.updated_at,
     }
 
@@ -1185,27 +1166,6 @@ def _sync_stock_track_relations(db: Session, stock_id: int, track_ids: list[int]
             db.add(StockTrackRelation(stock_id=stock_id, track_id=track_id, status="active"))
         else:
             relation.status = "active"
-
-
-def create_note(db: Session, stock_id: int, payload: StockResearchNoteCreate) -> StockResearchNote:
-    item = StockResearchNote(stock_id=stock_id, **payload.model_dump())
-    db.add(item)
-    db.flush()
-    db.add(
-        StockMaterial(
-            stock_id=stock_id,
-            material_type="knowledge_note",
-            material_id=item.id,
-            status="confirmed",
-        )
-    )
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def list_notes(db: Session, stock_id: int) -> list[StockResearchNote]:
-    return list(db.scalars(select(StockResearchNote).where(StockResearchNote.stock_id == stock_id).order_by(StockResearchNote.id.desc())))
 
 
 def create_score(db: Session, stock_id: int, payload: StockScoreSnapshotCreate) -> StockScoreSnapshot:
@@ -1529,15 +1489,6 @@ def _stock_material_dict(db: Session, item: "StockMaterial", stock: Stock | None
                 material_source_name=source.source_name,
                 material_url=source.source_url,
                 material_time=source.publish_time.isoformat() if source.publish_time else _isoformat(source.created_at),
-            )
-    elif item.material_type == "knowledge_note":
-        note = db.get(StockResearchNote, item.material_id)
-        if note is not None:
-            material.update(
-                material_title=note.title,
-                material_summary=_summary(note.content),
-                material_source_name=note.note_type or "knowledge_note",
-                material_time=note.updated_at.isoformat() if note.updated_at else _isoformat(note.created_at),
             )
     elif item.material_type == "company_disclosure":
         disclosure = db.get(CompanyDisclosure, item.material_id)
@@ -2053,9 +2004,6 @@ def _stock_material_content(db: Session, item: "StockMaterial") -> str | None:
     if item.material_type == "source_item":
         source = db.get(SourceItem, item.material_id)
         return source.content if source is not None else None
-    if item.material_type == "knowledge_note":
-        note = db.get(StockResearchNote, item.material_id)
-        return note.content if note is not None else None
     return None
 
 

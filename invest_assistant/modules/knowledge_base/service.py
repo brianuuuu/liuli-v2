@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.modules.basic.report_library import service as report_service
 from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.knowledge_base.entity_notes import note_reads as _note_reads
 from invest_assistant.modules.knowledge_base.models import (
     KnowledgeNote,
     KnowledgeNoteGroup,
@@ -27,10 +28,8 @@ from invest_assistant.modules.knowledge_base.schemas import (
     KnowledgeExternalSkillRead,
     KnowledgeNoteCreate,
     KnowledgeNoteGroupCreate,
-    KnowledgeNoteGroupRead,
     KnowledgeNotePage,
     KnowledgeNoteRead,
-    KnowledgeNoteTagRead,
     KnowledgePromptCreate,
     KnowledgePromptRead,
     KnowledgeResearchFeedbackCreate,
@@ -1818,41 +1817,3 @@ def _active_tags_by_id_or_raise(db: Session, tag_ids: list[int]) -> dict[int, Ta
 def _tags_text(tag_ids: list[int], by_id: dict[int, Tag]) -> str:
     unique_tag_ids = list(dict.fromkeys(tag_ids))
     return " ".join(f"#{by_id[tag_id].name}" for tag_id in unique_tag_ids if tag_id in by_id)
-
-
-def _note_reads(db: Session, rows: list[KnowledgeNote]) -> list[KnowledgeNoteRead]:
-    if not rows:
-        return []
-    group_ids = {row.group_id for row in rows if row.group_id is not None}
-    note_ids = [row.id for row in rows]
-    groups = {
-        group.id: group
-        for group in db.scalars(select(KnowledgeNoteGroup).where(KnowledgeNoteGroup.id.in_(group_ids))).all()
-    } if group_ids else {}
-    relation_rows = db.execute(
-        select(KnowledgeNoteTagRelation.note_id, Tag)
-        .join(Tag, Tag.id == KnowledgeNoteTagRelation.tag_id)
-        .where(KnowledgeNoteTagRelation.note_id.in_(note_ids))
-        .order_by(KnowledgeNoteTagRelation.id.asc())
-    ).all()
-    tags_by_note: dict[int, list[Tag]] = {}
-    for note_id, tag in relation_rows:
-        tags_by_note.setdefault(note_id, []).append(tag)
-    return [
-        KnowledgeNoteRead(
-            id=row.id,
-            title=row.title,
-            content=row.content,
-            note_type=row.note_type,
-            group_id=row.group_id,
-            related_module=row.related_module,
-            related_id=row.related_id,
-            tags_text=row.tags,
-            status=row.status,
-            created_at=row.created_at,
-            updated_at=row.updated_at,
-            group=KnowledgeNoteGroupRead.model_validate(groups[row.group_id]) if row.group_id in groups else None,
-            tags=[KnowledgeNoteTagRead.model_validate(tag) for tag in tags_by_note.get(row.id, [])],
-        )
-        for row in rows
-    ]

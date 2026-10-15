@@ -2,14 +2,11 @@ import {
   CheckOutlined,
   CloseOutlined,
   EditOutlined,
-  PlusOutlined,
   AreaChartOutlined,
   SlidersOutlined,
   BulbOutlined,
   NotificationOutlined,
-  BookOutlined,
   CalendarOutlined,
-  ArrowRightOutlined,
   TagsOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
@@ -20,20 +17,17 @@ import ReactECharts from "echarts-for-react";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   listStockPool,
-  createStockNote,
-  listStockNotes,
   listStockMaterials,
   listAllStockMaterials,
   updateStockMaterial,
   createStockMaterial
 } from "../../../api/stockAnalysis";
 import { STOCK_EVENT_REVIEW_JOB_NAME, runJob } from "../../../api/jobs";
-import { listTracks } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { useLiuliTheme } from "../../../app/theme";
-import type { StockMaterial, Track } from "../../../types/api";
+import type { StockMaterial } from "../../../types/api";
 import { formatTime } from "./shared";
 
 // Local interfaces for extending types
@@ -41,8 +35,6 @@ interface ExtendedStockMaterial extends StockMaterial {
   stock_name?: string;
   stock_code?: string;
 }
-
-type CurationDrawerMode = "curate" | "write_note";
 
 // Collapsible text renderer for timeline items to keep the dashboard clean
 function RenderCollapsibleText({ text }: { text: string }) {
@@ -74,6 +66,10 @@ function RenderCollapsibleText({ text }: { text: string }) {
   );
 }
 
+function materialTypeLabel(type: string) {
+  return type === "company_disclosure" ? "公告财报" : "快讯";
+}
+
 // English impact direction value mapping to Chinese UI tags
 export function ImpactDirectionTag({ direction }: { direction?: string | null }) {
   if (direction === "positive") return <Tag color="green">利好</Tag>;
@@ -88,11 +84,9 @@ export function EventsSection() {
   
   // 1. Fetch metadata
   const pool = useAsyncData(useCallback(listStockPool, []), []);
-  const tracks = useAsyncData(useCallback(listTracks, []), []);
 
   // 2. Selection states and filters
   const [stockId, setStockId] = useState<number | undefined>();
-  const [trackFilter, setTrackFilter] = useState<string>("all");
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<string>("all");
   const [impactFilter, setImpactFilter] = useState<string>("all");
@@ -106,11 +100,10 @@ export function EventsSection() {
   useEffect(() => {
     setVisibleLimit(100);
     setPendingLimit(100);
-  }, [stockId, trackFilter, eventTypeFilter, timeFilter, impactFilter, selectedDate]);
+  }, [stockId, eventTypeFilter, timeFilter, impactFilter, selectedDate]);
 
   // 3. Drawer states
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<CurationDrawerMode>("write_note");
   const [editingMaterial, setEditingMaterial] = useState<ExtendedStockMaterial | null>(null);
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [form] = Form.useForm();
@@ -152,14 +145,6 @@ export function EventsSection() {
     [pool.data]
   );
 
-  const trackOptions = useMemo(() => 
-    tracks.data.map((item) => ({ 
-      value: item.id, 
-      label: item.name 
-    })), 
-    [tracks.data]
-  );
-
   const activeStock = useMemo(() => 
     pool.data.find((item) => item.stock_id === stockId), 
     [stockId, pool.data]
@@ -199,15 +184,6 @@ export function EventsSection() {
       // Impact Direction Filter
       if (impactFilter !== "all" && item.impact_direction !== impactFilter) return false;
 
-      // Track Filter (For knowledge notes, matches related_track_id)
-      if (trackFilter !== "all") {
-        if (item.material_type === "knowledge_note") {
-          // Check if notes database model maps related track
-          // (Track bindings are fetched in components or notes)
-          // As a fallback, we allow notes or materials tagged with tracks
-        }
-      }
-
       // Time Range Filter
       if (timeFilter !== "all") {
         const timeStr = item.material_time || item.updated_at || item.created_at;
@@ -223,7 +199,7 @@ export function EventsSection() {
 
       return true;
     });
-  }, [visibleEvents, selectedDate, eventTypeFilter, impactFilter, trackFilter, timeFilter]);
+  }, [visibleEvents, selectedDate, eventTypeFilter, impactFilter, timeFilter]);
 
   // 6b. Slice the displayed items to implement lazy-loading (limit to 100 initially)
   const displayedEvents = useMemo(() => 
@@ -267,7 +243,7 @@ export function EventsSection() {
       axisPointer: { type: "shadow" },
       formatter: (params: any) => {
         const item = params[0];
-        return `${item.name}<br/>事件数/笔记: <b>${item.value}</b>`;
+        return `${item.name}<br/>事件数: <b>${item.value}</b>`;
       }
     },
     grid: {
@@ -361,14 +337,6 @@ export function EventsSection() {
     return { todayAdded, confirmedCount, pendingCount };
   }, [stockMaterials.data]);
 
-  // 9. Latest 5 confirmed notes for the sidebar locator
-  const latestNotes = useMemo(() => 
-    visibleEvents
-      .filter((e) => e.material_type === "knowledge_note")
-      .slice(0, 5), 
-    [visibleEvents]
-  );
-
   // 10. Analyst Actions: Ignore material
   async function handleStatusChange(item: ExtendedStockMaterial, newStatus: string) {
     try {
@@ -382,9 +350,9 @@ export function EventsSection() {
     }
   }
 
-  // 11. Submitting curation judgment or note
+  // 11. Submitting curation judgment
   async function handleDrawerSubmit(statusOverride?: string) {
-    if (drawerMode === "curate" && editingMaterial) {
+    if (editingMaterial) {
       if (statusOverride === "ignored") {
         try {
           await updateStockMaterial(editingMaterial.id, {
@@ -418,46 +386,10 @@ export function EventsSection() {
       } catch (err) {
         message.error("保存个股研判失败");
       }
-    } else {
-      // Create research note
-      const values = await form.validateFields();
-      const targetStockId = stockId || values.stock_id;
-
-      if (!targetStockId) {
-        message.warning("请选择关联个股");
-        return;
-      }
-
-      try {
-        await createStockNote(targetStockId, {
-          note_type: values.note_type || "其他",
-          title: values.title,
-          content: values.content,
-          related_track_id: values.related_track_id || null
-        });
-        message.success("知识笔记已成功添加，并自动生成已确认标的事件");
-        form.resetFields();
-        setDrawerOpen(false);
-        await stockMaterials.refresh();
-      } catch (err) {
-        message.error("添加知识笔记失败");
-      }
     }
   }
 
-  function openWriteNoteDrawer() {
-    setDrawerMode("write_note");
-    setEditingMaterial(null);
-    form.resetFields();
-    form.setFieldsValue({ 
-      note_type: "深度调研", 
-      stock_id: stockId 
-    });
-    setDrawerOpen(true);
-  }
-
   function openCurationDrawer(item: ExtendedStockMaterial) {
-    setDrawerMode("curate");
     setEditingMaterial(item);
     form.resetFields();
     form.setFieldsValue({
@@ -524,7 +456,7 @@ export function EventsSection() {
               options={[
                 { value: "all", label: "类型：全部" },
                 { value: "source_item", label: "类型：信息流" },
-                { value: "knowledge_note", label: "类型：知识笔记" },
+                { value: "company_disclosure", label: "类型：公告财报" },
               ]}
               style={{ width: 130 }}
               onChange={setEventTypeFilter}
@@ -543,12 +475,7 @@ export function EventsSection() {
               style={{ width: 120 }}
               onChange={setTimeFilter}
             />
-            
-            <div className="data-panel-toolbar-spacer" />
-            
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openWriteNoteDrawer}>
-              撰写笔记
-            </Button>
+
           </div>
         ]}
       >
@@ -601,9 +528,7 @@ export function EventsSection() {
                       <div className="track-material-card-row-first">
                         <Space size={6}>
                           <ImpactDirectionTag direction={item.impact_direction} />
-                          <Tag color={item.material_type === "knowledge_note" ? "green" : "blue"}>
-                            {item.material_type === "knowledge_note" ? "知识笔记" : "快讯公告"}
-                          </Tag>
+                          <Tag color="blue">{materialTypeLabel(item.material_type)}</Tag>
                           <span className="track-material-card-track-name">
                             {item.stock_name} {item.stock_code && `(${item.stock_code})`}
                           </span>
@@ -615,7 +540,7 @@ export function EventsSection() {
 
                       {/* Title */}
                       <div className="track-material-card-title">
-                        {item.material_title || `${item.material_type === "knowledge_note" ? "研究笔记" : "快讯"} ID ${item.material_id}`}
+                        {item.material_title || `${materialTypeLabel(item.material_type)} ID ${item.material_id}`}
                       </div>
 
                       {/* Summary Collapsible content */}
@@ -639,7 +564,7 @@ export function EventsSection() {
                       {/* Footer actions */}
                       <div className="track-material-card-footer">
                         <span className="track-material-card-source">
-                          来源：{item.material_source_name || (item.material_type === "knowledge_note" ? "知识库" : "信息流")}
+                          来源：{item.material_source_name || materialTypeLabel(item.material_type)}
                         </span>
                         <Button
                           size="small"
@@ -774,45 +699,19 @@ export function EventsSection() {
               )}
             </div>
 
-            {/* Quick reference for latest confirmed notes */}
-            {latestNotes.length > 0 && (
-              <div className="track-material-stats-panel" style={{ height: "auto", display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
-                  <BookOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
-                  <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>最新投研笔记</span>
-                </div>
-                <div className="track-material-pending-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {latestNotes.map((note) => (
-                    <div 
-                      key={note.id} 
-                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: "4px 6px", borderRadius: "4px", background: "var(--ll-panel-subtle)", fontSize: "12px" }}
-                      onClick={() => {
-                        const noteDate = (note.material_time || note.created_at || "").slice(0, 10);
-                        setSelectedDate(noteDate);
-                        message.info(`已定位到 ${noteDate} 的笔记大事件`);
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, color: "var(--ll-accent)" }}>{note.stock_name}</span>
-                      <span style={{ color: "var(--ll-muted)" }}>{note.material_title}</span>
-                      <ArrowRightOutlined style={{ fontSize: "10px", color: "var(--ll-muted)" }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </aside>
         </div>
       </DataPanel>
 
-      {/* Main Drawer: Curate Event or Write Note */}
+      {/* Main Drawer: Curate Event */}
       <Drawer
-        title={drawerMode === "curate" ? "编辑个股研判" : "撰写个股研究笔记"}
+        title="编辑个股研判"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         size="large"
         extra={
           <Space>
-            {drawerMode === "curate" && editingMaterial?.status === "pending" ? (
+            {editingMaterial?.status === "pending" ? (
               <Space size={6}>
                 <Button size="small" icon={<CloseOutlined />} onClick={() => handleDrawerSubmit("ignored")}>忽略</Button>
                 <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => handleDrawerSubmit("confirmed")}>确认</Button>
@@ -820,19 +719,17 @@ export function EventsSection() {
             ) : (
               <>
                 <Button size="small" onClick={() => setDrawerOpen(false)}>取消</Button>
-                <Button type="primary" size="small" onClick={() => handleDrawerSubmit()}>{drawerMode === "curate" ? "保存研判" : "发布笔记"}</Button>
+                <Button type="primary" size="small" onClick={() => handleDrawerSubmit()}>保存研判</Button>
               </>
             )}
           </Space>
         }
       >
-        {drawerMode === "curate" && editingMaterial && (
+        {editingMaterial && (
           <div className="track-material-reference">
             <div className="track-material-reference-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{editingMaterial.material_title}</span>
-              <Tag color={editingMaterial.material_type === "knowledge_note" ? "green" : "blue"}>
-                {editingMaterial.material_type === "knowledge_note" ? "知识笔记" : "快讯公告"}
-              </Tag>
+              <Tag color="blue">{materialTypeLabel(editingMaterial.material_type)}</Tag>
             </div>
             <div className="track-material-reference-summary">
               {editingMaterial.material_summary || "暂无快讯公告正文内容"}
@@ -845,120 +742,47 @@ export function EventsSection() {
         )}
 
         <Form form={form} layout="vertical" preserve={false}>
-          {drawerMode === "curate" ? (
-            <>
-              {/* Row 1: Direction & Importance */}
-              <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
-                <Form.Item
-                  name="impact_direction"
-                  label="利好/利空方向"
-                  rules={[{ required: true, message: "请选择研判影响方向" }]}
-                  style={{ flex: 1, marginBottom: 0 }}
-                >
-                  <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
-                    <Radio.Button value="positive" className="ll-radio-btn-support">利好</Radio.Button>
-                    <Radio.Button value="negative" className="ll-radio-btn-weaken">利空</Radio.Button>
-                    <Radio.Button value="neutral" className="ll-radio-btn-neutral">中性</Radio.Button>
-                    <Radio.Button value="noise" className="ll-radio-btn-noise">噪音</Radio.Button>
-                  </Radio.Group>
-                </Form.Item>
+          {/* Row 1: Direction & Importance */}
+          <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+            <Form.Item
+              name="impact_direction"
+              label="利好/利空方向"
+              rules={[{ required: true, message: "请选择研判影响方向" }]}
+              style={{ flex: 1, marginBottom: 0 }}
+            >
+              <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
+                <Radio.Button value="positive" className="ll-radio-btn-support">利好</Radio.Button>
+                <Radio.Button value="negative" className="ll-radio-btn-weaken">利空</Radio.Button>
+                <Radio.Button value="neutral" className="ll-radio-btn-neutral">中性</Radio.Button>
+                <Radio.Button value="noise" className="ll-radio-btn-noise">噪音</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
 
-                <Form.Item
-                  name="importance_level"
-                  label="影响级别"
-                  rules={[{ required: true, message: "请选择重要级别" }]}
-                  style={{ flex: 1, marginBottom: 0 }}
-                >
-                  <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
-                    <Radio.Button value="high" className="ll-radio-btn-high">高</Radio.Button>
-                    <Radio.Button value="medium" className="ll-radio-btn-medium">中</Radio.Button>
-                    <Radio.Button value="low" className="ll-radio-btn-low">低</Radio.Button>
-                  </Radio.Group>
-                </Form.Item>
-              </div>
+            <Form.Item
+              name="importance_level"
+              label="影响级别"
+              rules={[{ required: true, message: "请选择重要级别" }]}
+              style={{ flex: 1, marginBottom: 0 }}
+            >
+              <Radio.Group optionType="button" buttonStyle="solid" size="small" className="ll-radio-group">
+                <Radio.Button value="high" className="ll-radio-btn-high">高</Radio.Button>
+                <Radio.Button value="medium" className="ll-radio-btn-medium">中</Radio.Button>
+                <Radio.Button value="low" className="ll-radio-btn-low">低</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+          </div>
 
-
-
-              {/* Row 3: Perspective note */}
-              <Form.Item
-                name="note"
-                label="个股视角一句话点评"
-                style={{ marginBottom: "20px" }}
-              >
-                <Input.TextArea 
-                  rows={4} 
-                  placeholder="用一句话概括这个消息对公司短期或长期的核心商业影响逻辑..." 
-                />
-              </Form.Item>
-            </>
-          ) : (
-            <>
-              {/* Write Note Mode */}
-              {!stockId && (
-                <Form.Item
-                  name="stock_id"
-                  label="选择关联个股"
-                  rules={[{ required: true, message: "请选择关联个股" }]}
-                  style={{ marginBottom: "16px" }}
-                >
-                  <Select options={poolOptions} placeholder="选择需要记录笔记的股票" />
-                </Form.Item>
-              )}
-
-              <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
-                <Form.Item
-                  name="note_type"
-                  label="笔记分类"
-                  rules={[{ required: true, message: "请选择笔记分类" }]}
-                  style={{ flex: 1, marginBottom: 0 }}
-                >
-                  <Select 
-                    options={[
-                      { value: "深度调研", label: "深度调研" },
-                      { value: "财报分析", label: "财报分析" },
-                      { value: "核心逻辑", label: "核心逻辑" },
-                      { value: "会议纪要", label: "会议纪要" },
-                      { value: "行业点评", label: "行业点评" },
-                      { value: "其他", label: "其他" }
-                    ]} 
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  name="related_track_id"
-                  label="关联主线赛道"
-                  style={{ flex: 1, marginBottom: 0 }}
-                >
-                  <Select 
-                    options={trackOptions} 
-                    allowClear 
-                    placeholder="无关联赛道 (可选)"
-                  />
-                </Form.Item>
-              </div>
-
-              <Form.Item
-                name="title"
-                label="笔记标题"
-                rules={[{ required: true, message: "请输入笔记标题" }]}
-                style={{ marginBottom: "16px" }}
-              >
-                <Input placeholder="输入个股分析的核心议题标题..." />
-              </Form.Item>
-
-              <Form.Item
-                name="content"
-                label="笔记详细内容"
-                rules={[{ required: true, message: "请输入笔记详细内容" }]}
-                style={{ marginBottom: "20px" }}
-              >
-                <Input.TextArea 
-                  rows={12} 
-                  placeholder="在此记录核心经营逻辑、财务指标、调研要点等深度沉淀..." 
-                />
-              </Form.Item>
-            </>
-          )}
+          {/* Row 3: Perspective note */}
+          <Form.Item
+            name="note"
+            label="个股视角一句话点评"
+            style={{ marginBottom: "20px" }}
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="用一句话概括这个消息对公司短期或长期的核心商业影响逻辑..." 
+            />
+          </Form.Item>
 
           <div className="track-material-drawer-hint" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <InfoCircleOutlined style={{ color: "var(--ll-accent)", fontSize: "16px" }} />

@@ -5,6 +5,7 @@ import { mobileApi } from "../api/mobileApi";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
 import { MaterialCard, materialDetailPath } from "../components/MaterialCard";
 import { DetailFrame } from "./DetailPages";
+import { EntityNotesSection } from "../components/EntityNotes";
 import {
   activeStockCount,
   buildDetailScoreRows,
@@ -26,12 +27,13 @@ import {
 import type { TrackDetail, TrackTrendSnapshotBrief } from "../types/api";
 import { formatNumber } from "../utils/format";
 
-type TrackDetailSection = "overview" | "snapshots" | "stocks" | "materials";
+type TrackDetailSection = "overview" | "snapshots" | "stocks" | "notes" | "materials";
 
 const TRACK_DETAIL_SECTIONS: { value: TrackDetailSection; label: string }[] = [
   { value: "overview", label: "概览" },
   { value: "snapshots", label: "趋势快照" },
   { value: "stocks", label: "关联标的" },
+  { value: "notes", label: "笔记" },
   { value: "materials", label: "材料" }
 ];
 
@@ -81,6 +83,7 @@ export function TrackDetailPage() {
         {section === "overview" ? <OverviewSection detail={detail} /> : null}
         {section === "snapshots" ? <SnapshotsSection detail={detail} /> : null}
         {section === "stocks" ? <StocksSection detail={detail} /> : null}
+        {section === "notes" ? <EntityNotesSection notes={detail.notes ?? []} emptyDetail="给笔记打上这条赛道绑定的标签，就会出现在这里" /> : null}
         {section === "materials" ? <MaterialsSection detail={detail} /> : null}
       </div>
     </DetailFrame>

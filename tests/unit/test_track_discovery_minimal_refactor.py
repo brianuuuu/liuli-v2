@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.knowledge_base.models import KnowledgeNote
+from invest_assistant.modules.knowledge_base.models import KnowledgeNote, KnowledgeNoteTagRelation
 from invest_assistant.modules.market_radar.models import SourceItem, Tag, TrackTagRelation
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial, TrackStatusHistory, TrackTrendSnapshot
@@ -79,16 +79,16 @@ def test_track_fields_and_same_name_tag_binding(db_session: Session):
 
 def test_track_material_unique_reference_and_status_update(db_session: Session):
     track = create_track(db_session, TrackCreate(name="AI算力"))
-    note = KnowledgeNote(title="复盘", content="算力复盘", note_type="review")
-    db_session.add(note)
+    source = SourceItem(source_type="news", source_name="manual", title="算力订单", content="算力订单增长")
+    db_session.add(source)
     db_session.commit()
 
     material = create_material(
         db_session,
         track["id"],
         TrackMaterialCreate(
-            material_type="knowledge_note",
-            material_id=note.id,
+            material_type="source_item",
+            material_id=source.id,
             direction="support",
             importance_level="high",
             status="pending",
@@ -96,7 +96,7 @@ def test_track_material_unique_reference_and_status_update(db_session: Session):
         ),
     )
 
-    assert material.material_type == "knowledge_note"
+    assert material.material_type == "source_item"
     assert material.status == "pending"
     assert list_materials(db_session, track["id"])[0]["id"] == material.id
 
@@ -109,13 +109,19 @@ def test_track_material_unique_reference_and_status_update(db_session: Session):
     db_session.add(
         TrackMaterial(
             track_id=track["id"],
-            material_type="knowledge_note",
-            material_id=note.id,
+            material_type="source_item",
+            material_id=source.id,
             status="pending",
         )
     )
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+
+def test_track_material_rejects_knowledge_note():
+    """笔记与材料并列，经标签归属到赛道，不能再作为材料引用。"""
+    with pytest.raises(ValidationError):
+        TrackMaterialCreate(material_type="knowledge_note", material_id=1)
 
 
 def test_track_material_list_includes_referenced_material_summary(db_session: Session):
@@ -127,8 +133,7 @@ def test_track_material_list_includes_referenced_material_summary(db_session: Se
         content="Enterprise teams are adopting agent workflow tools. The relevant part should be summarized for review.",
         source_url="https://example.com/agent",
     )
-    note = KnowledgeNote(title="复盘：Agent 工具链", content="这是个人复盘内容，用于验证知识笔记摘要。", note_type="review")
-    db_session.add_all([source, note])
+    db_session.add(source)
     db_session.commit()
 
     create_material(
@@ -136,22 +141,14 @@ def test_track_material_list_includes_referenced_material_summary(db_session: Se
         track["id"],
         TrackMaterialCreate(material_type="source_item", material_id=source.id, status="pending"),
     )
-    create_material(
-        db_session,
-        track["id"],
-        TrackMaterialCreate(material_type="knowledge_note", material_id=note.id, status="confirmed"),
-    )
 
     rows = list_materials(db_session, track["id"])
 
     source_row = next(item for item in rows if item["material_type"] == "source_item")
-    note_row = next(item for item in rows if item["material_type"] == "knowledge_note")
     assert source_row["material_title"] == "Agent tooling demand rises"
     assert source_row["material_summary"].startswith("Enterprise teams are adopting")
     assert source_row["material_source_name"] == "manual"
     assert source_row["material_url"] == "https://example.com/agent"
-    assert note_row["material_title"] == "复盘：Agent 工具链"
-    assert note_row["material_summary"] == "这是个人复盘内容，用于验证知识笔记摘要。"
 
 
 def test_track_material_list_filters_statuses_and_paginates(db_session: Session):
@@ -416,7 +413,12 @@ def test_candidate_delete_cleans_new_track_children_and_stock_bindings(db_sessio
     db_session.add(stock)
     db_session.commit()
     db_session.add(StockTrackRelation(stock_id=stock.id, track_id=track["id"], status="active"))
-    db_session.add(TrackMaterial(track_id=track["id"], material_type="knowledge_note", material_id=1, status="pending"))
+    db_session.add(TrackMaterial(track_id=track["id"], material_type="source_item", material_id=1, status="pending"))
+    track_tag = db_session.scalar(select(Tag).where(Tag.name == "低空经济"))
+    note = KnowledgeNote(title="低空想法", content="低空经济的判断", note_type="", status="active")
+    db_session.add(note)
+    db_session.flush()
+    db_session.add(KnowledgeNoteTagRelation(note_id=note.id, tag_id=track_tag.id))
     db_session.add(
         TrackTrendSnapshot(
             track_id=track["id"],
@@ -444,3 +446,5 @@ def test_candidate_delete_cleans_new_track_children_and_stock_bindings(db_sessio
     assert db_session.scalar(select(TrackStatusHistory).where(TrackStatusHistory.track_id == track["id"])) is None
     assert db_session.scalar(select(StockTrackRelation).where(StockTrackRelation.track_id == track["id"])) is None
     assert db_session.scalar(select(Tag).where(Tag.name == "低空经济")) is None
+    assert db_session.scalar(select(KnowledgeNoteTagRelation).where(KnowledgeNoteTagRelation.note_id == note.id)) is None
+    assert db_session.get(KnowledgeNote, note.id) is not None

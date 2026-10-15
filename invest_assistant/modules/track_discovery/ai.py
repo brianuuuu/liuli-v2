@@ -3,7 +3,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from invest_assistant.modules.knowledge_base.models import KnowledgeNote
 from invest_assistant.modules.market_radar.models import SourceItem
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial
 from invest_assistant.services.deepseek import client as deepseek_client
@@ -41,15 +40,6 @@ def _material_reference(db: Session, item: TrackMaterial) -> dict[str, Any]:
                 source_name=source.source_name,
                 source_url=source.source_url,
                 event_time=_isoformat(source.publish_time or source.created_at),
-            )
-    elif item.material_type == "knowledge_note":
-        note = db.get(KnowledgeNote, item.material_id)
-        if note is not None:
-            reference.update(
-                title=note.title,
-                summary=_clean_text(note.content),
-                source_name=note.note_type or "knowledge_note",
-                event_time=_isoformat(note.updated_at or note.created_at),
             )
     return reference
 
