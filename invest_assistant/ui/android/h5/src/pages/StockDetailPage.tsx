@@ -41,7 +41,9 @@ function ChartFallback({ height }: { height: number }) {
 export function StockDetailPage() {
   const id = Number(useParams().id);
   const [section, setSection] = useState<StockDetailSection>(DEFAULT_STOCK_DETAIL_SECTION);
-  const query = useQuery({ queryKey: ["stock-detail", id], queryFn: () => mobileApi.stockDetail(id), staleTime: 300_000 });
+  // 研究报告导入后要马上看到新评级/估值/快照：每次进入都在后台重取，先显示缓存再替换。
+  // 全局 refetchOnMount=false 会让离开不到 5 分钟的重进一直停在旧数据。
+  const query = useQuery({ queryKey: ["stock-detail", id], queryFn: () => mobileApi.stockDetail(id), refetchOnMount: "always" });
   if (query.isLoading) return <DetailFrame title="标的详情"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) {
     return <DetailFrame title="标的详情"><ErrorState message="标的详情加载失败" onRetry={() => void query.refetch()} /></DetailFrame>;

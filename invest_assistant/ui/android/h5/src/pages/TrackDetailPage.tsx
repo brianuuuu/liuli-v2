@@ -57,7 +57,9 @@ function TrackBadges({ grade, tier }: { grade?: string | null; tier?: string | n
 export function TrackDetailPage() {
   const id = Number(useParams().id);
   const [section, setSection] = useState<TrackDetailSection>("overview");
-  const query = useQuery({ queryKey: ["track-detail", id], queryFn: () => mobileApi.trackDetail(id), staleTime: 300_000 });
+  // 研究报告导入后要马上看到新评级/估值/快照：每次进入都在后台重取，先显示缓存再替换。
+  // 全局 refetchOnMount=false 会让离开不到 5 分钟的重进一直停在旧数据。
+  const query = useQuery({ queryKey: ["track-detail", id], queryFn: () => mobileApi.trackDetail(id), refetchOnMount: "always" });
   if (query.isLoading) return <DetailFrame title="赛道详情"><LoadingState /></DetailFrame>;
   if (query.isError || !query.data) {
     return <DetailFrame title="赛道详情"><ErrorState message="赛道详情加载失败" onRetry={() => void query.refetch()} /></DetailFrame>;
