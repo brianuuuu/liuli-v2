@@ -17,7 +17,7 @@ def test_dashboard_exposes_todo_events_card():
     assert "getWorkbenchToday" in source
     assert "listAlertEvents" not in source
     assert "todo.unread_alerts" in source
-    assert "未读预警处理" in source
+    assert "未读预警" in source
 
 
 def test_console_ai_logs_use_audit_columns():
@@ -36,25 +36,25 @@ def test_console_ai_logs_use_audit_columns():
 
 
 def test_stock_event_ai_review_buttons_are_wired_to_job():
-    dashboard = Path("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx").read_text(encoding="utf-8")
+    dashboard = Path("invest_assistant/ui/web/src/pages/dashboard/todo/OpsRail.tsx").read_text(encoding="utf-8")
     events = Path("invest_assistant/ui/web/src/pages/stock-analysis/sections/EventsSection.tsx").read_text(encoding="utf-8")
     jobs_api = Path("invest_assistant/ui/web/src/api/jobs.ts").read_text(encoding="utf-8")
 
     assert 'STOCK_EVENT_REVIEW_JOB_NAME = "stock_analysis.review_stock_events_deepseek"' in jobs_api
     assert "STOCK_EVENT_REVIEW_JOB_NAME" in dashboard
-    assert "一键 AI 审核标的材料" in dashboard
+    assert "AI 审核标的材料" in dashboard
     assert "STOCK_EVENT_REVIEW_JOB_NAME" in events
     assert "AI审核全部" in events
 
 
 def test_track_event_ai_review_buttons_are_wired_to_job():
-    dashboard = Path("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx").read_text(encoding="utf-8")
+    dashboard = Path("invest_assistant/ui/web/src/pages/dashboard/todo/OpsRail.tsx").read_text(encoding="utf-8")
     materials = Path("invest_assistant/ui/web/src/pages/track-discovery/sections/MaterialsSection.tsx").read_text(encoding="utf-8")
     jobs_api = Path("invest_assistant/ui/web/src/api/jobs.ts").read_text(encoding="utf-8")
 
     assert 'TRACK_EVENT_REVIEW_JOB_NAME = "track_discovery.review_track_events_deepseek"' in jobs_api
     assert "TRACK_EVENT_REVIEW_JOB_NAME" in dashboard
-    assert "一键 AI 审核赛道材料" in dashboard
+    assert "AI 审核赛道材料" in dashboard
     assert "TRACK_EVENT_REVIEW_JOB_NAME" in materials
     assert "AI审核全部" in materials
 
@@ -190,7 +190,9 @@ def test_prompt_editor_is_compact_and_modern():
 
 
 def test_ai_suggestion_ui_supports_manual_approval_target():
-    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    sections = Path("invest_assistant/ui/web/src/pages/market-radar/sections")
+    # 通过表单抽到 SuggestionApproveFields，AI 推荐词页与工作台待办共用
+    section = (sections / "CandidatesSection.tsx").read_text(encoding="utf-8") + (sections / "SuggestionApproveFields.tsx").read_text(encoding="utf-8")
     api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
     types = Path("invest_assistant/ui/web/src/types/api.ts").read_text(encoding="utf-8")
 
@@ -204,7 +206,9 @@ def test_ai_suggestion_ui_supports_manual_approval_target():
 
 
 def test_ai_suggestion_approve_ui_edits_final_tag_before_submit():
-    section = Path("invest_assistant/ui/web/src/pages/market-radar/sections/CandidatesSection.tsx").read_text(encoding="utf-8")
+    sections = Path("invest_assistant/ui/web/src/pages/market-radar/sections")
+    # 通过表单抽到 SuggestionApproveFields，AI 推荐词页与工作台待办共用
+    section = (sections / "CandidatesSection.tsx").read_text(encoding="utf-8") + (sections / "SuggestionApproveFields.tsx").read_text(encoding="utf-8")
     api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
 
     assert "approving" in section

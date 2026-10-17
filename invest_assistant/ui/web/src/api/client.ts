@@ -30,3 +30,9 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/** 取后端 HTTPException 的 detail 文本，没有时用 fallback。 */
+export function apiErrorDetail(error: unknown, fallback = "操作失败"): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === "string" && detail.trim() ? detail : fallback;
+}

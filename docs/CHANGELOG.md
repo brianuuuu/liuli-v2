@@ -15,6 +15,20 @@
 
 ---
 
+## 1.0.17 — 2026-10-17
+
+- **变更**：
+  - Web 工作台"操作面板"改为"待办"，与 Android 待办同口径集中处理四类外部输入：推荐词、待导入报告、MCP 笔记、未读预警；列表 + 详情两栏，在详情里直接处理，处理完自动跳到下一条。
+  - 右侧运维栏：AI 任务（积压数、上次结果、下次运行、执行中状态与轮询）、异常任务（错误摘要、重跑、跳任务中心）、最近执行；顶部状态条显示待办总数与最早积压、任务异常、今日 AI 调用、最新资讯时间。
+  - 新增 `GET /api/console/workbench-operations`，待办页只请求这一个轻量接口，不再借用 `workbench-today`。
+  - `workbench-today.todo` 改为四类待办计数（`pending_suggestions / pending_reports / inbox_notes / unread_alerts / total`），与待办页共用一份口径；移除只服务旧操作面板的 `operation_jobs`、`recent_run_requests` 以及 `pending_track_materials / pending_stock_materials / failed_jobs`。
+  - 今日看板移除"最近执行记录"卡片（与待办页右栏"最近执行"重复），信息流结构图占满一行；删除旧操作面板组件及其样式。
+  - 推荐词通过表单抽为 `SuggestionApproveFields`，AI 推荐词页与工作台待办共用；控制台支持从工作台直接落到任务中心页签。
+- **原因**：原操作面板只有计数和三个按钮，报告与笔记两类待办在 Web 上没有入口，任务执行后没有状态反馈，失败任务看不到原因。
+- **影响**：Web 工作台、控制台；后端 console、knowledge_base（新增待办计数函数）；Android 无变更；数据库无变更。
+
+---
+
 ## 1.0.16 — 2026-10-17
 
 - **变更**：

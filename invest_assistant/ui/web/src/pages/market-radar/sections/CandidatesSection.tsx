@@ -1,25 +1,25 @@
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   type AiTagSuggestionSort,
-  approveAiTagSuggestion,
   createAiTagSuggestion,
-  listHotwords,
   listAiTagSuggestions,
   rejectAiTagSuggestion,
   restoreAiTagSuggestion
 } from "../../../api/marketRadar";
-import { searchStocks } from "../../../api/stocks";
-import { listTracks } from "../../../api/trackDiscovery";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { AiTagSuggestion, Hotword, Stock, Track } from "../../../types/api";
+import type { AiTagSuggestion } from "../../../types/api";
 import { formatTime } from "./shared";
-
-type TargetType = "stock" | "track" | "hotword";
+import {
+  SuggestionApproveFields,
+  submitSuggestionApproval,
+  suggestionApproveInitialValues,
+  type SuggestionApproveValues
+} from "./SuggestionApproveFields";
 
 type SuggestionFormValues = {
   suggested_text: string;
@@ -27,29 +27,10 @@ type SuggestionFormValues = {
   reason?: string;
 };
 
-type ApproveFormValues = {
-  final_tag_name?: string;
-  target_type: TargetType;
-  target_id?: number;
-  target_name?: string;
-};
-
-type TargetSelectOption = {
-  value: number;
-  label: string;
-  searchText: string;
-};
-
 const statusOptions = [
   { value: "pending", label: "待审核" },
   { value: "approved", label: "已通过" },
   { value: "rejected", label: "已拒绝" }
-];
-
-const targetTypeOptions = [
-  { value: "hotword", label: "市场热词" },
-  { value: "track", label: "赛道" },
-  { value: "stock", label: "标的" }
 ];
 
 function SuggestionStatusTag({ status }: { status?: string }) {
@@ -70,15 +51,10 @@ export function CandidatesSection() {
     ),
     { items: [], total: 0, limit: 20, offset: 0, has_more: false }
   );
-  const hotwords = useAsyncData(useCallback(async () => (await listHotwords(undefined, { limit: 100, offset: 0 })).items, []), []);
-  const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const [createOpen, setCreateOpen] = useState(false);
   const [approving, setApproving] = useState<AiTagSuggestion | null>(null);
-  const [stockOptions, setStockOptions] = useState<Stock[]>([]);
-  const [stockSearchLoading, setStockSearchLoading] = useState(false);
   const [form] = Form.useForm<SuggestionFormValues>();
-  const [approveForm] = Form.useForm<ApproveFormValues>();
-  const targetType = Form.useWatch("target_type", approveForm) || "hotword";
+  const [approveForm] = Form.useForm<SuggestionApproveValues>();
 
   useEffect(() => {
     setPage(1);
@@ -86,17 +62,6 @@ export function CandidatesSection() {
 
   const rows = suggestions.data.items;
   const statusButtons = [{ value: undefined, label: "全部" }, ...statusOptions];
-  const targetObjectOptions = useMemo(() => getTargetOptions(targetType, hotwords.data, tracks.data, stockOptions), [hotwords.data, stockOptions, targetType, tracks.data]);
-  const targetObjectLoading = targetType === "stock" ? stockSearchLoading : targetType === "track" ? tracks.loading : hotwords.loading;
-  const targetObjectPlaceholder = targetType === "stock" ? "搜索标的名称 / 代码 / 拼音" : `搜索${targetTypeOptions.find((item) => item.value === targetType)?.label || "对象"}名称`;
-  const targetObjectExtra = targetType === "stock" ? "标的必须从已有主数据中选择。" : "选择已有对象则绑定到该对象；不选择则按下方新对象名称创建。";
-
-  useEffect(() => {
-    approveForm.setFieldValue("target_id", undefined);
-    if (targetType !== "stock") {
-      setStockOptions([]);
-    }
-  }, [approveForm, targetType]);
 
   async function submitCreate() {
     const values = await form.validateFields();
@@ -119,33 +84,11 @@ export function CandidatesSection() {
 
   async function submitApprove() {
     if (!approving) return;
-    const values = await approveForm.validateFields();
-    await approveAiTagSuggestion(approving.id, {
-      final_tag_name: values.final_tag_name || null,
-      target_type: values.target_type,
-      target_id: values.target_id || null,
-      target_name: values.target_name || values.final_tag_name || approving.suggested_text
-    });
+    await submitSuggestionApproval(approving, approveForm);
     message.success("AI 推荐词已通过");
     setApproving(null);
     approveForm.resetFields();
-    setStockOptions([]);
     await suggestions.refresh();
-  }
-
-  async function searchTargetObjects(keyword: string) {
-    if (targetType !== "stock") return;
-    const value = keyword.trim();
-    if (!value) {
-      setStockOptions([]);
-      return;
-    }
-    setStockSearchLoading(true);
-    try {
-      setStockOptions(await searchStocks(value));
-    } finally {
-      setStockSearchLoading(false);
-    }
   }
 
   async function reject(record: AiTagSuggestion) {
@@ -267,7 +210,7 @@ export function CandidatesSection() {
       <Modal
         title="通过 AI 推荐词"
         open={Boolean(approving)}
-        onCancel={() => { setApproving(null); approveForm.resetFields(); setStockOptions([]); }}
+        onCancel={() => { setApproving(null); approveForm.resetFields(); }}
         onOk={submitApprove}
         destroyOnHidden
       >
@@ -276,72 +219,11 @@ export function CandidatesSection() {
           form={approveForm}
           layout="vertical"
           preserve={false}
-          initialValues={{
-            final_tag_name: approving?.final_tag_name || approving?.suggested_text,
-            target_type: "hotword"
-          }}
+          initialValues={suggestionApproveInitialValues(approving)}
         >
-          <Form.Item name="final_tag_name" label="最终标签词">
-            <Input />
-          </Form.Item>
-          <Form.Item name="target_type" label="绑定对象" rules={[{ required: true, message: "请选择绑定对象" }]}>
-            <Select
-              options={targetTypeOptions}
-              onChange={() => {
-                approveForm.setFieldValue("target_id", undefined);
-                setStockOptions([]);
-              }}
-            />
-          </Form.Item>
-          <Form.Item
-            name="target_id"
-            label="已有对象"
-            extra={targetObjectExtra}
-            rules={[{ required: targetType === "stock", message: "请搜索并选择已有标的" }]}
-          >
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="searchText"
-              filterOption={targetType === "stock" ? false : undefined}
-              placeholder={targetObjectPlaceholder}
-              options={targetObjectOptions}
-              loading={targetObjectLoading}
-              onSearch={searchTargetObjects}
-              notFoundContent={targetType === "stock" ? (stockSearchLoading ? "搜索中" : "请输入名称或代码搜索") : "暂无可选对象"}
-              popupMatchSelectWidth={360}
-            />
-          </Form.Item>
-          <Form.Item name="target_name" label="新对象名称">
-            <Input disabled={targetType === "stock"} placeholder={targetType === "stock" ? "标的需从已有主数据中选择" : undefined} />
-          </Form.Item>
+          <SuggestionApproveFields form={approveForm} />
         </Form>
       </Modal>
     </>
   );
-}
-
-function getTargetOptions(targetType: TargetType, hotwords: Hotword[], tracks: Track[], stocks: Stock[]): TargetSelectOption[] {
-  if (targetType === "track") {
-    return tracks.map((item) => ({
-      value: item.id,
-      label: item.name || "未命名赛道",
-      searchText: [item.name, item.description, item.industry_phase, item.market_phase, item.status].filter(Boolean).join(" ")
-    }));
-  }
-  if (targetType === "stock") {
-    return stocks.map((item) => {
-      const name = item.stock_name || item.name || item.stock_code || item.symbol || "未命名标的";
-      return {
-        value: item.id,
-        label: name,
-        searchText: [name, item.symbol, item.stock_code, item.name_pinyin, item.name_abbr, item.market, item.exchange].filter(Boolean).join(" ")
-      };
-    });
-  }
-  return hotwords.map((item) => ({
-    value: item.id,
-    label: item.name || "未命名热词",
-    searchText: [item.name, item.description, item.status].filter(Boolean).join(" ")
-  }));
 }

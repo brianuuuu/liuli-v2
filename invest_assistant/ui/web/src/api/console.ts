@@ -51,13 +51,6 @@ export type WorkbenchRunRequest = {
   finished_at?: string | null;
 };
 
-export type WorkbenchOperationJob = {
-  job_name: string;
-  exists: boolean;
-  last_run_at?: string | null;
-  last_status?: string | null;
-};
-
 export type WorkbenchMarketIndex = {
   code: string;
   name: string;
@@ -88,6 +81,56 @@ export type WorkbenchMarketRefresh = {
   jobs: WorkbenchRunRequest[];
 };
 
+export type TodoKind = "suggestions" | "reports" | "notes" | "alerts";
+
+export type TodoSummary = { count: number; oldest_at?: string | null };
+
+export type WorkbenchRunLog = {
+  id: number;
+  status: string;
+  trigger_type: string;
+  finished_at?: string | null;
+  duration_ms: number;
+  processed_count: number;
+  inserted_count: number;
+  updated_count: number;
+  error_message?: string | null;
+};
+
+export type WorkbenchAiJob = {
+  job_name: string;
+  display_name: string;
+  exists: boolean;
+  pending: number;
+  next_run_at?: string | null;
+  last_run?: WorkbenchRunLog | null;
+  active_request?: WorkbenchRunRequest | null;
+};
+
+export type WorkbenchFailedJob = {
+  job_name: string;
+  display_name: string;
+  exists: boolean;
+  last_run_at?: string | null;
+  error_message?: string | null;
+  active_request?: WorkbenchRunRequest | null;
+};
+
+export type WorkbenchOperations = {
+  todo: Record<TodoKind, TodoSummary> & { total: number };
+  ai_jobs: WorkbenchAiJob[];
+  failed_jobs: WorkbenchFailedJob[];
+  recent_runs: (WorkbenchRunLog & { job_name: string; display_name: string })[];
+  health: {
+    total_jobs: number;
+    failed_jobs: number;
+    running_jobs: number;
+    latest_source_at?: string | null;
+    ai_today: number;
+    ai_today_tokens: number;
+  };
+};
+
 export type WorkbenchToday = {
   market_indices: {
     items: WorkbenchMarketIndex[];
@@ -116,14 +159,11 @@ export type WorkbenchToday = {
   };
   todo: {
     pending_suggestions: number;
-    pending_track_materials: number;
-    pending_stock_materials: number;
+    pending_reports: number;
+    inbox_notes: number;
     unread_alerts: number;
-    failed_jobs: number;
     total: number;
   };
-  operation_jobs: WorkbenchOperationJob[];
-  recent_run_requests: WorkbenchRunRequest[];
 };
 
 export type AiLogStats = {
@@ -168,6 +208,11 @@ export async function getWorkbenchToday(): Promise<WorkbenchToday> {
       workbenchTodayRequest = null;
     });
   return workbenchTodayRequest;
+}
+
+export async function getWorkbenchOperations(): Promise<WorkbenchOperations> {
+  const response = await apiClient.get<WorkbenchOperations>("/api/console/workbench-operations");
+  return response.data;
 }
 
 export async function refreshWorkbenchMarket(): Promise<{ status: string; request_ids: number[]; jobs: string[] }> {

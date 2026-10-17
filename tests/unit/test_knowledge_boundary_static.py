@@ -155,7 +155,7 @@ def test_knowledge_frontend_tabs_and_api_use_new_boundaries():
         "导入",
         "import-feedback",
         "未识别可导入的报告类型",
-        "getApiErrorDetail",
+        "apiErrorDetail",
         "标题",
         "Skill 名称",
         "业务模块",

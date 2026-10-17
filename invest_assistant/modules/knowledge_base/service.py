@@ -1107,10 +1107,29 @@ def _has_trailing_json(db: Session, report_id: int, report_type: str) -> bool:
 
 
 def list_research_feedback(db: Session, *, pending_import: bool = False) -> list[KnowledgeResearchFeedback]:
-    items = list(
-        db.scalars(select(KnowledgeResearchFeedback).order_by(KnowledgeResearchFeedback.returned_at.desc(), KnowledgeResearchFeedback.id.desc()))
-    )
-    return [item for item in items if is_pending_import_feedback(db, item)] if pending_import else items
+    stmt = select(KnowledgeResearchFeedback).order_by(KnowledgeResearchFeedback.returned_at.desc(), KnowledgeResearchFeedback.id.desc())
+    if not pending_import:
+        return list(db.scalars(stmt))
+    # 先用索引列筛掉已处理的，再逐条读报告文件判断末尾 JSON
+    received = db.scalars(stmt.where(KnowledgeResearchFeedback.status == "received"))
+    return [item for item in received if is_pending_import_feedback(db, item)]
+
+
+def pending_import_feedback_summary(db: Session) -> dict:
+    """待办计数：口径与 list_research_feedback(pending_import=True) 一致。"""
+    items = list_research_feedback(db, pending_import=True)
+    times = [item.returned_at or item.created_at for item in items]
+    return {"count": len(items), "oldest_at": min(times) if times else None}
+
+
+def _inbox_note_conditions() -> tuple:
+    """待办里的笔记：MCP 写入、尚未分组的有效笔记。自己随手记的未分组笔记在笔记页整理，不算待办。"""
+    return (KnowledgeNote.status == "active", KnowledgeNote.group_id.is_(None), KnowledgeNote.note_type == "mcp")
+
+
+def inbox_notes_summary(db: Session) -> dict:
+    count, oldest_at = db.execute(select(func.count(KnowledgeNote.id), func.min(KnowledgeNote.created_at)).where(*_inbox_note_conditions())).one()
+    return {"count": int(count or 0), "oldest_at": oldest_at}
 
 
 def get_research_feedback(db: Session, feedback_id: int) -> KnowledgeResearchFeedback | None:

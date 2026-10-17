@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 const navigation = readFileSync("invest_assistant/ui/web/src/app/navigation.tsx", "utf8");
 const page = readFileSync("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx", "utf8");
 const globalCss = readFileSync("invest_assistant/ui/web/src/styles/global.css", "utf8");
-const todaySection = page.match(/function TodayDashboardSection\(\)[\s\S]*?function OperationsPanelSection/)?.[0] || "";
-const operationsSection = page.match(/function OperationsPanelSection\(\)[\s\S]*?function ReportTable/)?.[0] || "";
+const todoWorkbench = readFileSync("invest_assistant/ui/web/src/pages/dashboard/todo/TodoWorkbench.tsx", "utf8");
+const opsRail = readFileSync("invest_assistant/ui/web/src/pages/dashboard/todo/OpsRail.tsx", "utf8");
+const todaySection = page.match(/function TodayDashboardSection\(\)[\s\S]*?const reportKindLabels/)?.[0] || "";
 const latestReportsSection = page.match(/function LatestReportsSection\(\)[\s\S]*?export function DashboardPage/)?.[0] || "";
 
 function cssRule(selector) {
@@ -18,7 +19,7 @@ assert.match(navigation, /key:\s*"dashboard",\s*label:\s*"工作台"/);
 assert.doesNotMatch(navigation, /key:\s*"dashboard",\s*label:\s*"总览"/);
 assert.doesNotMatch(navigation, /primaryNavItems[\s\S]*label:\s*"今日看板"[\s\S]*moduleTabs/);
 
-assert.match(navigation, /dashboard:\s*\[[\s\S]*label:\s*"今日看板"[\s\S]*label:\s*"操作面板"[\s\S]*label:\s*"最新报告"[\s\S]*\]/);
+assert.match(navigation, /dashboard:\s*\[[\s\S]*label:\s*"今日看板"[\s\S]*label:\s*"待办"[\s\S]*label:\s*"最新报告"[\s\S]*\]/);
 
 assert.match(page, /<PageHeader\s+title="工作台"/);
 assert.doesNotMatch(page, /<PageHeader\s+title="今日看板"/);
@@ -27,15 +28,20 @@ assert.match(page, /<ModuleTabs\s+activeKey=\{activeTab\}\s+items=\{moduleTabs\.
 assert.match(page, /title="新增"/);
 assert.match(page, /title="活跃"/);
 assert.match(page, /title="统计"/);
-assert.match(page, /title="待办入口"/);
-assert.match(page, /title="AI 控制面板"/);
-assert.match(page, /workbench-action-grid/);
-assert.match(operationsSection, /className="workbench-action-card workbench-todo-card"/);
-assert.match(operationsSection, /className="workbench-action-card workbench-ai-card"/);
-assert.match(operationsSection, /workbench-control-table-head/);
-assert.doesNotMatch(operationsSection, /workbench-control-header/);
+// 待办页：四类待办与安卓待办同名同序，右侧为 AI 任务 / 异常任务 / 最近执行
+assert.match(page, /activeTab === "todo"[\s\S]*<TodoWorkbench \/>/);
+assert.match(todoWorkbench, /label: "推荐词"[\s\S]*label: "报告"[\s\S]*label: "笔记"[\s\S]*label: "预警"/);
+assert.match(todoWorkbench, /getWorkbenchOperations/);
+assert.doesNotMatch(todoWorkbench, /getWorkbenchToday/);
+assert.match(opsRail, /title="AI 任务"/);
+assert.match(opsRail, /title="异常任务"/);
+assert.match(opsRail, /title="最近执行"/);
+assert.doesNotMatch(globalCss, /workbench-control-/);
+assert.doesNotMatch(globalCss, /workbench-entry-/);
 assert.doesNotMatch(page, /title="待办队列摘要"/);
-assert.match(todaySection, /title="最近执行记录"/);
+// 最近执行只在待办页右栏展示，今日看板不重复
+assert.doesNotMatch(todaySection, /title="最近执行记录"/);
+assert.match(opsRail, /title="最近执行"/);
 assert.match(todaySection, /市场与组合/);
 assert.match(todaySection, /className="workbench-market-card"/);
 assert.match(todaySection, /组合表现/);
@@ -80,22 +86,8 @@ assert.match(cssRule(".workbench-portfolio-card"), /border:\s*1px solid var\(--l
 assert.match(cssRule(".workbench-portfolio-card"), /background:\s*var\(--ll-panel-subtle\);/);
 assert.doesNotMatch(cssRule(".workbench-portfolio-total"), /background:/);
 assert.doesNotMatch(cssRule(".workbench-portfolio-stats div"), /background:/);
-assert.match(globalCss, /\.workbench-action-grid\s*\{[\s\S]*?grid-template-columns:\s*320px minmax\(0,\s*1fr\);/);
-assert.match(cssRule(".workbench-entry-card-premium"), /min-height:\s*37px;/);
-assert.match(globalCss, /grid-template-columns:\s*minmax\(260px,\s*1fr\) 86px 148px 78px;/);
-assert.match(globalCss, /\.workbench-control-table\s*\{[\s\S]*?background:\s*var\(--ll-panel\);/);
-assert.match(globalCss, /\.workbench-control-table-head\s*\{[\s\S]*?background:\s*var\(--ll-panel-subtle\);/);
-assert.match(globalCss, /\.workbench-control-card-premium:hover,\s*\.workbench-control-card-premium:focus-within\s*\{[\s\S]*?background:\s*var\(--ll-panel-subtle\);/);
-assert.doesNotMatch(globalCss, /\.workbench-control-header\s*\{/);
-assert.match(operationsSection, /getWorkbenchToday/);
-assert.doesNotMatch(operationsSection, /getTrackDashboard/);
-assert.doesNotMatch(operationsSection, /listAiTagSuggestions/);
-assert.doesNotMatch(operationsSection, /listAllStockMaterials/);
-assert.doesNotMatch(operationsSection, /getAlertEventStats/);
-assert.doesNotMatch(operationsSection, /listJobs/);
-assert.doesNotMatch(operationsSection, /AI 热词合并建议/);
-assert.doesNotMatch(operationsSection, /market_radar\.suggest_hotword_merges_deepseek/);
-assert.doesNotMatch(operationsSection, /title="最近执行记录"/);
+assert.doesNotMatch(opsRail, /AI 热词合并建议/);
+assert.doesNotMatch(opsRail, /market_radar\.suggest_hotword_merges_deepseek/);
 assert.doesNotMatch(page, /getTrackDashboard/);
 assert.doesNotMatch(page, /常用网页快捷入口/);
 assert.doesNotMatch(page, /待办处理入口/);

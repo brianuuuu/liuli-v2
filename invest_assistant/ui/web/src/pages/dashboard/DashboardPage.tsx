@@ -1,6 +1,5 @@
 import {
   FileTextOutlined,
-  PlayCircleOutlined,
   RobotOutlined,
   DatabaseOutlined,
   GlobalOutlined,
@@ -14,19 +13,14 @@ import {
   ThunderboltOutlined,
   CarryOutOutlined,
   WarningOutlined,
-  HistoryOutlined,
-  AuditOutlined,
-  FilterOutlined,
   SyncOutlined
 } from "@ant-design/icons";
-import { Button, Modal, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { Button, Space, Table, Tag, Typography, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
 import { useLiuliTheme } from "../../app/theme";
 import { getWorkbenchToday, refreshWorkbenchMarket } from "../../api/console";
-import { STOCK_EVENT_REVIEW_JOB_NAME, TRACK_EVENT_REVIEW_JOB_NAME, runJob } from "../../api/jobs";
 import { listReports, getReportContent } from "../../api/reports";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
@@ -39,6 +33,7 @@ import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Page, Report } from "../../types/api";
 import { DEFAULT_REPORT_PAGE_SIZE, reportPageParams, type ReportKind } from "./dashboardReports";
+import { TodoWorkbench } from "./todo/TodoWorkbench";
 
 const initialWorkbenchToday = {
   market_indices: {
@@ -81,14 +76,11 @@ const initialWorkbenchToday = {
   },
   todo: {
     pending_suggestions: 0,
-    pending_track_materials: 0,
-    pending_stock_materials: 0,
+    pending_reports: 0,
+    inbox_notes: 0,
     unread_alerts: 0,
-    failed_jobs: 0,
     total: 0
-  },
-  operation_jobs: [],
-  recent_run_requests: []
+  }
 };
 
 const sourceTypeGroups = {
@@ -423,159 +415,7 @@ function TodayDashboardSection() {
         />
       </div>
 
-      <div className="workbench-dashboard-grid">
-        <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
-
-        <WorkbenchCard title="最近执行记录">
-          <Table
-            rowKey="id"
-            size="small"
-            loading={today.loading}
-            dataSource={today.data.recent_run_requests}
-            pagination={false}
-            columns={[
-              { title: "任务", dataIndex: "job_name", ellipsis: true },
-              { title: "状态", dataIndex: "status", width: 100, render: (value) => <Tag>{value || "-"}</Tag> },
-              { title: "提交时间", dataIndex: "requested_at", width: 170, render: formatTime },
-              { title: "完成时间", dataIndex: "finished_at", width: 170, render: formatTime }
-            ]}
-            locale={{ emptyText: <EmptyAction description="暂无执行记录" /> }}
-          />
-        </WorkbenchCard>
-      </div>
-    </div>
-  );
-}
-
-function OperationsPanelSection() {
-  const navigate = useNavigate();
-  const workbench = useAsyncData(useCallback(getWorkbenchToday, []), initialWorkbenchToday);
-  const [runningKey, setRunningKey] = useState<string | null>(null);
-
-  const jobByName = useMemo(() => new Map(workbench.data.operation_jobs.map((job) => [job.job_name, job])), [workbench.data.operation_jobs]);
-  const stockPendingCount = workbench.data.todo.pending_stock_materials;
-  const trackPendingCount = workbench.data.todo.pending_track_materials;
-  const pendingSuggestionCount = workbench.data.todo.pending_suggestions;
-
-  const operations = [
-    {
-      key: "track-material-review",
-      name: "一键 AI 审核赛道材料",
-      pending: trackPendingCount,
-      jobName: TRACK_EVENT_REVIEW_JOB_NAME,
-      lastRunAt: jobByName.get(TRACK_EVENT_REVIEW_JOB_NAME)?.last_run_at,
-      icon: <AuditOutlined />,
-      color: "#059669"
-    },
-    {
-      key: "stock-material-review",
-      name: "一键 AI 审核标的材料",
-      pending: stockPendingCount,
-      jobName: STOCK_EVENT_REVIEW_JOB_NAME,
-      lastRunAt: jobByName.get(STOCK_EVENT_REVIEW_JOB_NAME)?.last_run_at,
-      icon: <AuditOutlined />,
-      color: "#4f46e5"
-    },
-    {
-      key: "ai-hotword-screen",
-      name: "AI 筛选热词",
-      pending: pendingSuggestionCount,
-      jobName: "market_radar.extract_daily_hotwords_deepseek",
-      lastRunAt: jobByName.get("market_radar.extract_daily_hotwords_deepseek")?.last_run_at,
-      icon: <FilterOutlined />,
-      color: "#d97706"
-    }
-  ];
-
-  const todoEntries = [
-    { key: "suggestions", label: "AI 推荐词审核", count: pendingSuggestionCount, path: "/market-radar", icon: <TagOutlined />, color: "#2563eb" },
-    { key: "track-materials", label: "赛道材料处理", count: trackPendingCount, path: "/track-discovery", icon: <RadarChartOutlined />, color: "#059669" },
-    { key: "stock-materials", label: "标的材料处理", count: stockPendingCount, path: "/stock-analysis", icon: <AimOutlined />, color: "#4f46e5" },
-    { key: "alerts", label: "未读预警处理", count: workbench.data.todo.unread_alerts, path: "/alerts", icon: <WarningOutlined />, color: "#e11d48" },
-    { key: "jobs", label: "失败任务排查", count: workbench.data.todo.failed_jobs, path: "/console", icon: <HistoryOutlined />, color: "#dc2626" }
-  ];
-
-  async function runOperation(operation: { key: string; jobName: string | null }) {
-    if (!operation.jobName) return;
-    setRunningKey(operation.key);
-    try {
-      await runJob(operation.jobName, {});
-      message.success("已提交执行请求");
-      await workbench.refresh();
-    } catch {
-      message.error("执行请求提交失败");
-    } finally {
-      setRunningKey(null);
-    }
-  }
-
-  return (
-    <div className="workbench-dashboard">
-      <div className="workbench-action-grid">
-        <WorkbenchCard title="待办入口" className="workbench-action-card workbench-todo-card">
-          <div className="workbench-entry-column">
-            {todoEntries.map((item) => (
-              <button className="workbench-entry-card-premium" key={item.key} type="button" onClick={() => navigate(item.path)}>
-                <div className="entry-left">
-                  {item.icon && (
-                    <div className="entry-icon-wrapper" style={{ backgroundColor: `${item.color}12`, color: item.color }}>
-                      {item.icon}
-                    </div>
-                  )}
-                  <span>{item.label}</span>
-                </div>
-                <span className="entry-count">{item.count}</span>
-              </button>
-            ))}
-          </div>
-        </WorkbenchCard>
-
-        <WorkbenchCard title="AI 控制面板" className="workbench-action-card workbench-ai-card">
-          <div className="workbench-control-grid workbench-control-table">
-            <div className="workbench-control-table-head" aria-hidden="true">
-              <span>任务</span>
-              <span>待处理</span>
-              <span>最近运行</span>
-              <span>操作</span>
-            </div>
-            {operations.map((item) => {
-              const jobExists = item.jobName
-                ? jobByName.get(item.jobName)?.exists
-                : false;
-              const disabled = !item.jobName || !jobExists;
-              const hasPending = item.pending > 0;
-              return (
-                <div className="workbench-control-card-premium" key={item.key}>
-                  <div className="workbench-control-title-premium">
-                    <span style={{ color: item.color }}>{item.icon}</span>
-                    <span>{item.name}</span>
-                  </div>
-                  <div className={`workbench-control-status-badge ${hasPending ? 'pending' : 'clean'}`}>
-                    {hasPending ? item.pending : "清空"}
-                  </div>
-                  <div className="workbench-control-metadata-premium">
-                    <span>{formatTime(item.lastRunAt)}</span>
-                  </div>
-                  <div className="workbench-control-footer-premium">
-                    <Button
-                      size="small"
-                      type={hasPending ? "primary" : "default"}
-                      icon={<PlayCircleOutlined />}
-                      loading={runningKey === item.key}
-                      disabled={disabled}
-                      className="workbench-control-action"
-                      onClick={() => runOperation(item)}
-                    >
-                      {!item.jobName ? "待实现" : jobExists ? "执行" : "未接入"}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </WorkbenchCard>
-      </div>
-
+      <ChartCard title="今日信息流结构" option={sourceChartOption} height={260} />
     </div>
   );
 }
@@ -752,8 +592,8 @@ export function DashboardPage() {
     <>
       <PageHeader title="工作台" description="看板 · 操作 · 报告" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.dashboard} onChange={setActiveTab} />
-      {activeTab === "actions" ? (
-        <OperationsPanelSection />
+      {activeTab === "todo" ? (
+        <TodoWorkbench />
       ) : activeTab === "reports" ? (
         <LatestReportsSection />
       ) : (

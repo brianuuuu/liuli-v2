@@ -31,7 +31,7 @@ export const primaryNavItems: NavItem[] = [
 export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   dashboard: [
     { key: "today", label: "今日看板" },
-    { key: "actions", label: "操作面板" },
+    { key: "todo", label: "待办" },
     { key: "reports", label: "最新报告" }
   ],
   "market-radar": [

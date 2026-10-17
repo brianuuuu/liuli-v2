@@ -42,6 +42,8 @@ export type KnowledgeNotePayload = {
 export type KnowledgeNoteQuery = {
   status?: string;
   group_id?: number;
+  ungrouped?: boolean;
+  note_type?: string;
   tag_id?: number;
   q?: string;
   limit?: number;

@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.16**（2026-10-17）
+> 当前版本：**1.0.17**（2026-10-17）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -898,7 +898,7 @@ react-markdown + remark-gfm（报告阅读）
 一级路由：`/`（工作台）、`/market-radar`、`/track-discovery`、`/stock-analysis`、`/alerts`、`/portfolio`、`/knowledge`、`/console`、`/login`；详情动态路由：`/track-discovery/tracks/:id`、`/stock-analysis/stocks/:id`、`/portfolio/:id`。二级菜单是模块页内的页签（`app/navigation.tsx` 的 `moduleTabs`），不是独立 URL。
 
 ```text
-工作台    今日看板 | 操作面板 | 最新报告
+工作台    今日看板 | 待办 | 最新报告
 市场雷达  市场看板 | 信息流 | 热度榜 | 关系图谱 | AI 推荐词 | 市场热词
 赛道发现  赛道看板 | 赛道库 | 赛道动态 | 赛道对比
 标的分析  标的看板 | 标的池 | 标的事件 | 标的对比
@@ -906,6 +906,21 @@ react-markdown + remark-gfm（报告阅读）
 组合管理  组合看板 | 实盘持仓 | 调仓记录 | 组合复盘
 知识库    知识笔记 | 对内 Prompt | 对外 Skills | 研究员 | 研究回流
 控制台    系统状态 | 任务中心 | 数据源 | 股票基础库 | 标签索引 | 公告财报库 | 系统配置 | AI 审计日志
+```
+
+工作台"待办"页：
+
+```text
+口径：与 Android 待办一致，"外部输入等我处理"，四个页签同名同序：
+      推荐词（ai_tag_suggestion.status=pending）| 报告（研究回流待导入，同 pending_import 判定）
+      | 笔记（note_type=mcp、未分组、有效）| 预警（alert_event.status=unread）。
+左侧：列表 + 详情两栏，在详情里直接处理（推荐词通过/拒绝、报告导入/删除、笔记归组打标签/归档、预警已读/删除），
+      处理完自动选中下一条；处理能力复用各业务模块的接口与组件，工作台只做入口。
+右侧：AI 任务（AI 审核赛道材料 / AI 审核标的材料 / AI 筛选热词，含积压数、上次结果、下次运行、执行中状态）、
+      异常任务（last_status 失败的任务与错误摘要，可重跑、跳任务中心）、最近执行（job_run_log 最近 8 条）。
+顶部状态条：待办总数与最早积压、任务异常数、今日 AI 调用、最新资讯时间。
+材料积压不单列页签，显示在对应 AI 审核任务行；失败任务属于运维，不计入待办总数。
+有任务排队或执行中时每 4 秒刷新一次，否则每 60 秒。
 ```
 
 菜单边界：
@@ -969,6 +984,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/dashboard` | 控制台首页汇总 |
 | GET | `/workbench-today` | 今日工作台：大盘、组合、今日入库报告（`today_reports`，按 `created_at` 与北京时间日界） |
 | POST | `/workbench-today/refresh-market` | 触发市场刷新相关任务 |
+| GET | `/workbench-operations` | 工作台待办页：四类待办计数与最早积压时间、AI 任务状态、异常任务、最近执行、状态条 |
 | GET | `/system-status` | 系统状态 |
 | GET | `/data-sources` | 数据源状态 |
 | GET | `/ai-logs/stats` | AI 调用汇总 |

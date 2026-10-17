@@ -5,6 +5,8 @@ import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
+import { apiErrorDetail } from "../../api/client";
+import { noteToPayload } from "./notePayload";
 import { formatFeedbackImportSummary, hasImportFailure } from "./researchFeedbackImport";
 import {
   archiveKnowledgeNote,
@@ -120,11 +122,6 @@ function formatDateTime(value?: string | null) {
   return value.replace("T", " ").slice(0, 16);
 }
 
-function getApiErrorDetail(error: unknown, fallback = "操作失败") {
-  const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-  return typeof detail === "string" && detail.trim() ? detail : fallback;
-}
-
 function noteTypeLabel(value: string) {
   return noteTypeOptions.find((item) => item.value === value)?.label || value;
 }
@@ -148,20 +145,6 @@ function noteSaveErrorMessage(error: unknown) {
       .join("；") || "请稍后重试";
   }
   return "请稍后重试";
-}
-
-function noteToPayload(note: KnowledgeNote): KnowledgeNotePayload {
-  return {
-    title: note.title,
-    content: note.content,
-    note_type: note.note_type,
-    group_id: note.group_id ?? null,
-    related_module: note.related_module ?? null,
-    related_id: note.related_id ?? null,
-    tags: note.tags_text ?? null,
-    tag_ids: note.tags.map((tag) => tag.id),
-    status: note.status
-  };
 }
 
 function NotesSection() {
@@ -727,7 +710,7 @@ function ExternalSkillsSection() {
       const nextTree = await listKnowledgeExternalSkillFiles(slug);
       setFileTreeBySlug((current) => ({ ...current, [slug]: nextTree }));
     } catch (error) {
-      message.error(`目录树加载失败：${getApiErrorDetail(error)}`);
+      message.error(`目录树加载失败：${apiErrorDetail(error)}`);
     } finally {
       setLoadingSkillSlug(null);
     }
@@ -745,7 +728,7 @@ function ExternalSkillsSection() {
     try {
       setPreviewingSkillFile(await readKnowledgeExternalSkillFile(path));
     } catch (error) {
-      message.error(`只读文件加载失败：${getApiErrorDetail(error)}`);
+      message.error(`只读文件加载失败：${apiErrorDetail(error)}`);
     } finally {
       setFileLoading(false);
     }
@@ -906,7 +889,7 @@ function ResearcherSection() {
       message.success("研究员已删除");
       await researchers.refresh();
     } catch (error) {
-      message.error(getApiErrorDetail(error, "研究员删除失败"));
+      message.error(apiErrorDetail(error, "研究员删除失败"));
     }
   }
 
@@ -1066,7 +1049,7 @@ function ResearchFeedbackSection() {
       const showImportError = Modal.error;
       showImportError({
         title: "导入失败",
-        content: getApiErrorDetail(error) || "未识别可导入的报告类型"
+        content: apiErrorDetail(error) || "未识别可导入的报告类型"
       });
     } finally {
       setImportingId(null);
@@ -1089,7 +1072,7 @@ function ResearchFeedbackSection() {
               await importKnowledgeResearchFeedback(record.id);
               return null;
             } catch (error) {
-              return { title: record.title, reason: getApiErrorDetail(error) || "未知错误" };
+              return { title: record.title, reason: apiErrorDetail(error) || "未知错误" };
             }
           })
         )
@@ -1126,7 +1109,7 @@ function ResearchFeedbackSection() {
       message.success("研究回流已删除");
       await feedback.refresh();
     } catch (error) {
-      message.error(getApiErrorDetail(error, "研究回流删除失败"));
+      message.error(apiErrorDetail(error, "研究回流删除失败"));
     }
   }
 
