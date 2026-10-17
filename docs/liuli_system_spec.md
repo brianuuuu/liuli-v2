@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.15**（2026-10-15）
+> 当前版本：**1.0.16**（2026-10-17）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -504,10 +504,15 @@ AI 只输出 `name / score / reason`，不判断实体类型。审核时 `final_
 
 ```text
 统计层级：source_item → source_tag → tag，不受材料审核状态影响。
-窗口：24h / 7d / 30d，各自独立统计。
+窗口：24h / 7d / 30d，各自独立统计；统计时刻 stat_time = 聚合执行时的当前时间。
+条目有效时间：publish_time；publish_time 为空或晚于统计时刻时用入库时间 created_at。
 heat_score = trigger_count（source_tag 命中次数）；source_count 为去重条数，仅内部诊断。
 不使用百分比变化率。
 ```
+
+热度榜按 `(分类, 窗口, 最新 stat_time)` 做进程内缓存，最新快照时刻不变时直接复用，`aggregate_heat` 写入后清空。
+
+标签趋势（Web `GET /tags/{tag_id}/trend?window=`）：从该标签在该窗口的最近快照往前取 24h→48 小时、7d→14 天、30d→90 天；超过 200 个点时按时间等分为 200 桶，每桶取最后一个快照。只返回 `stat_time / heat_score / trigger_count / rank_no`，前端不再做平滑，区间变化展示绝对差值。MCP `market_radar.get_tag_trend` 仍按 `limit` 返回完整快照。
 
 排名变化用参照快照而非上一轮快照：
 
@@ -1038,7 +1043,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/source-items/{id}` | 信息流详情 |
 | GET / POST | `/tags` | 标签列表 / 新增 |
 | GET / PUT / DELETE | `/tags/{tag_id}` | 详情 / 更新 / 归档 |
-| GET | `/tags/{tag_id}/trend` | 标签热度趋势 |
+| GET | `/tags/{tag_id}/trend` | 标签热度趋势（`window`=24h/7d/30d，默认 7d；限跨度并降采样） |
 | GET | `/tags/{tag_id}/sources` | 标签命中的信息流 |
 | GET / POST | `/hotwords` | 市场热词列表 / 新增 |
 | GET | `/hotwords/stats` | 热词统计 |

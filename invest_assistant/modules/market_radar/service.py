@@ -42,6 +42,14 @@ WINDOWS = {
 
 DEFAULT_HEAT_WINDOW = "7d"
 
+# 趋势接口按窗口取的时间跨度与最大点数：超出点数时服务端按时间分桶降采样，每桶取最后一个快照
+TREND_RANGES = {
+    "24h": timedelta(hours=48),
+    "7d": timedelta(days=14),
+    "30d": timedelta(days=90),
+}
+TREND_MAX_POINTS = 200
+
 RANK_CHANGE_BASELINES = {
     "24h": timedelta(hours=1),
     "7d": timedelta(days=1),
@@ -862,13 +870,13 @@ def extract_tags(db: Session, batch_limit: int | str | None = DEFAULT_EXTRACT_TA
     )
 
 
-def aggregate_heat(db: Session) -> JobResult:
-    now = db.scalar(select(func.max(SourceItem.publish_time))) or utc_now()
+def aggregate_heat(db: Session, now: datetime | None = None) -> JobResult:
+    now = now or utc_now()
     inserted = 0
     for window, delta in WINDOWS.items():
         since = now - delta
         db.execute(delete(TagHeatSnapshot).where(TagHeatSnapshot.window_type == window, TagHeatSnapshot.stat_time == now))
-        current_rows = _heat_rows_between(db, since, now, include_null_publish=True, include_end=True)
+        current_rows = _heat_rows_between(db, since, now)
         sorted_rows = sorted(
             current_rows,
             key=lambda row: (-_heat_score(int(row[1]), int(row[2])), int(row[0])),
@@ -892,26 +900,27 @@ def aggregate_heat(db: Session) -> JobResult:
             )
             inserted += 1
     db.commit()
+    _RANKINGS_CACHE.clear()
     return JobResult(success=True, message=f"created {inserted} heat snapshots", inserted_count=inserted)
 
 
-def _heat_rows_between(
-    db: Session,
-    start_at: datetime,
-    end_at: datetime,
-    *,
-    include_null_publish: bool,
-    include_end: bool,
-):
-    publish_filters = [SourceItem.publish_time >= start_at]
-    publish_filters.append(SourceItem.publish_time <= end_at if include_end else SourceItem.publish_time < end_at)
-    publish_filter = and_(*publish_filters)
-    if include_null_publish:
-        publish_filter = or_(SourceItem.publish_time.is_(None), publish_filter)
+def _effective_time_between(start_at: datetime, end_at: datetime):
+    """条目有效时间落在 [start_at, end_at]：publish_time 缺失或晚于统计时刻（源站时间错误）时退回入库时间 created_at。"""
+    return or_(
+        and_(SourceItem.publish_time >= start_at, SourceItem.publish_time <= end_at),
+        and_(
+            or_(SourceItem.publish_time.is_(None), SourceItem.publish_time > end_at),
+            SourceItem.created_at >= start_at,
+            SourceItem.created_at <= end_at,
+        ),
+    )
+
+
+def _heat_rows_between(db: Session, start_at: datetime, end_at: datetime):
     return db.execute(
         select(SourceTag.tag_id, func.count(SourceTag.id), func.count(distinct(SourceTag.source_item_id)))
         .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
-        .where(publish_filter)
+        .where(_effective_time_between(start_at, end_at))
         .group_by(SourceTag.tag_id)
     ).all()
 
@@ -920,8 +929,8 @@ def _heat_score(trigger_count: int, source_count: int) -> float:
     return float(trigger_count)
 
 
-def aggregate_edges(db: Session) -> JobResult:
-    now = db.scalar(select(func.max(SourceItem.publish_time))) or utc_now()
+def aggregate_edges(db: Session, now: datetime | None = None) -> JobResult:
+    now = now or utc_now()
     inserted = 0
     tags_by_id = {tag.id: tag for tag in db.scalars(select(Tag))}
     for window, delta in WINDOWS.items():
@@ -930,7 +939,7 @@ def aggregate_edges(db: Session) -> JobResult:
         source_tags = db.execute(
             select(SourceTag.source_item_id, SourceTag.tag_id)
             .join(SourceItem, SourceItem.id == SourceTag.source_item_id)
-            .where(or_(SourceItem.publish_time.is_(None), SourceItem.publish_time >= since))
+            .where(_effective_time_between(since, now))
         ).all()
         by_source: dict[int, list[int]] = defaultdict(list)
         for source_id, tag_id in source_tags:
@@ -976,8 +985,29 @@ def aggregate_edges(db: Session) -> JobResult:
     return JobResult(success=True, message=f"created {inserted} edge snapshots", inserted_count=inserted)
 
 
-def latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
-    latest_stat = db.scalar(select(func.max(TagHeatSnapshot.stat_time)).where(TagHeatSnapshot.window_type == window))
+# (tag_type, window) -> (latest_stat, rows)。快照时刻不变就直接复用；aggregate_heat 写完清空。
+# 多进程部署时各进程各自缓存，靠 latest_stat 比对保证不会返回旧一轮的榜单。
+_RANKINGS_CACHE: dict[tuple[str, str], tuple[datetime, list[dict]]] = {}
+
+
+def _latest_heat_stat_time(db: Session, window: str) -> datetime | None:
+    return db.scalar(select(func.max(TagHeatSnapshot.stat_time)).where(TagHeatSnapshot.window_type == window))
+
+
+def cached_latest_rankings(db: Session, tag_type: str, window: str) -> list[dict]:
+    latest_stat = _latest_heat_stat_time(db, window)
+    if latest_stat is None:
+        return []
+    cached = _RANKINGS_CACHE.get((tag_type, window))
+    if cached is not None and cached[0] == latest_stat:
+        return cached[1]
+    rows = latest_rankings(db, tag_type, window, latest_stat)
+    _RANKINGS_CACHE[(tag_type, window)] = (latest_stat, rows)
+    return rows
+
+
+def latest_rankings(db: Session, tag_type: str, window: str, latest_stat: datetime | None = None) -> list[dict]:
+    latest_stat = latest_stat or _latest_heat_stat_time(db, window)
     if latest_stat is None:
         return []
     previous_stat = rank_change_reference_stat_time(db, window, latest_stat)
@@ -1015,6 +1045,33 @@ def tag_trend(db: Session, tag_id: int, window_type: str = DEFAULT_HEAT_WINDOW, 
     if limit is not None:
         stmt = stmt.limit(max(1, int(limit)))
     return list(reversed(list(db.scalars(stmt))))
+
+
+def tag_trend_points(db: Session, tag_id: int, window_type: str) -> list[dict]:
+    """Web 趋势图用：只取该标签最近一个快照往前 TREND_RANGES 的跨度，点数超过 TREND_MAX_POINTS 时降采样。"""
+    if window_type not in WINDOWS:
+        raise ValueError(f"unsupported window_type: {window_type}")
+    scope = (TagHeatSnapshot.tag_id == tag_id, TagHeatSnapshot.window_type == window_type)
+    end_at = db.scalar(select(func.max(TagHeatSnapshot.stat_time)).where(*scope))
+    if end_at is None:
+        return []
+    start_at = end_at - TREND_RANGES[window_type]
+    rows = db.execute(
+        select(TagHeatSnapshot.stat_time, TagHeatSnapshot.heat_score, TagHeatSnapshot.trigger_count, TagHeatSnapshot.rank_no)
+        .where(*scope, TagHeatSnapshot.stat_time >= start_at)
+        .order_by(TagHeatSnapshot.stat_time.asc())
+    ).all()
+    if len(rows) > TREND_MAX_POINTS:
+        bucket_seconds = TREND_RANGES[window_type].total_seconds() / TREND_MAX_POINTS
+        last_by_bucket = {}
+        for row in rows:
+            bucket = min(int((row.stat_time - start_at).total_seconds() // bucket_seconds), TREND_MAX_POINTS - 1)
+            last_by_bucket[bucket] = row
+        rows = list(last_by_bucket.values())
+    return [
+        {"stat_time": row.stat_time, "heat_score": row.heat_score, "trigger_count": row.trigger_count, "rank_no": row.rank_no}
+        for row in rows
+    ]
 
 
 def rank_change_reference_stat_time(db: Session, window: str, latest_stat: datetime, *extra_conditions) -> datetime | None:

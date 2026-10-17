@@ -81,20 +81,11 @@ class SourceItemRead(SourceItemCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TagHeatRead(BaseModel):
-    id: int
-    tag_id: int
-    window_type: str
+class TagTrendPointRead(BaseModel):
     stat_time: datetime
-    trigger_count: int
-    source_count: int
     heat_score: float
-    avg_count: float
+    trigger_count: int
     rank_no: int
-    created_at: datetime
-    tag: TagRead | None = None
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class TagBindingCreate(BaseModel):

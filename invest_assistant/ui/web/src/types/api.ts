@@ -207,6 +207,13 @@ export type TagHeat = {
   tag?: MarketTag | null;
 };
 
+export type TagTrendPoint = {
+  stat_time: string;
+  heat_score: number;
+  trigger_count: number;
+  rank_no: number;
+};
+
 export type TagBinding = {
   id: number;
   tag: MarketTag;

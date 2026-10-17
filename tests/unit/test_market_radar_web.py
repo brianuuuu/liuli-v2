@@ -250,9 +250,10 @@ def test_heat_trend_chart_uses_selected_window_and_date_axis():
     assert "params: { window }" in api
     assert "getTagTrend(tagId, timeWindow)" in drawer
     assert "cancelled" in drawer
-    assert "smoothHeatTrendRows" in shared
-    assert "原始热度" in shared
-    assert "平滑热度" in shared
+    # 窗口热度本身已是滚动累计值，不再叠加前端平滑；区间变化用绝对值（spec 10.5 不使用百分比变化率）
+    assert "smoothHeatTrendRows" not in shared
+    assert "change: latest - scores[0]" in shared
+    assert "changePct" not in drawer
     # 窗口由后端过滤，前端不再二次过滤，否则窗口不一致时序列为空
     assert "item.window_type === windowType" not in shared
     assert 'mode === "dark"' in shared

@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.market_radar.models import SourceItem, SourceTag, Tag, TagHeatSnapshot, TrackTagRelation
-from invest_assistant.modules.market_radar.service import WINDOWS, aggregate_heat
+from invest_assistant.modules.market_radar import service as market_radar_service
+from invest_assistant.modules.market_radar.service import WINDOWS, aggregate_heat, cached_latest_rankings, tag_trend_points
 from invest_assistant.modules.stock_analysis.models import StockTrackRelation
 from invest_assistant.modules.track_discovery.models import Track, TrackMaterial, TrackTrendSnapshot
 from invest_assistant.modules.track_discovery.service import get_dashboard
@@ -253,7 +254,7 @@ def test_aggregate_heat_uses_tag_hit_count_and_supported_windows():
     db.add_all([SourceTag(source_item_id=old_source.id, tag_id=tag.id, confidence=1, extractor="test"), SourceTag(source_item_id=new_source.id, tag_id=tag.id, confidence=1, extractor="test")])
     db.commit()
 
-    result = aggregate_heat(db)
+    result = aggregate_heat(db, now=new_time)
 
     windows = {row.window_type for row in db.scalars(select(TagHeatSnapshot))}
     stat_times = {row.stat_time for row in db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.window_type == "24h"))}
@@ -379,3 +380,79 @@ def test_latest_rankings_uses_window_specific_rank_change_baselines():
         assert rows[0]["previous_rank_no"] == 3
         assert rows[0]["rank_change"] == 2
         assert rows[0]["rank_movement"] == "up"
+
+
+def test_aggregate_heat_uses_created_at_when_publish_time_missing_or_in_future():
+    db = make_session()
+    now = datetime(2026, 6, 1, 12, 0)
+    tag = Tag(name="机器人", type="track", status="active")
+    db.add(tag)
+    db.flush()
+    items = [
+        # 无发布时间、早已入库：旧逻辑会被每个窗口永久计入
+        SourceItem(source_type="news", source_name="manual", title="无时间旧稿", content="机器人", publish_time=None, created_at=now - timedelta(days=60)),
+        # 无发布时间、刚入库：按入库时间计入
+        SourceItem(source_type="news", source_name="manual", title="无时间新稿", content="机器人", publish_time=None, created_at=now - timedelta(hours=1)),
+        # 发布时间晚于统计时刻：按入库时间计入，且不能把统计时刻拖到未来
+        SourceItem(source_type="news", source_name="manual", title="未来时间", content="机器人", publish_time=now + timedelta(days=3), created_at=now - timedelta(hours=2)),
+        SourceItem(source_type="news", source_name="manual", title="正常", content="机器人", publish_time=now - timedelta(hours=3), created_at=now - timedelta(hours=3)),
+    ]
+    db.add_all(items)
+    db.flush()
+    db.add_all([SourceTag(source_item_id=item.id, tag_id=tag.id, confidence=1, extractor="test") for item in items])
+    db.commit()
+
+    aggregate_heat(db, now=now)
+
+    snapshots = {row.window_type: row for row in db.scalars(select(TagHeatSnapshot).where(TagHeatSnapshot.tag_id == tag.id))}
+    assert snapshots["24h"].trigger_count == 3
+    assert snapshots["30d"].trigger_count == 3
+    assert {row.stat_time for row in snapshots.values()} == {now}
+
+
+def test_tag_trend_points_limits_range_and_downsamples():
+    db = make_session()
+    tag = Tag(name="机器人", type="track", status="active")
+    db.add(tag)
+    db.flush()
+    end = datetime(2026, 6, 30, 12, 0)
+    # 30d 窗口每 10 分钟一个快照，共 120 天
+    for step in range(0, 120 * 144, 6):
+        add_heat(db, tag.id, "30d", end - timedelta(minutes=10 * step), float(step % 50), 1)
+    add_heat(db, tag.id, "24h", end, 1.0, 1)
+    db.commit()
+
+    points = tag_trend_points(db, tag.id, "30d")
+
+    assert 0 < len(points) <= market_radar_service.TREND_MAX_POINTS
+    assert points[0]["stat_time"] >= end - market_radar_service.TREND_RANGES["30d"]
+    assert points[-1]["stat_time"] == end
+    assert [p["stat_time"] for p in points] == sorted(p["stat_time"] for p in points)
+    assert set(points[0]) == {"stat_time", "heat_score", "trigger_count", "rank_no"}
+    assert len(tag_trend_points(db, tag.id, "24h")) == 1
+    assert tag_trend_points(db, tag.id + 999, "24h") == []
+
+
+def test_cached_latest_rankings_reuses_result_until_new_snapshot():
+    market_radar_service._RANKINGS_CACHE.clear()
+    db = make_session()
+    tag = Tag(name="机器人", type="track", status="active")
+    db.add(tag)
+    db.flush()
+    first = datetime(2026, 6, 1, 12, 0)
+    add_heat(db, tag.id, "7d", first, 5, 1)
+    db.commit()
+
+    rows = cached_latest_rankings(db, "track", "7d")
+    tag.name = "人形机器人"
+    db.commit()
+    cached = cached_latest_rankings(db, "track", "7d")
+    add_heat(db, tag.id, "7d", first + timedelta(minutes=10), 6, 1)
+    db.commit()
+    refreshed = cached_latest_rankings(db, "track", "7d")
+
+    assert cached is rows
+    assert rows[0]["tag"]["name"] == "机器人"
+    assert refreshed[0]["tag"]["name"] == "人形机器人"
+    assert refreshed[0]["heat_score"] == 6
+    market_radar_service._RANKINGS_CACHE.clear()

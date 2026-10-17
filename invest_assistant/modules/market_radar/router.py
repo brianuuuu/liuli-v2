@@ -19,7 +19,7 @@ from invest_assistant.modules.market_radar.schemas import (
     TagBindingCreate,
     TagBindingRead,
     TagCreate,
-    TagHeatRead,
+    TagTrendPointRead,
     TagRead,
     TagUpdate,
 )
@@ -128,11 +128,11 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
     return service.disable_tag(db, tag)
 
 
-@router.get("/tags/{tag_id}/trend", response_model=list[TagHeatRead])
+@router.get("/tags/{tag_id}/trend", response_model=list[TagTrendPointRead])
 def tag_trend(tag_id: int, window: str = service.DEFAULT_HEAT_WINDOW, db: Session = Depends(get_db)) -> list:
     if window not in service.WINDOWS:
         raise HTTPException(status_code=400, detail=f"unsupported window: {window}")
-    return service.tag_trend(db, tag_id, window)
+    return service.tag_trend_points(db, tag_id, window)
 
 
 @router.post("/hotwords", response_model=HotwordRead)
@@ -183,7 +183,7 @@ def tag_sources(tag_id: int) -> list:
 
 @router.get("/rankings")
 def rankings(type: str, window: str = "24h", db: Session = Depends(get_db)) -> list:
-    return service.latest_rankings(db, type, window)
+    return service.cached_latest_rankings(db, type, window)
 
 
 @router.get("/graphs/stock-track")

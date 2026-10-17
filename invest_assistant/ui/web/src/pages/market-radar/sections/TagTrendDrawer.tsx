@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getTagTrend, type RankingWindow } from "../../../api/marketRadar";
 import { useLiuliTheme } from "../../../app/theme";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import type { TagHeat } from "../../../types/api";
+import type { TagTrendPoint } from "../../../types/api";
 import { formatTime, trendLineOption, trendSummary, windowOptions } from "./shared";
 
 type TagTrendDrawerProps = {
@@ -19,7 +19,7 @@ type TagTrendDrawerProps = {
 export function TagTrendDrawer({ open, title, tagId, defaultWindow, typeTag, onClose }: TagTrendDrawerProps) {
   const { resolvedMode } = useLiuliTheme();
   const [timeWindow, setTimeWindow] = useState<RankingWindow>(defaultWindow);
-  const [trend, setTrend] = useState<TagHeat[]>([]);
+  const [trend, setTrend] = useState<TagTrendPoint[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -82,8 +82,8 @@ export function TagTrendDrawer({ open, title, tagId, defaultWindow, typeTag, onC
         <TrendStat label="区间峰值" value={summary ? summary.peak.toFixed(1) : "-"} />
         <TrendStat
           label="区间变化"
-          value={summary?.changePct == null ? "-" : `${summary.changePct > 0 ? "+" : ""}${summary.changePct.toFixed(1)}%`}
-          tone={summary?.changePct == null || summary.changePct === 0 ? undefined : summary.changePct > 0 ? "up" : "down"}
+          value={summary ? `${summary.change > 0 ? "+" : ""}${summary.change.toFixed(1)}` : "-"}
+          tone={!summary || summary.change === 0 ? undefined : summary.change > 0 ? "up" : "down"}
         />
       </div>
 
@@ -92,7 +92,7 @@ export function TagTrendDrawer({ open, title, tagId, defaultWindow, typeTag, onC
           <span>历史热度</span>
           {summary ? (
             <span className="tag-trend-caption">
-              {formatTime(summary.from).slice(0, 16)} ~ {formatTime(summary.to).slice(0, 16)} · {trend.length} 个快照
+              {formatTime(summary.from).slice(0, 16)} ~ {formatTime(summary.to).slice(0, 16)} · {trend.length} 个数据点
             </span>
           ) : null}
         </div>

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -14,11 +14,17 @@ from invest_assistant.modules.market_radar.models import AiTagSuggestion, Hotwor
 from invest_assistant.modules.market_radar.router import router as market_radar_router
 from invest_assistant.modules.track_discovery.schemas import TrackCreate
 from invest_assistant.modules.track_discovery.service import create_track
+from invest_assistant.shared.time_utils import beijing_now
 
 
 def reset_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+
+def recent_publish(minutes_ago: int) -> str:
+    """热度窗口以当前时刻为终点，测试数据须落在最近 24h 内。"""
+    return (beijing_now() - timedelta(minutes=minutes_ago)).replace(tzinfo=None).isoformat(timespec="seconds")
 
 
 def login_headers(client: TestClient) -> dict[str, str]:
@@ -38,43 +44,21 @@ def seed_stock() -> int:
         db.close()
 
 
-def test_tag_trend_endpoint_serializes_heat_snapshots(monkeypatch):
+def test_tag_trend_endpoint_returns_slim_points_for_window(monkeypatch):
     app = FastAPI()
     app.include_router(market_radar_router)
     app.dependency_overrides[get_current_user] = lambda: object()
     app.dependency_overrides[get_db] = lambda: object()
-    snapshot = TagHeatSnapshot(
-        id=10912,
-        tag_id=4,
-        window_type="24h",
-        stat_time=datetime(2026, 6, 5, 21, 18, 48),
-        trigger_count=6,
-        source_count=3,
-        heat_score=63.0,
-        avg_count=6.0,
-        rank_no=1,
-        created_at=datetime(2026, 6, 5, 21, 18, 49),
-    )
-    monkeypatch.setattr(market_radar_service, "tag_trend", lambda db, tag_id, window_type: [snapshot] if window_type == "24h" else [])
+    point = {"stat_time": datetime(2026, 6, 5, 21, 18, 48), "heat_score": 63.0, "trigger_count": 6, "rank_no": 1}
+    monkeypatch.setattr(market_radar_service, "tag_trend_points", lambda db, tag_id, window_type: [point] if window_type == "24h" else [])
+    client = TestClient(app, raise_server_exceptions=False)
 
-    response = TestClient(app, raise_server_exceptions=False).get("/api/market-radar/tags/4/trend", params={"window": "24h"})
+    response = client.get("/api/market-radar/tags/4/trend", params={"window": "24h"})
+    invalid = client.get("/api/market-radar/tags/4/trend", params={"window": "1y"})
 
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "id": 10912,
-            "tag_id": 4,
-            "window_type": "24h",
-            "stat_time": "2026-06-05T21:18:48",
-            "trigger_count": 6,
-            "source_count": 3,
-            "heat_score": 63.0,
-            "avg_count": 6.0,
-            "rank_no": 1,
-            "created_at": "2026-06-05T21:18:49",
-            "tag": None,
-        }
-    ]
+    assert response.json() == [{"stat_time": "2026-06-05T21:18:48", "heat_score": 63.0, "trigger_count": 6, "rank_no": 1}]
+    assert invalid.status_code == 400
 
 
 def test_market_radar_source_item_hotword_and_ai_suggestion_flow():
@@ -141,7 +125,7 @@ def test_rule_extraction_heat_and_graph_jobs_use_tag_words():
             "source_name": "manual",
             "title": "平安银行布局AI算力",
             "content": "平安银行 和 AI算力 被共同提及。",
-            "publish_time": "2026-05-13T10:00:00",
+            "publish_time": recent_publish(20),
         },
         headers=headers,
     )
@@ -152,7 +136,7 @@ def test_rule_extraction_heat_and_graph_jobs_use_tag_words():
             "source_name": "manual",
             "title": "平安银行AI算力订单跟进",
             "content": "平安银行 与 AI算力 再次被共同提及。",
-            "publish_time": "2026-05-13T10:10:00",
+            "publish_time": recent_publish(10),
         },
         headers=headers,
     )
