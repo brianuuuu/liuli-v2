@@ -13,9 +13,11 @@ def test_hotword_list_exposes_disable_action():
 def test_dashboard_exposes_todo_events_card():
     source = Path("invest_assistant/ui/web/src/pages/dashboard/DashboardPage.tsx").read_text(encoding="utf-8")
 
-    assert "listAlertEvents" in source
-    assert "待办事件" in source
-    assert "handled" in source
+    # 工作台待办计数走聚合接口 getWorkbenchToday，不再拉全量预警列表在前端过滤
+    assert "getWorkbenchToday" in source
+    assert "listAlertEvents" not in source
+    assert "todo.unread_alerts" in source
+    assert "未读预警处理" in source
 
 
 def test_console_ai_logs_use_audit_columns():
