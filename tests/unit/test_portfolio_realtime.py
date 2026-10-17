@@ -72,12 +72,14 @@ def test_create_or_update_position_uses_stock_and_quantity_without_cost(tmp_path
         db.close()
 
 
-def test_dashboard_computes_day_pnl_from_current_price_and_previous_close(tmp_path):
+def test_dashboard_computes_position_day_pnl_from_current_price_and_previous_close(monkeypatch, tmp_path):
+    monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 24))
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()
     try:
         stock = seed_stock(db)
         portfolio = service.create_portfolio(db, PortfolioCreate(name="主实盘"), user_id=1)
+        portfolio.created_at = datetime(2026, 6, 24, 20, 0)
         position = service.create_or_update_position(
             db,
             portfolio.id,
@@ -91,11 +93,15 @@ def test_dashboard_computes_day_pnl_from_current_price_and_previous_close(tmp_pa
 
         dashboard = service.get_dashboard(db, portfolio.id)
 
+        # 单只持仓：现价 - 昨收
+        assert dashboard["positions"][0]["day_pnl"] == 100
+        assert dashboard["positions"][0]["day_pct"] == 10
+        assert dashboard["positions"][0]["stock_name"] == "平安银行"
         assert dashboard["summary"]["market_value"] == 1100
         assert dashboard["summary"]["previous_market_value"] == 1000
-        assert dashboard["summary"]["day_pnl"] == 100
-        assert dashboard["summary"]["day_pct"] == 10
-        assert dashboard["positions"][0]["stock_name"] == "平安银行"
+        # 组合汇总按净资产算；建仓当天没有昨日快照，记为 0。
+        # created_at 取晚上 8 点（无时区、北京时间），守住"不按 UTC 解读"
+        assert dashboard["summary"]["day_pnl"] == 0
     finally:
         db.close()
 
@@ -117,6 +123,7 @@ def test_delete_portfolio_rejects_non_empty_portfolio(tmp_path):
 
 
 def test_refresh_position_quotes_updates_successful_rows_and_reports_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 24))
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()
     try:
@@ -144,8 +151,8 @@ def test_refresh_position_quotes_updates_successful_rows_and_reports_missing(mon
 
         assert result["updated_count"] == 1
         assert result["warnings"] == [{"stock_code": "600000", "message": "quote not found"}]
-        assert dashboard["summary"]["day_pnl"] == 100
         assert dashboard["positions"][0]["current_price"] == 11
+        assert dashboard["positions"][0]["day_pnl"] == 100
     finally:
         db.close()
 
@@ -625,6 +632,8 @@ def test_cash_adjustment_sets_cash_balance(tmp_path):
 
 
 def test_capture_daily_value_snapshot_is_idempotent_and_includes_cash(monkeypatch, tmp_path):
+    # 改现金会顺手写当天快照，"今天"须与抓取日期一致，否则会多出一条当天的
+    monkeypatch.setattr(service, "_today_shanghai", lambda: date(2026, 6, 25))
     SessionLocal = make_session(tmp_path)
     db = SessionLocal()
     try:

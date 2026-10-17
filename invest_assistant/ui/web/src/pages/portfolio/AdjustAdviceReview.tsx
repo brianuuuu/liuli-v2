@@ -200,7 +200,7 @@ export function AdjustAdviceReview({ portfolioId }: { portfolioId: number | null
             loading={reviews.loading}
             columns={reportColumns}
             dataSource={data.reports}
-            pagination={{ pageSize: 10, showSizeChanger: false }}
+            pagination={{ defaultPageSize: 10, showSizeChanger: false }}
             expandable={{
               expandedRowRender: (report) => (
                 <Table

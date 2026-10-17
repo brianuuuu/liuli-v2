@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 import logging
 from zoneinfo import ZoneInfo
 
@@ -30,7 +30,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioReviewCreate,
     PortfolioTradeCreate,
 )
-from invest_assistant.shared.time_utils import utc_now
+from invest_assistant.shared.time_utils import BEIJING_TZ, utc_now
 from invest_assistant.services.tushare import client as tushare_client
 
 logger = logging.getLogger(__name__)
@@ -1390,7 +1390,8 @@ def _portfolio_daily_performance(
         created_at = portfolio.created_at
         if isinstance(created_at, datetime):
             if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
+                # 业务时间统一存北京时间；SQLite 读回不带时区，按北京时间解读（PostgreSQL 读回自带时区）
+                created_at = created_at.replace(tzinfo=BEIJING_TZ)
             created_date = created_at.astimezone(ZoneInfo("Asia/Shanghai")).date()
             if created_date == target_date:
                 return {
