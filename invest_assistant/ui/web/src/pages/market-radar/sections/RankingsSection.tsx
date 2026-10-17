@@ -1,36 +1,23 @@
-import { Button, Drawer, Input, Space, Table } from "antd";
+import { Button, Input, Space, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useMemo, useState } from "react";
-import { getTagTrend, listRankings, type RankingType, type RankingWindow } from "../../../api/marketRadar";
-import { ChartCard } from "../../../components/charts/ChartCard";
+import { listRankings, type RankingType, type RankingWindow } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TagHeat } from "../../../types/api";
 import { formatRankMovement, rankMovementClass } from "./overviewRisingRankings";
 import { filterRankingRows } from "./rankingSearch";
-import { formatTime, rankingTypeOptions, tagName, TagTypeTag, trendLineOption, windowOptions } from "./shared";
+import { formatTime, rankingTypeOptions, tagName, TagTypeTag, windowOptions } from "./shared";
+import { TagTrendDrawer } from "./TagTrendDrawer";
 
 export function RankingsSection() {
   const [type, setType] = useState<RankingType>("all");
   const [timeWindow, setTimeWindow] = useState<RankingWindow>("24h");
   const [selected, setSelected] = useState<TagHeat | null>(null);
-  const [trend, setTrend] = useState<TagHeat[]>([]);
-  const [trendLoading, setTrendLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const rankings = useAsyncData(useCallback(() => listRankings(type, timeWindow), [type, timeWindow]), []);
   const rows = useMemo(() => filterRankingRows(rankings.data, searchQuery), [rankings.data, searchQuery]);
-
-  async function showTrend(record: TagHeat) {
-    setSelected(record);
-    setTrendLoading(true);
-    try {
-      setTrend(await getTagTrend(record.tag_id));
-    } finally {
-      setTrendLoading(false);
-    }
-  }
 
   const columns: ColumnsType<TagHeat> = [
     { title: "排名", dataIndex: "rank_no", width: 72 },
@@ -44,7 +31,7 @@ export function RankingsSection() {
       render: (_, record) => <span className={`track-change ${rankMovementClass(record)}`}>{formatRankMovement(record)}</span>
     },
     { title: "统计时间", dataIndex: "stat_time", width: 160, render: formatTime },
-    { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => showTrend(record)}>查看</Button> }
+    { title: "趋势", width: 80, render: (_, record) => <Button size="small" onClick={() => setSelected(record)}>查看</Button> }
   ];
 
   return (
@@ -101,15 +88,14 @@ export function RankingsSection() {
         />
       </DataPanel>
 
-      <Drawer title={selected ? `${tagName(selected)} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
-        {trend.length ? (
-          <ChartCard title="历史热度" option={trendLineOption(trend, selected ? tagName(selected) : undefined, selected?.window_type)} height={300} />
-        ) : (
-          <WorkbenchCard title="历史热度">
-            <EmptyAction description={trendLoading ? "加载中" : "暂无趋势数据"} />
-          </WorkbenchCard>
-        )}
-      </Drawer>
+      <TagTrendDrawer
+        open={Boolean(selected)}
+        title={selected ? tagName(selected) : "热度趋势"}
+        tagId={selected?.tag_id ?? null}
+        defaultWindow={(selected?.window_type as RankingWindow) || timeWindow}
+        typeTag={selected ? <TagTypeTag type={selected.tag?.type} /> : null}
+        onClose={() => setSelected(null)}
+      />
     </>
   );
 }

@@ -1,15 +1,14 @@
-import { Button, Drawer, Form, Input, Modal, Select, Space, Table, message } from "antd";
+import { Button, Form, Input, Modal, Select, Space, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createHotword, getTagTrend, listHotwords, type RankingWindow } from "../../../api/marketRadar";
-import { ChartCard } from "../../../components/charts/ChartCard";
+import { createHotword, listHotwords, type RankingWindow } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
-import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { StatusTag } from "../../../components/common/StatusTag";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { Hotword, TagHeat } from "../../../types/api";
-import { formatTime, trendLineOption } from "./shared";
+import type { Hotword } from "../../../types/api";
+import { formatTime } from "./shared";
+import { TagTrendDrawer } from "./TagTrendDrawer";
 
 type HotwordFormValues = {
   name: string;
@@ -42,8 +41,6 @@ export function TagsSection() {
     { items: [], total: 0, limit: 20, offset: 0, has_more: false }
   );
   const [selected, setSelected] = useState<Hotword | null>(null);
-  const [trend, setTrend] = useState<TagHeat[]>([]);
-  const [trendLoading, setTrendLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<HotwordFormValues>();
 
@@ -72,17 +69,6 @@ export function TagsSection() {
     await hotwords.refresh();
   }
 
-  async function showTrend(record: Hotword) {
-    setSelected(record);
-    setTrendLoading(true);
-    try {
-      const firstTag = record.tags[0]?.tag;
-      setTrend(firstTag ? await getTagTrend(firstTag.id) : []);
-    } finally {
-      setTrendLoading(false);
-    }
-  }
-
   const columns: ColumnsType<Hotword> = [
     { title: "名称", dataIndex: "name" },
     { title: "标签词", width: 220, render: (_, record) => record.tags.map((item) => item.tag.name).join("，") || "-" },
@@ -93,7 +79,7 @@ export function TagsSection() {
       width: 150,
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => showTrend(record)}>查看</Button>
+          <Button size="small" onClick={() => setSelected(record)}>查看</Button>
         </Space>
       )
     }
@@ -162,15 +148,13 @@ export function TagsSection() {
         </Form>
       </Modal>
 
-      <Drawer title={selected ? `${selected.name} 热度趋势` : "热度趋势"} open={Boolean(selected)} onClose={() => setSelected(null)} size={620}>
-        {trend.length ? (
-          <ChartCard title="历史热度" option={trendLineOption(trend, selected?.name, HOTWORD_TREND_WINDOW)} height={300} />
-        ) : (
-          <WorkbenchCard title="历史热度">
-            <EmptyAction description={trendLoading ? "加载中" : "暂无趋势数据"} />
-          </WorkbenchCard>
-        )}
-      </Drawer>
+      <TagTrendDrawer
+        open={Boolean(selected)}
+        title={selected ? selected.name : "热度趋势"}
+        tagId={selected?.tags[0]?.tag.id ?? null}
+        defaultWindow={HOTWORD_TREND_WINDOW}
+        onClose={() => setSelected(null)}
+      />
     </>
   );
 }

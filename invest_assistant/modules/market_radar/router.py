@@ -129,8 +129,10 @@ def delete_tag(tag_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/tags/{tag_id}/trend", response_model=list[TagHeatRead])
-def tag_trend(tag_id: int, db: Session = Depends(get_db)) -> list:
-    return service.tag_trend(db, tag_id)
+def tag_trend(tag_id: int, window: str = service.DEFAULT_HEAT_WINDOW, db: Session = Depends(get_db)) -> list:
+    if window not in service.WINDOWS:
+        raise HTTPException(status_code=400, detail=f"unsupported window: {window}")
+    return service.tag_trend(db, tag_id, window)
 
 
 @router.post("/hotwords", response_model=HotwordRead)

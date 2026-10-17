@@ -135,8 +135,8 @@ export async function disableMarketTag(tagId: number): Promise<MarketTag> {
   return response.data;
 }
 
-export async function getTagTrend(tagId: number): Promise<TagHeat[]> {
-  const response = await apiClient.get<TagHeat[]>(`/api/market-radar/tags/${tagId}/trend`);
+export async function getTagTrend(tagId: number, window: RankingWindow): Promise<TagHeat[]> {
+  const response = await apiClient.get<TagHeat[]>(`/api/market-radar/tags/${tagId}/trend`, { params: { window } });
   return response.data;
 }
 

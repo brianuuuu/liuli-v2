@@ -238,27 +238,22 @@ def test_ai_suggestion_ui_uses_status_specific_actions():
 
 
 def test_heat_trend_chart_uses_selected_window_and_date_axis():
-    rankings = Path("invest_assistant/ui/web/src/pages/market-radar/sections/RankingsSection.tsx").read_text(encoding="utf-8")
-    shared = Path("invest_assistant/ui/web/src/pages/market-radar/sections/shared.tsx").read_text(encoding="utf-8")
+    sections = Path("invest_assistant/ui/web/src/pages/market-radar/sections")
+    rankings = (sections / "RankingsSection.tsx").read_text(encoding="utf-8")
+    drawer = (sections / "TagTrendDrawer.tsx").read_text(encoding="utf-8")
+    shared = (sections / "shared.tsx").read_text(encoding="utf-8")
+    api = Path("invest_assistant/ui/web/src/api/marketRadar.ts").read_text(encoding="utf-8")
 
     assert "selected?.window_type" in rankings
+    assert "params: { window }" in api
+    assert "getTagTrend(tagId, timeWindow)" in drawer
+    assert "cancelled" in drawer
     assert "smoothHeatTrendRows" in shared
-    assert "原始" in shared
-    assert "平滑" in shared
-    assert "windowType?: string" in shared
-    assert "rows.filter((item) => !windowType || item.window_type === windowType)" in shared
-    assert "dateAxisLabels" in shared
-    assert "previousDateLabel" in shared
-    assert "formatDateLabel(item.stat_time)" in shared
-    assert "HEAT_TREND_LINE_COLOR" in shared
-    assert "#19d9a3" in shared
-    assert "axisPointer:" in shared
-    assert 'type: "shadow"' in shared
-    assert "showSymbol: true" in shared
-    assert "symbolSize: 8" in shared
-    assert "rgba(25, 217, 163, 0.18)" in shared
-    assert 'name: `${title || "热度"}`' in shared
-    assert 'name: `${title || "热度"} 原始`' not in shared
+    assert "原始热度" in shared
+    assert "平滑热度" in shared
+    # 窗口由后端过滤，前端不再二次过滤，否则窗口不一致时序列为空
+    assert "item.window_type === windowType" not in shared
+    assert 'mode === "dark"' in shared
 
 
 def test_heat_rankings_table_uses_tag_hits_and_rank_movement():

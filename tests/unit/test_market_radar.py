@@ -55,9 +55,9 @@ def test_tag_trend_endpoint_serializes_heat_snapshots(monkeypatch):
         rank_no=1,
         created_at=datetime(2026, 6, 5, 21, 18, 49),
     )
-    monkeypatch.setattr(market_radar_service, "tag_trend", lambda db, tag_id: [snapshot])
+    monkeypatch.setattr(market_radar_service, "tag_trend", lambda db, tag_id, window_type: [snapshot] if window_type == "24h" else [])
 
-    response = TestClient(app, raise_server_exceptions=False).get("/api/market-radar/tags/4/trend")
+    response = TestClient(app, raise_server_exceptions=False).get("/api/market-radar/tags/4/trend", params={"window": "24h"})
 
     assert response.status_code == 200
     assert response.json() == [

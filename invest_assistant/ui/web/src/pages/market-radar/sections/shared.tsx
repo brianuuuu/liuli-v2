@@ -15,9 +15,6 @@ export const windowOptions = [
   { value: "30d", label: "30d" }
 ];
 
-const HEAT_TREND_LINE_COLOR = "#19d9a3";
-const HEAT_TREND_AREA_COLOR = "rgba(25, 217, 163, 0.18)";
-
 export function formatTime(value?: string | null) {
   if (!value) return "-";
   return value.replace("T", " ").slice(0, 19);
@@ -72,75 +69,130 @@ export function smoothHeatTrendRows(rows: TagHeat[], alpha = 0.4): number[] {
   });
 }
 
-export function trendLineOption(rows: TagHeat[], title?: string, windowType?: string): EChartsOption {
-  const visibleRows = rows.filter((item) => !windowType || item.window_type === windowType);
-  const smoothedValues = smoothHeatTrendRows(visibleRows);
-  const dateAxisLabels = visibleRows.map((item, index) => {
-    const dateLabel = formatDateLabel(item.stat_time);
-    const previousDateLabel = formatDateLabel(visibleRows[index - 1]?.stat_time);
-    return index === 0 || dateLabel !== previousDateLabel ? dateLabel : "";
-  });
+export type TrendSummary = {
+  latest: number;
+  peak: number;
+  rank: number | null;
+  changePct: number | null;
+  from: string;
+  to: string;
+};
+
+export function trendSummary(rows: TagHeat[]): TrendSummary | null {
+  if (!rows.length) return null;
+  const scores = rows.map((item) => Number(item.heat_score || 0));
+  const first = scores[0];
+  const latest = scores[scores.length - 1];
   return {
-    backgroundColor: "#11161d",
-    color: ["#19d9a3"],
+    latest,
+    peak: Math.max(...scores),
+    rank: rows[rows.length - 1].rank_no || null,
+    changePct: first > 0 ? ((latest - first) / first) * 100 : null,
+    from: rows[0].stat_time,
+    to: rows[rows.length - 1].stat_time
+  };
+}
+
+export function trendLineOption(rows: TagHeat[], mode: "light" | "dark", windowType?: string): EChartsOption {
+  const dark = mode === "dark";
+  const lineColor = dark ? "#3b82f6" : "#2563eb";
+  const textColor = dark ? "#8b949e" : "#64748b";
+  const gridColor = dark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.06)";
+  const axisColor = dark ? "rgba(255, 255, 255, 0.12)" : "rgba(15, 23, 42, 0.12)";
+  const smoothedValues = smoothHeatTrendRows(rows);
+  const times = rows.map((item) => item.stat_time);
+  const showTime = windowType === "24h";
+  const dense = rows.length > 60;
+  return {
+    backgroundColor: "transparent",
+    animationDuration: 400,
+    legend: {
+      top: 0,
+      right: 0,
+      icon: "roundRect",
+      itemWidth: 12,
+      itemHeight: 3,
+      textStyle: { color: textColor, fontSize: 12 },
+      data: ["平滑热度", "原始热度"]
+    },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "#ffffff",
-      borderColor: "rgba(15, 23, 42, 0.12)",
+      backgroundColor: dark ? "#21262d" : "#ffffff",
+      borderColor: axisColor,
       borderWidth: 1,
-      textStyle: { color: "#4b5563", fontSize: 12 },
-      axisPointer: {
-        type: "shadow",
-        shadowStyle: { color: "rgba(148, 163, 184, 0.18)" }
-      },
+      padding: [8, 12],
+      textStyle: { color: dark ? "#e6edf3" : "#0f172a", fontSize: 12 },
+      axisPointer: { type: "line", lineStyle: { color: axisColor, type: "dashed" } },
       formatter: (params: unknown) => {
         const points = Array.isArray(params) ? params : [params];
-        const first = points[0] as { dataIndex?: number } | undefined;
-        const row = visibleRows[Number(first?.dataIndex ?? 0)];
-        const values = [`原始: ${Number(row?.heat_score || 0).toFixed(1)}`, `平滑: ${smoothedValues[Number(first?.dataIndex ?? 0)]?.toFixed(1) ?? "0.0"}`];
-        return [formatTime(row?.stat_time), ...values].join("<br/>");
+        const index = Number((points[0] as { dataIndex?: number } | undefined)?.dataIndex ?? 0);
+        const row = rows[index];
+        if (!row) return "";
+        return [
+          `<div style="margin-bottom:4px;color:${textColor}">${formatTime(row.stat_time).slice(0, 16)}</div>`,
+          `平滑热度&nbsp;&nbsp;<b>${smoothedValues[index]?.toFixed(1) ?? "-"}</b>`,
+          `原始热度&nbsp;&nbsp;<b>${Number(row.heat_score || 0).toFixed(1)}</b>`,
+          `标签命中&nbsp;&nbsp;<b>${row.trigger_count ?? 0}</b>&nbsp;&nbsp;·&nbsp;&nbsp;排名&nbsp;<b>#${row.rank_no ?? "-"}</b>`
+        ].join("<br/>");
       }
     },
-    grid: { left: 42, right: 20, top: 26, bottom: 34 },
+    grid: { left: 8, right: 12, top: 36, bottom: dense ? 40 : 8, containLabel: true },
+    dataZoom: dense ? [{ type: "inside" }, { type: "slider", height: 14, bottom: 6, borderColor: "transparent", textStyle: { color: textColor } }] : undefined,
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: dateAxisLabels,
-      axisLine: { lineStyle: { color: "#2b333f" } },
+      data: times,
+      axisLine: { lineStyle: { color: axisColor } },
       axisTick: { show: false },
-      axisLabel: { color: "#9ca3af", fontSize: 12 }
+      axisLabel: {
+        color: textColor,
+        fontSize: 11,
+        hideOverlap: true,
+        formatter: (value: string) => formatTime(value).slice(5, showTime ? 16 : 10)
+      }
     },
     yAxis: {
       type: "value",
+      min: 0,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: "#9ca3af", fontSize: 12 },
-      splitLine: { lineStyle: { color: "rgba(148, 163, 184, 0.16)" } }
+      axisLabel: { color: textColor, fontSize: 11 },
+      splitLine: { lineStyle: { color: gridColor } }
     },
     series: [
       {
-        name: `${title || "热度"}`,
+        name: "平滑热度",
         type: "line",
-        smooth: true,
-        showSymbol: true,
-        symbolSize: 8,
+        smooth: 0.3,
+        showSymbol: false,
         symbol: "circle",
+        symbolSize: 7,
         data: smoothedValues,
-        lineStyle: {
-          width: 3,
-          color: HEAT_TREND_LINE_COLOR,
-          shadowBlur: 10,
-          shadowColor: "rgba(25, 217, 163, 0.35)"
-        },
-        itemStyle: {
-          color: HEAT_TREND_LINE_COLOR,
-          borderColor: "#11161d",
-          borderWidth: 2
-        },
+        lineStyle: { width: 2.5, color: lineColor },
+        itemStyle: { color: lineColor, borderColor: dark ? "#161b22" : "#ffffff", borderWidth: 2 },
         areaStyle: {
-          color: HEAT_TREND_AREA_COLOR
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: dark ? "rgba(59, 130, 246, 0.28)" : "rgba(37, 99, 235, 0.16)" },
+              { offset: 1, color: "rgba(37, 99, 235, 0)" }
+            ]
+          }
         },
-        emphasis: { focus: "series" }
+        z: 3
+      },
+      {
+        name: "原始热度",
+        type: "line",
+        showSymbol: false,
+        data: rows.map((item) => Number(item.heat_score || 0)),
+        lineStyle: { width: 1, type: "dashed", color: textColor, opacity: 0.6 },
+        itemStyle: { color: textColor },
+        z: 2
       }
     ]
   };

@@ -5309,3 +5309,96 @@ body {
     padding: 40px 40px;
   }
 }
+
+/* 标签热度趋势抽屉 */
+.tag-trend-drawer .ant-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--ll-surface);
+}
+
+.tag-trend-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tag-trend-title .ant-tag {
+  margin: 0;
+  font-weight: 400;
+}
+
+.tag-trend-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tag-trend-caption {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.tag-trend-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tag-trend-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--ll-border);
+  border-radius: 8px;
+  background: var(--ll-panel);
+}
+
+.tag-trend-stat span {
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.tag-trend-stat strong {
+  color: var(--ll-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag-trend-stat strong.track-change.up {
+  color: #dc2626;
+}
+
+.tag-trend-stat strong.track-change.down {
+  color: #16a34a;
+}
+
+.tag-trend-chart {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--ll-border);
+  border-radius: 8px;
+  background: var(--ll-panel);
+}
+
+.tag-trend-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: var(--ll-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tag-trend-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 320px;
+}
