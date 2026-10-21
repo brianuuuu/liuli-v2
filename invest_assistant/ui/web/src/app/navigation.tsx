@@ -61,9 +61,10 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   ],
   portfolio: [
     { key: "portfolios", label: "组合看板" },
+    { key: "performance", label: "收益分析" },
     { key: "positions", label: "实盘持仓" },
     { key: "risk", label: "调仓记录" },
-    { key: "review", label: "组合复盘" }
+    { key: "review", label: "调仓复盘" }
   ],
   knowledge: [
     { key: "notes", label: "知识笔记" },

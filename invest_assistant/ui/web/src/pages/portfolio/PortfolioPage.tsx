@@ -11,7 +11,6 @@ import {
   deletePosition,
   getPortfolioDashboard,
   getPortfolioOverview,
-  getPortfolioReviewPerformance,
   listAdjustAdviceCandidates,
   listPortfolioCashFlows,
   listPortfolioPositionChanges,
@@ -31,7 +30,9 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { AdjustAdviceReview } from "./AdjustAdviceReview";
+import { PerformanceReview, type ReviewPeriod } from "./PerformanceReview";
 import { PositionChangeReview } from "./PositionChangeReview";
+import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
 import { adviceActionLabels, reasonTypeColors, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
 import type {
   AdjustAdviceCandidate,
@@ -41,7 +42,6 @@ import type {
   PortfolioOverview,
   PortfolioPosition,
   PortfolioPositionChange,
-  PortfolioReviewPerformance,
   PortfolioValueSnapshot,
   PositionChangeReasonType,
   Stock
@@ -72,8 +72,6 @@ type CashFlowFormValue = {
   note?: string;
 };
 
-type ReviewPeriod = "month" | "year" | "all";
-
 const flowTypeLabels: Record<string, string> = {
   deposit: "入金",
   withdraw: "出金",
@@ -81,25 +79,6 @@ const flowTypeLabels: Record<string, string> = {
   dividend: "分红",
   interest: "利息",
   trade: "调仓"
-};
-
-const initialReviewPerformance: PortfolioReviewPerformance = {
-  scope: "all",
-  portfolio_id: null,
-  period: "year",
-  start_date: "",
-  end_date: "",
-  portfolio_options: [],
-  benchmark: { code: "000300.SH", name: "沪深300" },
-  summary: {
-    portfolio_return_pct: null,
-    benchmark_return_pct: null,
-    excess_return_pct: null,
-    max_drawdown_pct: null,
-    effective_days: 0
-  },
-  curve_points: [],
-  calendar: { granularity: "month", items: [] }
 };
 
 const lightAllocationColors = [
@@ -136,16 +115,8 @@ function allocationColorsForMode(mode: "light" | "dark") {
   return mode === "dark" ? darkAllocationColors : lightAllocationColors;
 }
 
-function tooltipBackgroundColor(mode: "light" | "dark") {
-  return mode === "dark" ? "rgba(13, 17, 23, 0.96)" : "rgba(255, 255, 255, 0.96)";
-}
-
 function chartMutedTextColor(mode: "light" | "dark") {
   return mode === "dark" ? "#8b949e" : "#64748b";
-}
-
-function reviewHeatmapColors(mode: "light" | "dark") {
-  return mode === "dark" ? ["#047857", "#1f2937", "#b42318"] : ["#047857", "#f8fafc", "#b42318"];
 }
 
 function formatMoney(value?: number | null) {
@@ -153,19 +124,9 @@ function formatMoney(value?: number | null) {
   return value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) return "-";
-  return `${value.toFixed(2)}%`;
-}
-
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   return value.replace("T", " ").slice(0, 19);
-}
-
-function pnlColor(value?: number | null) {
-  if (value === null || value === undefined || value === 0) return undefined;
-  return value > 0 ? "#b42318" : "#047857";
 }
 
 function flowAmountColor(record: PortfolioCashFlow) {
@@ -227,10 +188,6 @@ export function PortfolioPage() {
     useCallback(() => listPortfolioPositionChanges(selectedPortfolioId), [selectedPortfolioId]),
     []
   );
-  const reviewPerformance = useAsyncData<PortfolioReviewPerformance>(
-    useCallback(() => getPortfolioReviewPerformance(reviewPortfolioId, reviewPeriod), [reviewPortfolioId, reviewPeriod]),
-    initialReviewPerformance
-  );
 
   useEffect(() => {
     if (!positionModalOpen || watchedReasonType !== "ai_advice" || !watchedStockId) {
@@ -260,7 +217,7 @@ export function PortfolioPage() {
     if (nextPortfolioId !== undefined) {
       setSelectedPortfolioId(nextPortfolioId);
     }
-    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cashFlows.refresh(), positionChanges.refresh(), reviewPerformance.refresh()]);
+    await Promise.all([overview.refresh(), snapshots.refresh(), dashboard.refresh(), cashFlows.refresh(), positionChanges.refresh()]);
   }
 
   function openCreatePortfolio() {
@@ -722,122 +679,6 @@ export function PortfolioPage() {
     };
   }
 
-  function reviewLineOption(data: PortfolioReviewPerformance): EChartsOption {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    const rows = data.curve_points;
-    return {
-      color: ["#b42318", "#2563eb", "#64748b"],
-      tooltip: {
-        trigger: "axis",
-        backgroundColor: tooltipBackgroundColor(resolvedMode),
-        borderColor: gridColor,
-        textStyle: { color: textColor },
-        valueFormatter: (value) => formatPercent(Number(value))
-      },
-      legend: { top: 0, textStyle: { color: textColor } },
-      grid: { top: 42, left: 54, right: 18, bottom: 36 },
-      xAxis: {
-        type: "category",
-        data: rows.map((item) => item.date),
-        axisLabel: { color: textColor },
-        axisLine: { lineStyle: { color: gridColor } },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: textColor, formatter: (value: number) => `${value.toFixed(0)}%` },
-        splitLine: { lineStyle: { color: gridColor } }
-      },
-      series: [
-        {
-          name: "组合收益率",
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 3 },
-          data: rows.map((item) => item.portfolio_return_pct ?? null)
-        },
-        {
-          name: data.benchmark.name || "沪深300",
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2 },
-          data: rows.map((item) => item.benchmark_return_pct ?? null)
-        },
-        {
-          name: "超额收益",
-          type: "line",
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2, type: "dashed" },
-          data: rows.map((item) => item.excess_return_pct ?? null)
-        }
-      ]
-    };
-  }
-
-  function reviewCalendarOption(data: PortfolioReviewPerformance): EChartsOption {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    const values = data.calendar.items.map((item) => Number(item.return_pct ?? 0));
-    const maxValue = Math.max(1, ...values.map((item) => Math.abs(item)));
-    const minSlots = data.calendar.granularity === "day" ? 10 : 6;
-    const paddedLabels = [
-      ...data.calendar.items.map((item) => item.label),
-      ...Array.from({ length: Math.max(0, minSlots - data.calendar.items.length) }, () => "")
-    ];
-    const showValueLabel = data.calendar.items.length <= 12;
-    return {
-      tooltip: {
-        backgroundColor: tooltipBackgroundColor(resolvedMode),
-        borderColor: gridColor,
-        textStyle: { color: textColor },
-        formatter: (params: any) => `${data.calendar.items[Number(params.value?.[0])]?.label ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[2] ?? 0))}`
-      },
-      grid: { top: 58, left: 42, right: 22, bottom: 92, height: 58 },
-      xAxis: {
-        type: "category",
-        data: paddedLabels,
-        axisLabel: { color: textColor, hideOverlap: true },
-        axisLine: { lineStyle: { color: gridColor } },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: "category",
-        data: ["盈亏率"],
-        axisLabel: { color: textColor },
-        axisLine: { show: false },
-        axisTick: { show: false }
-      },
-      visualMap: {
-        min: -maxValue,
-        max: maxValue,
-        orient: "horizontal",
-        left: "center",
-        bottom: 20,
-        inRange: { color: reviewHeatmapColors(resolvedMode) },
-        textStyle: { color: textColor }
-      },
-      series: [
-        {
-          type: "heatmap",
-          data: data.calendar.items.map((item, index) => [index, 0, item.return_pct ?? 0]),
-          itemStyle: {
-            borderColor: gridColor,
-            borderWidth: 1
-          },
-          label: {
-            show: showValueLabel,
-            color: textColor,
-            formatter: (params: any) => formatPercent(Number(params.value?.[2] ?? 0))
-          }
-        }
-      ]
-    };
-  }
-
   function renderMetrics(summary?: PortfolioOverview["summary"]) {
     return (
       <div className="portfolio-summary metric-grid">
@@ -995,11 +836,21 @@ export function PortfolioPage() {
     );
   }
 
+  function renderPerformance() {
+    return (
+      <PerformanceReview
+        portfolioId={reviewPortfolioId}
+        portfolioOptions={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
+        portfoliosLoading={portfolios.loading}
+        onPortfolioChange={setReviewPortfolioId}
+        period={reviewPeriod}
+        onPeriodChange={setReviewPeriod}
+      />
+    );
+  }
+
+  // 调仓复盘：看每次调仓和 AI 建议的事后效果，与收益周期无关，所以只按组合筛选
   function renderReview() {
-    const data = reviewPerformance.data;
-    const summary = data.summary;
-    const periodLabel = data.period === "month" ? "当月" : data.period === "all" ? "有效记录以来" : "当年";
-    const calendarTitle = data.calendar.granularity === "day" ? "每日盈亏日历" : data.calendar.granularity === "year" ? "年度盈亏年历" : "每月盈亏月历";
     return (
       <div className="portfolio-dashboard">
         <WorkbenchCard>
@@ -1014,47 +865,9 @@ export function PortfolioPage() {
               ]}
               onChange={(value) => setReviewPortfolioId(value === 0 ? null : value)}
             />
-            <Segmented
-              value={reviewPeriod}
-              options={[
-                { value: "month", label: "当月" },
-                { value: "year", label: "当年" },
-                { value: "all", label: "有效记录以来" }
-              ]}
-              onChange={(value) => setReviewPeriod(value as ReviewPeriod)}
-            />
-            <Button
-              onClick={() => {
-                void reviewPerformance.refresh();
-                setReviewRefreshKey((value) => value + 1);
-              }}
-              loading={reviewPerformance.loading}
-            >
-              刷新复盘
-            </Button>
-            <Tag>{data.benchmark.name || "沪深300"}</Tag>
-            <Tag>{periodLabel}</Tag>
+            <Button onClick={() => setReviewRefreshKey((value) => value + 1)}>刷新复盘</Button>
           </Space>
         </WorkbenchCard>
-        <div className="portfolio-summary metric-grid portfolio-review-metrics">
-          <div className="metric-panel"><div className="metric-panel-label">组合收益率</div><div className="metric-panel-value" style={{ color: pnlColor(summary.portfolio_return_pct) }}>{formatPercent(summary.portfolio_return_pct)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">沪深300</div><div className="metric-panel-value" style={{ color: pnlColor(summary.benchmark_return_pct) }}>{formatPercent(summary.benchmark_return_pct)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">超额收益</div><div className="metric-panel-value" style={{ color: pnlColor(summary.excess_return_pct) }}>{formatPercent(summary.excess_return_pct)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">最大回撤</div><div className="metric-panel-value" style={{ color: pnlColor(summary.max_drawdown_pct) }}>{formatPercent(summary.max_drawdown_pct)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">有效记录</div><div className="metric-panel-value">{summary.effective_days}</div></div>
-        </div>
-        <div className="portfolio-overview-grid">
-          {data.curve_points.length ? (
-            <ChartCard title="收益率曲线对比" option={reviewLineOption(data)} height={340} />
-          ) : (
-            <WorkbenchCard title="收益率曲线对比"><EmptyAction description="暂无有效市值快照；任务中心每日 17:00 生成后显示" /></WorkbenchCard>
-          )}
-          {data.calendar.items.length ? (
-            <ChartCard title={`盈亏日历 · ${calendarTitle}`} option={reviewCalendarOption(data)} height={340} />
-          ) : (
-            <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`}><EmptyAction description="暂无可用于复盘的盈亏记录" /></WorkbenchCard>
-          )}
-        </div>
         <PositionChangeReview key={`change-${reviewRefreshKey}`} portfolioId={reviewPortfolioId} />
         <AdjustAdviceReview key={reviewRefreshKey} portfolioId={reviewPortfolioId} />
       </div>
@@ -1063,6 +876,7 @@ export function PortfolioPage() {
 
   function renderContent() {
     if (activeTab === "portfolios") return renderOverview();
+    if (activeTab === "performance") return renderPerformance();
     if (activeTab === "positions") return renderPositions();
     if (activeTab === "risk") return renderTrades();
     return renderReview();
@@ -1070,7 +884,7 @@ export function PortfolioPage() {
 
   return (
     <>
-      <PageHeader title="组合管理" description="实盘 / 现金 / 快照 / 复盘" />
+      <PageHeader title="组合管理" description="实盘 / 收益 / 调仓 / 复盘" />
       <ModuleTabs activeKey={activeTab} items={moduleTabs.portfolio} onChange={setActiveTab} />
       {renderContent()}
       <Modal title={editingPortfolio ? "重命名组合" : "新建组合"} open={portfolioModalOpen} onCancel={() => setPortfolioModalOpen(false)} onOk={submitPortfolio} confirmLoading={saving} destroyOnClose>
