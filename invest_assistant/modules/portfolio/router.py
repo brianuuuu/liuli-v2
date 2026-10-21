@@ -107,6 +107,11 @@ def list_adjust_advice_candidates(
     return adjust_advice.list_advice_candidates(db, stock_id, change_date or service._today_shanghai(), portfolio_id)
 
 
+@router.get("/adjust-advice/recent")
+def list_recent_adjust_advice(portfolio_id: int | None = None, limit: int = 5, db: Session = Depends(get_db)) -> list[dict]:
+    return adjust_advice.list_recent_advice_items(db, service._today_shanghai(), portfolio_id, min(max(limit, 1), 50))
+
+
 @router.get("/position-change-review")
 def review_position_changes(portfolio_id: int | None = None, start_date: date | None = None, db: Session = Depends(get_db)) -> dict:
     try:

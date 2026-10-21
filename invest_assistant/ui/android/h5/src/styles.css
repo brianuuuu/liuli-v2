@@ -555,6 +555,12 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .recent-trade strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .recent-trade strong small { margin-left: 6px; color: var(--muted); font-size: 11px; font-weight: 400; }
 .recent-trade span { font-weight: 650; white-space: nowrap; }
+/* 最近建议：整行可点进记调仓；已执行和 .trade-options 一样置灰、不给按压反馈 */
+button.recent-trade { width: 100%; padding: 0; text-align: left; }
+html:not(.pager-dragging) button.recent-trade:active { background: var(--blue-soft); }
+button.recent-trade:disabled span, button.recent-trade:disabled strong { color: var(--subtle); }
+html:not(.pager-dragging) button.recent-trade:disabled:active { background: none; }
+.recent-trade em.advice-status--active { color: var(--blue); }
 .suggestion-review-detail { display: grid; gap: 16px; }
 .suggestion-review-summary { padding: 14px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
 .suggestion-review-summary h2 { margin: 0; font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; }

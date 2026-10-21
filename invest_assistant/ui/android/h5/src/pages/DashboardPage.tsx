@@ -72,7 +72,7 @@ import {
   rememberTrackView
 } from "./dashboardViewState";
 import type { TagHeat } from "../types/api";
-import { REASON_TYPE_LABELS, tradeDeltaLabel } from "./tradeRecord";
+import { ADVICE_STATUS_LABELS, REASON_TYPE_LABELS, adviceActionLabel, tradeDeltaLabel } from "./tradeRecord";
 import { formatDateTime, formatModule, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
@@ -658,6 +658,7 @@ function PortfolioDashboard({ active }: { active: boolean }) {
   };
   const overview = useQuery({ queryKey: ["portfolio-overview", portfolioId], queryFn: () => mobileApi.portfolioOverview(portfolioId), staleTime: 300_000 });
   const trades = useQuery({ queryKey: ["portfolio-trades", portfolioId], queryFn: () => mobileApi.recentPositionChanges(portfolioId), staleTime: 300_000 });
+  const advice = useQuery({ queryKey: ["portfolio-advice", portfolioId], queryFn: () => mobileApi.recentAdvice(portfolioId), staleTime: 300_000 });
   if (overview.isLoading) return <LoadingState />;
   if (overview.isError) return <ErrorState onRetry={() => void overview.refetch()} />;
   const summary = overview.data?.summary;
@@ -666,7 +667,7 @@ function PortfolioDashboard({ active }: { active: boolean }) {
     <PullToRefresh
       ariaLabel="组合页下拉刷新"
       onRefresh={async () => {
-        const [result] = await Promise.all([overview.refetch(), trades.refetch()]);
+        const [result] = await Promise.all([overview.refetch(), trades.refetch(), advice.refetch()]);
         if (result.isError) throw result.error;
       }}
     >
@@ -727,6 +728,26 @@ function PortfolioDashboard({ active }: { active: boolean }) {
               ))}
             </div>
           ) : <EmptyState title={trades.isLoading ? "加载中" : "暂无调仓记录"} />}
+        </SectionCard>
+        <SectionCard title="最近建议">
+          {advice.isError ? <ErrorState onRetry={() => void advice.refetch()} /> : advice.data?.length ? (
+            <div className="recent-trades">
+              {advice.data.map((item) => (
+                <button
+                  type="button"
+                  className="recent-trade"
+                  key={item.id}
+                  disabled={item.status === "executed"}
+                  onClick={() => navigate("/portfolio/trade/new", { state: { advice: item } })}
+                >
+                  <time>{item.target_trade_date.slice(5)}</time>
+                  <strong>{item.stock_name || item.stock_code}</strong>
+                  <span className={item.action === "add" ? "positive" : "negative"}>{adviceActionLabel(item)}</span>
+                  <em className={`advice-status--${item.status}`}>{ADVICE_STATUS_LABELS[item.status]}</em>
+                </button>
+              ))}
+            </div>
+          ) : <EmptyState title={advice.isLoading ? "加载中" : "近 10 天暂无调仓建议"} />}
         </SectionCard>
         {active ? createPortal(
           <button

@@ -12,6 +12,7 @@ import type {
   PageDto,
   PendingReport,
   AdjustAdviceCandidate,
+  RecentAdvice,
   PortfolioDashboardDetail,
   PortfolioGroup,
   PortfolioOverview,
@@ -98,6 +99,8 @@ export const mobileApi = {
     apiClient.get<PositionChange[]>(portfolioId ? `/api/portfolios/${portfolioId}/position-changes` : "/api/portfolios/position-changes", { limit }),
   adviceCandidates: (portfolioId: number, stockId: number, changeDate: string) =>
     apiClient.get<AdjustAdviceCandidate[]>("/api/portfolios/adjust-advice/candidates", { portfolio_id: portfolioId, stock_id: stockId, change_date: changeDate }),
+  recentAdvice: (portfolioId?: number | null) =>
+    apiClient.get<RecentAdvice[]>("/api/portfolios/adjust-advice/recent", { portfolio_id: portfolioId }),
   // 按增量记账：服务端读最新持仓、只改股数，手机端缓存的持仓数过期也不会算错
   recordTrade: (portfolioId: number, write: TradeWrite) =>
     apiClient.post<TradeResult>(`/api/portfolios/${portfolioId}/trades`, write),

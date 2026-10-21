@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adviceActionForSide,
+  adviceTradeSide,
   estimateAllocation,
   linkedChangeLabel,
   newTradeRequestId,
@@ -109,5 +110,13 @@ describe("trade record", () => {
     const first = newTradeRequestId();
     expect(first.length).toBeGreaterThanOrEqual(8);
     expect(newTradeRequestId()).not.toBe(first);
+  });
+
+  it("prefills the trade side from an advice and closes when the reduce covers the holding", () => {
+    expect(adviceTradeSide("add", 300, 0)).toBe("buy");
+    expect(adviceTradeSide("reduce", 300, 1000)).toBe("sell");
+    expect(adviceTradeSide("reduce", 1000, 1000)).toBe("close");
+    expect(adviceTradeSide("reduce", 1200, 1000)).toBe("close");
+    expect(adviceTradeSide("reduce", null, 1000)).toBe("sell");
   });
 });

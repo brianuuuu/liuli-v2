@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { mobileApi } from "../api/mobileApi";
 import { ErrorState, LoadingState } from "../components/Ui";
-import type { AdjustAdviceCandidate, PortfolioPositionRow } from "../types/api";
+import type { AdjustAdviceCandidate, PortfolioPositionRow, RecentAdvice } from "../types/api";
 import { formatMoney } from "../utils/format";
 import { DetailFrame } from "./DetailPages";
 import {
@@ -13,6 +13,7 @@ import {
   TRADE_REASON_OPTIONS,
   TRADE_SIDE_OPTIONS,
   adviceActionForSide,
+  adviceTradeSide,
   estimateAllocation,
   formatTradeQuantity,
   lastTradePortfolio,
@@ -42,20 +43,27 @@ function formatRatio(value: number | null) {
 
 export function TradeRecordPage() {
   const [params] = useSearchParams();
+  const location = useLocation();
   const fixedPortfolioId = Number(params.get("portfolio_id")) || null;
+  // 从看板"最近建议"点进来时带着那条建议：预填标的、方向、股数、现价，理由选 AI 建议并关联它
+  const prefill = (location.state as { advice?: RecentAdvice } | null)?.advice ?? null;
   const navigate = useNavigate();
   const client = useQueryClient();
   const today = todayInShanghai();
 
-  const [portfolioId, setPortfolioId] = useState<number | null>(fixedPortfolioId ?? lastTradePortfolio());
-  const [stock, setStock] = useState<SelectedStock | null>(null);
+  const [portfolioId, setPortfolioId] = useState<number | null>(
+    prefill ? prefill.portfolio_id : fixedPortfolioId ?? lastTradePortfolio()
+  );
+  const [stock, setStock] = useState<SelectedStock | null>(
+    prefill ? { id: prefill.stock_id, name: prefill.stock_name || prefill.stock_code || "未命名标的", code: prefill.stock_code } : null
+  );
   const [keyword, setKeyword] = useState("");
   const [side, setSide] = useState<TradeSide>("buy");
   const [quantityText, setQuantityText] = useState("");
   const [priceText, setPriceText] = useState("");
   const [tradeDate, setTradeDate] = useState(today);
-  const [reasonType, setReasonType] = useState<TradeReasonType | null>(null);
-  const [adviceId, setAdviceId] = useState<number | null>(null);
+  const [reasonType, setReasonType] = useState<TradeReasonType | null>(prefill ? "ai_advice" : null);
+  const [adviceId, setAdviceId] = useState<number | null>(prefill?.id ?? null);
   const [syncCash, setSyncCash] = useState(true);
   const [note, setNote] = useState("");
   const [step, setStep] = useState<"edit" | "confirm">("edit");
@@ -87,7 +95,12 @@ export function TradeRecordPage() {
     queryFn: () => mobileApi.adviceCandidates(portfolioId as number, stock?.id as number, tradeDate),
     enabled: Boolean(portfolioId && stock && reasonType === "ai_advice")
   });
-  const matchingCandidates = (candidates.data ?? []).filter((item) => item.action === adviceAction);
+  const candidateList = candidates.data ?? [];
+  // 带进来的建议 T 晚于今天时不在候选里（候选只取 T 不晚于调仓日），补到最前面
+  const withPrefill = prefill && prefill.stock_id === stock?.id && !candidateList.some((item) => item.id === prefill.id)
+    ? [{ ...prefill, linked_change: null }, ...candidateList]
+    : candidateList;
+  const matchingCandidates = withPrefill.filter((item) => item.action === adviceAction);
 
   const positions = detail.data?.positions ?? [];
   const holding: PortfolioPositionRow | undefined = stock ? positions.find((item) => item.stock_id === stock.id) : undefined;
@@ -112,6 +125,20 @@ export function TradeRecordPage() {
   const group = holding?.group_id ? groups.data?.find((item) => item.id === holding.group_id) : undefined;
   const selectedAdvice = matchingCandidates.find((item) => item.id === adviceId);
 
+  // 持仓到了才知道持有多少股和现价，按建议预填一次；换组合后按新组合的持仓重填
+  const prefilledFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!prefill || !detail.data || !portfolioId || stock?.id !== prefill.stock_id || prefilledFor.current === portfolioId) return;
+    prefilledFor.current = portfolioId;
+    const position = detail.data.positions.find((item) => item.stock_id === prefill.stock_id);
+    const nextSide = adviceTradeSide(prefill.action, prefill.quantity, position?.quantity ?? 0);
+    setSide(nextSide);
+    setQuantityText(nextSide !== "close" && prefill.quantity ? String(prefill.quantity) : "");
+    setPriceText(position?.current_price ? String(position.current_price) : "");
+    setReasonType("ai_advice");
+    setAdviceId(prefill.id);
+  }, [detail.data, portfolioId, prefill, stock?.id]);
+
   const submit = useMutation({
     mutationFn: () => mobileApi.recordTrade(portfolioId as number, {
       stock_id: stock?.id as number,
@@ -130,6 +157,7 @@ export function TradeRecordPage() {
       await Promise.all([
         client.invalidateQueries({ queryKey: ["portfolio-overview"] }),
         client.invalidateQueries({ queryKey: ["portfolio-trades"] }),
+        client.invalidateQueries({ queryKey: ["portfolio-advice"] }),
         client.invalidateQueries({ queryKey: ["portfolio-detail"] }),
         client.invalidateQueries({ queryKey: ["workbench-today"] })
       ]);
@@ -221,8 +249,11 @@ export function TradeRecordPage() {
                     onClick={() => {
                       if (portfolioId === item.id) return;
                       setPortfolioId(item.id);
-                      setStock(null);
-                      setAdviceId(null);
+                      // 建议带进来的标的换组合后保留，持仓和预填按新组合重算
+                      if (stock?.id !== prefill?.stock_id) {
+                        setStock(null);
+                        setAdviceId(null);
+                      }
                     }}
                   >
                     {item.name}

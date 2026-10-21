@@ -172,3 +172,16 @@ export function linkedChangeLabel(change: { change_date: string; quantity_delta:
   const sign = change.quantity_delta > 0 ? "+" : "−";
   return `${change.change_date.slice(5)} ${sign}${formatTradeQuantity(Math.abs(change.quantity_delta))} 股`;
 }
+
+export const ADVICE_STATUS_LABELS: Record<string, string> = { active: "有效", expired: "过期", executed: "已执行" };
+
+export function adviceActionLabel(advice: { action: string; quantity?: number | null }): string {
+  const verb = advice.action === "add" ? "增持" : "减持";
+  return advice.quantity ? `${verb} ${formatTradeQuantity(advice.quantity)} 股` : verb;
+}
+
+/** 从建议预填方向：增持记买入；减持股数不少于持仓时记清仓，避免卖出超过持仓被拦下。 */
+export function adviceTradeSide(action: string, quantity: number | null | undefined, held: number): TradeSide {
+  if (action === "add") return "buy";
+  return held > 0 && quantity !== null && quantity !== undefined && quantity >= held ? "close" : "sell";
+}

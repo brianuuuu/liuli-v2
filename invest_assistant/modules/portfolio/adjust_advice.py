@@ -26,6 +26,7 @@ from invest_assistant.modules.portfolio.models import (
     Portfolio,
     PortfolioAdjustAdvice,
     PortfolioAdjustAdviceItem,
+    PortfolioPosition,
     PortfolioPositionChange,
 )
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar, StockDailyBar
@@ -666,6 +667,77 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
         for item, advice in rows
     ]
     return sorted(candidates, key=lambda row: row["linked_change"] is not None)
+
+
+def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None = None, limit: int = 5) -> list[dict]:
+    """手机看板"最近建议"：近 10 天的增持、减持条目，带展示状态和记调仓时预填的组合。
+
+    状态：已关联调仓或评估判定已执行为 executed；否则 T 早于今天为 expired（建议只对 T 当天有效），其余 active。
+    全组合口径的报告选定组合时，减持只给该组合持有的标的；记账组合取报告组合、看板选定组合，
+    都没有时取唯一持有该标的的组合，仍不确定则留空让用户选。"""
+    stmt = (
+        select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice, Stock)
+        .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
+        .join(Stock, Stock.id == PortfolioAdjustAdviceItem.stock_id)
+        .where(
+            PortfolioAdjustAdvice.status == "active",
+            PortfolioAdjustAdviceItem.action.in_(DIRECTIONAL_ACTIONS),
+            PortfolioAdjustAdvice.target_trade_date >= today - timedelta(days=CANDIDATE_LOOKBACK_DAYS),
+        )
+        .order_by(PortfolioAdjustAdvice.target_trade_date.desc(), PortfolioAdjustAdviceItem.id.desc())
+    )
+    if portfolio_id is not None:
+        stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None) | (PortfolioAdjustAdvice.portfolio_id == portfolio_id))
+    # 近 10 天的条目不多，不在 SQL 里截断：按组合过滤掉减持后再取前 limit 条，避免选定组合时凑不满
+    rows = db.execute(stmt).all()
+    if not rows:
+        return []
+    item_ids = [item.id for item, _advice, _stock in rows]
+    linked = set(
+        db.scalars(select(PortfolioPositionChange.advice_item_id).where(PortfolioPositionChange.advice_item_id.in_(item_ids)))
+    )
+    holders: dict[int, set[int]] = defaultdict(set)
+    for stock_id, holder_id in db.execute(
+        select(PortfolioPosition.stock_id, PortfolioPosition.portfolio_id).where(
+            PortfolioPosition.stock_id.in_({item.stock_id for item, _advice, _stock in rows}),
+            PortfolioPosition.status == "active",
+            PortfolioPosition.quantity > 0,
+        )
+    ):
+        holders[stock_id].add(holder_id)
+
+    result = []
+    for item, advice, stock in rows:
+        held_in = holders.get(item.stock_id, set())
+        if advice.portfolio_id is None and portfolio_id is not None and item.action == "reduce" and portfolio_id not in held_in:
+            continue
+        if item.id in linked or item.execution_status in {"executed", "partial"}:
+            status = "executed"
+        elif advice.target_trade_date < today:
+            status = "expired"
+        else:
+            status = "active"
+        trade_portfolio_id = advice.portfolio_id or portfolio_id or (next(iter(held_in)) if len(held_in) == 1 else None)
+        result.append(
+            {
+                "id": item.id,
+                "target_trade_date": advice.target_trade_date,
+                "portfolio_id": trade_portfolio_id,
+                "stock_id": item.stock_id,
+                "stock_code": stock.stock_code,
+                "stock_name": stock.stock_name,
+                "action": item.action,
+                "rating": item.rating,
+                "quantity": item.quantity,
+                "price_low": item.price_low,
+                "price_high": item.price_high,
+                "core_logic": _loads(item.detail_json).get("core_logic"),
+                "status": status,
+            }
+        )
+        if len(result) >= limit:
+            break
+    return result
 
 
 def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> None:

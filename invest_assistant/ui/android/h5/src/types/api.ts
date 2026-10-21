@@ -531,6 +531,15 @@ export type AdjustAdviceCandidate = {
   /** 已被调仓关联时给出那笔调仓；一条建议只能关联一次，前端置灰标"已关联" */
   linked_change?: { id: number; change_date: string; quantity_delta: number } | null;
 };
+/** 手机看板"最近建议"：建议只对适用交易日 T 当天有效，过了 T 为 expired；已关联或已执行为 executed，不可再点 */
+export type RecentAdvice = Omit<AdjustAdviceCandidate, "linked_change"> & {
+  /** 记调仓预填的组合：报告组合 > 看板选定组合 > 唯一持有该标的的组合，都没有为空 */
+  portfolio_id: number | null;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  status: "active" | "expired" | "executed";
+};
 export type TradeWrite = {
   stock_id: number;
   side: "buy" | "sell" | "close";

@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.18**（2026-10-18）
+> 当前版本：**1.0.19**（2026-10-21）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -779,7 +779,14 @@ risk_verdict：20 日收益 - 沪深300 同期收益 < -3% 为 hit。
 信号大类、相对不调整的效果、评估日期等可推导项不落列，查询时计算。
 ```
 
-展示：Web"组合复盘"页的"微操复盘"板块（20 日胜率、执行率、警示命中率、报告列表、信号表现表——样本不足 10 条置灰）。研究员经 MCP `portfolio.list_adjust_advice_reviews` 读取，评价由系统按固定口径计算，不由研究员自评。安卓端不做。
+展示：Web"组合复盘"页的"微操复盘"板块（20 日胜率、执行率、警示命中率、报告列表、信号表现表——样本不足 10 条置灰）。研究员经 MCP `portfolio.list_adjust_advice_reviews` 读取，评价由系统按固定口径计算，不由研究员自评。安卓端不做复盘，只在看板组合页列"最近建议"供记调仓：
+
+```text
+范围：近 10 天有效报告里的 add / reduce 条目，最近 5 条，T 倒序；全组合口径的报告在选定组合时只给该组合持有标的的减持。
+状态（查询时现算，不落列）：已被调仓关联或评估为 executed / partial → 已执行；否则 T 早于今天 → 过期（建议只对 T 当天有效）；其余 → 有效。
+记账组合：报告组合 > 看板选定组合 > 唯一持有该标的的组合；仍不确定留空由用户选。
+预填：增持 → 买入；减持股数不少于持仓 → 清仓，否则卖出；成交价取持仓现价。
+```
 
 ---
 
@@ -944,7 +951,9 @@ H5：invest_assistant/ui/android/h5，React + Vite + TypeScript + HashRouter + T
 H5 服务（server.mjs）监听 5174，把同源 /api/ 反向代理到 8000 的 API。
 底栏五项：看板 | 资讯 | 笔记 | 待办 | 我的（原生绘制）。
 定位：随身看板 + 资讯浏览 + 笔记收件箱 + 待办（预警、AI 推荐词、待处理报告、MCP 笔记）+ 报告阅读
-      + 记调仓（看板 → 组合"记一笔调仓"，/portfolio/trade/new，确认页预览仓位与现金占比变化）；
+      + 记调仓（看板 → 组合"记一笔调仓"，/portfolio/trade/new，确认页预览仓位与现金占比变化）
+      + 最近建议（看板 → 组合，最近调仓下方：近 10 天微操增持 / 减持，状态 有效 / 过期 / 已执行；
+        点有效或过期条目进记调仓并预填组合、标的、方向、股数、现价，理由为 AI 建议并关联该条；已执行置灰）；
       不做标签库维护、数据源与任务管理、组合深度分析、关系图大屏、控制台。
 ```
 
@@ -1142,6 +1151,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/position-change-review` | 调仓来源对比（`portfolio_id`、`start_date` 可选） |
 | GET | `/adjust-advice` | 微操复盘（`portfolio_id`、`limit` 默认 30，含全历史 `summary`） |
 | GET | `/adjust-advice/candidates` | 调仓可关联的微操建议（`stock_id`、`change_date`、`portfolio_id`） |
+| GET | `/adjust-advice/recent` | 手机看板最近建议（`portfolio_id`、`limit` 默认 5），含状态 active / expired / executed 和记账组合 |
 | GET / PUT / DELETE | `/{id}` | 组合详情 / 更新 / 删除 |
 | GET | `/{id}/dashboard` | 单组合看板 |
 | GET / POST | `/{id}/groups` | 分组 |

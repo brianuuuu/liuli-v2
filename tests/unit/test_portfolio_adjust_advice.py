@@ -21,6 +21,7 @@ from invest_assistant.modules.portfolio.models import (
     Portfolio,
     PortfolioAdjustAdvice,
     PortfolioAdjustAdviceItem,
+    PortfolioPosition,
     PortfolioPositionChange,
 )
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar, StockDailyBar
@@ -436,3 +437,52 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     # 春秋航空单边下跌：减仓对，加仓错
     assert rows[("ai_advice", "reduce")]["correct"] == 1
     assert rows[("personal", "add")]["wrong"] == 1 and rows[("personal", "add")]["win_rate"] == 0
+
+
+def test_recent_advice_items_status_and_trade_portfolio():
+    db = make_session()
+    db.add_all([Portfolio(name="组合A"), Portfolio(name="组合B")])
+    db.add_all([
+        Stock(stock_code="601021", stock_name="春秋航空", symbol="601021.SH", exchange="SH"),
+        Stock(stock_code="600036", stock_name="招商银行", symbol="600036.SH", exchange="SH"),
+    ])
+    db.flush()
+    db.add_all([
+        PortfolioPosition(portfolio_id=1, stock_id=1, quantity=1000),
+        PortfolioPosition(portfolio_id=2, stock_id=2, quantity=500),
+    ])
+
+    def advice(feedback_id: int, target: date, portfolio_id: int | None = None) -> int:
+        row = PortfolioAdjustAdvice(portfolio_id=portfolio_id, feedback_id=feedback_id, data_as_of_date=target, target_trade_date=target)
+        db.add(row)
+        db.flush()
+        return row.id
+
+    def item(advice_id: int, stock_id: int, action: str) -> PortfolioAdjustAdviceItem:
+        row = PortfolioAdjustAdviceItem(advice_id=advice_id, stock_id=stock_id, action=action, quantity=300, risk_level="none", detail_json="{}")
+        db.add(row)
+        db.flush()
+        return row
+
+    today_id, old_id = advice(1, T), advice(2, T - timedelta(days=1))
+    active = item(today_id, 1, "reduce")
+    item(today_id, 2, "hold")
+    linked = item(today_id, 2, "reduce")
+    expired = item(old_id, 1, "add")
+    item(advice(3, T - timedelta(days=30)), 1, "add")
+    db.add(PortfolioPositionChange(portfolio_id=2, stock_id=2, quantity_before=500, quantity_after=200, quantity_delta=-300, change_date=T, advice_item_id=linked.id))
+    db.commit()
+
+    rows = {row["id"]: row for row in adjust_advice.list_recent_advice_items(db, T)}
+    # 只列近 10 天的增持、减持；T 当天有效，早于今天过期，已关联调仓为已执行
+    assert list(rows) == [linked.id, active.id, expired.id]
+    assert rows[active.id]["status"] == "active" and rows[active.id]["stock_name"] == "春秋航空"
+    assert rows[expired.id]["status"] == "expired"
+    assert rows[linked.id]["status"] == "executed"
+    # 全组合口径的报告：唯一持有该标的的组合作为记账组合
+    assert rows[active.id]["portfolio_id"] == 1 and rows[linked.id]["portfolio_id"] == 2
+
+    # 选定组合 A：B 才持有的标的不给减持建议
+    scoped = adjust_advice.list_recent_advice_items(db, T, portfolio_id=1)
+    assert [row["id"] for row in scoped] == [active.id, expired.id]
+    assert all(row["portfolio_id"] == 1 for row in scoped)
