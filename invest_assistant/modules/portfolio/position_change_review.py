@@ -6,7 +6,7 @@
   与前复权价不能直接相除，所以收益基准统一取 T 收盘。
 - 增持后 20 日收益 > +1% 或减持后 20 日跌超 1% 为 correct，反向超过 1% 为 wrong，其余 neutral。
 - 公司行为（送转、配股、打新中签）不是主动判断，不计入。
-- 金额：调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；20 日影响 = 调仓金额 × 按方向折算的 20 日收益，
+- 金额：调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算；记价格之前的老记录在这里按同口径现算估价，不回写）；20 日影响 = 调仓金额 × 按方向折算的 20 日收益，
   即"增持后赚 / 亏了多少、减持后避开 / 错过了多少"，是相对不做这笔调仓的估算，不是已实现盈亏。
 每次查询现算，不落库：调仓记录量小，也免得多一个评估任务。
 """
@@ -59,9 +59,11 @@ def review_position_changes(db: Session, portfolio_id: int | None = None, start_
         advice = advice_brief_by_item(db, {change.advice_item_id for change in changes if change.advice_item_id})
         for change in sorted(changes, key=lambda item: (item.change_date, item.id), reverse=True):
             action = "add" if change.quantity_delta > 0 else "reduce"
-            returns = _returns(change.change_date, trade_dates, stock_series.get(change.stock_id))
-            groups[(change.reason_type or "unlabeled", action)].append(
-                _change_detail(change, action, returns, stocks.get(change.stock_id), portfolio_names, advice)
+            series = stock_series.get(change.stock_id)
+            returns = _returns(change.change_date, trade_dates, series)
+            reason_type = change.reason_type or "unlabeled"
+            groups[(reason_type, action)].append(
+                _change_detail(change, reason_type, action, returns, series, stocks.get(change.stock_id), portfolio_names, advice)
             )
 
     rows = []
@@ -98,14 +100,20 @@ def _returns(change_date: date, trade_dates: list[date], series) -> dict[str, fl
     return result
 
 
-def _change_detail(change, action: str, returns: dict, stock, portfolio_names: dict, advice: dict) -> dict:
+def _change_detail(change, reason_type: str, action: str, returns: dict, series, stock, portfolio_names: dict, advice: dict) -> dict:
     sign = 1 if action == "add" else -1
-    amount = round(abs(change.quantity_delta) * change.price, 2) if change.price else None
+    price, price_source = change.price, change.price_source
+    if not price and series is not None:
+        price = series.close_on_or_before(change.change_date)
+        price_source = "estimated" if price else None
+    amount = round(abs(change.quantity_delta) * price, 2) if price else None
     effect_20d = returns["return_20d"] * sign if returns["return_20d"] is not None else None
     brief = advice.get(change.advice_item_id) if change.advice_item_id else None
     return {
         **returns,
         "id": change.id,
+        "reason_type": reason_type,
+        "action": action,
         "change_date": change.change_date,
         "portfolio_id": change.portfolio_id,
         "portfolio_name": portfolio_names.get(change.portfolio_id),
@@ -113,8 +121,8 @@ def _change_detail(change, action: str, returns: dict, stock, portfolio_names: d
         "stock_code": stock.stock_code if stock else None,
         "stock_name": stock.stock_name if stock else None,
         "quantity_delta": change.quantity_delta,
-        "price": change.price,
-        "price_source": change.price_source,
+        "price": price,
+        "price_source": price_source,
         "amount": amount,
         "effect_5d": returns["return_5d"] * sign if returns["return_5d"] is not None else None,
         "effect_20d": effect_20d,

@@ -1100,6 +1100,8 @@ export type PositionChangeReviewRow = {
 /** 调仓来源复盘的单笔明细；effect_* 已按方向折算，正数表示判断有利 */
 export type PositionChangeReviewDetail = {
   id: number;
+  reason_type: PositionChangeReasonType | "unlabeled";
+  action: "add" | "reduce";
   change_date: string;
   portfolio_id: number;
   portfolio_name?: string | null;

@@ -6,7 +6,6 @@ import type {
   PositionChangeReviewRow
 } from "../../types/api";
 import { reasonTypeColors, reasonTypeLabels } from "./positionChangeLabels";
-import { SampleCount } from "./SampleCount";
 
 export const initialPositionChangeReview: PositionChangeReviewData = { rules: "", rows: [] };
 
@@ -59,8 +58,14 @@ export function positionChangeHint(rules: string) {
 
 const impactTitle = <Tooltip title="调仓金额 × 按方向折算的 20 日收益：增持后赚亏、减持后避开或错过的金额（估算）">20日影响</Tooltip>;
 
-const detailColumns: ColumnsType<PositionChangeReviewDetail> = [
-  { title: "日期", dataIndex: "change_date", width: 96 },
+const columns: ColumnsType<PositionChangeReviewDetail> = [
+  { title: "日期", dataIndex: "change_date", width: 104 },
+  {
+    title: "来源",
+    dataIndex: "reason_type",
+    width: 96,
+    render: (value: string) => <Tag color={reasonTypeColors[value]}>{reasonTypeLabels[value] || value}</Tag>
+  },
   {
     title: "标的",
     key: "stock",
@@ -72,9 +77,15 @@ const detailColumns: ColumnsType<PositionChangeReviewDetail> = [
     )
   },
   {
+    title: "方向",
+    dataIndex: "action",
+    width: 64,
+    render: (value: string) => <Tag color={actionLabels[value]?.color}>{actionLabels[value]?.label || value}</Tag>
+  },
+  {
     title: "股数",
     dataIndex: "quantity_delta",
-    width: 84,
+    width: 88,
     align: "right",
     render: (value: number) => <span style={{ color: pnlColor(value) }}>{value > 0 ? "+" : "−"}{Math.abs(value).toLocaleString("zh-CN")}</span>
   },
@@ -94,15 +105,15 @@ const detailColumns: ColumnsType<PositionChangeReviewDetail> = [
         value
       )
   },
-  { title: "金额", dataIndex: "amount", width: 84, align: "right", render: (value?: number | null) => formatAmount(value) },
-  { title: "5日", dataIndex: "effect_5d", width: 72, align: "right", render: formatReturn },
-  { title: "20日", dataIndex: "effect_20d", width: 72, align: "right", render: formatReturn },
-  { title: "60日", dataIndex: "effect_60d", width: 72, align: "right", render: formatReturn },
-  { title: impactTitle, dataIndex: "impact_20d", width: 88, align: "right", render: (value?: number | null) => formatAmount(value, true) },
+  { title: "金额", dataIndex: "amount", width: 92, align: "right", render: (value?: number | null) => formatAmount(value) },
+  { title: "5日", dataIndex: "effect_5d", width: 76, align: "right", render: formatReturn },
+  { title: "20日", dataIndex: "effect_20d", width: 76, align: "right", render: formatReturn },
+  { title: "60日", dataIndex: "effect_60d", width: 76, align: "right", render: formatReturn },
+  { title: impactTitle, dataIndex: "impact_20d", width: 92, align: "right", render: (value?: number | null) => formatAmount(value, true) },
   {
-    title: "对错",
+    title: <Tooltip title="满 20 个交易日后判定：增持后涨超 1% 或减持后跌超 1% 为对，反向超过 1% 为错，其余为平">对错</Tooltip>,
     dataIndex: "verdict",
-    width: 56,
+    width: 60,
     align: "center",
     render: (value?: string | null) =>
       value && verdictLabels[value] ? <Tag color={verdictLabels[value].color}>{verdictLabels[value].label}</Tag> : <Typography.Text type="secondary">-</Typography.Text>
@@ -110,71 +121,25 @@ const detailColumns: ColumnsType<PositionChangeReviewDetail> = [
   {
     title: "关联建议",
     dataIndex: "advice_target_trade_date",
-    width: 84,
+    width: 88,
     render: (value?: string | null) => (value ? value.slice(5) : <Typography.Text type="secondary">-</Typography.Text>)
   }
 ];
 
-const columns: ColumnsType<PositionChangeReviewRow> = [
-  {
-    title: "来源",
-    dataIndex: "reason_type",
-    render: (value: string) => <Tag color={reasonTypeColors[value]}>{reasonTypeLabels[value] || value}</Tag>
-  },
-  {
-    title: "方向",
-    dataIndex: "action",
-    width: 64,
-    render: (value: string) => <Tag color={actionLabels[value]?.color}>{actionLabels[value]?.label || value}</Tag>
-  },
-  { title: "调仓", dataIndex: "change_count", width: 56, align: "right" },
-  { title: "标的", dataIndex: "stock_count", width: 56, align: "right" },
-  { title: "调仓金额", dataIndex: "amount", width: 92, align: "right", render: (value?: number | null) => formatAmount(value) },
-  { title: impactTitle, dataIndex: "impact_20d", width: 92, align: "right", render: (value?: number | null) => formatAmount(value, true) },
-  {
-    // 胜率按满 20 个交易日的调仓算；5 日效果满 5 日就计入，所以这里为 0 时 5 日列也可能有值
-    title: <Tooltip title="已满 20 个交易日、计入胜率的调仓数；5 日效果满 5 个交易日即计入">满20日</Tooltip>,
-    dataIndex: "samples",
-    width: 72,
-    align: "right",
-    render: (value: number) => <SampleCount value={value} />
-  },
-  { title: "对/错/平", key: "split", width: 80, align: "center", render: (_, row) => `${row.correct}/${row.wrong}/${row.neutral}` },
-  {
-    title: "胜率",
-    dataIndex: "win_rate",
-    width: 64,
-    align: "right",
-    render: (value?: number | null) => (value === null || value === undefined ? "-" : `${(value * 100).toFixed(1)}%`)
-  },
-  { title: "5日", dataIndex: "avg_effect_5d", width: 72, align: "right", render: formatReturn },
-  { title: "20日", dataIndex: "avg_effect_20d", width: 72, align: "right", render: formatReturn },
-  { title: "60日", dataIndex: "avg_effect_60d", width: 72, align: "right", render: formatReturn }
-];
-
-/** 调仓来源对比：按理由来源 × 增减方向汇总，展开看每笔调仓的标的、股数、金额和事后效果 */
+/** 调仓来源对比：逐笔展示每次调仓的来源、标的、股数、金额和事后效果，按日期倒序、每页 10 条 */
 export function PositionChangeTable({ data, loading }: { data: PositionChangeReviewData; loading: boolean }) {
+  const changes = data.rows
+    .flatMap((row) => row.changes)
+    .sort((a, b) => b.change_date.localeCompare(a.change_date) || b.id - a.id);
   return (
     <Table
-      rowKey={(row) => `${row.reason_type}-${row.action}`}
+      rowKey="id"
       size="small"
       loading={loading}
       columns={columns}
-      dataSource={data.rows}
-      pagination={false}
+      dataSource={changes}
+      pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
       locale={{ emptyText: "暂无调仓记录" }}
-      expandable={{
-        expandedRowRender: (row) => (
-          <Table
-            rowKey="id"
-            size="small"
-            className="review-detail-table"
-            columns={detailColumns}
-            dataSource={row.changes}
-            pagination={row.changes.length > 10 ? { defaultPageSize: 10, showSizeChanger: false, size: "small" } : false}
-          />
-        )
-      }}
     />
   );
 }

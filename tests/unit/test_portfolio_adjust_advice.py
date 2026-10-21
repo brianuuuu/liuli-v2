@@ -452,6 +452,19 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     assert reduce_change["impact_20d"] == round(reduce_change["amount"] * reduce_change["effect_20d"], 2)
     assert reduce_row["impact_20d"] == reduce_change["impact_20d"]
     assert reduce_change["verdict"] == "correct" and add_change["verdict"] == "wrong"
+    assert reduce_change["reason_type"] == "ai_advice" and reduce_change["action"] == "reduce"
+
+    # 记价格之前的老记录：复盘时按调仓日收盘现算估价，不回写数据库
+    legacy = PortfolioPositionChange(
+        portfolio_id=1, stock_id=1, quantity_before=3500, quantity_after=3700, quantity_delta=200, change_date=days[0]
+    )
+    db.add(legacy)
+    db.commit()
+    review = position_change_review.review_position_changes(db, portfolio_id=1)
+    legacy_row = next(row for row in review["rows"] if row["reason_type"] == "unlabeled")
+    legacy_change = legacy_row["changes"][0]
+    assert legacy_change["price"] == 40.0 and legacy_change["price_source"] == "estimated"
+    assert legacy_change["amount"] == 200 * 40.0 and legacy.price is None
 
 
 def test_recent_advice_items_status_and_trade_portfolio():

@@ -1,7 +1,7 @@
-import { Button, Segmented, Select } from "antd";
+import { Button, Select, Space } from "antd";
 import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
-import { WorkbenchCard } from "../../components/common/WorkbenchCard";
+import { DataPanel } from "../../components/common/DataPanel";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewData } from "../../types/api";
 import {
@@ -17,15 +17,6 @@ import { HintTitle } from "./HintTitle";
 import { PositionChangeTable, initialPositionChangeReview, positionChangeHint, sourceWinRate } from "./PositionChangeReview";
 
 type StatsView = "changes" | "signals" | "risks";
-
-function SegmentLabel({ label, count }: { label: string; count: number }) {
-  return (
-    <span className="review-segment-label">
-      {label}
-      <em>{count}</em>
-    </span>
-  );
-}
 
 type TradeReviewProps = {
   portfolioId: number | null;
@@ -65,6 +56,11 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
   // 分段上的数字：调仓来源为调仓笔数，另两段为已评估样本数，切换前就知道有没有数据
   const changeCount = changes.data.rows.reduce((sum, row) => sum + row.change_count, 0);
   const signalSamples = advice.data.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
+  const statsViews: { value: StatsView; label: string; count: number }[] = [
+    { value: "changes", label: "调仓来源", count: changeCount },
+    { value: "signals", label: "信号表现", count: signalSamples },
+    { value: "risks", label: "风险警示", count: kpis.risk.samples }
+  ];
   const statsHint = statsView === "changes" ? positionChangeHint(changes.data.rules) : statsView === "signals" ? signalStatsHint : riskStatsHint;
 
   return (
@@ -106,30 +102,30 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
           </div>
         </section>
       </div>
-      {/* 三张统计表维度不同（来源 / 主信号 / 风险代码），不需要并排对照，合成一张卡分段切换、用满整行宽 */}
-      <WorkbenchCard
-        className="review-stats-card"
-        title={
-          <HintTitle
-            title={
-              <Segmented
-                value={statsView}
-                onChange={(value) => setStatsView(value as StatsView)}
-                options={[
-                  { value: "changes", label: <SegmentLabel label="调仓来源" count={changeCount} /> },
-                  { value: "signals", label: <SegmentLabel label="信号表现" count={signalSamples} /> },
-                  { value: "risks", label: <SegmentLabel label="风险警示" count={kpis.risk.samples} /> }
-                ]}
-              />
-            }
-            hint={statsHint}
-          />
+      {/* 三张统计表维度不同（来源 / 主信号 / 风险代码），不需要并排对照：合成一个面板，工具栏按钮切换，样式与标的池一致 */}
+      <DataPanel
+        toolbar={
+          <>
+            <Space size={4} className="toolbar-status-buttons">
+              {statsViews.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={statsView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setStatsView(item.value)}
+                >
+                  {item.label} ({item.count})
+                </Button>
+              ))}
+            </Space>
+            <HintTitle title={null} hint={statsHint} />
+          </>
         }
       >
         {statsView === "changes" ? <PositionChangeTable data={changes.data} loading={changes.loading} /> : null}
         {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
         {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
-      </WorkbenchCard>
+      </DataPanel>
       <AdviceReportList data={advice.data} loading={advice.loading} />
     </div>
   );
