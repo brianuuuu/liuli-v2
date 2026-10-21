@@ -506,7 +506,8 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("今日报告")).toBeInTheDocument();
     // 凌晨 3 点入库的日报，标题日期是昨天、入库日期是今天，两者都要看得见
     expect(await screen.findByText("2026年9月20日市场雷达日报")).toBeInTheDocument();
-    expect(screen.getByText(/market_radar · 09\/21 03:00/)).toBeInTheDocument();
+    // 来源模块显示中文名，不露英文代码
+    expect(screen.getByText("市场雷达 · 09/21 03:00")).toBeInTheDocument();
     // 只显示 1 篇却共 6 篇，截断必须说出来
     expect(screen.getByText("近 1 篇 · 共 6 篇")).toBeInTheDocument();
     view.unmount();
