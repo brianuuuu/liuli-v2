@@ -218,7 +218,7 @@ export function DisclosuresSection() {
         />
       </DataPanel>
 
-      <Modal title="新增公告财报" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden size={720}>
+      <Modal title="新增公告财报" open={open} onCancel={() => setOpen(false)} onOk={submit} destroyOnHidden width={720}>
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input />

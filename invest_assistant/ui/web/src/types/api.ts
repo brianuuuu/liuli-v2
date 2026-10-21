@@ -887,6 +887,7 @@ export type StockDetailValuationSnapshot = {
   primary_model?: string | null;
   expected_market_value_3y?: number | null;
   expectation_gap_rate?: number | null;
+  valuation_assumptions_json?: string | null;
   analysis_date?: string | null;
   researcher?: string | null;
   created_at?: string | null;

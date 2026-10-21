@@ -571,7 +571,7 @@ export function PortfolioPage() {
             fill: mutedColor,
             fontSize: 12,
             fontWeight: 500,
-            textAlign: "center"
+            align: "center"
           }
         },
         {
@@ -583,7 +583,7 @@ export function PortfolioPage() {
             fill: textColor,
             fontSize: 18,
             fontWeight: 700,
-            textAlign: "center"
+            align: "center"
           }
         }
       ],

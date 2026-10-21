@@ -3,7 +3,7 @@ import { Button, Drawer, Input, Select, Space, Tag, Typography, message } from "
 import { UIEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { listSourceItems } from "../../../api/marketRadar";
 import { EmptyAction } from "../../../components/common/EmptyAction";
-import type { SourceItem } from "../../../types/api";
+import type { MarketTag, SourceItem } from "../../../types/api";
 import { FLASH_PAGE_SIZE, shouldLoadNextFlashPage } from "./flashPagination";
 import { formatTime } from "./shared";
 
@@ -174,7 +174,7 @@ export function FlashSection() {
                     );
                   }
                   const item = entry.item;
-                  const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter(Boolean).slice(0, 8);
+                  const itemTags = (item.source_tags || []).map((sourceTag) => sourceTag.tag).filter((tag): tag is MarketTag => Boolean(tag)).slice(0, 8);
                   const sentiment = isSentiment(item);
                   return (
                     <article className="flash-row" key={entry.key}>
@@ -301,7 +301,7 @@ export function FlashSection() {
                 </span>
                 <span className="flash-detail-meta-divider">|</span>
                 <span className="flash-detail-meta-item">
-                  <Tag size="small" style={{ margin: 0, fontSize: '11px', height: '18px', lineHeight: '16px' }}>
+                  <Tag style={{ margin: 0, fontSize: '11px', height: '18px', lineHeight: '16px' }}>
                     {sourceTypeNames[detail.source_type] || detail.source_type}
                   </Tag>
                 </span>

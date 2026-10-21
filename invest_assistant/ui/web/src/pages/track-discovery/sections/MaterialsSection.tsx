@@ -25,7 +25,7 @@ import {
 
 // Extend TrackMaterial type locally to hold the dynamically bound track name
 interface ExtendedTrackMaterial extends TrackMaterial {
-  track_name?: string;
+  track_name?: string | null;
 }
 
 type MaterialFormValues = TrackMaterialPayload & { track_id?: number };

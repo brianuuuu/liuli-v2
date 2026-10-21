@@ -227,7 +227,7 @@ function NotesSection() {
 
   useEffect(() => {
     if (!isEditingGroups) return;
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: globalThis.MouseEvent) => {
       const target = event.target as Node;
       const sidebar = document.querySelector(".knowledge-notes-sidebar");
       if (sidebar && sidebar.contains(target)) {

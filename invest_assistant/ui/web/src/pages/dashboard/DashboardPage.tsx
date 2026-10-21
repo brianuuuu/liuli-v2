@@ -16,6 +16,7 @@ import {
   SyncOutlined
 } from "@ant-design/icons";
 import { Button, Space, Table, Tag, Typography, message } from "antd";
+import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { moduleTabs } from "../../app/navigation";
@@ -263,7 +264,7 @@ function TodayDashboardSection() {
     }
   }
 
-  const sourceChartOption = useMemo(() => {
+  const sourceChartOption = useMemo((): EChartsOption => {
     const labels = Object.keys(sourceTypeGroups) as Array<keyof typeof sourceTypeGroups>;
     return {
       tooltip: { trigger: "axis" },

@@ -159,7 +159,7 @@ export function buildScoreRadarOption(
           {
             name: "六维评分",
             value: cells.map((item) => item.value),
-            label: { show: true, color: palette.text, fontSize: 11, formatter: (params: { value: number }) => (params.value === null ? "" : String(params.value)) }
+            label: { show: true, color: palette.text, fontSize: 11, formatter: (params) => (params.value === null || params.value === undefined ? "" : String(params.value)) }
           }
         ]
       }
