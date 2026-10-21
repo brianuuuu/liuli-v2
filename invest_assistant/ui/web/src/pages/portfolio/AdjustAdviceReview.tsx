@@ -103,27 +103,61 @@ export function adviceKpis(data: AdjustAdviceReviews) {
   };
 }
 
+/** 还没跑过评估（触及、执行、收益都为空）：评估列合成一格说明，不铺一排横线 */
+function notEvaluated(item: AdjustAdviceItem) {
+  return item.trigger_status == null && item.execution_status == null && item.return_5d == null && item.verdict == null;
+}
+
+const EVAL_COLUMNS = 6;
+// 评估列合并：第一列占满 6 格写说明，其余 5 列让出位置
+const evalLead = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? EVAL_COLUMNS : 1 });
+const evalRest = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? 0 : 1 });
+
 const itemColumns: ColumnsType<AdjustAdviceItem> = [
-  { title: "标的", key: "stock", width: 120, render: (_, row) => <span>{row.stock_name}<Typography.Text type="secondary"> {row.stock_code}</Typography.Text></span> },
-  { title: "方向", dataIndex: "action", width: 70, render: (value: string) => labelTag(actionLabels, value) },
-  { title: "推荐", dataIndex: "rating", width: 90, render: (value?: number | null) => (value ? "★".repeat(value) + "☆".repeat(5 - value) : "-") },
-  { title: "数量", dataIndex: "quantity", width: 80, align: "right", render: (value?: number | null) => (value ?? "-") },
+  {
+    title: "标的",
+    key: "stock",
+    width: 150,
+    render: (_, row) => (
+      <span className="advice-stock">
+        {row.stock_name}
+        <small>{row.stock_code}</small>
+      </span>
+    )
+  },
+  { title: "方向", dataIndex: "action", width: 64, align: "center", render: (value: string) => labelTag(actionLabels, value) },
+  { title: "推荐", dataIndex: "rating", width: 90, align: "center", render: (value?: number | null) => (value ? <span className="advice-rating">{"★".repeat(value) + "☆".repeat(5 - value)}</span> : "-") },
+  { title: "数量", dataIndex: "quantity", width: 72, align: "right", render: (value?: number | null) => (value ?? "-") },
   {
     title: "价格区间",
     key: "price",
     width: 120,
+    align: "right",
     render: (_, row) => (row.price_low !== null && row.price_low !== undefined ? `${row.price_low} — ${row.price_high}` : "-")
   },
-  { title: "触及", dataIndex: "trigger_status", width: 70, render: (value?: string | null) => (value && triggerLabels[value]) || "-" },
-  { title: "执行", dataIndex: "execution_status", width: 80, render: (value?: string | null) => (value && executionLabels[value]) || "-" },
-  { title: "5日", dataIndex: "return_5d", width: 76, align: "right", render: formatReturn },
-  { title: "20日", dataIndex: "return_20d", width: 76, align: "right", render: formatReturn },
-  { title: "60日", dataIndex: "return_60d", width: 76, align: "right", render: formatReturn },
-  { title: "对错", dataIndex: "verdict", width: 60, render: (value?: string | null) => labelTag(verdictLabels, value) },
+  {
+    title: "触及",
+    dataIndex: "trigger_status",
+    width: 64,
+    align: "center",
+    onCell: evalLead,
+    render: (value: string | null | undefined, row) =>
+      notEvaluated(row) ? (
+        <span className="advice-eval-pending">{row.action === "add" || row.action === "reduce" ? "待评估 · T+20 判定对错" : "维持、等待不评估"}</span>
+      ) : (
+        (value && triggerLabels[value]) || "-"
+      )
+  },
+  { title: "执行", dataIndex: "execution_status", width: 76, align: "center", onCell: evalRest, render: (value?: string | null) => (value && executionLabels[value]) || "-" },
+  { title: "5日", dataIndex: "return_5d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
+  { title: "20日", dataIndex: "return_20d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
+  { title: "60日", dataIndex: "return_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
+  { title: "对错", dataIndex: "verdict", width: 60, align: "center", onCell: evalRest, render: (value?: string | null) => labelTag(verdictLabels, value) },
   {
     title: "风险",
     key: "risk",
-    width: 110,
+    width: 100,
+    align: "center",
     render: (_, row) =>
       riskLabels[row.risk_level] ? (
         <Tooltip title={row.risk_summary || undefined}>
@@ -150,22 +184,29 @@ const itemColumns: ColumnsType<AdjustAdviceItem> = [
 ];
 
 const reportColumns: ColumnsType<AdjustAdviceReport> = [
-  { title: "适用交易日", dataIndex: "target_trade_date", width: 120 },
-  { title: "日K截止", dataIndex: "data_as_of_date", width: 120 },
+  { title: "适用交易日", dataIndex: "target_trade_date", width: 116 },
+  { title: "日K截止", dataIndex: "data_as_of_date", width: 116 },
   {
     title: "微操机会",
     dataIndex: "has_opportunity",
-    width: 100,
-    // 三种状态同一尺寸的徽标，列内上下对齐
+    width: 88,
+    align: "center",
+    // 三种状态同宽，列内上下对齐；只有"有"带底色
     render: (value?: boolean | null) =>
       value === true ? <span className="opportunity-badge is-yes">有</span>
         : value === false ? <span className="opportunity-badge is-no">无</span>
           : <span className="opportunity-badge is-no">待定</span>
   },
-  { title: "调整", key: "advice", width: 80, render: (_, row) => row.items.filter((item) => item.action === "add" || item.action === "reduce").length },
-  { title: "警示", key: "alert", width: 80, render: (_, row) => row.items.filter((item) => item.risk_level === "warning" || item.risk_level === "severe").length },
-  { title: "持仓数", key: "count", width: 80, render: (_, row) => row.items.length },
-  { title: "连续性说明", dataIndex: "continuity_note", ellipsis: true, render: (value?: string | null) => value || "-" }
+  { title: "调整", key: "advice", width: 64, align: "right", render: (_, row) => row.items.filter((item) => item.action === "add" || item.action === "reduce").length },
+  { title: "警示", key: "alert", width: 64, align: "right", render: (_, row) => row.items.filter((item) => item.risk_level === "warning" || item.risk_level === "severe").length },
+  { title: "持仓数", key: "count", width: 72, align: "right", render: (_, row) => row.items.length },
+  {
+    title: "连续性说明",
+    dataIndex: "continuity_note",
+    ellipsis: true,
+    // 次要信息用次要文字色，别比方向、数量更抢眼
+    render: (value?: string | null) => <Typography.Text type="secondary">{value || "-"}</Typography.Text>
+  }
 ];
 
 const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
@@ -194,6 +235,7 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
         <Table
           rowKey="id"
           size="small"
+          className="advice-report-table"
           loading={loading}
           columns={reportColumns}
           dataSource={data.reports}
@@ -203,6 +245,7 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
               <Table
                 rowKey="id"
                 size="small"
+                className="advice-item-table"
                 columns={itemColumns}
                 dataSource={showQuiet ? report.items : report.items.filter(hasSignal)}
                 pagination={false}
