@@ -1044,44 +1044,36 @@ body {
   line-height: 22px;
 }
 
-/* 调仓复盘：统计表并排、等高、不出横向滚动条 */
-.trade-review-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.7fr);
-  gap: 10px;
-  align-items: stretch;
-  margin-bottom: 10px;
-}
-
-.trade-review-grid--pending {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr);
-}
-
-.trade-review-grid .workbench-card {
-  margin-bottom: 0;
-}
-
 /* 卡片已有边框，表格不再套一层外框 */
 .trade-review .ant-table-wrapper .ant-table {
   border: 0;
   border-radius: 0;
 }
 
-.advice-stats-pending {
-  display: flex;
-  height: 100%;
-  min-height: 120px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+/* 统计表分段：段名后带数量 */
+.review-segment-label em {
+  margin-left: 6px;
   color: var(--ll-muted);
-  font-size: 13px;
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
-.advice-stats-pending strong {
-  color: var(--ll-text);
-  font-weight: 500;
+.review-stats-card .ant-card-head-title {
+  overflow: visible;
+}
+
+/* 展开的逐笔明细：浅底区分层级 */
+.trade-review .review-detail-table .ant-table,
+.trade-review .review-detail-table .ant-table-thead > tr > th,
+.trade-review .review-detail-table .ant-table-tbody > tr > td {
+  background: var(--ll-panel-subtle);
+}
+
+/* 估算的成交价：虚线下划线，悬浮说明 */
+.estimated-price {
+  border-bottom: 1px dashed var(--ll-muted);
+  cursor: help;
 }
 
 /* 样本不足：数字旁一个小圆点，悬浮说明 */
@@ -4581,19 +4573,6 @@ body {
     border-top: 1px solid var(--ll-border);
     border-left: 0;
   }
-
-  .trade-review-grid,
-  .trade-review-grid--pending {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .trade-review-grid > :first-child {
-    grid-column: 1 / -1;
-  }
-
-  .trade-review-grid--pending > :first-child {
-    grid-column: auto;
-  }
 }
 
 @media (max-width: 1180px) {
@@ -4601,8 +4580,7 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .portfolio-performance-grid,
-  .trade-review-grid {
+  .portfolio-performance-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

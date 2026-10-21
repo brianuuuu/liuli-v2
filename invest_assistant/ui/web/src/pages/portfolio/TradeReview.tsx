@@ -1,10 +1,31 @@
-import { Button, Select } from "antd";
-import { useCallback } from "react";
+import { Button, Segmented, Select } from "antd";
+import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
+import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewData } from "../../types/api";
-import { AdviceReportList, AdviceStatsPending, RiskStatsCard, SignalStatsCard, adviceKpis, initialAdviceReviews } from "./AdjustAdviceReview";
-import { PositionChangeReview, initialPositionChangeReview, sourceWinRate } from "./PositionChangeReview";
+import {
+  AdviceReportList,
+  RiskStatsTable,
+  SignalStatsTable,
+  adviceKpis,
+  initialAdviceReviews,
+  riskStatsHint,
+  signalStatsHint
+} from "./AdjustAdviceReview";
+import { HintTitle } from "./HintTitle";
+import { PositionChangeTable, initialPositionChangeReview, positionChangeHint, sourceWinRate } from "./PositionChangeReview";
+
+type StatsView = "changes" | "signals" | "risks";
+
+function SegmentLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <span className="review-segment-label">
+      {label}
+      <em>{count}</em>
+    </span>
+  );
+}
 
 type TradeReviewProps = {
   portfolioId: number | null;
@@ -26,7 +47,7 @@ function Kpi({ label, value, note }: { label: string; value: string | number | n
 
 /**
  * 调仓复盘：看每次调仓和 AI 建议的事后效果，与收益周期无关，只按组合筛选。
- * 指标（实际调仓 / AI 建议两组）→ 统计表 → 微操报告明细，由浅到深。
+ * 指标（实际调仓 / AI 建议两组）→ 统计表（分段切换）→ 微操报告明细，由浅到深。
  */
 export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, onPortfolioChange }: TradeReviewProps) {
   const changes = useAsyncData<PositionChangeReviewData>(
@@ -40,7 +61,11 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
   const aiRate = sourceWinRate(changes.data.rows, "ai_advice");
   const personalRate = sourceWinRate(changes.data.rows, "personal");
   const kpis = adviceKpis(advice.data);
-  const statsPending = !advice.data.signal_stats.by_signal.length && !advice.data.risk_stats.length;
+  const [statsView, setStatsView] = useState<StatsView>("changes");
+  // 分段上的数字：调仓来源为调仓笔数，另两段为已评估样本数，切换前就知道有没有数据
+  const changeCount = changes.data.rows.reduce((sum, row) => sum + row.change_count, 0);
+  const signalSamples = advice.data.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
+  const statsHint = statsView === "changes" ? positionChangeHint(changes.data.rules) : statsView === "signals" ? signalStatsHint : riskStatsHint;
 
   return (
     <div className="portfolio-dashboard trade-review">
@@ -81,17 +106,30 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
           </div>
         </section>
       </div>
-      <div className={statsPending ? "trade-review-grid trade-review-grid--pending" : "trade-review-grid"}>
-        <PositionChangeReview data={changes.data} loading={changes.loading} />
-        {statsPending ? (
-          <AdviceStatsPending data={advice.data} />
-        ) : (
-          <>
-            <SignalStatsCard data={advice.data} />
-            <RiskStatsCard data={advice.data} />
-          </>
-        )}
-      </div>
+      {/* 三张统计表维度不同（来源 / 主信号 / 风险代码），不需要并排对照，合成一张卡分段切换、用满整行宽 */}
+      <WorkbenchCard
+        className="review-stats-card"
+        title={
+          <HintTitle
+            title={
+              <Segmented
+                value={statsView}
+                onChange={(value) => setStatsView(value as StatsView)}
+                options={[
+                  { value: "changes", label: <SegmentLabel label="调仓来源" count={changeCount} /> },
+                  { value: "signals", label: <SegmentLabel label="信号表现" count={signalSamples} /> },
+                  { value: "risks", label: <SegmentLabel label="风险警示" count={kpis.risk.samples} /> }
+                ]}
+              />
+            }
+            hint={statsHint}
+          />
+        }
+      >
+        {statsView === "changes" ? <PositionChangeTable data={changes.data} loading={changes.loading} /> : null}
+        {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
+        {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
+      </WorkbenchCard>
       <AdviceReportList data={advice.data} loading={advice.loading} />
     </div>
   );

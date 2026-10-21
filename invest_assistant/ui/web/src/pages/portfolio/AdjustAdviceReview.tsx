@@ -219,49 +219,43 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
   );
 }
 
-export function SignalStatsCard({ data }: { data: AdjustAdviceReviews }) {
+/** 还没有评估结果时的空态：说清为什么空、什么时候会有 */
+function pendingText(data: AdjustAdviceReviews, what: string) {
+  return data.summary.pending_count
+    ? `暂无已评估的${what}；${data.summary.pending_count} 条建议等待满 20 个交易日后评估`
+    : `暂无已评估的${what}`;
+}
+
+export const signalStatsHint = "按方向 + 主信号统计 20 日胜率；只统计价格触及区间的建议，连续多日同方向未执行只算一次。评估任务工作日 19:15 运行。";
+export const riskStatsHint = "warning 及以上的警示，20 日跑输沪深300 超过 3% 计为命中。";
+
+export function SignalStatsTable({ data }: { data: AdjustAdviceReviews }) {
   return (
-    <WorkbenchCard title={<HintTitle title="信号表现" hint="按方向 + 主信号统计 20 日胜率；只统计价格触及区间的建议。" />}>
-      <Table
-        rowKey={(row) => `${row.action}-${row.signal_code}`}
-        size="small"
-        columns={winRateColumns}
-        dataSource={data.signal_stats.by_signal}
-        pagination={false}
-        locale={{ emptyText: "暂无已评估的调仓建议" }}
-      />
-    </WorkbenchCard>
+    <Table
+      rowKey={(row) => `${row.action}-${row.signal_code}`}
+      size="small"
+      columns={winRateColumns}
+      dataSource={data.signal_stats.by_signal}
+      pagination={false}
+      locale={{ emptyText: pendingText(data, "调仓建议") }}
+    />
   );
 }
 
-export function RiskStatsCard({ data }: { data: AdjustAdviceReviews }) {
+export function RiskStatsTable({ data }: { data: AdjustAdviceReviews }) {
   return (
-    <WorkbenchCard title={<HintTitle title="风险警示命中率" hint="警示后 20 日跑输沪深300 超过 3% 计为命中。" />}>
-      <Table
-        rowKey="risk_code"
-        size="small"
-        columns={[
-          { title: "风险代码", dataIndex: "risk_code", render: (value: string) => riskCodeLabels[value] || value },
-          { title: "样本", dataIndex: "samples", width: 56, align: "right" },
-          { title: "命中", dataIndex: "hits", width: 56, align: "right" },
-          { title: "命中率", dataIndex: "hit_rate", width: 72, align: "right", render: (value: number) => `${(value * 100).toFixed(1)}%` }
-        ]}
-        dataSource={data.risk_stats}
-        pagination={false}
-        locale={{ emptyText: "暂无已评估的风险警示" }}
-      />
-    </WorkbenchCard>
-  );
-}
-
-/** 信号表现、风险警示都还没有评估结果时合成一张轻量卡，等数据积累后再分开展示 */
-export function AdviceStatsPending({ data }: { data: AdjustAdviceReviews }) {
-  return (
-    <WorkbenchCard title={<HintTitle title="信号表现 · 风险警示命中率" hint="建议满 20 个交易日后由评估任务（工作日 19:15）自动计算；警示后 20 日跑输沪深300 超过 3% 计为命中。" />}>
-      <div className="advice-stats-pending">
-        <strong>暂无已评估的建议和警示</strong>
-        <span>{data.summary.pending_count ? `${data.summary.pending_count} 条建议等待满 20 个交易日后评估` : "研究回流导入微操报告后开始积累"}</span>
-      </div>
-    </WorkbenchCard>
+    <Table
+      rowKey="risk_code"
+      size="small"
+      columns={[
+        { title: "风险代码", dataIndex: "risk_code", render: (value: string) => riskCodeLabels[value] || value },
+        { title: "样本", dataIndex: "samples", width: 72, align: "right", render: (value: number) => <SampleCount value={value} /> },
+        { title: "命中", dataIndex: "hits", width: 72, align: "right" },
+        { title: "命中率", dataIndex: "hit_rate", width: 88, align: "right", render: (value: number) => `${(value * 100).toFixed(1)}%` }
+      ]}
+      dataSource={data.risk_stats}
+      pagination={false}
+      locale={{ emptyText: pendingText(data, "风险警示") }}
+    />
   );
 }

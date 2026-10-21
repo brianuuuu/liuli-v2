@@ -438,6 +438,21 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     assert rows[("ai_advice", "reduce")]["correct"] == 1
     assert rows[("personal", "add")]["wrong"] == 1 and rows[("personal", "add")]["win_rate"] == 0
 
+    # 金额口径：调仓金额 = |股数变化| × 调仓价（手填或估算）；20 日影响 = 金额 × 按方向折算的 20 日收益
+    reduce_row, add_row = rows[("ai_advice", "reduce")], rows[("personal", "add")]
+    assert reduce_row["stock_count"] == 1 and reduce_row["amount"] == 600 * 40.2
+    assert add_row["amount"] == 500 * 40.0
+    reduce_change, add_change = reduce_row["changes"][0], add_row["changes"][0]
+    assert reduce_change["stock_name"] == "春秋航空" and reduce_change["quantity_delta"] == -600
+    assert reduce_change["price_source"] == "manual" and add_change["price_source"] == "estimated"
+    assert reduce_change["advice_item_id"] == reduce_item.id and reduce_change["advice_target_trade_date"] == T
+    # 单边下跌：减持避开了下跌（影响为正），增持亏了（影响为负），汇总等于明细之和
+    assert reduce_change["effect_20d"] > 0 and reduce_change["impact_20d"] > 0
+    assert add_change["effect_20d"] < 0 and add_change["impact_20d"] < 0
+    assert reduce_change["impact_20d"] == round(reduce_change["amount"] * reduce_change["effect_20d"], 2)
+    assert reduce_row["impact_20d"] == reduce_change["impact_20d"]
+    assert reduce_change["verdict"] == "correct" and add_change["verdict"] == "wrong"
+
 
 def test_recent_advice_items_status_and_trade_portfolio():
     db = make_session()

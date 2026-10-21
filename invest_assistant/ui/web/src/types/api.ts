@@ -1089,6 +1089,34 @@ export type PositionChangeReviewRow = {
   avg_effect_5d?: number | null;
   avg_effect_20d?: number | null;
   avg_effect_60d?: number | null;
+  stock_count: number;
+  /** |股数变化| × 调仓价的合计；没有价格的调仓不计入 */
+  amount?: number | null;
+  /** 调仓金额 × 按方向折算的 20 日收益之和：相对不做这些调仓的估算，不是已实现盈亏 */
+  impact_20d?: number | null;
+  changes: PositionChangeReviewDetail[];
+};
+
+/** 调仓来源复盘的单笔明细；effect_* 已按方向折算，正数表示判断有利 */
+export type PositionChangeReviewDetail = {
+  id: number;
+  change_date: string;
+  portfolio_id: number;
+  portfolio_name?: string | null;
+  stock_id: number;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  quantity_delta: number;
+  price?: number | null;
+  price_source?: "manual" | "estimated" | string | null;
+  amount?: number | null;
+  effect_5d?: number | null;
+  effect_20d?: number | null;
+  effect_60d?: number | null;
+  impact_20d?: number | null;
+  verdict?: "correct" | "wrong" | "neutral" | null;
+  advice_item_id?: number | null;
+  advice_target_trade_date?: string | null;
 };
 
 export type PositionChangeReview = {

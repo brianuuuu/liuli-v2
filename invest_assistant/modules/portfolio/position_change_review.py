@@ -6,6 +6,8 @@
   与前复权价不能直接相除，所以收益基准统一取 T 收盘。
 - 增持后 20 日收益 > +1% 或减持后 20 日跌超 1% 为 correct，反向超过 1% 为 wrong，其余 neutral。
 - 公司行为（送转、配股、打新中签）不是主动判断，不计入。
+- 金额：调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；20 日影响 = 调仓金额 × 按方向折算的 20 日收益，
+  即"增持后赚 / 亏了多少、减持后避开 / 错过了多少"，是相对不做这笔调仓的估算，不是已实现盈亏。
 每次查询现算，不落库：调仓记录量小，也免得多一个评估任务。
 """
 
@@ -16,11 +18,13 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.portfolio.adjust_advice import (
     BENCHMARK_CODE,
     HORIZONS,
     _load_stock_series,
     _verdict,
+    advice_brief_by_item,
 )
 from invest_assistant.modules.portfolio.models import Portfolio, PortfolioPositionChange
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar
@@ -48,11 +52,17 @@ def review_position_changes(db: Session, portfolio_id: int | None = None, start_
                 .order_by(MarketIndexDailyBar.trade_date.asc())
             )
         )
-        stock_series = _load_stock_series(db, {change.stock_id for change in changes}, start)
-        for change in changes:
+        stock_ids = {change.stock_id for change in changes}
+        stock_series = _load_stock_series(db, stock_ids, start)
+        stocks = {stock.id: stock for stock in db.scalars(select(Stock).where(Stock.id.in_(stock_ids)))}
+        portfolio_names = dict(db.execute(select(Portfolio.id, Portfolio.name)).all())
+        advice = advice_brief_by_item(db, {change.advice_item_id for change in changes if change.advice_item_id})
+        for change in sorted(changes, key=lambda item: (item.change_date, item.id), reverse=True):
             action = "add" if change.quantity_delta > 0 else "reduce"
             returns = _returns(change.change_date, trade_dates, stock_series.get(change.stock_id))
-            groups[(change.reason_type or "unlabeled", action)].append(returns)
+            groups[(change.reason_type or "unlabeled", action)].append(
+                _change_detail(change, action, returns, stocks.get(change.stock_id), portfolio_names, advice)
+            )
 
     rows = []
     for reason_type in REVIEW_REASON_TYPES:
@@ -88,6 +98,34 @@ def _returns(change_date: date, trade_dates: list[date], series) -> dict[str, fl
     return result
 
 
+def _change_detail(change, action: str, returns: dict, stock, portfolio_names: dict, advice: dict) -> dict:
+    sign = 1 if action == "add" else -1
+    amount = round(abs(change.quantity_delta) * change.price, 2) if change.price else None
+    effect_20d = returns["return_20d"] * sign if returns["return_20d"] is not None else None
+    brief = advice.get(change.advice_item_id) if change.advice_item_id else None
+    return {
+        **returns,
+        "id": change.id,
+        "change_date": change.change_date,
+        "portfolio_id": change.portfolio_id,
+        "portfolio_name": portfolio_names.get(change.portfolio_id),
+        "stock_id": change.stock_id,
+        "stock_code": stock.stock_code if stock else None,
+        "stock_name": stock.stock_name if stock else None,
+        "quantity_delta": change.quantity_delta,
+        "price": change.price,
+        "price_source": change.price_source,
+        "amount": amount,
+        "effect_5d": returns["return_5d"] * sign if returns["return_5d"] is not None else None,
+        "effect_20d": effect_20d,
+        "effect_60d": returns["return_60d"] * sign if returns["return_60d"] is not None else None,
+        "impact_20d": round(amount * effect_20d, 2) if amount is not None and effect_20d is not None else None,
+        "verdict": _verdict(action, returns["return_20d"]),
+        "advice_item_id": change.advice_item_id,
+        "advice_target_trade_date": brief["target_trade_date"] if brief else None,
+    }
+
+
 def _stat_row(reason_type: str, action: str, samples: list[dict]) -> dict:
     evaluated = [sample for sample in samples if sample["return_20d"] is not None]
     verdicts = [_verdict(action, sample["return_20d"]) for sample in evaluated]
@@ -110,4 +148,13 @@ def _stat_row(reason_type: str, action: str, samples: list[dict]) -> dict:
         "avg_effect_5d": average_effect("return_5d"),
         "avg_effect_20d": average_effect("return_20d"),
         "avg_effect_60d": average_effect("return_60d"),
+        "stock_count": len({sample["stock_id"] for sample in samples}),
+        "amount": _sum_or_none(sample["amount"] for sample in samples),
+        "impact_20d": _sum_or_none(sample["impact_20d"] for sample in samples),
+        "changes": samples,
     }
+
+
+def _sum_or_none(values) -> float | None:
+    present = [value for value in values if value is not None]
+    return round(sum(present), 2) if present else None
