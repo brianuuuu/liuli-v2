@@ -1,4 +1,4 @@
-import { Button, Select, Space } from "antd";
+import { Button, Select, Space, Switch, Typography } from "antd";
 import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
 import { DataPanel } from "../../components/common/DataPanel";
@@ -53,6 +53,7 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
   const personalRate = sourceWinRate(changes.data.rows, "personal");
   const kpis = adviceKpis(advice.data);
   const [statsView, setStatsView] = useState<StatsView>("changes");
+  const [showQuiet, setShowQuiet] = useState(false);
   // 分段上的数字：调仓来源为调仓笔数，另两段为已评估样本数，切换前就知道有没有数据
   const changeCount = changes.data.rows.reduce((sum, row) => sum + row.change_count, 0);
   const signalSamples = advice.data.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
@@ -82,6 +83,11 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
         >
           刷新复盘
         </Button>
+        {/* 只作用于微操报告的展开明细；报告卡去掉标题栏后开关放在页首 */}
+        <Space size={6} className="review-toolbar-end">
+          <Typography.Text type="secondary">微操明细显示维持和等待</Typography.Text>
+          <Switch size="small" checked={showQuiet} onChange={setShowQuiet} />
+        </Space>
       </div>
       <div className="review-kpi-strip">
         <section className="review-kpi-group review-kpi-group--changes">
@@ -126,7 +132,7 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
         {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
         {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
       </DataPanel>
-      <AdviceReportList data={advice.data} loading={advice.loading} />
+      <AdviceReportList data={advice.data} loading={advice.loading} showQuiet={showQuiet} />
     </div>
   );
 }

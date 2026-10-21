@@ -1,6 +1,6 @@
-import { Space, Switch, Table, Tag, Tooltip, Typography } from "antd";
+import { Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useState } from "react";
+import { useMemo } from "react";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { HintTitle } from "./HintTitle";
@@ -113,7 +113,8 @@ const EVAL_COLUMNS = 6;
 const evalLead = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? EVAL_COLUMNS : 1 });
 const evalRest = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? 0 : 1 });
 
-const itemColumns: ColumnsType<AdjustAdviceItem> = [
+// 口径说明挂在"对错"表头上：标题栏去掉后，它就近解释对错怎么判
+const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
   {
     title: "标的",
     key: "stock",
@@ -152,7 +153,14 @@ const itemColumns: ColumnsType<AdjustAdviceItem> = [
   { title: "5日", dataIndex: "return_5d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "20日", dataIndex: "return_20d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "60日", dataIndex: "return_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
-  { title: "对错", dataIndex: "verdict", width: 60, align: "center", onCell: evalRest, render: (value?: string | null) => labelTag(verdictLabels, value) },
+  {
+    title: rules ? <HintTitle title="对错" hint={`评估口径：${rules}`} /> : "对错",
+    dataIndex: "verdict",
+    width: 72,
+    align: "center",
+    onCell: evalRest,
+    render: (value?: string | null) => labelTag(verdictLabels, value)
+  },
   {
     title: "风险",
     key: "risk",
@@ -218,19 +226,11 @@ const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
   { title: "平均效果", dataIndex: "avg_effect_20d", width: 80, align: "right", render: formatReturn }
 ];
 
-/** 微操报告：逐期明细，展开看每只持仓的建议与事后评估 */
-export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews; loading: boolean }) {
-  const [showQuiet, setShowQuiet] = useState(false);
+/** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。不带标题栏，"显示维持和等待"开关在页首工具栏 */
+export function AdviceReportList({ data, loading, showQuiet }: { data: AdjustAdviceReviews; loading: boolean; showQuiet: boolean }) {
+  const itemColumns = useMemo(() => buildItemColumns(data.rules), [data.rules]);
   return (
-    <WorkbenchCard
-      title={<HintTitle title="微操报告" hint={data.rules ? `评估口径：${data.rules}` : undefined} />}
-      extra={
-        <Space>
-          <Typography.Text type="secondary">显示维持和等待</Typography.Text>
-          <Switch size="small" checked={showQuiet} onChange={setShowQuiet} />
-        </Space>
-      }
-    >
+    <WorkbenchCard className="advice-report-card">
       {data.reports.length ? (
         <Table
           rowKey="id"

@@ -1061,6 +1061,23 @@ body {
   display: none;
 }
 
+/* 微操报告：不带标题栏，表头做成"第一行"——常规字重、次要色、小一号，分隔线与数据行相同 */
+.trade-review .advice-report-card .ant-card-body {
+  padding-top: 4px !important;
+}
+
+/* 外层和展开明细的表头同一套轻量样式 */
+.trade-review .advice-report-table .ant-table-thead > tr > th {
+  border-bottom: 1px solid var(--ll-border-soft);
+  color: var(--ll-muted);
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+.review-toolbar-end {
+  margin-left: auto;
+}
+
 /* 微操报告展开区：与面板同底色，左侧细色条表示从属，不再铺大块灰底 */
 .trade-review .advice-report-table .ant-table-expanded-row > td {
   padding: 0 !important;
@@ -1079,7 +1096,7 @@ body {
   border-bottom-color: var(--ll-border-soft);
   color: var(--ll-muted);
   font-size: 12px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
 }
 
 .trade-review .advice-item-table.ant-table-wrapper .ant-table-tbody > tr:hover > td {

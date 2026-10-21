@@ -79,8 +79,11 @@ assert.match(positionChange, /impact_20d/);
 assert.match(positionChange, /quantity_delta/);
 assert.doesNotMatch(positionChange, /expandedRowRender/);
 assert.match(positionChange, /不是已实现盈亏/);
-assert.match(adjustAdvice, /微操报告/);
-assert.match(adjustAdvice, /显示维持和等待/);
+// 微操报告卡去掉标题栏：开关移到页首工具栏，口径说明挂在明细"对错"表头
+assert.match(adjustAdvice, /<WorkbenchCard className="advice-report-card">/);
+assert.match(tradeReview, /显示维持和等待/);
+assert.match(tradeReview, /showQuiet=\{showQuiet\}/);
+assert.match(adjustAdvice, /title="对错" hint=/);
 assert.match(adjustAdvice, /HintTitle/);
 assert.match(tradeReview, /HintTitle/);
 assert.doesNotMatch(adjustAdvice, /Typography\.Paragraph type="secondary"/);
