@@ -4,10 +4,8 @@ import { useState } from "react";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { HintTitle } from "./HintTitle";
+import { SampleCount } from "./SampleCount";
 import type { AdjustAdviceItem, AdjustAdviceReport, AdjustAdviceReviews, AdjustAdviceWinRateRow } from "../../types/api";
-
-// 样本少于这个数时胜率只作参考，与 portfolio_001 profile 的历史校准门槛一致
-const MIN_SAMPLES = 10;
 
 export const initialAdviceReviews: AdjustAdviceReviews = {
   rules: "",
@@ -65,8 +63,9 @@ const riskCodeLabels: Record<string, string> = {
   unknown: "未标注"
 };
 
-export function ratio(numerator: number, denominator: number) {
-  return denominator ? `${((numerator / denominator) * 100).toFixed(1)}%` : "-";
+/** 没有样本时返回 null，由展示层写"待积累"，不和真实的 0% 混在一起 */
+function ratio(numerator: number, denominator: number) {
+  return denominator ? `${((numerator / denominator) * 100).toFixed(1)}%` : null;
 }
 
 function formatReturn(value?: number | null) {
@@ -84,7 +83,7 @@ function actionWinRate(rows: AdjustAdviceWinRateRow[], action: string) {
   const matched = rows.filter((row) => row.action === action);
   const samples = matched.reduce((sum, row) => sum + row.samples, 0);
   const correct = matched.reduce((sum, row) => sum + row.correct, 0);
-  return { samples, text: ratio(correct, samples) };
+  return { samples, rate: ratio(correct, samples) };
 }
 
 function hasSignal(item: AdjustAdviceItem) {
@@ -98,8 +97,8 @@ export function adviceKpis(data: AdjustAdviceReviews) {
   return {
     addRate: actionWinRate(data.signal_stats.by_signal, "add"),
     reduceRate: actionWinRate(data.signal_stats.by_signal, "reduce"),
-    executed: { text: ratio(data.summary.executed_count, data.summary.tracked_count), note: `${data.summary.executed_count} / ${data.summary.tracked_count}` },
-    risk: { text: ratio(riskHits, riskSamples), samples: riskSamples },
+    executed: { rate: ratio(data.summary.executed_count, data.summary.tracked_count), note: `${data.summary.executed_count} / ${data.summary.tracked_count}` },
+    risk: { rate: ratio(riskHits, riskSamples), samples: riskSamples },
     pending: { count: data.summary.pending_count, total: data.summary.advice_count }
   };
 }
@@ -157,7 +156,11 @@ const reportColumns: ColumnsType<AdjustAdviceReport> = [
     title: "微操机会",
     dataIndex: "has_opportunity",
     width: 100,
-    render: (value?: boolean | null) => (value === true ? <Tag color="blue">有</Tag> : value === false ? "无" : "暂无法判断")
+    // 三种状态同一尺寸的徽标，列内上下对齐
+    render: (value?: boolean | null) =>
+      value === true ? <span className="opportunity-badge is-yes">有</span>
+        : value === false ? <span className="opportunity-badge is-no">无</span>
+          : <span className="opportunity-badge is-no">待定</span>
   },
   { title: "调整", key: "advice", width: 80, render: (_, row) => row.items.filter((item) => item.action === "add" || item.action === "reduce").length },
   { title: "警示", key: "alert", width: 80, render: (_, row) => row.items.filter((item) => item.risk_level === "warning" || item.risk_level === "severe").length },
@@ -168,7 +171,7 @@ const reportColumns: ColumnsType<AdjustAdviceReport> = [
 const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
   { title: "方向", dataIndex: "action", width: 64, render: (value: string) => labelTag(actionLabels, value) },
   { title: "主信号", dataIndex: "signal_code", render: (value: string) => signalLabels[value] || value },
-  { title: "样本", dataIndex: "samples", width: 56, align: "right" },
+  { title: "样本", dataIndex: "samples", width: 56, align: "right", render: (value: number) => <SampleCount value={value} /> },
   { title: "对/错/平", key: "split", width: 82, align: "center", render: (_, row) => `${row.correct}/${row.wrong}/${row.neutral}` },
   { title: "胜率", key: "win_rate", width: 64, align: "right", render: (_, row) => `${(row.win_rate * 100).toFixed(1)}%` },
   { title: "平均效果", dataIndex: "avg_effect_20d", width: 80, align: "right", render: formatReturn }
@@ -218,15 +221,13 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
 
 export function SignalStatsCard({ data }: { data: AdjustAdviceReviews }) {
   return (
-    <WorkbenchCard title={<HintTitle title="信号表现" hint={`按方向 + 主信号统计 20 日胜率。样本不足 ${MIN_SAMPLES} 条的行置灰，胜率仅供参考。`} />}>
+    <WorkbenchCard title={<HintTitle title="信号表现" hint="按方向 + 主信号统计 20 日胜率；只统计价格触及区间的建议。" />}>
       <Table
         rowKey={(row) => `${row.action}-${row.signal_code}`}
         size="small"
         columns={winRateColumns}
         dataSource={data.signal_stats.by_signal}
         pagination={false}
-        scroll={{ x: "max-content" }}
-        rowClassName={(row) => (row.samples < MIN_SAMPLES ? "adjust-advice-thin-sample" : "")}
         locale={{ emptyText: "暂无已评估的调仓建议" }}
       />
     </WorkbenchCard>
@@ -249,6 +250,18 @@ export function RiskStatsCard({ data }: { data: AdjustAdviceReviews }) {
         pagination={false}
         locale={{ emptyText: "暂无已评估的风险警示" }}
       />
+    </WorkbenchCard>
+  );
+}
+
+/** 信号表现、风险警示都还没有评估结果时合成一张轻量卡，等数据积累后再分开展示 */
+export function AdviceStatsPending({ data }: { data: AdjustAdviceReviews }) {
+  return (
+    <WorkbenchCard title={<HintTitle title="信号表现 · 风险警示命中率" hint="建议满 20 个交易日后由评估任务（工作日 19:15）自动计算；警示后 20 日跑输沪深300 超过 3% 计为命中。" />}>
+      <div className="advice-stats-pending">
+        <strong>暂无已评估的建议和警示</strong>
+        <span>{data.summary.pending_count ? `${data.summary.pending_count} 条建议等待满 20 个交易日后评估` : "研究回流导入微操报告后开始积累"}</span>
+      </div>
     </WorkbenchCard>
   );
 }

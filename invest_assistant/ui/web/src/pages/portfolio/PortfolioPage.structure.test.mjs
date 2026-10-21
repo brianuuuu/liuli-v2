@@ -74,6 +74,17 @@ assert.match(adjustAdvice, /HintTitle/);
 assert.match(positionChange, /HintTitle/);
 assert.doesNotMatch(adjustAdvice, /Typography\.Paragraph type="secondary"/);
 assert.doesNotMatch(positionChange, /Typography\.Paragraph/);
+// 统计表不出横向滚动条、样本不足不整行置灰、全页统一"增持 / 减持"、微操机会三态同尺寸
+assert.doesNotMatch(positionChange, /max-content/);
+assert.doesNotMatch(adjustAdvice, /max-content/);
+assert.doesNotMatch(positionChange + adjustAdvice, /adjust-advice-thin-sample/);
+assert.match(positionChange + adjustAdvice, /<SampleCount/);
+assert.doesNotMatch(positionChange, /加仓|减仓/);
+assert.match(adjustAdvice, /opportunity-badge is-yes/);
+assert.match(adjustAdvice, /opportunity-badge is-no/);
+assert.match(tradeReview, /AdviceStatsPending/);
+assert.match(tradeReview, /待积累/);
+assert.doesNotMatch(tradeReview, /WorkbenchCard/);
 assert.doesNotMatch(page, /coordinateSystem: "calendar"/);
 assert.doesNotMatch(page, /cellSize: \["auto", 18\]/);
 assert.match(page, /renderOverview/);

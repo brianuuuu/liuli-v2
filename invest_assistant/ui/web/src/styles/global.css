@@ -977,10 +977,19 @@ body {
   color: #047857;
 }
 
-/* 调仓复盘：一行紧凑指标 */
+/* 调仓复盘：筛选不单独占卡片 */
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+/* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开 */
 .review-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2fr) minmax(0, 5fr);
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
@@ -988,13 +997,26 @@ body {
   background: var(--ll-panel);
 }
 
-.review-kpi {
-  min-width: 0;
-  padding: 12px 14px;
+.review-kpi-group + .review-kpi-group {
+  border-left: 1px solid var(--ll-border);
 }
 
-.review-kpi + .review-kpi {
-  border-left: 1px solid var(--ll-border);
+.review-kpi-group > header {
+  padding: 8px 14px 0;
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.review-kpi-row {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+}
+
+.review-kpi {
+  min-width: 0;
+  padding: 6px 14px 12px;
 }
 
 .review-kpi-label,
@@ -1015,22 +1037,88 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 调仓复盘：三张统计表并排 */
+.review-kpi-value.is-pending {
+  color: var(--ll-muted);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+/* 调仓复盘：统计表并排、等高、不出横向滚动条 */
 .trade-review-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.75fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.7fr);
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
   margin-bottom: 10px;
+}
+
+.trade-review-grid--pending {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.7fr);
 }
 
 .trade-review-grid .workbench-card {
   margin-bottom: 0;
 }
 
-/* 微操复盘：样本不足的信号行置灰，胜率仅供参考 */
-.adjust-advice-thin-sample > td {
-  opacity: 0.55;
+/* 卡片已有边框，表格不再套一层外框 */
+.trade-review .ant-table-wrapper .ant-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.advice-stats-pending {
+  display: flex;
+  height: 100%;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ll-muted);
+  font-size: 13px;
+}
+
+.advice-stats-pending strong {
+  color: var(--ll-text);
+  font-weight: 500;
+}
+
+/* 样本不足：数字旁一个小圆点，悬浮说明 */
+.sample-count.is-thin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+
+.sample-count.is-thin::after {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d97706;
+  content: "";
+}
+
+/* 微操机会：有 / 无 / 待定同一尺寸，列内对齐 */
+.opportunity-badge {
+  display: inline-block;
+  min-width: 32px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.opportunity-badge.is-yes {
+  background: var(--ll-accent-soft);
+  color: var(--ll-accent);
+}
+
+.opportunity-badge.is-no {
+  background: var(--ll-panel-subtle);
+  color: var(--ll-muted);
 }
 
 .portfolio-overview-grid {
@@ -4486,23 +4574,25 @@ body {
 
 @media (max-width: 1440px) {
   .review-kpi-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .review-kpi:nth-child(5) {
+  .review-kpi-group + .review-kpi-group {
+    border-top: 1px solid var(--ll-border);
     border-left: 0;
   }
 
-  .review-kpi:nth-child(n + 5) {
-    border-top: 1px solid var(--ll-border);
-  }
-
-  .trade-review-grid {
+  .trade-review-grid,
+  .trade-review-grid--pending {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .trade-review-grid > :first-child {
     grid-column: 1 / -1;
+  }
+
+  .trade-review-grid--pending > :first-child {
+    grid-column: auto;
   }
 }
 
