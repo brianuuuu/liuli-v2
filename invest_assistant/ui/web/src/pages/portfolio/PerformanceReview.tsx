@@ -9,6 +9,7 @@ import { EmptyAction } from "../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { PortfolioReviewPerformance } from "../../types/api";
+import { PnlCalendar } from "./PnlCalendar";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
 
 export type ReviewPeriod = "month" | "year" | "all";
@@ -31,10 +32,6 @@ const initialReviewPerformance: PortfolioReviewPerformance = {
   curve_points: [],
   calendar: { granularity: "month", items: [] }
 };
-
-function reviewHeatmapColors(mode: "light" | "dark") {
-  return mode === "dark" ? ["#047857", "#1f2937", "#b42318"] : ["#047857", "#f8fafc", "#b42318"];
-}
 
 type PerformanceReviewProps = {
   portfolioId: number | null;
@@ -113,67 +110,6 @@ export function PerformanceReview({ portfolioId, portfolioOptions, portfoliosLoa
     };
   }
 
-  function reviewCalendarOption(): EChartsOption {
-    const textColor = chartTextColor(resolvedMode);
-    const gridColor = chartGridColor(resolvedMode);
-    const values = data.calendar.items.map((item) => Number(item.return_pct ?? 0));
-    const maxValue = Math.max(1, ...values.map((item) => Math.abs(item)));
-    const minSlots = data.calendar.granularity === "day" ? 10 : 6;
-    const paddedLabels = [
-      ...data.calendar.items.map((item) => item.label),
-      ...Array.from({ length: Math.max(0, minSlots - data.calendar.items.length) }, () => "")
-    ];
-    const showValueLabel = data.calendar.items.length <= 12;
-    return {
-      tooltip: {
-        backgroundColor: tooltipBackgroundColor(resolvedMode),
-        borderColor: gridColor,
-        textStyle: { color: textColor },
-        formatter: (params: any) => `${data.calendar.items[Number(params.value?.[0])]?.label ?? "-"}<br/>盈亏率：${formatPercent(Number(params.value?.[2] ?? 0))}`
-      },
-      // 单行色带：通栏后不需要原来半栏时留的大块上下空白
-      grid: { top: 12, left: 56, right: 22, bottom: 72, height: 58 },
-      xAxis: {
-        type: "category",
-        data: paddedLabels,
-        axisLabel: { color: textColor, hideOverlap: true },
-        axisLine: { lineStyle: { color: gridColor } },
-        axisTick: { show: false }
-      },
-      yAxis: {
-        type: "category",
-        data: ["盈亏率"],
-        axisLabel: { color: textColor },
-        axisLine: { show: false },
-        axisTick: { show: false }
-      },
-      visualMap: {
-        min: -maxValue,
-        max: maxValue,
-        orient: "horizontal",
-        left: "center",
-        bottom: 6,
-        inRange: { color: reviewHeatmapColors(resolvedMode) },
-        textStyle: { color: textColor }
-      },
-      series: [
-        {
-          type: "heatmap",
-          data: data.calendar.items.map((item, index) => [index, 0, item.return_pct ?? 0]),
-          itemStyle: {
-            borderColor: gridColor,
-            borderWidth: 1
-          },
-          label: {
-            show: showValueLabel,
-            color: textColor,
-            formatter: (params: any) => formatPercent(Number(params.value?.[2] ?? 0))
-          }
-        }
-      ]
-    };
-  }
-
   const metrics = [
     { label: "组合收益率", value: summary.portfolio_return_pct },
     { label: data.benchmark.name || "沪深300", value: summary.benchmark_return_pct },
@@ -224,16 +160,21 @@ export function PerformanceReview({ portfolioId, portfolioOptions, portfoliosLoa
             ))}
             <div className="metric-panel"><div className="metric-panel-label">有效记录</div><div className="metric-panel-value">{summary.effective_days}</div></div>
           </div>
-          {data.curve_points.length ? (
-            <ChartCard title="收益率曲线对比" option={reviewLineOption()} height={360} />
-          ) : (
-            <WorkbenchCard title="收益率曲线对比"><EmptyAction description="暂无有效市值快照；任务中心每日 17:00 生成后显示" /></WorkbenchCard>
-          )}
-          {data.calendar.items.length ? (
-            <ChartCard title={`盈亏日历 · ${calendarTitle}`} option={reviewCalendarOption()} height={170} />
-          ) : (
-            <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`}><EmptyAction description="暂无可用于复盘的盈亏记录" /></WorkbenchCard>
-          )}
+          {/* 曲线 2/3、日历 1/3 同一行；窄屏上下排 */}
+          <div className="portfolio-performance-grid">
+            {data.curve_points.length ? (
+              <ChartCard title="收益率曲线对比" option={reviewLineOption()} height={340} />
+            ) : (
+              <WorkbenchCard title="收益率曲线对比"><EmptyAction description="暂无有效市值快照；任务中心每日 17:00 生成后显示" /></WorkbenchCard>
+            )}
+            <WorkbenchCard title={`盈亏日历 · ${calendarTitle}`} className="pnl-calendar-card">
+              {data.calendar.items.length ? (
+                <PnlCalendar granularity={data.calendar.granularity} items={data.calendar.items} />
+              ) : (
+                <EmptyAction description="暂无可用于复盘的盈亏记录" />
+              )}
+            </WorkbenchCard>
+          </div>
         </>
       )}
     </div>

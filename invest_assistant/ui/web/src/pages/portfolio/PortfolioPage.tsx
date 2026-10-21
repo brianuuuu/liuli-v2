@@ -29,9 +29,8 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { AdjustAdviceReview } from "./AdjustAdviceReview";
 import { PerformanceReview, type ReviewPeriod } from "./PerformanceReview";
-import { PositionChangeReview } from "./PositionChangeReview";
+import { TradeReview } from "./TradeReview";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
 import { adviceActionLabels, reasonTypeColors, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
 import type {
@@ -148,7 +147,6 @@ export function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [reviewPortfolioId, setReviewPortfolioId] = useState<number | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("year");
-  const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
@@ -849,28 +847,14 @@ export function PortfolioPage() {
     );
   }
 
-  // 调仓复盘：看每次调仓和 AI 建议的事后效果，与收益周期无关，所以只按组合筛选
   function renderReview() {
     return (
-      <div className="portfolio-dashboard">
-        <WorkbenchCard>
-          <Space wrap>
-            <Select
-              style={{ width: 260 }}
-              value={reviewPortfolioId ?? 0}
-              loading={portfolios.loading}
-              options={[
-                { value: 0, label: "所有组合" },
-                ...portfolios.data.map((item) => ({ value: item.id, label: item.name }))
-              ]}
-              onChange={(value) => setReviewPortfolioId(value === 0 ? null : value)}
-            />
-            <Button onClick={() => setReviewRefreshKey((value) => value + 1)}>刷新复盘</Button>
-          </Space>
-        </WorkbenchCard>
-        <PositionChangeReview key={`change-${reviewRefreshKey}`} portfolioId={reviewPortfolioId} />
-        <AdjustAdviceReview key={reviewRefreshKey} portfolioId={reviewPortfolioId} />
-      </div>
+      <TradeReview
+        portfolioId={reviewPortfolioId}
+        portfolioOptions={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
+        portfoliosLoading={portfolios.loading}
+        onPortfolioChange={setReviewPortfolioId}
+      />
     );
   }
 

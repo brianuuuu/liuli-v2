@@ -8,7 +8,7 @@ export function WorkbenchCard({
   style,
   className
 }: {
-  title?: string;
+  title?: ReactNode;
   children: ReactNode;
   extra?: ReactNode;
   style?: CSSProperties;
