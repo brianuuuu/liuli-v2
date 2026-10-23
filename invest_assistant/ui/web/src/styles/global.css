@@ -11,6 +11,9 @@
   --ll-muted: #64748b;
   --ll-accent: #2563eb;
   --ll-accent-soft: #eff6ff;
+  /* 涨跌色（红涨绿跌）：浅色用深一档保证白底对比度，深色主题换亮一档 */
+  --ll-up: #b42318;
+  --ll-down: #047857;
 }
 
 * {
@@ -970,11 +973,11 @@ body {
 }
 
 .pnl-calendar-footer b.is-up {
-  color: #b42318;
+  color: var(--ll-up);
 }
 
 .pnl-calendar-footer b.is-down {
-  color: #047857;
+  color: var(--ll-down);
 }
 
 /* 组合管理各页签的组合切换条：工具栏按钮平铺组合，右侧放本页操作 */
@@ -996,7 +999,8 @@ body {
 /* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开；组名在每组左侧竖列，指标只占三行 */
 .review-kpi-strip {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 5fr);
+  /* 组名 + 2 个指标 | 组名 + 5 个指标：7 个指标列等宽，数值在同一条竖线上 */
+  grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto repeat(5, minmax(0, 1fr));
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
@@ -1004,12 +1008,12 @@ body {
   background: var(--ll-panel);
 }
 
-.review-kpi-group {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+.review-kpi-group,
+.review-kpi-group > .review-kpi-row {
+  display: contents;
 }
 
-.review-kpi-group + .review-kpi-group {
+.review-kpi-group + .review-kpi-group > header {
   border-left: 1px solid var(--ll-border);
 }
 
@@ -1021,12 +1025,6 @@ body {
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.review-kpi-row {
-  display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
 }
 
 .review-kpi {
@@ -1132,9 +1130,56 @@ body {
   font-size: 12px;
 }
 
-/* 估算的成交价：虚线下划线，悬浮说明 */
+/* 调仓复盘统计区：切换按钮作为表格框的顶栏，与表格合成一个框 */
+.review-stats-panel {
+  margin-bottom: 10px;
+  overflow: hidden;
+  border: 1px solid var(--ll-border);
+  border-radius: 7px;
+  background: var(--ll-panel);
+}
+
+.review-stats-panel > .review-stats-toolbar {
+  border: 0;
+  border-bottom: 1px solid var(--ll-border);
+  border-radius: 0;
+}
+
+.review-stats-panel .ant-table-wrapper .ant-table,
+.review-stats-panel .ant-table-wrapper .ant-table-container,
+.review-stats-panel .ant-table-wrapper .ant-table-thead > tr > th {
+  border: 0;
+  border-radius: 0 !important;
+}
+
+.review-stats-panel .ant-table-wrapper .ant-table-thead > tr > th {
+  border-bottom: 1px solid var(--ll-border);
+}
+
+.review-stats-panel .ant-table-pagination {
+  margin: 10px 12px !important;
+}
+
+.review-stock {
+  white-space: nowrap;
+}
+
+.review-stock small {
+  margin-left: 6px;
+  color: var(--ll-muted);
+  font-size: 12px;
+}
+
+.review-eval-pending {
+  display: block;
+  color: var(--ll-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 估算的成交价：次要色，悬浮说明；不用下划线，估算多时一列虚线太抢眼 */
 .estimated-price {
-  border-bottom: 1px dashed var(--ll-muted);
+  color: var(--ll-muted);
   cursor: help;
 }
 
@@ -1517,6 +1562,20 @@ body {
 .data-panel-toolbar .toolbar-filter-button:hover {
   background: var(--ll-panel-subtle);
   color: var(--ll-text);
+}
+
+/* 未选中的按钮点过之后不留 antd 的聚焦 / 悬停描边，免得看着像被选中 */
+.data-panel-toolbar .toolbar-filter-button:not(.active):hover,
+.data-panel-toolbar .toolbar-filter-button:not(.active):focus,
+.data-panel-toolbar .toolbar-filter-button:not(.active):focus-visible {
+  border-color: transparent !important;
+  box-shadow: none;
+  outline: none;
+}
+
+.data-panel-toolbar .toolbar-filter-button:not(.active):focus:not(:hover) {
+  background: transparent;
+  color: var(--ll-muted) !important;
 }
 
 .data-panel-toolbar .toolbar-filter-button.active,
@@ -4626,12 +4685,27 @@ body {
 }
 
 @media (max-width: 1440px) {
+  /* 窄屏两组上下排，组内指标等分 */
   .review-kpi-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .review-kpi-group {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .review-kpi-group > .review-kpi-row {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
+
   .review-kpi-group + .review-kpi-group {
     border-top: 1px solid var(--ll-border);
+  }
+
+  .review-kpi-group + .review-kpi-group > header {
     border-left: 0;
   }
 }
@@ -4681,6 +4755,8 @@ body {
   --ll-muted: #8b949e;
   --ll-accent: #2563eb;
   --ll-accent-soft: rgba(37, 99, 235, 0.15);
+  --ll-up: #f87171;
+  --ll-down: #34d399;
 }
 
 [data-theme="dark"] body {

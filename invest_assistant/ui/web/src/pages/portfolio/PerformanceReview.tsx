@@ -1,4 +1,5 @@
-import { Button, Segmented, Space, Tag } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
+import { Button, Segmented, Space, Tag, Tooltip } from "antd";
 import type { EChartsOption } from "echarts";
 import { useCallback } from "react";
 import { getPortfolioReviewPerformance } from "../../api/portfolio";
@@ -11,7 +12,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type { PortfolioReviewPerformance } from "../../types/api";
 import { PnlCalendar } from "./PnlCalendar";
 import { PortfolioScopeBar } from "./PortfolioScopeBar";
-import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
+import { formatPercent, pnlColor, tooltipBackgroundColor, upColorForMode } from "./portfolioFormat";
 
 export type ReviewPeriod = "month" | "year" | "all";
 
@@ -58,7 +59,7 @@ export function PerformanceReview({ portfolioId, portfolioOptions, onPortfolioCh
     const gridColor = chartGridColor(resolvedMode);
     const rows = data.curve_points;
     return {
-      color: ["#b42318", "#2563eb", "#64748b"],
+      color: [upColorForMode(resolvedMode), "#2563eb", "#64748b"],
       tooltip: {
         trigger: "axis",
         backgroundColor: tooltipBackgroundColor(resolvedMode),
@@ -126,9 +127,9 @@ export function PerformanceReview({ portfolioId, portfolioOptions, onPortfolioCh
           <Space size={6}>
             <Tag>{data.benchmark.name || "沪深300"}</Tag>
             {data.start_date && data.end_date ? <Tag>{data.start_date} ~ {data.end_date}</Tag> : null}
-            <Button size="small" onClick={() => void performance.refresh()} loading={performance.loading}>
-              刷新收益
-            </Button>
+            <Tooltip title="刷新收益">
+              <Button size="small" type="text" aria-label="刷新收益" icon={<ReloadOutlined />} onClick={() => void performance.refresh()} loading={performance.loading} />
+            </Tooltip>
           </Space>
         )}
       >

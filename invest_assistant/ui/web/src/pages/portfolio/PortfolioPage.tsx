@@ -1,3 +1,4 @@
+import { ReloadOutlined } from "@ant-design/icons";
 import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
@@ -130,11 +131,11 @@ function formatDateTime(value?: string | null) {
 }
 
 function flowAmountColor(record: PortfolioCashFlow) {
-  if (record.flow_type === "withdraw") return "#047857";
+  if (record.flow_type === "withdraw") return "var(--ll-down)";
   if (record.flow_type === "adjustment") return undefined;
   // 调仓同步的现金流水带符号：买入扣现金为负，卖出回笼现金为正
-  if (record.flow_type === "trade" && record.amount < 0) return "#047857";
-  return "#b42318";
+  if (record.flow_type === "trade" && record.amount < 0) return "var(--ll-down)";
+  return "var(--ll-up)";
 }
 
 function todayText() {
@@ -698,7 +699,11 @@ export function PortfolioPage() {
           value={overviewPortfolioId}
           options={portfolioOptions}
           onChange={setOverviewPortfolioId}
-          extra={<Button size="small" onClick={() => Promise.all([overview.refresh(), snapshots.refresh()])}>刷新看板</Button>}
+          extra={(
+            <Tooltip title="刷新看板">
+              <Button size="small" type="text" aria-label="刷新看板" icon={<ReloadOutlined />} onClick={() => Promise.all([overview.refresh(), snapshots.refresh()])} />
+            </Tooltip>
+          )}
         />
         {renderMetrics(data?.summary)}
         <div className="portfolio-overview-grid">

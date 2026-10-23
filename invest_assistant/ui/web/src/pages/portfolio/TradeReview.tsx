@@ -1,7 +1,7 @@
+import { ReloadOutlined } from "@ant-design/icons";
 import { Button, Space, Tooltip } from "antd";
 import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
-import { DataPanel } from "../../components/common/DataPanel";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewData } from "../../types/api";
 import {
@@ -70,16 +70,19 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
         options={portfolioOptions}
         onChange={onPortfolioChange}
         extra={(
-          <Button
-            size="small"
-            loading={changes.loading || advice.loading}
-            onClick={() => {
-              void changes.refresh();
-              void advice.refresh();
-            }}
-          >
-            刷新复盘
-          </Button>
+          <Tooltip title="刷新复盘">
+            <Button
+              size="small"
+              type="text"
+              aria-label="刷新复盘"
+              icon={<ReloadOutlined />}
+              loading={changes.loading || advice.loading}
+              onClick={() => {
+                void changes.refresh();
+                void advice.refresh();
+              }}
+            />
+          </Tooltip>
         )}
       />
       <div className="review-kpi-strip">
@@ -102,30 +105,28 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
           </div>
         </section>
       </div>
-      {/* 三张统计表维度不同（来源 / 主信号 / 风险代码），不需要并排对照：合成一个面板，工具栏按钮切换，样式与标的池一致 */}
-      <DataPanel
-        toolbar={
-          <>
-            <Space size={4} className="toolbar-status-buttons">
-              {statsViews.map((item) => (
-                <Button
-                  key={item.value}
-                  size="small"
-                  className={statsView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
-                  onClick={() => setStatsView(item.value)}
-                >
-                  {item.label} ({item.count})
-                </Button>
-              ))}
-            </Space>
-            <HintTitle title={null} hint={statsHint} />
-          </>
-        }
-      >
+      {/* 三张统计表维度不同，不需要并排对照：切换按钮作为表格框的顶栏，和表格是一个整体；
+          页首的组合切换条管整页，这里只管下面这张表，两者层级不同、外观也区分开 */}
+      <section className="review-stats-panel">
+        <div className="data-panel-toolbar review-stats-toolbar">
+          <Space size={4} className="toolbar-status-buttons">
+            {statsViews.map((item) => (
+              <Button
+                key={item.value}
+                size="small"
+                className={statsView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                onClick={() => setStatsView(item.value)}
+              >
+                {item.label} ({item.count})
+              </Button>
+            ))}
+          </Space>
+          <HintTitle title={null} hint={statsHint} />
+        </div>
         {statsView === "changes" ? <PositionChangeTable data={changes.data} loading={changes.loading} /> : null}
         {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
         {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
-      </DataPanel>
+      </section>
       <AdviceReportList data={advice.data} loading={advice.loading} />
     </div>
   );

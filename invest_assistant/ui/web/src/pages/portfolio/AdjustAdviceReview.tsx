@@ -69,7 +69,7 @@ function ratio(numerator: number, denominator: number) {
 
 function formatReturn(value?: number | null) {
   if (value === null || value === undefined) return <Typography.Text type="secondary">-</Typography.Text>;
-  const color = value > 0 ? "#b42318" : value < 0 ? "#047857" : undefined;
+  const color = value > 0 ? "var(--ll-up)" : value < 0 ? "var(--ll-down)" : undefined;
   return <span style={{ color }}>{`${(value * 100).toFixed(2)}%`}</span>;
 }
 
