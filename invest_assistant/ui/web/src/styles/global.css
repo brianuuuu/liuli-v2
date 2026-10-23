@@ -3745,6 +3745,67 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* 标的对比：评分 / 估值切换整张表，比后面的筛选按钮醒目一级 */
+.data-panel-toolbar .toolbar-tab-buttons .toolbar-filter-button {
+  color: var(--ll-text);
+  font-weight: 600;
+}
+
+.data-panel-toolbar .toolbar-tab-buttons .toolbar-filter-button.active {
+  color: var(--ll-accent);
+}
+
+/* 赛道按钮放不下就换行，不横向滚动 */
+.data-panel-toolbar .toolbar-track-buttons {
+  flex: 1;
+  padding: 2px 0;
+}
+
+/* 评分详情：左雷达、右分数与逻辑 */
+.stock-score-detail {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.stock-score-detail-info {
+  display: grid;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.stock-score-detail-meta {
+  color: var(--ll-muted);
+}
+
+.stock-score-detail-meta b,
+.stock-score-detail-dims b {
+  color: var(--ll-accent);
+  font-weight: 700;
+}
+
+.stock-score-detail-dims {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.stock-score-detail-info p {
+  margin: 4px 0 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.stock-compare-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
 .stock-compare-score-value {
   color: var(--ll-text);
   font-weight: 500;
