@@ -1,5 +1,5 @@
-import { ReloadOutlined } from "@ant-design/icons";
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import { DownOutlined, EllipsisOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Form, Input, InputNumber, Modal, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -414,48 +414,103 @@ export function PortfolioPage() {
     }
   }
 
+  // 占比的分母是总资产（持仓市值 + 现金），与当日涨跌幅口径一致
+  const positionTotalAssets = Number(dashboard.data?.summary.market_value ?? 0) + Number(dashboard.data?.summary.cash_amount ?? 0);
+  // 行情比本页最新一条落后 30 分钟以上时突出显示，提示这只的价格可能没刷新到
+  const latestQuoteMs = Math.max(0, ...(dashboard.data?.positions ?? []).map((item) => (item.quote_time ? Date.parse(item.quote_time) : 0)));
   const positionColumns: ColumnsType<PortfolioPosition> = [
     {
       title: "标的",
       dataIndex: "stock_name",
       width: 180,
       render: (value, record) => (
-        <Space size={4}>
-          <Typography.Text strong>{value || record.stock_code || "-"}</Typography.Text>
-          <Typography.Text type="secondary">{record.stock_code}</Typography.Text>
-        </Space>
+        <span className="review-stock">
+          {value || record.stock_code || "-"}
+          {record.stock_code && value ? <small>{record.stock_code}</small> : null}
+        </span>
       )
     },
-    { title: "股数", dataIndex: "quantity", width: 110, align: "right", render: formatMoney },
-    { title: "现价", dataIndex: "current_price", width: 110, align: "right", render: formatMoney },
-    { title: "昨收", dataIndex: "previous_close", width: 110, align: "right", render: formatMoney },
-    { title: "市值", dataIndex: "market_value", width: 130, align: "right", render: formatMoney },
+    { title: "股数", dataIndex: "quantity", width: 96, align: "right", render: formatShares },
+    {
+      title: "现价",
+      dataIndex: "current_price",
+      width: 96,
+      align: "right",
+      // 只有非实时行情才标出来，实时行情是常态不必每行写来源
+      render: (value: number | null | undefined, record) =>
+        value === null || value === undefined ? <Typography.Text type="secondary">-</Typography.Text> : record.price_source && record.price_source.includes("realtime") ? (
+          formatMoney(value)
+        ) : (
+          <Tooltip title={`非实时行情${record.price_source ? `：${record.price_source}` : "：未刷新过行情"}`}>
+            <span className="estimated-price">{formatMoney(value)}</span>
+          </Tooltip>
+        )
+    },
+    {
+      title: "市值",
+      dataIndex: "market_value",
+      width: 120,
+      align: "right",
+      defaultSortOrder: "descend",
+      sorter: (a, b) => Number(a.market_value ?? 0) - Number(b.market_value ?? 0),
+      render: formatMoney
+    },
+    {
+      title: <Tooltip title="市值 / 总资产（持仓市值 + 现金）">占比</Tooltip>,
+      key: "weight",
+      width: 84,
+      align: "right",
+      sorter: (a, b) => Number(a.market_value ?? 0) - Number(b.market_value ?? 0),
+      render: (_, record) => (positionTotalAssets > 0 ? formatPercent((Number(record.market_value ?? 0) / positionTotalAssets) * 100) : "-")
+    },
     {
       title: "当日盈亏",
       dataIndex: "day_pnl",
-      width: 130,
+      width: 112,
       align: "right",
+      sorter: (a, b) => Number(a.day_pnl ?? 0) - Number(b.day_pnl ?? 0),
       render: (value?: number | null) => <Typography.Text style={{ color: pnlColor(value) }}>{formatMoney(value)}</Typography.Text>
     },
     {
       title: "当日涨跌幅",
       dataIndex: "day_pct",
-      width: 120,
+      width: 112,
       align: "right",
+      sorter: (a, b) => Number(a.day_pct ?? 0) - Number(b.day_pct ?? 0),
       render: (value?: number | null) => <Typography.Text style={{ color: pnlColor(value) }}>{formatPercent(value)}</Typography.Text>
     },
-    { title: "价格来源", dataIndex: "price_source", width: 170, render: (value) => value ? <Tag>{value}</Tag> : "-" },
-    { title: "更新时间", dataIndex: "quote_time", width: 170, render: formatDateTime },
     {
+      title: "更新时间",
+      dataIndex: "quote_time",
+      width: 132,
+      render: (value?: string | null) => {
+        const stale = value && latestQuoteMs && latestQuoteMs - Date.parse(value) > 30 * 60 * 1000;
+        return stale ? (
+          <Tooltip title="比其他持仓的行情落后 30 分钟以上，可能没刷新到">
+            <span className="record-time is-stale">{formatRecordTime(value)}</span>
+          </Tooltip>
+        ) : (
+          <span className="record-time">{formatRecordTime(value)}</span>
+        );
+      }
+    },
+    {
+      // 删除持仓是低频的危险操作，收进行尾菜单，不在每行铺一个红字
       title: "操作",
       key: "actions",
-      width: 130,
+      width: 96,
       render: (_, record) => (
-        <Space size={4}>
+        <Space size={2}>
           <Button size="small" type="link" onClick={() => openEditPosition(record)}>调整</Button>
-          <Popconfirm title="删除这个标的？" okText="删除" cancelText="取消" onConfirm={() => removePosition(record)}>
-            <Button size="small" type="link" danger>删除</Button>
-          </Popconfirm>
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [{ key: "delete", label: "删除持仓", danger: true }],
+              onClick: () => confirmRemovePosition(record)
+            }}
+          >
+            <Button size="small" type="text" aria-label="更多操作" icon={<EllipsisOutlined />} />
+          </Dropdown>
         </Space>
       )
     }
@@ -737,11 +792,35 @@ export function PortfolioPage() {
     );
   }
 
+  function confirmRemovePosition(record: PortfolioPosition) {
+    Modal.confirm({
+      title: `删除持仓 ${record.stock_name || record.stock_code || ""}？`,
+      content: "只删除这条持仓，不会生成调仓记录。",
+      okText: "删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: () => removePosition(record)
+    });
+  }
+
+  function confirmRemovePortfolio() {
+    Modal.confirm({
+      title: `删除组合 ${selectedPortfolio?.name || ""}？`,
+      content: "仅空组合可删除。",
+      okText: "删除组合",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: removePortfolio
+    });
+  }
+
   function renderPositions() {
     if (!portfolios.loading && !portfolios.data.length) {
       return <WorkbenchCard><EmptyAction description="暂无组合，请先新建组合" /></WorkbenchCard>;
     }
     const summary = dashboard.data?.summary;
+    const totalAssets = summary ? Number(summary.market_value ?? 0) + Number(summary.cash_amount ?? 0) : null;
+    const positions = dashboard.data?.positions ?? [];
     return (
       <div className="portfolio-dashboard">
         <PortfolioScopeBar
@@ -749,43 +828,73 @@ export function PortfolioPage() {
           options={portfolioOptions}
           onChange={setSelectedPortfolioId}
           extra={(
-            <Space size={6}>
-              <Button size="small" onClick={openCreatePortfolio}>新建组合</Button>
-              <Button size="small" disabled={!selectedPortfolio} onClick={openRenamePortfolio}>重命名</Button>
-              <Popconfirm title="删除组合？仅空组合可删除" okText="删除组合" cancelText="取消" onConfirm={removePortfolio}>
-                <Button size="small" disabled={!selectedPortfolio} danger>删除组合</Button>
-              </Popconfirm>
+            <Space size={4}>
+              {/* 组合管理收进一个菜单：选"所有组合"时重命名、删除显示为不可用，一眼可辨 */}
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    { key: "create", label: "新建组合" },
+                    { key: "rename", label: "重命名", disabled: !selectedPortfolio },
+                    { type: "divider" },
+                    { key: "delete", label: "删除组合", danger: true, disabled: !selectedPortfolio }
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === "create") openCreatePortfolio();
+                    if (key === "rename") openRenamePortfolio();
+                    if (key === "delete") confirmRemovePortfolio();
+                  }
+                }}
+              >
+                <Button size="small" type="text">组合管理 <DownOutlined /></Button>
+              </Dropdown>
+              <Tooltip title={selectedPortfolioId ? "刷新当前组合行情" : "刷新所有组合行情"}>
+                <Button size="small" type="text" aria-label="刷新行情" icon={<ReloadOutlined />} onClick={refreshQuotes} loading={saving} />
+              </Tooltip>
             </Space>
           )}
         />
+        {/* 总资产 = 持仓市值 + 现金；当日盈亏和涨跌幅按总资产算，名称与组合看板一致 */}
         <div className="portfolio-summary metric-grid">
-          <div className="metric-panel"><div className="metric-panel-label">当前市值</div><div className="metric-panel-value">{formatMoney(summary?.market_value)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">总资产</div><div className="metric-panel-value">{formatMoney(totalAssets)}</div></div>
+          <div className="metric-panel"><div className="metric-panel-label">持仓市值</div><div className="metric-panel-value">{formatMoney(summary?.market_value)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">现金余额</div><div className="metric-panel-value">{formatMoney(summary?.cash_amount)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">当日盈亏</div><div className="metric-panel-value" style={{ color: pnlColor(summary?.day_pnl) }}>{formatMoney(summary?.day_pnl)}</div></div>
-          <div className="metric-panel"><div className="metric-panel-label">当日涨跌幅</div><div className="metric-panel-value" style={{ color: pnlColor(summary?.day_pct) }}>{formatPercent(summary?.day_pct)}</div></div>
+          <div className="metric-panel">
+            <div className="metric-panel-label">当日盈亏</div>
+            <div className="metric-panel-value" style={{ color: pnlColor(summary?.day_pnl) }}>{formatMoney(summary?.day_pnl)}</div>
+            <div className="metric-panel-sub" style={{ color: pnlColor(summary?.day_pct) }}>{formatPercent(summary?.day_pct)}</div>
+          </div>
         </div>
-        <WorkbenchCard
-          title="实盘持仓"
-          extra={(
-            <Space wrap>
-              <Button onClick={() => openCashFlow("deposit")}>入金</Button>
-              <Button onClick={() => openCashFlow("withdraw")}>出金</Button>
-              <Button onClick={() => openCashFlow("adjustment")}>现金校准</Button>
-              <Button onClick={openCreatePosition}>新增持仓</Button>
-              <Button onClick={refreshQuotes} loading={saving}>{selectedPortfolioId ? "刷新当前组合" : "刷新所有组合"}</Button>
+        <section className="tabbed-table-panel">
+          <div className="data-panel-toolbar tabbed-table-toolbar">
+            <span className="tabbed-table-title">持仓 <em>({positions.length})</em></span>
+            <Space size={6} className="tabbed-table-actions">
+              <Button size="small" onClick={openCreatePosition}>新增持仓</Button>
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    { key: "deposit", label: "入金" },
+                    { key: "withdraw", label: "出金" },
+                    { key: "adjustment", label: "现金校准" }
+                  ],
+                  onClick: ({ key }) => openCashFlow(key)
+                }}
+              >
+                <Button size="small">现金 <DownOutlined /></Button>
+              </Dropdown>
             </Space>
-          )}
-        >
+          </div>
           <Table
             rowKey="id"
             size="small"
             loading={dashboard.loading}
-            dataSource={dashboard.data?.positions ?? []}
+            dataSource={positions}
             columns={withPortfolioColumn(positionColumns)}
-            locale={{ emptyText: <EmptyAction description="暂无实盘持仓，请新增持仓" /> }}
+            locale={{ emptyText: "暂无实盘持仓，请新增持仓" }}
             pagination={false}
           />
-        </WorkbenchCard>
+        </section>
       </div>
     );
   }

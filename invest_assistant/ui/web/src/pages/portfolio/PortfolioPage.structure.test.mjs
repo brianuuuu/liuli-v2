@@ -20,7 +20,7 @@ assert.match(page, /请选择标的/);
 assert.match(page, /股数/);
 assert.match(page, /当日盈亏/);
 assert.match(page, /当日涨跌幅/);
-assert.match(page, /Popconfirm/);
+assert.match(page, /Modal\.confirm/);
 assert.match(page, /searchStocks/);
 assert.match(page, /getPortfolioOverview/);
 assert.match(page, /listPortfolioValueSnapshots/);
@@ -143,3 +143,14 @@ assert.match(page, /render: formatShares/);
 assert.doesNotMatch(page, /title: "币种"/);
 assert.doesNotMatch(page, /\} 估<\/Typography\.Text>/);
 assert.match(page, /autoInsertSpace=\{false\}/);
+
+// 实盘持仓：总资产 / 持仓市值 / 现金 / 当日盈亏；去掉价格来源和昨收列，加占比和排序；删除收进菜单；组合管理和现金操作各合成一个下拉
+assert.match(page, /metric-panel-label">总资产</);
+assert.doesNotMatch(page, /metric-panel-label">当前市值</);
+assert.doesNotMatch(page, /title: "价格来源"/);
+assert.doesNotMatch(page, /title: "昨收"/);
+assert.match(page, />占比</);
+assert.match(page, /defaultSortOrder: "descend"/);
+assert.match(page, /confirmRemovePosition/);
+assert.match(page, /组合管理 <DownOutlined/);
+assert.match(page, /现金 <DownOutlined/);

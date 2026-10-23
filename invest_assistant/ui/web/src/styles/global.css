@@ -1164,11 +1164,38 @@ body {
   margin-left: auto;
 }
 
+/* 顶栏只有一张表时用标题代替切换按钮 */
+.tabbed-table-title {
+  padding: 0 6px;
+  color: var(--ll-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tabbed-table-title em {
+  margin-left: 2px;
+  color: var(--ll-muted);
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* 指标卡主数值下的补充小字（如当日盈亏下的涨跌幅） */
+.metric-panel-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 记录时间是次要信息：灰色小字，只到分钟 */
 .record-time {
   color: var(--ll-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+.record-time.is-stale {
+  color: #d97706;
+  cursor: help;
 }
 
 .review-stock {
