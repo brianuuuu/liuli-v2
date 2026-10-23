@@ -228,7 +228,7 @@ const buildReportColumns = (showQuiet: boolean, onShowQuietChange: (value: boole
 ];
 
 const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
-  { title: "方向", dataIndex: "action", width: 64, render: (value: string) => labelTag(actionLabels, value) },
+  { title: "方向", dataIndex: "action", width: 64, align: "center", render: (value: string) => labelTag(actionLabels, value) },
   { title: "主信号", dataIndex: "signal_code", render: (value: string) => signalLabels[value] || value },
   { title: "样本", dataIndex: "samples", width: 56, align: "right", render: (value: number) => <SampleCount value={value} /> },
   { title: "对/错/平", key: "split", width: 82, align: "center", render: (_, row) => `${row.correct}/${row.wrong}/${row.neutral}` },
