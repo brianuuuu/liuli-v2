@@ -6,6 +6,7 @@ const adjustAdvice = fs.readFileSync(new URL("./AdjustAdviceReview.tsx", import.
 const tradeReview = fs.readFileSync(new URL("./TradeReview.tsx", import.meta.url), "utf8");
 const positionChange = fs.readFileSync(new URL("./PositionChangeReview.tsx", import.meta.url), "utf8");
 const calendar = fs.readFileSync(new URL("./PnlCalendar.tsx", import.meta.url), "utf8");
+const scopeBar = fs.readFileSync(new URL("./PortfolioScopeBar.tsx", import.meta.url), "utf8");
 const performance = fs.readFileSync(new URL("./PerformanceReview.tsx", import.meta.url), "utf8");
 const navigation = fs.readFileSync(new URL("../../app/navigation.tsx", import.meta.url), "utf8");
 const chartTheme = fs.readFileSync(new URL("../../components/charts/chartTheme.ts", import.meta.url), "utf8");
@@ -79,11 +80,14 @@ assert.match(positionChange, /impact_20d/);
 assert.match(positionChange, /quantity_delta/);
 assert.doesNotMatch(positionChange, /expandedRowRender/);
 assert.match(positionChange, /不是已实现盈亏/);
-// 微操报告放在数据面板里，表格样式与调仓来源表一致；开关在页首工具栏，口径说明挂在明细"对错"表头
+// 微操报告放在数据面板里，表格样式与调仓来源表一致；"显示更多"开关在本表表头最右端，口径说明挂在明细"对错"表头
 assert.match(adjustAdvice, /<DataPanel>/);
 assert.doesNotMatch(adjustAdvice, /WorkbenchCard/);
-assert.match(tradeReview, /显示维持和等待/);
-assert.match(tradeReview, /showQuiet=\{showQuiet\}/);
+assert.match(adjustAdvice, /显示更多/);
+assert.doesNotMatch(tradeReview + adjustAdvice, /显示维持和等待/);
+assert.match(adjustAdvice, /report-note-toggle/);
+assert.doesNotMatch(tradeReview, /showQuiet/);
+assert.match(tradeReview, /<header>实际调仓<\/header>/);
 assert.match(adjustAdvice, /title="对错" hint=/);
 assert.match(adjustAdvice, /HintTitle/);
 assert.match(tradeReview, /HintTitle/);
@@ -109,3 +113,13 @@ assert.match(page, /renderReview/);
 assert.doesNotMatch(page, /暂无组合复盘/);
 assert.doesNotMatch(page, /组合分类维度/);
 assert.doesNotMatch(page, /allocationColumns/);
+
+// 组合管理五个页签统一用组合切换条（工具栏按钮），不再用下拉框，也不再写"实盘组合"标题和共用说明
+assert.match(scopeBar, /toolbar-filter-button active/);
+assert.match(scopeBar, /所有组合/);
+assert.equal((page.match(/<PortfolioScopeBar/g) || []).length, 3);
+assert.match(performance, /<PortfolioScopeBar/);
+assert.match(tradeReview, /<PortfolioScopeBar/);
+assert.doesNotMatch(page + performance + tradeReview, /value=\{(overviewPortfolioId|selectedPortfolioId|portfolioId) \?\? 0\}/);
+assert.doesNotMatch(page, /WorkbenchCard title="实盘组合"/);
+assert.doesNotMatch(page, /与实盘持仓页共用/);

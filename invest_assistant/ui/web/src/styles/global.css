@@ -977,13 +977,20 @@ body {
   color: #047857;
 }
 
-/* 调仓复盘：筛选不单独占卡片 */
-.review-toolbar {
-  display: flex;
+/* 组合管理各页签的组合切换条：工具栏按钮平铺组合，右侧放本页操作 */
+.portfolio-scope-bar {
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   margin-bottom: 10px;
+}
+
+.portfolio-scope-bar > .toolbar-status-buttons + :not(.portfolio-scope-bar-extra) {
+  margin-left: 8px;
+}
+
+.portfolio-scope-bar-extra {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 /* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开；组名在每组左侧竖列，指标只占三行 */
@@ -1009,11 +1016,10 @@ body {
 .review-kpi-group > header {
   display: flex;
   align-items: center;
-  padding: 0 4px 0 14px;
-  color: var(--ll-muted);
-  font-size: 12px;
+  padding: 0 6px 0 16px;
+  color: var(--ll-text);
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -1056,8 +1062,21 @@ body {
   display: none;
 }
 
-.review-toolbar-end {
-  margin-left: auto;
+/* 微操报告表头最右端：列名居左，"显示更多"开关居右 */
+.report-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-note-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 /* 微操报告展开区：与面板同底色，左侧细色条表示从属，不再铺大块灰底 */

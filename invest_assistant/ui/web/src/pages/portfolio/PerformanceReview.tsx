@@ -1,4 +1,4 @@
-import { Button, Segmented, Select, Space, Tag } from "antd";
+import { Button, Segmented, Space, Tag } from "antd";
 import type { EChartsOption } from "echarts";
 import { useCallback } from "react";
 import { getPortfolioReviewPerformance } from "../../api/portfolio";
@@ -10,6 +10,7 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { PortfolioReviewPerformance } from "../../types/api";
 import { PnlCalendar } from "./PnlCalendar";
+import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
 
 export type ReviewPeriod = "month" | "year" | "all";
@@ -36,14 +37,13 @@ const initialReviewPerformance: PortfolioReviewPerformance = {
 type PerformanceReviewProps = {
   portfolioId: number | null;
   portfolioOptions: { value: number; label: string }[];
-  portfoliosLoading: boolean;
   onPortfolioChange: (portfolioId: number | null) => void;
   period: ReviewPeriod;
   onPeriodChange: (period: ReviewPeriod) => void;
 };
 
 /** 收益分析：组合整体收益与沪深300 对比。只在切到本子页时挂载，基准行情随之按需拉取。 */
-export function PerformanceReview({ portfolioId, portfolioOptions, portfoliosLoading, onPortfolioChange, period, onPeriodChange }: PerformanceReviewProps) {
+export function PerformanceReview({ portfolioId, portfolioOptions, onPortfolioChange, period, onPeriodChange }: PerformanceReviewProps) {
   const { resolvedMode } = useLiuliTheme();
   const performance = useAsyncData<PortfolioReviewPerformance>(
     useCallback(() => getPortfolioReviewPerformance(portfolioId, period), [portfolioId, period]),
@@ -51,7 +51,6 @@ export function PerformanceReview({ portfolioId, portfolioOptions, portfoliosLoa
   );
   const data = performance.data;
   const summary = data.summary;
-  const periodLabel = data.period === "month" ? "当月" : data.period === "all" ? "有效记录以来" : "当年";
   const calendarTitle = data.calendar.granularity === "day" ? "每日盈亏日历" : data.calendar.granularity === "year" ? "年度盈亏年历" : "每月盈亏月历";
 
   function reviewLineOption(): EChartsOption {
@@ -119,32 +118,31 @@ export function PerformanceReview({ portfolioId, portfolioOptions, portfoliosLoa
 
   return (
     <div className="portfolio-dashboard">
-      <WorkbenchCard>
-        <Space wrap>
-          <Select
-            style={{ width: 260 }}
-            value={portfolioId ?? 0}
-            loading={portfoliosLoading}
-            options={[{ value: 0, label: "所有组合" }, ...portfolioOptions]}
-            onChange={(value) => onPortfolioChange(value === 0 ? null : value)}
-          />
-          <Segmented
-            value={period}
-            options={[
-              { value: "month", label: "当月" },
-              { value: "year", label: "当年" },
-              { value: "all", label: "有效记录以来" }
-            ]}
-            onChange={(value) => onPeriodChange(value as ReviewPeriod)}
-          />
-          <Button onClick={() => void performance.refresh()} loading={performance.loading}>
-            刷新收益
-          </Button>
-          <Tag>{data.benchmark.name || "沪深300"}</Tag>
-          <Tag>{periodLabel}</Tag>
-          {data.start_date && data.end_date ? <Tag>{data.start_date} ~ {data.end_date}</Tag> : null}
-        </Space>
-      </WorkbenchCard>
+      <PortfolioScopeBar
+        value={portfolioId}
+        options={portfolioOptions}
+        onChange={onPortfolioChange}
+        extra={(
+          <Space size={6}>
+            <Tag>{data.benchmark.name || "沪深300"}</Tag>
+            {data.start_date && data.end_date ? <Tag>{data.start_date} ~ {data.end_date}</Tag> : null}
+            <Button size="small" onClick={() => void performance.refresh()} loading={performance.loading}>
+              刷新收益
+            </Button>
+          </Space>
+        )}
+      >
+        <Segmented
+          size="small"
+          value={period}
+          options={[
+            { value: "month", label: "当月" },
+            { value: "year", label: "当年" },
+            { value: "all", label: "有效记录以来" }
+          ]}
+          onChange={(value) => onPeriodChange(value as ReviewPeriod)}
+        />
+      </PortfolioScopeBar>
       {performance.error ? (
         <WorkbenchCard title="收益分析">
           <EmptyAction description="收益数据加载失败，基准行情可能暂时不可用" actionText="重试" onAction={() => void performance.refresh()} />

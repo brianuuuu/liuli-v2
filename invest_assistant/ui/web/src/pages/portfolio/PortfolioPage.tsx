@@ -30,6 +30,7 @@ import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { PerformanceReview, type ReviewPeriod } from "./PerformanceReview";
+import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { TradeReview } from "./TradeReview";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
 import { adviceActionLabels, reasonTypeColors, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
@@ -208,7 +209,8 @@ export function PortfolioPage() {
     [portfolios.data, selectedPortfolioId]
   );
   const portfolioNames = useMemo(() => new Map(portfolios.data.map((item) => [item.id, item.name])), [portfolios.data]);
-  const portfolioScopeOptions = [{ value: 0, label: "所有组合" }, ...portfolios.data.map((item) => ({ value: item.id, label: item.name }))];
+  // 组合切换条的选项；"所有组合"由切换条自己补在最前
+  const portfolioOptions = useMemo(() => portfolios.data.map((item) => ({ value: item.id, label: item.name })), [portfolios.data]);
 
   async function reloadAll(nextPortfolioId?: number | null) {
     await portfolios.refresh();
@@ -692,21 +694,12 @@ export function PortfolioPage() {
     const data = overview.data;
     return (
       <div className="portfolio-dashboard portfolio-overview">
-        <WorkbenchCard>
-          <Space wrap>
-            <Select
-              style={{ width: 260 }}
-              value={overviewPortfolioId ?? 0}
-              options={[
-                { value: 0, label: "所有组合" },
-                ...portfolios.data.map((item) => ({ value: item.id, label: item.name }))
-              ]}
-              onChange={(value) => setOverviewPortfolioId(value === 0 ? null : value)}
-            />
-            <Button onClick={() => Promise.all([overview.refresh(), snapshots.refresh()])}>刷新看板</Button>
-            <Tag>{overviewPortfolioId ? "单组合" : "所有组合"}</Tag>
-          </Space>
-        </WorkbenchCard>
+        <PortfolioScopeBar
+          value={overviewPortfolioId}
+          options={portfolioOptions}
+          onChange={setOverviewPortfolioId}
+          extra={<Button size="small" onClick={() => Promise.all([overview.refresh(), snapshots.refresh()])}>刷新看板</Button>}
+        />
         {renderMetrics(data?.summary)}
         <div className="portfolio-overview-grid">
           {data?.pie_items?.length ? (
@@ -731,23 +724,20 @@ export function PortfolioPage() {
     const summary = dashboard.data?.summary;
     return (
       <div className="portfolio-dashboard">
-        <WorkbenchCard title="实盘组合">
-          <Space wrap>
-            <Select
-              style={{ width: 260 }}
-              value={selectedPortfolioId ?? 0}
-              loading={portfolios.loading}
-              options={portfolioScopeOptions}
-              onChange={(value) => setSelectedPortfolioId(value === 0 ? null : value)}
-            />
-            <Button onClick={openCreatePortfolio}>新建组合</Button>
-            <Button disabled={!selectedPortfolio} onClick={openRenamePortfolio}>重命名</Button>
-            <Popconfirm title="删除组合？仅空组合可删除" okText="删除组合" cancelText="取消" onConfirm={removePortfolio}>
-              <Button disabled={!selectedPortfolio} danger>删除组合</Button>
-            </Popconfirm>
-            {selectedPortfolio ? <Tag>{selectedPortfolio.base_currency}</Tag> : null}
-          </Space>
-        </WorkbenchCard>
+        <PortfolioScopeBar
+          value={selectedPortfolioId}
+          options={portfolioOptions}
+          onChange={setSelectedPortfolioId}
+          extra={(
+            <Space size={6}>
+              <Button size="small" onClick={openCreatePortfolio}>新建组合</Button>
+              <Button size="small" disabled={!selectedPortfolio} onClick={openRenamePortfolio}>重命名</Button>
+              <Popconfirm title="删除组合？仅空组合可删除" okText="删除组合" cancelText="取消" onConfirm={removePortfolio}>
+                <Button size="small" disabled={!selectedPortfolio} danger>删除组合</Button>
+              </Popconfirm>
+            </Space>
+          )}
+        />
         <div className="portfolio-summary metric-grid">
           <div className="metric-panel"><div className="metric-panel-label">当前市值</div><div className="metric-panel-value">{formatMoney(summary?.market_value)}</div></div>
           <div className="metric-panel"><div className="metric-panel-label">现金余额</div><div className="metric-panel-value">{formatMoney(summary?.cash_amount)}</div></div>
@@ -786,19 +776,7 @@ export function PortfolioPage() {
     }
     return (
       <div className="portfolio-dashboard">
-        <WorkbenchCard title="实盘组合">
-          <Space wrap>
-            <Select
-              style={{ width: 260 }}
-              value={selectedPortfolioId ?? 0}
-              loading={portfolios.loading}
-              options={portfolioScopeOptions}
-              onChange={(value) => setSelectedPortfolioId(value === 0 ? null : value)}
-            />
-            {selectedPortfolio ? <Tag>{selectedPortfolio.base_currency}</Tag> : null}
-            <Typography.Text type="secondary">资金流水和持仓调整跟随这里选的组合，与实盘持仓页共用</Typography.Text>
-          </Space>
-        </WorkbenchCard>
+        <PortfolioScopeBar value={selectedPortfolioId} options={portfolioOptions} onChange={setSelectedPortfolioId} />
         <WorkbenchCard
           title="资金流水"
           extra={(
@@ -838,8 +816,7 @@ export function PortfolioPage() {
     return (
       <PerformanceReview
         portfolioId={reviewPortfolioId}
-        portfolioOptions={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
-        portfoliosLoading={portfolios.loading}
+        portfolioOptions={portfolioOptions}
         onPortfolioChange={setReviewPortfolioId}
         period={reviewPeriod}
         onPeriodChange={setReviewPeriod}
@@ -851,8 +828,7 @@ export function PortfolioPage() {
     return (
       <TradeReview
         portfolioId={reviewPortfolioId}
-        portfolioOptions={portfolios.data.map((item) => ({ value: item.id, label: item.name }))}
-        portfoliosLoading={portfolios.loading}
+        portfolioOptions={portfolioOptions}
         onPortfolioChange={setReviewPortfolioId}
       />
     );

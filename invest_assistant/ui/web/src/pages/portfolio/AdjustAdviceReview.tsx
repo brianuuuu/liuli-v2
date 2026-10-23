@@ -1,6 +1,6 @@
-import { Space, Table, Tag, Tooltip, Typography } from "antd";
+import { Space, Switch, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DataPanel } from "../../components/common/DataPanel";
 import { HintTitle } from "./HintTitle";
 import { SampleCount } from "./SampleCount";
@@ -190,7 +190,8 @@ const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
   }
 ];
 
-const reportColumns: ColumnsType<AdjustAdviceReport> = [
+// "显示更多"开关放在本表表头最右端（连续性说明列），控制展开明细是否列出维持、等待
+const buildReportColumns = (showQuiet: boolean, onShowQuietChange: (value: boolean) => void): ColumnsType<AdjustAdviceReport> => [
   { title: "适用交易日", dataIndex: "target_trade_date", width: 116 },
   { title: "日K截止", dataIndex: "data_as_of_date", width: 116 },
   {
@@ -208,9 +209,19 @@ const reportColumns: ColumnsType<AdjustAdviceReport> = [
   { title: "警示", key: "alert", width: 64, align: "right", render: (_, row) => row.items.filter((item) => item.risk_level === "warning" || item.risk_level === "severe").length },
   { title: "持仓数", key: "count", width: 72, align: "right", render: (_, row) => row.items.length },
   {
-    title: "连续性说明",
+    title: (
+      <span className="report-note-head">
+        <span>连续性说明</span>
+        <Tooltip title="展开明细时也列出维持、等待的持仓">
+          <span className="report-note-toggle">
+            显示更多
+            <Switch size="small" checked={showQuiet} onChange={onShowQuietChange} />
+          </span>
+        </Tooltip>
+      </span>
+    ),
     dataIndex: "continuity_note",
-    ellipsis: true,
+    ellipsis: { showTitle: false },
     // 次要信息用次要文字色，别比方向、数量更抢眼
     render: (value?: string | null) => <Typography.Text type="secondary">{value || "-"}</Typography.Text>
   }
@@ -226,8 +237,10 @@ const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
 ];
 
 /** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。放在数据面板里，表格样式与调仓来源表一致 */
-export function AdviceReportList({ data, loading, showQuiet }: { data: AdjustAdviceReviews; loading: boolean; showQuiet: boolean }) {
+export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews; loading: boolean }) {
+  const [showQuiet, setShowQuiet] = useState(false);
   const itemColumns = useMemo(() => buildItemColumns(data.rules), [data.rules]);
+  const reportColumns = useMemo(() => buildReportColumns(showQuiet, setShowQuiet), [showQuiet]);
   return (
     <DataPanel>
       <Table
