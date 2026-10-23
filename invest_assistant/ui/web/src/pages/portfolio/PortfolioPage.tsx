@@ -34,7 +34,7 @@ import { PerformanceReview, type ReviewPeriod } from "./PerformanceReview";
 import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { TradeReview } from "./TradeReview";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
-import { adviceActionLabels, reasonTypeColors, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
+import { adviceActionLabels, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
 import type {
   AdjustAdviceCandidate,
   Portfolio,
@@ -64,6 +64,8 @@ type PositionFormValue = {
   change_advice_item_id?: number;
   change_sync_cash?: boolean;
 };
+
+type TradesView = "changes" | "cash";
 
 type CashFlowFormValue = {
   portfolio_id?: number;
@@ -130,6 +132,28 @@ function formatDateTime(value?: string | null) {
   return value.replace("T", " ").slice(0, 19);
 }
 
+/** 股数是整数，不套金额的两位小数格式 */
+function formatShares(value?: number | null) {
+  if (value === null || value === undefined) return "-";
+  return value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}
+
+/** 记录时间只到分钟，作为次要信息 */
+function formatRecordTime(value?: string | null) {
+  if (!value) return "-";
+  return value.replace("T", " ").slice(0, 16);
+}
+
+/**
+ * 资金流水金额的显示：入金、分红、利息为 +，出金为 −，调仓按存储的符号（买入为负）；
+ * 现金校准记的是校准后的余额而不是变动额，写成"= 余额"，不和变动额混看。
+ */
+function flowAmountText(record: PortfolioCashFlow) {
+  if (record.flow_type === "adjustment") return `= ${formatMoney(record.amount)}`;
+  const signed = record.flow_type === "withdraw" ? -Math.abs(record.amount) : record.flow_type === "trade" ? record.amount : Math.abs(record.amount);
+  return `${signed > 0 ? "+" : signed < 0 ? "−" : ""}${formatMoney(Math.abs(signed))}`;
+}
+
 function flowAmountColor(record: PortfolioCashFlow) {
   if (record.flow_type === "withdraw") return "var(--ll-down)";
   if (record.flow_type === "adjustment") return undefined;
@@ -149,6 +173,7 @@ export function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [reviewPortfolioId, setReviewPortfolioId] = useState<number | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("year");
+  const [tradesView, setTradesView] = useState<TradesView>("changes");
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
@@ -437,82 +462,72 @@ export function PortfolioPage() {
   ];
 
   const cashFlowColumns: ColumnsType<PortfolioCashFlow> = [
-    { title: "日期", dataIndex: "flow_date", width: 110 },
-    { title: "类型", dataIndex: "flow_type", width: 120, render: (value) => flowTypeLabels[value] || value },
+    { title: "日期", dataIndex: "flow_date", width: 104 },
+    { title: "类型", dataIndex: "flow_type", width: 96, render: (value) => flowTypeLabels[value] || value },
     {
-      title: "金额",
+      title: <Tooltip title="现金校准显示的是校准后的余额（= 号），其余为变动额">金额</Tooltip>,
       dataIndex: "amount",
       width: 140,
       align: "right",
-      render: (value, record) => <Typography.Text style={{ color: flowAmountColor(record) }}>{formatMoney(value)}</Typography.Text>
+      render: (_, record) => <Typography.Text style={{ color: flowAmountColor(record) }}>{flowAmountText(record)}</Typography.Text>
     },
-    { title: "币种", dataIndex: "currency", width: 80 },
-    { title: "备注", dataIndex: "note", render: (value) => value || "-" },
-    { title: "记录时间", dataIndex: "created_at", width: 170, render: formatDateTime }
+    { title: "备注", dataIndex: "note", ellipsis: true, render: (value) => value || null },
+    { title: "记录时间", dataIndex: "created_at", width: 132, render: (value) => <span className="record-time">{formatRecordTime(value)}</span> }
   ];
-
+  // 与调仓复盘的调仓来源表同一套写法：来源用普通文字、增减不上红绿、估算价灰字、关联建议用完整日期
   const positionChangeColumns: ColumnsType<PortfolioPositionChange> = [
-    { title: "日期", dataIndex: "change_date", width: 110 },
+    { title: "日期", dataIndex: "change_date", width: 104 },
     {
       title: "标的",
       dataIndex: "stock_name",
-      width: 160,
+      width: 200,
       render: (value, record) => (
-        <span style={{ whiteSpace: "nowrap" }}>
+        <span className="review-stock">
           {value || record.stock_code || record.stock_id}
-          {record.stock_code && value ? <Typography.Text type="secondary"> {record.stock_code}</Typography.Text> : null}
+          {record.stock_code && value ? <small>{record.stock_code}</small> : null}
         </span>
       )
     },
-    { title: "调整前", dataIndex: "quantity_before", width: 110, align: "right", render: formatMoney },
-    { title: "调整后", dataIndex: "quantity_after", width: 110, align: "right", render: formatMoney },
+    { title: "调整前", dataIndex: "quantity_before", width: 88, align: "right", render: formatShares },
+    { title: "调整后", dataIndex: "quantity_after", width: 88, align: "right", render: formatShares },
     {
       title: "增减",
       dataIndex: "quantity_delta",
-      width: 110,
+      width: 88,
       align: "right",
-      render: (value: number) => (
-        <Typography.Text style={{ color: pnlColor(value) }}>
-          {value > 0 ? `+${formatMoney(value)}` : formatMoney(value)}
-        </Typography.Text>
-      )
+      render: (value: number) => `${value > 0 ? "+" : "−"}${formatShares(Math.abs(value))}`
     },
     {
-      title: "调仓价格",
+      title: <Tooltip title="灰色为未填成交价、按调仓日收盘价估算">成交价</Tooltip>,
       dataIndex: "price",
-      width: 110,
+      width: 88,
       align: "right",
       render: (value: number | null | undefined, record) =>
-        value === null || value === undefined ? "-" : record.price_source === "estimated" ? (
-          <Tooltip title="未填写，按调仓日收盘价估算">
-            <Typography.Text type="secondary">{formatMoney(value)} 估</Typography.Text>
+        value === null || value === undefined ? <Typography.Text type="secondary">-</Typography.Text> : record.price_source === "estimated" ? (
+          <Tooltip title="未填成交价，按调仓日收盘价估算">
+            <span className="estimated-price">{formatMoney(value)}</span>
           </Tooltip>
         ) : formatMoney(value)
     },
     {
-      title: "理由来源",
+      title: "来源",
       dataIndex: "reason_type",
-      width: 170,
-      render: (value: string | null | undefined, record) =>
-        value ? (
-          <Space size={4}>
-            <Tag color={reasonTypeColors[value]}>{reasonTypeLabels[value] || value}</Tag>
-            {record.advice_target_trade_date ? (
-              <Typography.Text type="secondary">
-                {record.advice_target_trade_date.slice(5)} {adviceActionLabels[record.advice_action || ""] || ""}
-              </Typography.Text>
-            ) : null}
-          </Space>
-        ) : "-"
+      width: 88,
+      render: (value: string | null | undefined) => (value ? reasonTypeLabels[value] || value : <Tag>未标注</Tag>)
+    },
+    {
+      title: "关联建议",
+      dataIndex: "advice_target_trade_date",
+      width: 104,
+      render: (value?: string | null) => value ?? <Typography.Text type="secondary">-</Typography.Text>
     },
     {
       title: "调仓理由",
       dataIndex: "note",
-      width: 280,
       ellipsis: { showTitle: false },
-      render: (value?: string | null) => (value ? <Tooltip title={value} placement="topLeft">{value}</Tooltip> : "-")
+      render: (value?: string | null) => (value ? <Tooltip title={value} placement="topLeft">{value}</Tooltip> : null)
     },
-    { title: "记录时间", dataIndex: "created_at", width: 170, render: formatDateTime }
+    { title: "记录时间", dataIndex: "created_at", width: 132, render: (value) => <span className="record-time">{formatRecordTime(value)}</span> }
   ];
 
   // 所有组合时在第二列标出每行属于哪个组合
@@ -779,40 +794,58 @@ export function PortfolioPage() {
     if (!portfolios.loading && !portfolios.data.length) {
       return <WorkbenchCard><EmptyAction description="暂无组合，请先新建组合" /></WorkbenchCard>;
     }
+    const views: { value: TradesView; label: string; count: number }[] = [
+      { value: "changes", label: "持仓调整", count: positionChanges.data.length },
+      { value: "cash", label: "资金流水", count: cashFlows.data.length }
+    ];
     return (
       <div className="portfolio-dashboard">
         <PortfolioScopeBar value={selectedPortfolioId} options={portfolioOptions} onChange={setSelectedPortfolioId} />
-        <WorkbenchCard
-          title="资金流水"
-          extra={(
-            <Space wrap>
-              <Button onClick={() => openCashFlow("deposit")}>入金</Button>
-              <Button onClick={() => openCashFlow("withdraw")}>出金</Button>
-              <Button onClick={() => openCashFlow("adjustment")}>现金校准</Button>
+        {/* 本页叫调仓记录，持仓调整在前；两张表合成一个框、顶栏切换，与调仓复盘统计区同一写法 */}
+        <section className="tabbed-table-panel">
+          <div className="data-panel-toolbar tabbed-table-toolbar">
+            <Space size={4} className="toolbar-status-buttons">
+              {views.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={tradesView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setTradesView(item.value)}
+                >
+                  {item.label} ({item.count})
+                </Button>
+              ))}
             </Space>
+            {tradesView === "cash" ? (
+              <Space size={6} className="tabbed-table-actions">
+                <Button size="small" autoInsertSpace={false} onClick={() => openCashFlow("deposit")}>入金</Button>
+                <Button size="small" autoInsertSpace={false} onClick={() => openCashFlow("withdraw")}>出金</Button>
+                <Button size="small" onClick={() => openCashFlow("adjustment")}>现金校准</Button>
+              </Space>
+            ) : null}
+          </div>
+          {tradesView === "changes" ? (
+            <Table
+              rowKey="id"
+              size="small"
+              loading={positionChanges.loading}
+              dataSource={positionChanges.data}
+              columns={withPortfolioColumn(positionChangeColumns)}
+              locale={{ emptyText: "暂无调仓记录；在实盘持仓页调整股数后会自动留痕" }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+            />
+          ) : (
+            <Table
+              rowKey="id"
+              size="small"
+              loading={cashFlows.loading}
+              dataSource={cashFlows.data}
+              columns={withPortfolioColumn(cashFlowColumns)}
+              locale={{ emptyText: "暂无资金流水" }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+            />
           )}
-        >
-          <Table
-            rowKey="id"
-            size="small"
-            loading={cashFlows.loading}
-            dataSource={cashFlows.data}
-            columns={withPortfolioColumn(cashFlowColumns)}
-            locale={{ emptyText: <EmptyAction description="暂无出入金记录" /> }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-          />
-        </WorkbenchCard>
-        <WorkbenchCard title="持仓调整">
-          <Table
-            rowKey="id"
-            size="small"
-            loading={positionChanges.loading}
-            dataSource={positionChanges.data}
-            columns={withPortfolioColumn(positionChangeColumns)}
-            locale={{ emptyText: <EmptyAction description="暂无调仓记录；在实盘持仓页调整股数后会自动留痕" /> }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-          />
-        </WorkbenchCard>
+        </section>
       </div>
     );
   }

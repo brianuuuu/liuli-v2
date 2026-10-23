@@ -107,8 +107,8 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
       </div>
       {/* 三张统计表维度不同，不需要并排对照：切换按钮作为表格框的顶栏，和表格是一个整体；
           页首的组合切换条管整页，这里只管下面这张表，两者层级不同、外观也区分开 */}
-      <section className="review-stats-panel">
-        <div className="data-panel-toolbar review-stats-toolbar">
+      <section className="tabbed-table-panel">
+        <div className="data-panel-toolbar tabbed-table-toolbar">
           <Space size={4} className="toolbar-status-buttons">
             {statsViews.map((item) => (
               <Button

@@ -1130,8 +1130,8 @@ body {
   font-size: 12px;
 }
 
-/* 调仓复盘统计区：切换按钮作为表格框的顶栏，与表格合成一个框 */
-.review-stats-panel {
+/* 顶栏切换按钮与表格合成一个框（调仓复盘统计区、调仓记录共用） */
+.tabbed-table-panel {
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
@@ -1139,25 +1139,36 @@ body {
   background: var(--ll-panel);
 }
 
-.review-stats-panel > .review-stats-toolbar {
+.tabbed-table-panel > .tabbed-table-toolbar {
   border: 0;
   border-bottom: 1px solid var(--ll-border);
   border-radius: 0;
 }
 
-.review-stats-panel .ant-table-wrapper .ant-table,
-.review-stats-panel .ant-table-wrapper .ant-table-container,
-.review-stats-panel .ant-table-wrapper .ant-table-thead > tr > th {
+.tabbed-table-panel .ant-table-wrapper .ant-table,
+.tabbed-table-panel .ant-table-wrapper .ant-table-container,
+.tabbed-table-panel .ant-table-wrapper .ant-table-thead > tr > th {
   border: 0;
   border-radius: 0 !important;
 }
 
-.review-stats-panel .ant-table-wrapper .ant-table-thead > tr > th {
+.tabbed-table-panel .ant-table-wrapper .ant-table-thead > tr > th {
   border-bottom: 1px solid var(--ll-border);
 }
 
-.review-stats-panel .ant-table-pagination {
+.tabbed-table-panel .ant-table-pagination {
   margin: 10px 12px !important;
+}
+
+.tabbed-table-actions {
+  margin-left: auto;
+}
+
+/* 记录时间是次要信息：灰色小字，只到分钟 */
+.record-time {
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .review-stock {

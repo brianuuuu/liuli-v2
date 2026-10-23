@@ -67,8 +67,8 @@ assert.match(tradeReview, /getAdjustAdviceReviews/);
 assert.match(tradeReview, /getPositionChangeReview/);
 assert.match(tradeReview, /review-kpi-strip/);
 // 三张统计表合成一张卡、分段切换；调仓来源逐笔展示标的、股数、金额、20 日影响，每页 10 条
-assert.match(tradeReview, /className="review-stats-panel"/);
-assert.match(tradeReview, /review-stats-toolbar/);
+assert.match(tradeReview, /className="tabbed-table-panel"/);
+assert.match(tradeReview, /tabbed-table-toolbar/);
 assert.match(tradeReview, /toolbar-filter-button active/);
 assert.doesNotMatch(tradeReview, /<Segmented/);
 assert.match(tradeReview, /调仓来源/);
@@ -134,3 +134,12 @@ assert.doesNotMatch(positionChange, /reasonTypeColors/);
 assert.doesNotMatch(positionChange, /value\.slice\(5\)/);
 assert.match(tradeReview + page + performance, /ReloadOutlined/);
 assert.doesNotMatch(tradeReview + page + performance, />\s*刷新(复盘|看板|收益)\s*</);
+
+// 调仓记录：持仓调整在前、与资金流水合成一个框顶栏切换；校准行写"= 余额"；股数不带小数；去掉币种列；分页 10 条
+assert.match(page, /\{ value: "changes", label: "持仓调整"/);
+assert.match(page, /className="tabbed-table-panel"/);
+assert.match(page, /flow_type === "adjustment"\) return `= \$\{formatMoney/);
+assert.match(page, /render: formatShares/);
+assert.doesNotMatch(page, /title: "币种"/);
+assert.doesNotMatch(page, /\} 估<\/Typography\.Text>/);
+assert.match(page, /autoInsertSpace=\{false\}/);
