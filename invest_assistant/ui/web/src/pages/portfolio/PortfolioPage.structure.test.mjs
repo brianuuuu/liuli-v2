@@ -128,7 +128,8 @@ assert.doesNotMatch(page, /与实盘持仓页共用/);
 // 整页优化：涨跌色走主题变量（深色主题换亮一档）、来源用普通文字、股数不再红绿、没满期的评估列合并、刷新改图标按钮
 assert.doesNotMatch(page + performance + tradeReview + positionChange + adjustAdvice, /#b42318|#047857/);
 assert.match(positionChange, /var\(--ll-up\)/);
-assert.match(positionChange, /满 20 个交易日后评估/);
+assert.match(positionChange, /evalLead/);
+assert.doesNotMatch(positionChange, /满 20 个交易日后评估/);
 assert.doesNotMatch(positionChange, /reasonTypeColors/);
 assert.doesNotMatch(positionChange, /value\.slice\(5\)/);
 assert.match(tradeReview + page + performance, /ReloadOutlined/);

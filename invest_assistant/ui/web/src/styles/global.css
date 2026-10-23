@@ -1170,13 +1170,6 @@ body {
   font-size: 12px;
 }
 
-.review-eval-pending {
-  display: block;
-  color: var(--ll-muted);
-  font-size: 12px;
-  text-align: center;
-}
-
 /* 估算的成交价：次要色，悬浮说明；不用下划线，估算多时一列虚线太抢眼 */
 .estimated-price {
   color: var(--ll-muted);

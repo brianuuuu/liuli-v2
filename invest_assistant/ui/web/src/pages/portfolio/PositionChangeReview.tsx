@@ -58,7 +58,7 @@ export function positionChangeHint(rules: string) {
 
 const impactTitle = <Tooltip title="调仓金额 × 按方向折算的 20 日收益：增持后赚亏、减持后避开或错过的金额（估算）">20日影响</Tooltip>;
 
-// 没满 20 个交易日的调仓：20日、60日、20日影响、对错合成一格说明，不铺一排横线
+// 没满 20 个交易日的调仓：20日、60日、20日影响、对错合成一个空格子，不铺一排横线
 const EVAL_COLUMNS = 4;
 const evalLead = (row: PositionChangeReviewDetail) => ({ colSpan: row.effect_20d == null ? EVAL_COLUMNS : 1 });
 const evalRest = (row: PositionChangeReviewDetail) => ({ colSpan: row.effect_20d == null ? 0 : 1 });
@@ -122,7 +122,7 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
     width: 76,
     align: "right",
     onCell: evalLead,
-    render: (value: number | null | undefined) => (value == null ? <span className="review-eval-pending">满 20 个交易日后评估</span> : formatReturn(value))
+    render: (value: number | null | undefined) => (value == null ? null : formatReturn(value))
   },
   { title: "60日", dataIndex: "effect_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: impactTitle, dataIndex: "impact_20d", width: 92, align: "right", onCell: evalRest, render: (value?: number | null) => formatAmount(value, true) },
