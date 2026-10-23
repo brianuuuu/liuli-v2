@@ -1172,11 +1172,29 @@ body {
   font-weight: 600;
 }
 
-.tabbed-table-title em {
-  margin-left: 2px;
+.tabbed-table-title b {
+  margin: 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 持仓表顶栏的配置摘要：说明文字灰色、数字正文色，读起来像一行注释，用中点分隔 */
+.positions-brief {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   color: var(--ll-muted);
-  font-style: normal;
-  font-weight: 400;
+  font-size: 12px;
+}
+
+.positions-brief > span::before {
+  margin: 0 8px;
+  content: "·";
+}
+
+.positions-brief b {
+  color: var(--ll-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 指标卡主数值下的补充小字（如当日盈亏下的涨跌幅） */

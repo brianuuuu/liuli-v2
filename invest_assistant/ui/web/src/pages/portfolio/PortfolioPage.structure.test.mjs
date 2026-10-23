@@ -144,7 +144,7 @@ assert.doesNotMatch(page, /title: "币种"/);
 assert.doesNotMatch(page, /\} 估<\/Typography\.Text>/);
 assert.match(page, /autoInsertSpace=\{false\}/);
 
-// 实盘持仓：总资产 / 持仓市值 / 现金 / 当日盈亏；去掉价格来源和昨收列，加占比和排序；删除收进菜单；组合管理和现金操作各合成一个下拉
+// 实盘持仓：总资产 / 持仓市值 / 现金 / 当日盈亏；去掉价格来源和昨收列，加占比和排序；删除收进菜单；组合管理合成下拉，持仓表顶栏的新增持仓和现金操作平铺用竖线分隔
 assert.match(page, /metric-panel-label">总资产</);
 assert.doesNotMatch(page, /metric-panel-label">当前市值</);
 assert.doesNotMatch(page, /title: "价格来源"/);
@@ -153,4 +153,8 @@ assert.match(page, />占比</);
 assert.match(page, /defaultSortOrder: "descend"/);
 assert.match(page, /confirmRemovePosition/);
 assert.match(page, /组合管理 <DownOutlined/);
-assert.match(page, /现金 <DownOutlined/);
+assert.doesNotMatch(page, /现金 <DownOutlined/);
+assert.match(page, /separator=\{<Divider vertical \/>\}/);
+assert.match(page, /className="positions-brief"/);
+assert.match(page, /前五大/);
+assert.match(page, /最大单只/);

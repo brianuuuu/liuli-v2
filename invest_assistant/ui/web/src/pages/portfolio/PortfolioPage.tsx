@@ -1,5 +1,5 @@
 import { DownOutlined, EllipsisOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Button, Dropdown, Form, Input, InputNumber, Modal, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Divider, Dropdown, Form, Input, InputNumber, Modal, Segmented, Select, Space, Switch, Table, Tag, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -821,6 +821,13 @@ export function PortfolioPage() {
     const summary = dashboard.data?.summary;
     const totalAssets = summary ? Number(summary.market_value ?? 0) + Number(summary.cash_amount ?? 0) : null;
     const positions = dashboard.data?.positions ?? [];
+    // 顶栏的配置摘要：集中度（前五大、最大单只）和现金比例，分母都是总资产；指标卡只有金额，这里补比例
+    const byValue = [...positions].sort((a, b) => Number(b.market_value ?? 0) - Number(a.market_value ?? 0));
+    const ratioOf = (value: number) => (totalAssets ? (value / totalAssets) * 100 : null);
+    const top5Ratio = ratioOf(byValue.slice(0, 5).reduce((sum, item) => sum + Number(item.market_value ?? 0), 0));
+    const largest = byValue[0];
+    const largestRatio = largest ? ratioOf(Number(largest.market_value ?? 0)) : null;
+    const cashRatio = ratioOf(Number(summary?.cash_amount ?? 0));
     return (
       <div className="portfolio-dashboard">
         <PortfolioScopeBar
@@ -867,22 +874,25 @@ export function PortfolioPage() {
         </div>
         <section className="tabbed-table-panel">
           <div className="data-panel-toolbar tabbed-table-toolbar">
-            <span className="tabbed-table-title">持仓 <em>({positions.length})</em></span>
-            <Space size={6} className="tabbed-table-actions">
-              <Button size="small" onClick={openCreatePosition}>新增持仓</Button>
-              <Dropdown
-                trigger={["click"]}
-                menu={{
-                  items: [
-                    { key: "deposit", label: "入金" },
-                    { key: "withdraw", label: "出金" },
-                    { key: "adjustment", label: "现金校准" }
-                  ],
-                  onClick: ({ key }) => openCashFlow(key)
-                }}
-              >
-                <Button size="small">现金 <DownOutlined /></Button>
-              </Dropdown>
+            <span className="tabbed-table-title">持仓 <b>{positions.length}</b> 只</span>
+            {totalAssets ? (
+              <span className="positions-brief">
+                {/* 不超过五只时"前五大"就是全部持仓，没有信息量，不显示 */}
+                {positions.length > 5 && top5Ratio !== null ? <span>前五大 <b>{formatPercent(top5Ratio)}</b></span> : null}
+                {largest && largestRatio !== null ? (
+                  <span>最大单只 <b>{formatPercent(largestRatio)}</b>（{largest.stock_name || largest.stock_code}）</span>
+                ) : null}
+                {cashRatio !== null ? <span>现金 <b>{formatPercent(cashRatio)}</b></span> : null}
+              </span>
+            ) : null}
+            {/* 操作平铺不收进下拉；竖线只隔开不同类：持仓操作 | 现金操作，同类之间不加 */}
+            <Space size={0} separator={<Divider vertical />} className="tabbed-table-actions">
+              <Button size="small" type="text" onClick={openCreatePosition}>新增持仓</Button>
+              <Space size={2}>
+                <Button size="small" type="text" autoInsertSpace={false} onClick={() => openCashFlow("deposit")}>入金</Button>
+                <Button size="small" type="text" autoInsertSpace={false} onClick={() => openCashFlow("withdraw")}>出金</Button>
+                <Button size="small" type="text" onClick={() => openCashFlow("adjustment")}>现金校准</Button>
+              </Space>
             </Space>
           </div>
           <Table
