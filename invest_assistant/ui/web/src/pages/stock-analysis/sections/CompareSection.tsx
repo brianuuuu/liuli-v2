@@ -50,13 +50,15 @@ function numericSorter<T extends Record<string, unknown>>(key: keyof T) {
 }
 
 /**
- * 分项分数的底色：分数越高底色越深（6 分以下不着色，10 分最深），
- * 一眼看出每只标的哪一维强、哪一维弱，不用逐个读数字。
+ * 分项分数只标两头：≥ 9.0 是突出长项（蓝色加粗），≤ 7.0 是明显短板（橙色），中间不标。
+ * 分数大多集中在 7–9.5，按深浅铺底色会满屏色块、拉不开差距，还和勾选行高亮撞色。
  */
-function scoreHeatStyle(value?: number | null): React.CSSProperties | undefined {
-  if (value == null) return undefined;
-  const strength = Math.min(1, Math.max(0, (Number(value) - 6) / 4));
-  return strength > 0 ? { background: `rgba(37, 99, 235, ${(0.06 + strength * 0.3).toFixed(3)})` } : undefined;
+const STRONG_SCORE = 9;
+const WEAK_SCORE = 7;
+
+function renderDimensionScore(value?: number | null) {
+  const tone = value == null ? "" : Number(value) >= STRONG_SCORE ? " is-strong" : Number(value) <= WEAK_SCORE ? " is-weak" : "";
+  return <span className={`stock-compare-score-value${tone}`}>{formatScore(value)}</span>;
 }
 
 function scoreValues(record: StockScoreComparisonItem) {
@@ -234,9 +236,7 @@ export function CompareSection() {
       width: dimension.label.length > 2 ? 88 : 80,
       align: "right" as const,
       sorter: numericSorter<StockScoreComparisonItem>(dimension.key),
-      className: "stock-compare-heat-cell",
-      onCell: (record: StockScoreComparisonItem) => ({ style: scoreHeatStyle(record[dimension.key] as number | null) }),
-      render: (value: number | null) => <span className="stock-compare-score-value">{formatScore(value)}</span>
+      render: (value: number | null) => renderDimensionScore(value)
     })),
     {
       title: "操作",
@@ -338,6 +338,7 @@ export function CompareSection() {
           <Table
             rowKey={scoreRowKey}
             size="small"
+            className="stock-compare-table"
             loading={comparison.loading || tracks.loading}
             dataSource={scoreRows}
             columns={scoreColumns}
@@ -410,8 +411,7 @@ export function CompareSection() {
                   dataIndex: dimension.key as string,
                   width: 60,
                   align: "right" as const,
-                  onCell: (record: StockScoreComparisonItem) => ({ style: scoreHeatStyle(record[dimension.key] as number | null) }),
-                  render: (value: number | null) => formatScore(value)
+                  render: (value: number | null) => renderDimensionScore(value)
                 }))
               ]}
             />

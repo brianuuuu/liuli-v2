@@ -3797,6 +3797,33 @@ body {
   white-space: pre-wrap;
 }
 
+/* 分项分数：只标长项和短板 */
+.stock-compare-score-value.is-strong {
+  color: var(--ll-accent);
+  font-weight: 700;
+}
+
+.stock-compare-score-value.is-weak {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* 排序状态看表头箭头即可，不给排序列铺底色 */
+.stock-compare-table .ant-table-thead > tr > th.ant-table-column-sort,
+.stock-compare-table .ant-table-tbody > tr > td.ant-table-column-sort {
+  background: transparent;
+}
+
+/* 勾选行：很淡的底色 + 左侧细色条，和分数标记不冲突 */
+.stock-compare-table .ant-table-tbody > tr.ant-table-row-selected > td,
+.stock-compare-table .ant-table-tbody > tr.ant-table-row-selected:hover > td {
+  background: var(--ll-panel-subtle) !important;
+}
+
+.stock-compare-table .ant-table-tbody > tr.ant-table-row-selected > td:first-child {
+  box-shadow: inset 2px 0 0 var(--ll-accent);
+}
+
 .stock-compare-legend-dot {
   display: inline-block;
   width: 8px;

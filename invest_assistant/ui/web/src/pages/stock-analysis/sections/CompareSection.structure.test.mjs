@@ -9,8 +9,10 @@ assert.doesNotMatch(page, />雷达图</);
 assert.doesNotMatch(page, /<Popconfirm/);
 assert.match(page, /confirmRemoveScore/);
 
-// 分项分数按高低加底色，便于横向比较
-assert.match(page, /scoreHeatStyle/);
+// 分项分数只标两头（≥9 长项、≤7 短板），不铺底色：底色会满屏色块且和勾选高亮撞色
+assert.match(page, /const STRONG_SCORE = 9;/);
+assert.match(page, /const WEAK_SCORE = 7;/);
+assert.doesNotMatch(page, /scoreHeatStyle|rgba\(37, 99, 235/);
 
 // 研究员显示中文名
 assert.match(page, /listKnowledgeResearchers/);
