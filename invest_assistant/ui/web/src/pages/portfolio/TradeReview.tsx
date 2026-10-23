@@ -25,12 +25,12 @@ type TradeReviewProps = {
   onPortfolioChange: (portfolioId: number | null) => void;
 };
 
-/** 没有样本时写"待积累"，不用一排横线让人误以为出错 */
-function Kpi({ label, value, note }: { label: string; value: string | number | null; note: string }) {
+/** 没有样本时写 NA，不用一排横线让人误以为出错；下方小字只放数字（样本数或比值） */
+function Kpi({ label, value, note }: { label: string; value: string | number | null; note: string | number }) {
   return (
     <div className="review-kpi">
       <div className="review-kpi-label">{label}</div>
-      {value === null ? <div className="review-kpi-value is-pending">待积累</div> : <div className="review-kpi-value">{value}</div>}
+      {value === null ? <div className="review-kpi-value is-pending">NA</div> : <div className="review-kpi-value">{value}</div>}
       <div className="review-kpi-note">{note}</div>
     </div>
   );
@@ -91,20 +91,21 @@ export function TradeReview({ portfolioId, portfolioOptions, portfoliosLoading, 
       </div>
       <div className="review-kpi-strip">
         <section className="review-kpi-group review-kpi-group--changes">
-          <header>实际调仓 · 20 日胜率</header>
+          {/* 组名放左侧竖列，每个指标只剩名称、数值、样本三行 */}
+          <header>实际调仓<br />20 日胜率</header>
           <div className="review-kpi-row">
-            <Kpi label="AI 建议" value={aiRate.rate} note={`样本 ${aiRate.samples}`} />
-            <Kpi label="个人判断" value={personalRate.rate} note={`样本 ${personalRate.samples}`} />
+            <Kpi label="AI 建议" value={aiRate.rate} note={aiRate.samples} />
+            <Kpi label="个人判断" value={personalRate.rate} note={personalRate.samples} />
           </div>
         </section>
         <section className="review-kpi-group review-kpi-group--advice">
           <header>AI 建议</header>
           <div className="review-kpi-row">
-            <Kpi label="增持胜率" value={kpis.addRate.rate} note={`样本 ${kpis.addRate.samples}`} />
-            <Kpi label="减持胜率" value={kpis.reduceRate.rate} note={`样本 ${kpis.reduceRate.samples}`} />
+            <Kpi label="增持胜率" value={kpis.addRate.rate} note={kpis.addRate.samples} />
+            <Kpi label="减持胜率" value={kpis.reduceRate.rate} note={kpis.reduceRate.samples} />
             <Kpi label="执行率" value={kpis.executed.rate} note={kpis.executed.note} />
-            <Kpi label="警示命中率" value={kpis.risk.rate} note={`样本 ${kpis.risk.samples}`} />
-            <Kpi label="待评估" value={kpis.pending.count} note={`共 ${kpis.pending.total} 条建议`} />
+            <Kpi label="警示命中率" value={kpis.risk.rate} note={kpis.risk.samples} />
+            <Kpi label="待评估" value={kpis.pending.count} note={`${kpis.pending.count} / ${kpis.pending.total}`} />
           </div>
         </section>
       </div>

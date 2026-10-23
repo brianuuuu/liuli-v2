@@ -79,8 +79,9 @@ assert.match(positionChange, /impact_20d/);
 assert.match(positionChange, /quantity_delta/);
 assert.doesNotMatch(positionChange, /expandedRowRender/);
 assert.match(positionChange, /不是已实现盈亏/);
-// 微操报告卡去掉标题栏：开关移到页首工具栏，口径说明挂在明细"对错"表头
-assert.match(adjustAdvice, /<WorkbenchCard className="advice-report-card">/);
+// 微操报告放在数据面板里，表格样式与调仓来源表一致；开关在页首工具栏，口径说明挂在明细"对错"表头
+assert.match(adjustAdvice, /<DataPanel>/);
+assert.doesNotMatch(adjustAdvice, /WorkbenchCard/);
 assert.match(tradeReview, /显示维持和等待/);
 assert.match(tradeReview, /showQuiet=\{showQuiet\}/);
 assert.match(adjustAdvice, /title="对错" hint=/);
@@ -97,7 +98,8 @@ assert.doesNotMatch(positionChange, /加仓|减仓/);
 assert.match(adjustAdvice, /opportunity-badge is-yes/);
 assert.match(adjustAdvice, /opportunity-badge is-no/);
 assert.doesNotMatch(tradeReview + adjustAdvice, /AdviceStatsPending/);
-assert.match(tradeReview, /待积累/);
+assert.match(tradeReview, />NA</);
+assert.doesNotMatch(tradeReview, /样本 \$\{|待积累|条建议/);
 assert.doesNotMatch(page, /coordinateSystem: "calendar"/);
 assert.doesNotMatch(page, /cellSize: \["auto", 18\]/);
 assert.match(page, /renderOverview/);

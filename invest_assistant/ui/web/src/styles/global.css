@@ -986,7 +986,7 @@ body {
   margin-bottom: 10px;
 }
 
-/* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开 */
+/* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开；组名在每组左侧竖列，指标只占三行 */
 .review-kpi-strip {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 5fr);
@@ -997,15 +997,24 @@ body {
   background: var(--ll-panel);
 }
 
+.review-kpi-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .review-kpi-group + .review-kpi-group {
   border-left: 1px solid var(--ll-border);
 }
 
 .review-kpi-group > header {
-  padding: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 14px;
   color: var(--ll-muted);
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .review-kpi-row {
@@ -1016,7 +1025,7 @@ body {
 
 .review-kpi {
   min-width: 0;
-  padding: 6px 14px 12px;
+  padding: 12px 14px;
 }
 
 .review-kpi-label,
@@ -1039,39 +1048,12 @@ body {
 
 .review-kpi-value.is-pending {
   color: var(--ll-muted);
-  font-size: 16px;
   font-weight: 500;
-  line-height: 22px;
-}
-
-/* 卡片已有边框，卡片里的表格不再套一层外框；圆角一并去掉，否则表头四角露出底色小点。数据面板里的表格保留自身边框 */
-.trade-review .workbench-card .ant-table-wrapper .ant-table,
-.trade-review .workbench-card .ant-table-wrapper .ant-table-container,
-.trade-review .workbench-card .ant-table-wrapper .ant-table-thead > tr > th {
-  border: 0;
-  border-radius: 0 !important;
-}
-
-.trade-review .workbench-card .ant-table-wrapper .ant-table-thead > tr > th {
-  border-bottom: 1px solid var(--ll-border);
 }
 
 /* 调仓复盘全页：表头不要组件自带的列竖分隔线 */
 .trade-review .ant-table-wrapper .ant-table-thead > tr > th::before {
   display: none;
-}
-
-/* 微操报告：不带标题栏，表头做成"第一行"——常规字重、次要色、小一号，分隔线与数据行相同 */
-.trade-review .advice-report-card .ant-card-body {
-  padding-top: 4px !important;
-}
-
-/* 外层和展开明细的表头同一套轻量样式 */
-.trade-review .advice-report-table .ant-table-thead > tr > th {
-  border-bottom: 1px solid var(--ll-border-soft);
-  color: var(--ll-muted);
-  font-size: 12px !important;
-  font-weight: 400 !important;
 }
 
 .review-toolbar-end {
@@ -1089,6 +1071,14 @@ body {
 .trade-review .advice-item-table.ant-table-wrapper .ant-table,
 .trade-review .advice-item-table.ant-table-wrapper .ant-table-tbody > tr > td {
   background: transparent;
+}
+
+/* 子表嵌在外层表格里，不再套自己的边框和圆角 */
+.trade-review .advice-item-table.ant-table-wrapper .ant-table,
+.trade-review .advice-item-table.ant-table-wrapper .ant-table-container,
+.trade-review .advice-item-table.ant-table-wrapper .ant-table-thead > tr > th {
+  border: 0;
+  border-radius: 0 !important;
 }
 
 .trade-review .advice-item-table.ant-table-wrapper .ant-table-thead > tr > th {

@@ -1,8 +1,7 @@
 import { Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo } from "react";
-import { EmptyAction } from "../../components/common/EmptyAction";
-import { WorkbenchCard } from "../../components/common/WorkbenchCard";
+import { DataPanel } from "../../components/common/DataPanel";
 import { HintTitle } from "./HintTitle";
 import { SampleCount } from "./SampleCount";
 import type { AdjustAdviceItem, AdjustAdviceReport, AdjustAdviceReviews, AdjustAdviceWinRateRow } from "../../types/api";
@@ -226,39 +225,36 @@ const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
   { title: "平均效果", dataIndex: "avg_effect_20d", width: 80, align: "right", render: formatReturn }
 ];
 
-/** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。不带标题栏，"显示维持和等待"开关在页首工具栏 */
+/** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。放在数据面板里，表格样式与调仓来源表一致 */
 export function AdviceReportList({ data, loading, showQuiet }: { data: AdjustAdviceReviews; loading: boolean; showQuiet: boolean }) {
   const itemColumns = useMemo(() => buildItemColumns(data.rules), [data.rules]);
   return (
-    <WorkbenchCard className="advice-report-card">
-      {data.reports.length ? (
-        <Table
-          rowKey="id"
-          size="small"
-          className="advice-report-table"
-          loading={loading}
-          columns={reportColumns}
-          dataSource={data.reports}
-          pagination={{ defaultPageSize: 10, showSizeChanger: false }}
-          expandable={{
-            expandedRowRender: (report) => (
-              <Table
-                rowKey="id"
-                size="small"
-                className="advice-item-table"
-                columns={itemColumns}
-                dataSource={showQuiet ? report.items : report.items.filter(hasSignal)}
-                pagination={false}
-                scroll={{ x: 1300 }}
-                locale={{ emptyText: "本期没有调仓建议和风险警示" }}
-              />
-            )
-          }}
-        />
-      ) : (
-        <EmptyAction description="暂无微操报告；研究回流导入「微操报告」后显示" />
-      )}
-    </WorkbenchCard>
+    <DataPanel>
+      <Table
+        rowKey="id"
+        size="small"
+        className="advice-report-table"
+        loading={loading}
+        columns={reportColumns}
+        dataSource={data.reports}
+        pagination={{ defaultPageSize: 10, showSizeChanger: false }}
+        locale={{ emptyText: "暂无微操报告；研究回流导入「微操报告」后显示" }}
+        expandable={{
+          expandedRowRender: (report) => (
+            <Table
+              rowKey="id"
+              size="small"
+              className="advice-item-table"
+              columns={itemColumns}
+              dataSource={showQuiet ? report.items : report.items.filter(hasSignal)}
+              pagination={false}
+              scroll={{ x: 1300 }}
+              locale={{ emptyText: "本期没有调仓建议和风险警示" }}
+            />
+          )
+        }}
+      />
+    </DataPanel>
   );
 }
 
