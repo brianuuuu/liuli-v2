@@ -286,6 +286,53 @@ def get_dashboard(db: Session) -> dict:
     }
 
 
+def list_track_comparison(db: Session) -> list[dict]:
+    """赛道对比：每个未归档赛道一行，带最新快照的六维分数、结论文字和 7 日资讯热度。
+
+    没研究过的赛道快照字段全为 None，前端显示"待研究"，不填 0 分。
+    """
+    tracks = list(db.scalars(select(Track).where(Track.status != ARCHIVED_STATUS).order_by(Track.id.asc())))
+    if not tracks:
+        return []
+    track_ids = [track.id for track in tracks]
+    tag_ids = list(
+        set(
+            db.scalars(
+                select(TrackTagRelation.tag_id).where(TrackTagRelation.track_id.in_(track_ids), TrackTagRelation.status == "active")
+            )
+        )
+    )
+    latest_stat = {
+        window: stat_time for window, stat_time in _dashboard_latest_stat_by_window(db, tag_ids).items() if window == TRACK_HEAT_WINDOW
+    }
+    heat_by_track = _dashboard_latest_heat_by_track_window(db, track_ids, latest_stat)
+    snapshots = _latest_snapshots_by_track(db, tracks)
+    rows = []
+    for track in tracks:
+        snapshot = snapshots.get(track.id)
+        rows.append(
+            {
+                "track_id": track.id,
+                "name": track.name,
+                "status": track.status,
+                "industry_phase": track.industry_phase,
+                "market_phase": track.market_phase,
+                "current_heat": round(float(heat_by_track.get((track.id, TRACK_HEAT_WINDOW), {}).get("heat_score") or 0), 2),
+                **_snapshot_badge(snapshot),
+                "snapshot_id": snapshot.id if snapshot else None,
+                "research_date": snapshot.research_date if snapshot else None,
+                "researcher_code": snapshot.researcher_code if snapshot else None,
+                "headline_cycle": snapshot.headline_cycle if snapshot else None,
+                **{field: getattr(snapshot, field) if snapshot else None for field in TRACK_SCORE_FIELDS},
+                "core_judgment": snapshot.core_judgment if snapshot else track.current_view,
+                "key_contradiction": snapshot.key_contradiction if snapshot else None,
+                "next_verification": snapshot.next_verification if snapshot else None,
+                "risk_falsification": snapshot.risk_falsification if snapshot else None,
+            }
+        )
+    return rows
+
+
 def _dashboard_latest_stat_by_window(db: Session, tag_ids: list[int]) -> dict[str, object]:
     if not tag_ids:
         return {}

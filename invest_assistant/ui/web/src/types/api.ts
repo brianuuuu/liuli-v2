@@ -318,6 +318,34 @@ export type TrackMaterial = {
   updated_at?: string | null;
 };
 
+/** 赛道对比的一行：未研究的赛道快照字段全为 null，前端显示"待研究"。 */
+export type TrackComparisonItem = {
+  track_id: number;
+  name: string;
+  status: string;
+  industry_phase?: TrackIndustryPhase | null;
+  market_phase?: TrackMarketPhase | null;
+  /** 7 日资讯热度（标签热度聚合），与快照里研究员打的资金热度不是一回事 */
+  current_heat: number;
+  track_grade?: TrackGrade | null;
+  heat_tier?: TrackHeatTier | null;
+  overall_score?: number | null;
+  snapshot_id?: number | null;
+  research_date?: string | null;
+  researcher_code?: string | null;
+  headline_cycle?: TrackCycle | null;
+  market_heat_score?: number | null;
+  growth_speed_score?: number | null;
+  concentration_score?: number | null;
+  cycle_resilience_score?: number | null;
+  current_market_size_score?: number | null;
+  future_market_size_score?: number | null;
+  core_judgment?: string | null;
+  key_contradiction?: string | null;
+  next_verification?: string | null;
+  risk_falsification?: string | null;
+};
+
 export type TrackTrendSnapshot = {
   id: number;
   track_id: number;

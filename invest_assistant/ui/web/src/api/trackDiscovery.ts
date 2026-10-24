@@ -2,6 +2,7 @@ import type {
   StockTrackRelation,
   TagBinding,
   Track,
+  TrackComparisonItem,
   TrackDashboard,
   TrackDetail,
   TrackTrendSnapshot,
@@ -167,6 +168,11 @@ export async function createTrackMaterial(trackId: number, payload: TrackMateria
 
 export async function updateTrackMaterial(materialId: number, payload: Partial<TrackMaterialPayload>): Promise<TrackMaterial> {
   const response = await apiClient.put<TrackMaterial>(`/api/track-discovery/tracks/materials/${materialId}`, payload);
+  return response.data;
+}
+
+export async function listTrackComparison(): Promise<TrackComparisonItem[]> {
+  const response = await apiClient.get<TrackComparisonItem[]>("/api/track-discovery/tracks/compare");
   return response.data;
 }
 

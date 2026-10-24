@@ -3838,6 +3838,46 @@ body {
   font-weight: 500;
 }
 
+/* 赛道对比弹窗：结论文字按字段分组，每组里几个赛道逐行并排 */
+.track-compare-texts {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.track-compare-texts h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ll-text);
+}
+
+.track-compare-text-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--ll-border-soft);
+}
+
+.track-compare-text-row p {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.track-compare-text-name {
+  color: var(--ll-text);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .track-compare-text-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 .stock-compare-score-value.strong,
 .stock-compare-market-value.target {
   color: var(--ll-accent);

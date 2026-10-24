@@ -55,6 +55,12 @@ def list_tracks(
     return service.list_tracks(db, status=status, q=q, limit=limit)
 
 
+# 必须注册在 /tracks/{track_id} 之前
+@router.get("/tracks/compare")
+def list_track_comparison(db: Session = Depends(get_db)) -> list[dict]:
+    return service.list_track_comparison(db)
+
+
 @router.get("/dashboard")
 def track_dashboard(db: Session = Depends(get_db)) -> dict:
     return service.get_dashboard(db)
