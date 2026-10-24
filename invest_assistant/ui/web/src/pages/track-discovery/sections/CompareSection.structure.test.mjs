@@ -18,3 +18,7 @@ assert.match(page, /rowSelection=/);
 assert.match(page, /对比雷达/);
 assert.match(page, /下一步验证/);
 assert.match(page, /待研究/);
+// 综合分、评级、热度档位分三列，不用赛道卡的合并角标
+assert.doesNotMatch(page, /TrackGradeTags/);
+assert.match(page, /title: "综合分"/);
+assert.match(page, /热度档位/);

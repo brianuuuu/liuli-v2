@@ -1,4 +1,4 @@
-import { Button, Modal, Space, Table, Tooltip, Typography } from "antd";
+import { Button, Modal, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
@@ -10,7 +10,7 @@ import { DataPanel } from "../../../components/common/DataPanel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackComparisonItem } from "../../../types/api";
-import { cycleLabel, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions, TrackGradeTags } from "./shared";
+import { cycleLabel, gradeTagColor, heatTierTagColor, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions } from "./shared";
 
 // 叠加雷达最多放几条：再多线条就缠在一起看不清；配色与标的对比同一套
 const MAX_COMPARE = 4;
@@ -132,13 +132,30 @@ export function CompareSection() {
       render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.track_id}`}>{value}</Link>
     },
     { title: "状态", dataIndex: "status", width: 80, render: (value) => <StatusTag status={value} /> },
+    // 综合分、评级、热度档位分三列：赛道卡上的合并角标适合卡片，在对比表里分不清各自含义，排序也只按综合分
     {
-      title: "评级",
+      title: "综合分",
       dataIndex: "overall_score",
-      width: 112,
+      width: 84,
+      align: "right",
       sorter: scoreSorter("overall_score"),
       defaultSortOrder: "descend",
-      render: (_, record) => <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
+      render: (value: number | null) =>
+        value == null ? <Tag>待研究</Tag> : <span className="stock-compare-score-value strong">{formatScore(value)}</span>
+    },
+    {
+      title: <Tooltip title="按综合分分档：S/A 优先研究、B 持续跟踪、C/D 降低关注">评级</Tooltip>,
+      dataIndex: "track_grade",
+      width: 64,
+      align: "center",
+      render: (value?: string | null) => (value ? <Tag color={gradeTagColor(value)}>{value}</Tag> : "-")
+    },
+    {
+      title: <Tooltip title="只由资金热度决定，T0 最热">热度档位</Tooltip>,
+      dataIndex: "heat_tier",
+      width: 84,
+      align: "center",
+      render: (value?: string | null) => (value ? <Tag color={heatTierTagColor(value)}>{value}</Tag> : "-")
     },
     ...SCORE_DIMENSIONS.map((dimension) => ({
       title: dimension.label,
@@ -223,7 +240,7 @@ export function CompareSection() {
           })
         }}
         pagination={{ defaultPageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-        scroll={{ x: 1260 }}
+        scroll={{ x: 1380 }}
         locale={{ emptyText: <EmptyAction description="暂无赛道，先在赛道库新建赛道" /> }}
       />
       <Modal
