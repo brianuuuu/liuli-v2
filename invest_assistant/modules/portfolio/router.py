@@ -16,6 +16,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioGroupCreate,
     PortfolioGroupRead,
     PortfolioPositionChangeRead,
+    PortfolioPositionChangeUpdate,
     PortfolioPositionCreate,
     PortfolioPositionRead,
     PortfolioRead,
@@ -244,6 +245,17 @@ def update_cash_balance(portfolio_id: int, payload: PortfolioCashUpdate, db: Ses
 @router.get("/{portfolio_id}/position-changes", response_model=list[PortfolioPositionChangeRead])
 def list_position_changes(portfolio_id: int, limit: int = 200, db: Session = Depends(get_db)) -> list:
     return service.list_position_changes(db, portfolio_id, limit)
+
+
+@router.put("/{portfolio_id}/position-changes/{change_id}", response_model=PortfolioPositionChangeRead)
+def update_position_change(portfolio_id: int, change_id: int, payload: PortfolioPositionChangeUpdate, db: Session = Depends(get_db)) -> dict:
+    try:
+        change = service.update_position_change(db, portfolio_id, change_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if change is None:
+        raise HTTPException(status_code=404, detail="position change not found")
+    return change
 
 
 @router.get("/{portfolio_id}/cash-flows", response_model=list[PortfolioCashFlowRead])

@@ -71,6 +71,17 @@ class PortfolioTradeCreate(BaseModel):
     client_request_id: str | None = Field(default=None, max_length=64)
 
 
+class PortfolioPositionChangeUpdate(BaseModel):
+    """修正一笔调仓：整条覆盖可改字段。股数和标的串着前后调仓与当前持仓，不在这里改。"""
+
+    change_date: date
+    # 留空按调仓日收盘价估算，公司行为不估价
+    price: float | None = None
+    reason_type: str | None = None
+    advice_item_id: int | None = None
+    note: str | None = None
+
+
 class PortfolioPositionChangeRead(BaseModel):
     id: int
     portfolio_id: int

@@ -765,6 +765,21 @@ def refresh_item_execution(db: Session, advice_item_id: int) -> None:
     _fill_execution(db, item, advice, advice.target_trade_date)
 
 
+def refresh_stock_execution(db: Session, stock_id: int, item_ids: set[int], trade_dates: set[date]) -> None:
+    """调仓改了关联建议或日期后重算执行情况：原关联、新关联的条目，以及按日期推断可能匹配上的同标的条目。
+    还没评估过的条目留给评估任务。调用方先 flush，查询要看到改后的调仓。"""
+    affected = PortfolioAdjustAdviceItem.id.in_(item_ids) | (
+        (PortfolioAdjustAdviceItem.stock_id == stock_id) & PortfolioAdjustAdvice.target_trade_date.in_(trade_dates)
+    )
+    rows = db.execute(
+        select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice)
+        .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
+        .where(PortfolioAdjustAdviceItem.execution_status.is_not(None), affected)
+    ).all()
+    for item, advice in rows:
+        _fill_execution(db, item, advice, advice.target_trade_date)
+
+
 def advice_brief_by_item(db: Session, item_ids: set[int]) -> dict[int, dict]:
     if not item_ids:
         return {}

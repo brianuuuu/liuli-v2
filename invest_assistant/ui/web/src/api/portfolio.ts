@@ -159,6 +159,21 @@ export async function listPortfolioPositionChanges(portfolioId: number | null, l
   return response.data;
 }
 
+/** 修正一笔调仓：整条覆盖日期、价格、来源、关联建议和理由；股数和标的不能改，已同步的现金不跟着改 */
+export type PositionChangeUpdatePayload = {
+  change_date: string;
+  /** 留空按调仓日收盘价估算，公司行为不估价 */
+  price: number | null;
+  reason_type: PositionChangeReasonType | null;
+  advice_item_id: number | null;
+  note: string | null;
+};
+
+export async function updatePortfolioPositionChange(portfolioId: number, changeId: number, payload: PositionChangeUpdatePayload): Promise<PortfolioPositionChange> {
+  const response = await apiClient.put<PortfolioPositionChange>(`/api/portfolios/${portfolioId}/position-changes/${changeId}`, payload);
+  return response.data;
+}
+
 export async function listPortfolioCashFlows(portfolioId: number | null): Promise<PortfolioCashFlow[]> {
   const response = await apiClient.get<PortfolioCashFlow[]>(portfolioId ? `/api/portfolios/${portfolioId}/cash-flows` : "/api/portfolios/cash-flows");
   return response.data;

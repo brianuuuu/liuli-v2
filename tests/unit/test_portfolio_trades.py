@@ -352,3 +352,89 @@ def test_snapshot_failure_after_commit_still_returns_result(monkeypatch):
 
     assert result["cash_synced"] is True
     assert position_of(db, portfolio).quantity == 700
+
+
+def update_change(db: Session, portfolio: Portfolio, change_id: int, **overrides) -> dict:
+    from invest_assistant.modules.portfolio.schemas import PortfolioPositionChangeUpdate
+
+    payload = {"change_date": date.today()} | overrides
+    return service.update_position_change(db, portfolio.id, change_id, PortfolioPositionChangeUpdate(**payload))
+
+
+def test_update_change_fixes_labels_without_touching_position_or_cash():
+    db = make_session()
+    portfolio, stock = seed(db)
+    change = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0)["change"]
+    cash_before = cash_of(db, portfolio)
+
+    updated = update_change(
+        db, portfolio, change["id"], change_date=date.today() - timedelta(days=1), price=14.5, reason_type="personal", note="  补标  "
+    )
+
+    assert (updated["reason_type"], updated["note"], updated["price"], updated["price_source"]) == ("personal", "补标", 14.5, "manual")
+    assert updated["change_date"] == date.today() - timedelta(days=1)
+    assert updated["quantity_delta"] == -300
+    assert position_of(db, portfolio).quantity == 700
+    assert cash_of(db, portfolio) == pytest.approx(cash_before)
+
+
+def test_update_change_validates_input():
+    db = make_session()
+    portfolio, stock = seed(db)
+    change = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0)["change"]
+
+    with pytest.raises(ValueError, match="future"):
+        update_change(db, portfolio, change["id"], change_date=date.today() + timedelta(days=1))
+    with pytest.raises(ValueError, match="reason_type"):
+        update_change(db, portfolio, change["id"], reason_type="guess")
+    with pytest.raises(ValueError, match="positive"):
+        update_change(db, portfolio, change["id"], price=0)
+    other = Portfolio(name="实盘B", base_currency="CNY")
+    db.add(other)
+    db.commit()
+    assert update_change(db, other, change["id"]) is None
+
+
+def test_update_change_clearing_price_reestimates_from_position_quote():
+    db = make_session()
+    portfolio, stock = seed(db)
+    change = trade(db, portfolio, stock, side="sell", quantity=300, price=15.0)["change"]
+
+    updated = update_change(db, portfolio, change["id"], price=None, reason_type="personal")
+    assert (updated["price"], updated["price_source"]) == (10.0, "estimated")
+
+    updated = update_change(db, portfolio, change["id"], reason_type="corporate_action")
+    assert (updated["price"], updated["price_source"]) == (None, None)
+
+
+def test_update_change_relinks_advice_and_refreshes_execution():
+    db = make_session()
+    portfolio, stock = seed(db)
+    first = seed_advice_item(db, portfolio, stock, "reduce", feedback_id=1)
+    second = seed_advice_item(db, portfolio, stock, "reduce", feedback_id=2)
+    add_item = seed_advice_item(db, portfolio, stock, "add", feedback_id=3)
+    linked = trade(db, portfolio, stock, side="sell", quantity=200, reason_type="ai_advice", advice_item_id=first.id)["change"]
+    other = trade(db, portfolio, stock, side="sell", quantity=100, reason_type="personal")["change"]
+    for item in (first, second):
+        item.execution_status = "not_executed"
+    db.commit()
+
+    with pytest.raises(ValueError, match="direction"):
+        update_change(db, portfolio, other["id"], advice_item_id=add_item.id)
+    with pytest.raises(ValueError, match="already linked"):
+        update_change(db, portfolio, other["id"], advice_item_id=first.id)
+
+    # 关联建议时来源强制为 AI 建议；保存同一条关联不算重复关联
+    assert update_change(db, portfolio, linked["id"], advice_item_id=first.id)["advice_item_id"] == first.id
+    updated = update_change(db, portfolio, other["id"], reason_type="personal", advice_item_id=second.id)
+    assert (updated["reason_type"], updated["advice_item_id"]) == ("ai_advice", second.id)
+    db.refresh(second)
+    assert (second.execution_status, second.executed_quantity) == ("partial", 100)
+
+    # 取消关联但仍在适用交易日：first 按日期推断匹配这笔；改到前一天后不再匹配
+    update_change(db, portfolio, linked["id"], reason_type="personal")
+    db.refresh(first)
+    assert (first.execution_status, first.executed_quantity) == ("partial", 200)
+    update_change(db, portfolio, linked["id"], change_date=date.today() - timedelta(days=1), reason_type="personal")
+    db.refresh(first)
+    assert (first.execution_status, first.executed_quantity) == ("not_executed", 0)

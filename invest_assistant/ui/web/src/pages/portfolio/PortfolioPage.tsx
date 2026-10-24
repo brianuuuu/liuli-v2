@@ -34,7 +34,8 @@ import { PerformanceReview, type ReviewPeriod } from "./PerformanceReview";
 import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { TradeReview } from "./TradeReview";
 import { formatPercent, pnlColor, tooltipBackgroundColor } from "./portfolioFormat";
-import { adviceActionLabels, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
+import { PositionChangeEditModal } from "./PositionChangeEditModal";
+import { adviceCandidateLabel, reasonTypeLabels, reasonTypeOptions } from "./positionChangeLabels";
 import type {
   AdjustAdviceCandidate,
   Portfolio,
@@ -179,6 +180,7 @@ export function PortfolioPage() {
   const [positionModalOpen, setPositionModalOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<PortfolioPosition | null>(null);
   const [cashFlowModalOpen, setCashFlowModalOpen] = useState(false);
+  const [editingChange, setEditingChange] = useState<PortfolioPositionChange | null>(null);
   const [stockOptions, setStockOptions] = useState<{ value: number; label: string; searchText: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [portfolioForm] = Form.useForm<PortfolioFormValue>();
@@ -582,7 +584,13 @@ export function PortfolioPage() {
       ellipsis: { showTitle: false },
       render: (value?: string | null) => (value ? <Tooltip title={value} placement="topLeft">{value}</Tooltip> : null)
     },
-    { title: "记录时间", dataIndex: "created_at", width: 132, render: (value) => <span className="record-time">{formatRecordTime(value)}</span> }
+    { title: "记录时间", dataIndex: "created_at", width: 132, render: (value) => <span className="record-time">{formatRecordTime(value)}</span> },
+    {
+      title: "操作",
+      key: "actions",
+      width: 64,
+      render: (_, record) => <Button size="small" type="link" onClick={() => setEditingChange(record)}>编辑</Button>
+    }
   ];
 
   // 所有组合时在第二列标出每行属于哪个组合
@@ -1075,11 +1083,7 @@ export function PortfolioPage() {
                 options={directionalCandidates.map((item) => ({
                   value: item.id,
                   disabled: Boolean(item.linked_change),
-                  label: `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}${
-                    item.linked_change
-                      ? ` · 已关联 ${item.linked_change.change_date.slice(5)} ${item.linked_change.quantity_delta > 0 ? "+" : "−"}${Math.abs(item.linked_change.quantity_delta)}股`
-                      : item.price_low !== null && item.price_low !== undefined ? ` · ${item.price_low}—${item.price_high}` : ""
-                  }`
+                  label: adviceCandidateLabel(item)
                 }))}
               />
             </Form.Item>
@@ -1089,6 +1093,15 @@ export function PortfolioPage() {
           </Form.Item>
         </Form>
       </Modal>
+      <PositionChangeEditModal
+        change={editingChange}
+        portfolioName={editingChange ? portfolioNames.get(editingChange.portfolio_id) : undefined}
+        onClose={() => setEditingChange(null)}
+        onSaved={() => {
+          setEditingChange(null);
+          void positionChanges.refresh();
+        }}
+      />
       <Modal title="记录资金流水" open={cashFlowModalOpen} onCancel={() => setCashFlowModalOpen(false)} onOk={submitCashFlow} confirmLoading={saving} destroyOnClose>
         <Form form={cashFlowForm} layout="vertical">
           {!selectedPortfolioId ? (

@@ -26,6 +26,7 @@ from invest_assistant.modules.portfolio.schemas import (
     PortfolioCashUpdate,
     PortfolioCreate,
     PortfolioGroupCreate,
+    PortfolioPositionChangeUpdate,
     PortfolioPositionCreate,
     PortfolioReviewCreate,
     PortfolioTradeCreate,
@@ -351,6 +352,66 @@ def record_trade(db: Session, portfolio_id: int, payload: PortfolioTradeCreate) 
         "cash_synced": cash_flow is not None,
         "duplicate": False,
     }
+
+
+def update_position_change(db: Session, portfolio_id: int, change_id: int, payload: PortfolioPositionChangeUpdate) -> dict | None:
+    """修正一笔调仓的日期、价格、理由来源、关联建议和理由，供复盘补标来源、补关联建议。
+
+    股数和标的不能改：它们串着前后调仓的调整前后股数和当前持仓，记错了应再记一笔调仓纠正；
+    已同步的现金流水不跟着改，价格或日期改动带来的现金差额靠现金校准。"""
+    change = db.get(PortfolioPositionChange, change_id)
+    if change is None or change.portfolio_id != portfolio_id:
+        return None
+    reason_type = str(payload.reason_type or "").strip() or None
+    if reason_type is not None and reason_type not in REASON_TYPES:
+        raise ValueError(f"invalid reason_type: {reason_type}")
+    if payload.change_date > _today_shanghai():
+        raise ValueError("change_date cannot be in the future")
+    if payload.price is not None and payload.price <= 0:
+        raise ValueError("price must be positive")
+    advice_item_id = payload.advice_item_id
+    if advice_item_id is not None:
+        expected_action = "add" if change.quantity_delta > 0 else "reduce"
+        if adjust_advice.advice_item_action(db, advice_item_id) != expected_action:
+            raise ValueError("advice direction does not match trade side")
+        if advice_item_id != change.advice_item_id:
+            adjust_advice.validate_advice_link(db, advice_item_id, change.stock_id)
+        reason_type = "ai_advice"
+
+    if payload.price is not None:
+        change.price, change.price_source = payload.price, "manual"
+    elif reason_type == "corporate_action":
+        change.price, change.price_source = None, None
+    elif not (change.price_source == "estimated" and change.change_date == payload.change_date):
+        # 估算价只在日期变了或原来是手填价时重估，否则保留记录时的估值
+        position = db.scalar(
+            select(PortfolioPosition).where(
+                PortfolioPosition.portfolio_id == portfolio_id,
+                PortfolioPosition.stock_id == change.stock_id,
+            )
+        )
+        price = _estimate_change_price(db, change.stock_id, payload.change_date, position.current_price if position else None)
+        change.price, change.price_source = price, "estimated" if price is not None else None
+
+    affected_items = {item_id for item_id in (change.advice_item_id, advice_item_id) if item_id is not None}
+    affected_dates = {change.change_date, payload.change_date}
+    change.change_date = payload.change_date
+    change.reason_type = reason_type
+    change.advice_item_id = advice_item_id
+    change.note = str(payload.note or "").strip() or None
+    db.flush()
+    adjust_advice.refresh_stock_execution(db, change.stock_id, affected_items, affected_dates)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("advice item already linked") from None
+    return _position_change_dict(
+        change,
+        db.get(Stock, change.stock_id),
+        db.get(Portfolio, portfolio_id),
+        adjust_advice.advice_brief_by_item(db, {advice_item_id} if advice_item_id else set()),
+    )
 
 
 def _change_by_request_id(db: Session, request_id: str) -> PortfolioPositionChange | None:

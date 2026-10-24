@@ -158,3 +158,8 @@ assert.match(page, /separator=\{<Divider vertical \/>\}/);
 assert.match(page, /className="positions-brief"/);
 assert.match(page, /前五大/);
 assert.match(page, /最大单只/);
+// 调仓记录每行可编辑：日期、价格、来源、关联建议、理由；股数和标的不可改
+const changeEdit = fs.readFileSync(new URL("./PositionChangeEditModal.tsx", import.meta.url), "utf8");
+assert.match(page, /<PositionChangeEditModal/);
+assert.match(changeEdit, /updatePortfolioPositionChange/);
+assert.match(changeEdit, /股数和标的不能改/);
