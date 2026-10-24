@@ -1,4 +1,4 @@
-import type { Page, StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockTrendSnapshot, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
+import type { Page, StockCompareGroup, StockDailyBar, StockDashboard, StockDetail, StockPoolItem, StockScoreComparisonItem, StockScoreSnapshot, StockTrackRelation, StockTrendComparisonItem, StockTrendSnapshot, StockValuationComparisonItem, TagBinding, StockMaterial, StockMaterialPayload } from "../types/api";
 import { apiClient } from "./client";
 
 export type StockPoolPayload = {
@@ -138,6 +138,11 @@ export async function deleteStockTrend(trendId: number): Promise<{ deleted: bool
 
 export async function listStockScoreComparison(): Promise<StockScoreComparisonItem[]> {
   const response = await apiClient.get<StockScoreComparisonItem[]>("/api/stock-analysis/score-comparison");
+  return response.data;
+}
+
+export async function listStockTrendComparison(): Promise<StockTrendComparisonItem[]> {
+  const response = await apiClient.get<StockTrendComparisonItem[]>("/api/stock-analysis/trend-comparison");
   return response.data;
 }
 

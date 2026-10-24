@@ -3808,6 +3808,13 @@ body {
   font-weight: 600;
 }
 
+/* 趋势页：研究员建议的分组与标的池当前分组不同 */
+.stock-compare-suggest-change {
+  color: #d97706;
+  font-weight: 600;
+  cursor: help;
+}
+
 /* 排序状态看表头箭头即可，不给排序列铺底色 */
 .stock-compare-table .ant-table-thead > tr > th.ant-table-column-sort,
 .stock-compare-table .ant-table-tbody > tr > td.ant-table-column-sort {

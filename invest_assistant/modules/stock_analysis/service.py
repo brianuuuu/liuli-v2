@@ -1285,6 +1285,54 @@ def _score_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> di
     return row
 
 
+TREND_COMPARISON_FIELDS = (
+    "research_date",
+    "market_data_date",
+    "researcher_code",
+    "trend_level",
+    "suggested_group",
+    "priority_rank",
+    "main_track",
+    "company_position",
+    "stock_stage",
+    "remaining_upside",
+    "trend_duration",
+    "core_logic",
+    "primary_risk",
+    "next_verification",
+    "data_gaps",
+)
+
+
+def list_trend_comparison(db: Session) -> list[dict]:
+    """标的池各标的最新一份趋势研究，口径同评分、估值对比：没有趋势快照的标的字段全为 None。"""
+    rows = db.execute(
+        select(StockPoolItem, Stock)
+        .join(Stock, Stock.id == StockPoolItem.stock_id)
+        .order_by(StockPoolItem.updated_at.desc())
+    ).all()
+    return [_trend_comparison_dict(db, item, stock) for item, stock in rows]
+
+
+def _trend_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -> dict:
+    trend = db.scalar(
+        select(StockTrendSnapshot)
+        .where(StockTrendSnapshot.stock_id == item.stock_id)
+        .order_by(StockTrendSnapshot.research_date.desc(), StockTrendSnapshot.id.desc())
+        .limit(1)
+    )
+    return {
+        "stock_id": item.stock_id,
+        "symbol": stock.symbol,
+        "stock_code": stock.stock_code,
+        "stock_name": stock.stock_name,
+        "status": item.status,
+        "tracks": _active_track_summaries_for_stock(db, item.stock_id),
+        "trend_id": trend.id if trend else None,
+        **{field: getattr(trend, field) if trend else None for field in TREND_COMPARISON_FIELDS},
+    }
+
+
 def list_valuation_comparison(db: Session) -> list[dict]:
     rows = db.execute(
         select(StockPoolItem, Stock)

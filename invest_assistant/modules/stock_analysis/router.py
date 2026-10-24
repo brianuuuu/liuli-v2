@@ -19,6 +19,7 @@ from invest_assistant.modules.stock_analysis.schemas import (
     StockTrackRelationUpdate,
     StockTrendSnapshotCreate,
     StockTrendSnapshotRead,
+    StockTrendComparisonRead,
     StockValuationComparisonRead,
     StockMaterialCreate,
     StockMaterialUpdate,
@@ -164,6 +165,11 @@ def list_score_comparison(db: Session = Depends(get_db)) -> list:
 @router.get("/valuation-comparison", response_model=list[StockValuationComparisonRead])
 def list_valuation_comparison(db: Session = Depends(get_db)) -> list:
     return service.list_valuation_comparison(db)
+
+
+@router.get("/trend-comparison", response_model=list[StockTrendComparisonRead])
+def list_trend_comparison(db: Session = Depends(get_db)) -> list:
+    return service.list_trend_comparison(db)
 
 
 @router.get("/compare-groups", response_model=list[StockCompareGroupRead])

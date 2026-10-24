@@ -645,6 +645,32 @@ export type StockScoreComparisonItem = {
   created_at?: string | null;
 };
 
+/** 标的对比"趋势"页的一行：标的池每只标的的最新趋势研究，没有快照时 trend_id 为 null。 */
+export type StockTrendComparisonItem = {
+  stock_id: number;
+  symbol?: string | null;
+  stock_code?: string | null;
+  stock_name?: string | null;
+  status?: string;
+  tracks?: Pick<Track, "id" | "name" | "status">[];
+  trend_id?: number | null;
+  research_date?: string | null;
+  market_data_date?: string | null;
+  researcher_code?: string | null;
+  trend_level?: string | null;
+  suggested_group?: string | null;
+  priority_rank?: number | null;
+  main_track?: string | null;
+  company_position?: string | null;
+  stock_stage?: string | null;
+  remaining_upside?: string | null;
+  trend_duration?: string | null;
+  core_logic?: string | null;
+  primary_risk?: string | null;
+  next_verification?: string | null;
+  data_gaps?: string | null;
+};
+
 export type StockValuationComparisonItem = {
   stock_id: number;
   symbol?: string | null;

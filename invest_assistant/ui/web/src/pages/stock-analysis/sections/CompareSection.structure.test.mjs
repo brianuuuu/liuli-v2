@@ -32,3 +32,9 @@ assert.doesNotMatch(page, /横向比较/);
 // 评分 / 估值不自动插空格；分页统一每页 10 条、不显示条数切换
 assert.match(page, /autoInsertSpace=\{false\}/);
 assert.doesNotMatch(page, /showSizeChanger: true/);
+// 第三个页签"趋势"：最新趋势研究横向比，长文字进详情弹窗
+assert.match(page, /\{ value: "trend", label: "趋势" \}/);
+assert.match(page, /listStockTrendComparison/);
+assert.match(page, /趋势等级/);
+assert.match(page, /建议分组/);
+assert.match(page, /趋势研究/);

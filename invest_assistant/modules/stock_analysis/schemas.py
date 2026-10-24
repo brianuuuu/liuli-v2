@@ -181,6 +181,31 @@ class StockValuationComparisonRead(BaseModel):
     created_at: datetime | None = None
 
 
+class StockTrendComparisonRead(BaseModel):
+    stock_id: int
+    symbol: str | None = None
+    stock_code: str | None = None
+    stock_name: str | None = None
+    status: str | None = None
+    tracks: list[dict] = Field(default_factory=list)
+    trend_id: int | None = None
+    research_date: date | None = None
+    market_data_date: date | None = None
+    researcher_code: str | None = None
+    trend_level: str | None = None
+    suggested_group: str | None = None
+    priority_rank: int | None = None
+    main_track: str | None = None
+    company_position: str | None = None
+    stock_stage: str | None = None
+    remaining_upside: str | None = None
+    trend_duration: str | None = None
+    core_logic: str | None = None
+    primary_risk: str | None = None
+    next_verification: str | None = None
+    data_gaps: str | None = None
+
+
 class StockCompareGroupCreate(BaseModel):
     name: str
     track_id: int | None = None

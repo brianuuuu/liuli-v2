@@ -1,19 +1,48 @@
 import { EllipsisOutlined } from "@ant-design/icons";
-import { Button, Dropdown, Modal, Space, Table, Tooltip, message } from "antd";
+import { Button, Dropdown, Modal, Space, Table, Tooltip, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
 import ReactECharts from "echarts-for-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listKnowledgeResearchers } from "../../../api/knowledge";
-import { deleteStockScore, listStockScoreComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
+import { deleteStockScore, listStockScoreComparison, listStockTrendComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
 import { listTracks } from "../../../api/trackDiscovery";
 import { useLiuliTheme } from "../../../app/theme";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
-import type { StockScoreComparisonItem, StockValuationComparisonItem } from "../../../types/api";
+import type { StockScoreComparisonItem, StockTrendComparisonItem, StockValuationComparisonItem } from "../../../types/api";
+import { TREND_LEVELS, suggestedGroupLabel, trendLevelTone } from "../trendPresentation";
 import { poolStatusOptions } from "./shared";
+
+type CompareItem = StockScoreComparisonItem | StockValuationComparisonItem | StockTrendComparisonItem;
+
+// 趋势报告的两个枚举按报告里的顺序排序：公司地位由强到弱，日线位置按一轮行情的先后
+const COMPANY_POSITIONS = ["核心龙头", "核心受益", "高弹性受益", "普通受益", "概念映射"];
+const STOCK_STAGES = ["蓄势", "启动", "主升初期", "主升中期", "加速后段", "高潮", "退潮", "修复", "破位"];
+
+/** 按枚举顺序排序；没有趋势研究或取值不在枚举里的排在最后，不论升序降序 */
+function orderSorter(key: keyof StockTrendComparisonItem, order: readonly string[]) {
+  return (a: StockTrendComparisonItem, b: StockTrendComparisonItem, sortOrder?: "ascend" | "descend" | null) => {
+    const left = order.indexOf(String(a[key] ?? ""));
+    const right = order.indexOf(String(b[key] ?? ""));
+    if (left < 0 && right < 0) return 0;
+    if (left < 0) return sortOrder === "descend" ? -1 : 1;
+    if (right < 0) return sortOrder === "descend" ? 1 : -1;
+    return left - right;
+  };
+}
+
+// 趋势页的详情：表格只放短标签，整段文字在这里看
+const TREND_TEXT_FIELDS: { key: keyof StockTrendComparisonItem; label: string }[] = [
+  { key: "core_logic", label: "核心逻辑" },
+  { key: "remaining_upside", label: "剩余空间" },
+  { key: "trend_duration", label: "趋势持续" },
+  { key: "next_verification", label: "下一步验证" },
+  { key: "primary_risk", label: "主要风险" },
+  { key: "data_gaps", label: "数据缺口" }
+];
 
 // 叠加雷达图最多放几只：再多线条就缠在一起看不清
 const MAX_COMPARE = 4;
@@ -69,12 +98,14 @@ export function CompareSection() {
   const { resolvedMode } = useLiuliTheme();
   const comparison = useAsyncData(useCallback(listStockScoreComparison, []), []);
   const valuation = useAsyncData(useCallback(listStockValuationComparison, []), []);
+  const trend = useAsyncData(useCallback(listStockTrendComparison, []), []);
   const tracks = useAsyncData(useCallback(() => listTracks(), []), []);
   const researchers = useAsyncData(useCallback(listKnowledgeResearchers, []), []);
   const [activeTab, setActiveTab] = useState("score");
   const [trackFilter, setTrackFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [viewingScore, setViewingScore] = useState<StockScoreComparisonItem | null>(null);
+  const [viewingTrend, setViewingTrend] = useState<StockTrendComparisonItem | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
 
@@ -87,7 +118,7 @@ export function CompareSection() {
 
   const visibleTracks = useMemo(() => tracks.data.filter((track) => track.status !== "archived"), [tracks.data]);
 
-  const activeSourceRows = activeTab === "score" ? comparison.data : valuation.data;
+  const activeSourceRows: CompareItem[] = activeTab === "score" ? comparison.data : activeTab === "valuation" ? valuation.data : trend.data;
 
   const statusButtons = useMemo(() => {
     const counts = activeSourceRows.reduce((acc, item) => {
@@ -126,11 +157,11 @@ export function CompareSection() {
     return visibleTracks.find((track) => track.id === trackId)?.name || null;
   }, [trackFilter, visibleTracks]);
 
-  function matchesStatus(item: StockScoreComparisonItem | StockValuationComparisonItem) {
+  function matchesStatus(item: CompareItem) {
     return !statusFilter || item.status === statusFilter;
   }
 
-  function matchesTrackFilter(item: StockScoreComparisonItem | StockValuationComparisonItem) {
+  function matchesTrackFilter(item: CompareItem) {
     if (trackFilter === "all") return true;
     if (!trackFilter.startsWith("track:")) return true;
     const trackId = Number(trackFilter.slice("track:".length));
@@ -144,6 +175,10 @@ export function CompareSection() {
   const valuationRows = useMemo(
     () => valuation.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item)),
     [valuation.data, statusFilter, trackFilter]
+  );
+  const trendRows = useMemo(
+    () => trend.data.filter((item) => matchesStatus(item) && matchesTrackFilter(item)),
+    [trend.data, statusFilter, trackFilter]
   );
 
   const scoreRowKey = (record: StockScoreComparisonItem) => String(record.score_id || `stock-${record.stock_id}`);
@@ -270,6 +305,57 @@ export function CompareSection() {
     { title: "详情", width: 80, render: (_, record) => <Link to={`/stock-analysis/stocks/${record.stock_id}`}>详情</Link> }
   ];
 
+  const trendColumns: ColumnsType<StockTrendComparisonItem> = [
+    { title: "标的", dataIndex: "stock_name", fixed: "left", width: 150, render: (_, record) => renderStockLink(record) },
+    { title: "研究日期", dataIndex: "research_date", width: 108, render: (value) => value || <Typography.Text type="secondary">待研究</Typography.Text> },
+    { title: "研究员", dataIndex: "researcher_code", width: 120, render: (value) => researcherLabel(value) },
+    {
+      title: <Tooltip title="T0 最强，T5 最弱">趋势等级</Tooltip>,
+      dataIndex: "trend_level",
+      width: 104,
+      align: "center",
+      sorter: orderSorter("trend_level", TREND_LEVELS),
+      defaultSortOrder: "ascend",
+      render: (value) => (value ? <span className={`stock-trend-level ${trendLevelTone(value)}`}>{value}</span> : "-")
+    },
+    { title: "日线位置", dataIndex: "stock_stage", width: 104, sorter: orderSorter("stock_stage", STOCK_STAGES), render: (value) => value || "-" },
+    { title: "公司地位", dataIndex: "company_position", width: 112, sorter: orderSorter("company_position", COMPANY_POSITIONS), render: (value) => value || "-" },
+    { title: "主线赛道", dataIndex: "main_track", width: 120, ellipsis: true, render: (value) => value || "-" },
+    {
+      title: <Tooltip title="研究员建议的标的池分组，只是建议，不改标的池状态；与当前分组不同时标橙">建议分组</Tooltip>,
+      dataIndex: "suggested_group",
+      width: 100,
+      render: (value, record) => {
+        if (!value) return "-";
+        if (value === record.status) return suggestedGroupLabel(value);
+        const current = poolStatusOptions.find((item) => item.value === record.status)?.label || record.status || "-";
+        return (
+          <Tooltip title={`当前分组：${current}`}>
+            <span className="stock-compare-suggest-change">{suggestedGroupLabel(value)}</span>
+          </Tooltip>
+        );
+      }
+    },
+    {
+      title: <Tooltip title="该份研究里的 Top 5 跟踪顺序，不等于立即买入">Top 5</Tooltip>,
+      dataIndex: "priority_rank",
+      width: 84,
+      align: "center",
+      sorter: (a, b, sortOrder) => {
+        if (a.priority_rank == null && b.priority_rank == null) return 0;
+        if (a.priority_rank == null) return sortOrder === "descend" ? -1 : 1;
+        if (b.priority_rank == null) return sortOrder === "descend" ? 1 : -1;
+        return a.priority_rank - b.priority_rank;
+      },
+      render: (value) => (value == null ? "-" : `#${value}`)
+    },
+    {
+      title: "操作",
+      width: 72,
+      render: (_, record) => (record.trend_id ? <Button size="small" type="link" onClick={() => setViewingTrend(record)}>详情</Button> : "-")
+    }
+  ];
+
   const compareButton =
     activeTab === "score" ? (
       <Tooltip title={selectedScores.length < 2 ? `勾选 2–${MAX_COMPARE} 只标的后叠加对比六维雷达` : undefined}>
@@ -287,7 +373,8 @@ export function CompareSection() {
           <Space size={4} className="toolbar-tab-buttons">
             {[
               { value: "score", label: "评分" },
-              { value: "valuation", label: "估值" }
+              { value: "valuation", label: "估值" },
+              { value: "trend", label: "趋势" }
             ].map((item) => (
               <Button
                 key={item.value}
@@ -415,6 +502,44 @@ export function CompareSection() {
                 }))
               ]}
             />
+          </Modal>
+        </>
+      ) : activeTab === "trend" ? (
+        <>
+          <Table
+            rowKey="stock_id"
+            size="small"
+            className="stock-compare-table"
+            loading={trend.loading || tracks.loading}
+            dataSource={trendRows}
+            columns={trendColumns}
+            pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+            locale={{ emptyText: <EmptyAction description={emptyDescription(trend.data.length)} /> }}
+            scroll={{ x: 1100 }}
+          />
+          <Modal
+            title={`${viewingTrend?.stock_name || "标的"} 趋势研究`}
+            open={!!viewingTrend}
+            onCancel={() => setViewingTrend(null)}
+            footer={null}
+            width={720}
+            destroyOnHidden
+          >
+            {viewingTrend ? (
+              <div className="stock-score-detail-info">
+                <div className="stock-score-detail-meta">
+                  {viewingTrend.research_date || "-"}
+                  {viewingTrend.market_data_date ? `（行情截至 ${viewingTrend.market_data_date}）` : ""} · {researcherLabel(viewingTrend.researcher_code)} · 趋势等级{" "}
+                  <b>{viewingTrend.trend_level || "-"}</b> · {viewingTrend.stock_stage || "-"} · {viewingTrend.company_position || "-"}
+                </div>
+                {TREND_TEXT_FIELDS.filter((field) => viewingTrend[field.key]).map((field) => (
+                  <div key={field.key}>
+                    <strong>{field.label}</strong>
+                    <p>{String(viewingTrend[field.key])}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </Modal>
         </>
       ) : (
