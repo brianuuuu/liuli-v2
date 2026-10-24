@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.42**（2026-10-24）
+> 当前版本：**1.0.43**（2026-10-24）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -401,6 +401,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 | `stock_master.sync_stock_basic` | 同步股票基础库 | 手动 | — |
 | `stock_analysis.refresh_major_indices_realtime` | 刷新 A 股主要指数实时行情 | 手动 | — |
 | `stock_analysis.sync_daily_bars` | 同步标的日线行情（前复权 + MA） | 定时/手动 | `30 18 * * 1-5` |
+| `stock_analysis.sync_market_index_daily_bars` | 同步沪深300、中证500、创业板指日线（缓存不足约三年时补齐，否则从最后一天增量） | 定时/手动 | `25 18 * * 1-5` |
 | `stock_analysis.review_stock_events_deepseek` | AI 审核标的事件 | 手动 | — |
 | `disclosure_library.fetch_stock_announcements` | 按标的池拉取巨潮公告并转写信息流 | 定时/手动 | `30 8 * * *` |
 | `disclosure_library.download_file` | 下载公告财报文件 | 手动 | — |
@@ -769,6 +770,15 @@ portfolio_adjust_advice_item：每只持仓一条，含维持和等待
   维持 warning 须有新证据，连续 5 个交易日无新证据降级；风险代码命中率 ≥10 样本且 < 40% 时不得单凭它定 warning。
   推送：warning / severe 且相对上一份报告（同口径、同研究员、T 不晚于本次的最近一份有效报告）新出现或升级时，
   导入同时生成未读 alert_event；维持同级只入库不推送，仍参与命中率评估。
+大盘与整体仓位：
+  研究员经 MCP stock_analysis.get_index_daily_bars 取沪深300 日K，
+  按其中枢位置、年线方向和系统性风险定目标股票仓位区间（口径在 profile 第二节），
+  区间外每次最多调整总资产 5 个百分点，经个股增减持执行，主要因整体仓位产生的建议主信号为 cash_rebalance；
+  导入时 market_view 的 market_regime、market_risk 与 position_plan 的区间、direction 成列，market_view 原样存 market_view_json；
+    取值不合法或缺失退化为空，不让整份报告失败；调整前后的仓位仍由 cash_ratio_before / after 记录；
+  事后评估查询时现算、不落列：沪深300 自 T 起 5 / 20 / 60 日收益，净增持后 20 日涨超 1% 或净减持后跌超 1% 为 correct，
+    反向超过 1% 为 wrong；连续多份报告同一方向只算第一份；按 market_regime × direction 汇总胜率。
+  迁移脚本 tools/migrations/2026-10-24_adjust_advice_market_view.sql（只加列，须在重启服务前执行）。
 ```
 
 评估任务 `portfolio.evaluate_adjust_advice`（工作日 19:15，排在 18:30 日线同步之后，可重复执行，数据未到的条目下次补上）：
@@ -786,7 +796,7 @@ risk_verdict：20 日收益 - 沪深300 同期收益 < -3% 为 hit。
 信号大类、相对不调整的效果、评估日期等可推导项不落列，查询时计算。
 ```
 
-展示：Web"调仓复盘"页的"微操复盘"板块（20 日胜率、执行率、警示命中率、报告列表、信号表现表——样本不足 10 条置灰）。研究员经 MCP `portfolio.list_adjust_advice_reviews` 读取，评价由系统按固定口径计算，不由研究员自评。安卓端不做复盘，只在看板组合页列"最近建议"供记调仓：
+展示：Web"调仓复盘"页的"微操复盘"板块（20 日胜率、执行率、警示命中率、仓位方向胜率、报告列表、信号表现表、大盘判断表——样本不足 10 条置灰）。研究员经 MCP `portfolio.list_adjust_advice_reviews` 读取，评价由系统按固定口径计算，不由研究员自评。安卓端不做复盘，只在看板组合页列"最近建议"供记调仓：
 
 ```text
 范围：近 10 天有效报告里的 add / reduce 条目，最近 5 条，T 倒序；全组合口径的报告在选定组合时只给该组合持有标的的减持。
@@ -1240,6 +1250,7 @@ local_only 字段保留在配置结构中，当前代码未据此限制来源；
 market_radar.search_source_items      market_radar.get_hotwords        market_radar.get_tag_trend
 track_discovery.list_tracks           track_discovery.get_track_detail
 stock_analysis.list_pool              stock_analysis.get_stock_profile stock_analysis.get_daily_bars（≤ 800 根）
+stock_analysis.get_index_daily_bars（主要指数日K，≤ 800 根）
 knowledge_base.get_researcher_profile
 report_library.list_reports           report_library.read_report_content
 portfolio.get_overview                portfolio.list_position_changes（≤ 200）
@@ -1617,7 +1628,7 @@ id, portfolio_id, snapshot_date, total_value, position_market_value, cash_amount
 #### `portfolio_adjust_advice`：微操报告（一份一条）
 
 ```text
-id, portfolio_id, feedback_id, report_id, researcher_code, data_as_of_date, news_as_of, target_trade_date, has_opportunity, total_asset, cash, cash_ratio_before, cash_ratio_after, continuity_note, status, created_at
+id, portfolio_id, feedback_id, report_id, researcher_code, data_as_of_date, news_as_of, target_trade_date, has_opportunity, total_asset, cash, cash_ratio_before, cash_ratio_after, continuity_note, market_regime, market_risk, target_stock_ratio_low, target_stock_ratio_high, position_direction, market_view_json, status, created_at
 ```
 
 唯一：(feedback_id)

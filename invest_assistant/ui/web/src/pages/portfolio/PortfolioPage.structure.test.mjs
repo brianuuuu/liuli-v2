@@ -163,3 +163,8 @@ const changeEdit = fs.readFileSync(new URL("./PositionChangeEditModal.tsx", impo
 assert.match(page, /<PositionChangeEditModal/);
 assert.match(changeEdit, /updatePortfolioPositionChange/);
 assert.match(changeEdit, /股数和标的不能改/);
+// 调仓复盘加"大盘判断"分段与"仓位方向"指标
+assert.match(tradeReview, /\{ value: "market", label: "大盘判断"/);
+assert.match(tradeReview, /<MarketReviewTable/);
+assert.match(tradeReview, /label="仓位方向"/);
+assert.match(adjustAdvice, /export function MarketReviewTable/);

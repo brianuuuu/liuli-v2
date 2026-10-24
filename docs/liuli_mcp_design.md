@@ -183,6 +183,7 @@ track_discovery.list_tracks
 track_discovery.get_track_detail
 stock_analysis.get_stock_profile
 stock_analysis.get_daily_bars
+stock_analysis.get_index_daily_bars
 knowledge_base.get_researcher_profile
 report_library.list_reports
 report_library.read_report_content

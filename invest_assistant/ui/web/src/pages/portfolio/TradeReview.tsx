@@ -6,10 +6,12 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewData } from "../../types/api";
 import {
   AdviceReportList,
+  MarketReviewTable,
   RiskStatsTable,
   SignalStatsTable,
   adviceKpis,
   initialAdviceReviews,
+  marketReviewHint,
   riskStatsHint,
   signalStatsHint
 } from "./AdjustAdviceReview";
@@ -17,7 +19,7 @@ import { HintTitle } from "./HintTitle";
 import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { PositionChangeTable, initialPositionChangeReview, positionChangeHint, sourceWinRate } from "./PositionChangeReview";
 
-type StatsView = "changes" | "signals" | "risks";
+type StatsView = "changes" | "signals" | "risks" | "market";
 
 type TradeReviewProps = {
   portfolioId: number | null;
@@ -59,9 +61,10 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
   const statsViews: { value: StatsView; label: string; count: number }[] = [
     { value: "changes", label: "调仓来源", count: changeCount },
     { value: "signals", label: "信号表现", count: signalSamples },
-    { value: "risks", label: "风险警示", count: kpis.risk.samples }
+    { value: "risks", label: "风险警示", count: kpis.risk.samples },
+    { value: "market", label: "大盘判断", count: advice.data.market_review.rows.length }
   ];
-  const statsHint = statsView === "changes" ? positionChangeHint(changes.data.rules) : statsView === "signals" ? signalStatsHint : riskStatsHint;
+  const statsHint = statsView === "changes" ? positionChangeHint(changes.data.rules) : statsView === "signals" ? signalStatsHint : statsView === "risks" ? riskStatsHint : marketReviewHint;
 
   return (
     <div className="portfolio-dashboard trade-review">
@@ -101,6 +104,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
             <Kpi label="减持胜率" value={kpis.reduceRate.rate} note={kpis.reduceRate.samples} />
             <Kpi label="执行率" value={kpis.executed.rate} note={kpis.executed.note} />
             <Kpi label="警示命中率" value={kpis.risk.rate} note={kpis.risk.samples} />
+            <Kpi label="仓位方向" value={kpis.market.rate} note={kpis.market.samples} hint="整体仓位净增持 / 净减持方向按沪深300 20 日收益判定的胜率" />
             <Kpi label="待评估" value={kpis.pending.count} note={`${kpis.pending.count} / ${kpis.pending.total}`} />
           </div>
         </section>
@@ -126,6 +130,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
         {statsView === "changes" ? <PositionChangeTable data={changes.data} loading={changes.loading} /> : null}
         {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
         {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
+        {statsView === "market" ? <MarketReviewTable data={advice.data} /> : null}
       </section>
       <AdviceReportList data={advice.data} loading={advice.loading} />
     </div>

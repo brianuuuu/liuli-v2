@@ -47,6 +47,13 @@ TOOL_REGISTRY: dict[str, dict[str, object]] = {
         # 业务层 stock_analysis.service.DAILY_BAR_MAX_LIMIT 也要同步放宽，否则会被压回 100。
         "max_result_limit": 800,
     },
+    "stock_analysis.get_index_daily_bars": {
+        "read_only": True,
+        "risk_level": "low",
+        "service_name": "stock_analysis.service.list_cached_market_index_daily_bars",
+        # 与个股日线同一上限：算 MA250 和 500 日乖离分位要约三年日K
+        "max_result_limit": 800,
+    },
     "knowledge_base.get_researcher_profile": {
         "read_only": True,
         "risk_level": "low",

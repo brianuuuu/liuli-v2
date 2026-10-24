@@ -198,6 +198,71 @@ def list_market_index_daily_bars(
     return rows
 
 
+# 大盘研判用的指数：微操研究员按沪深300 定整体仓位，中证500、创业板指看风格分化
+MARKET_INDEX_SYNC_CODES = ("000300.SH", "000905.SH", "399006.SZ")
+
+
+def sync_market_index_daily_bars(db: Session, codes: tuple[str, ...] = MARKET_INDEX_SYNC_CODES, years: int = 3) -> JobResult:
+    """增量同步大盘指数日线。缓存不够 years 年时从头补齐，否则从最后一天重取（覆盖盘中写入的未收盘数据）。
+
+    算 MA250 和 500 日乖离分位要约三年日K，收益分析页只按需补一年，不够用。
+    """
+    today = date.today()
+    target_start = today - timedelta(days=366 * max(1, int(years)))
+    fetched = inserted = updated = 0
+    failures: list[str] = []
+    for code in codes:
+        normalized_code = _normalize_market_index_code(code)
+        first, last = db.execute(
+            select(func.min(MarketIndexDailyBar.trade_date), func.max(MarketIndexDailyBar.trade_date)).where(
+                MarketIndexDailyBar.code == normalized_code,
+                MarketIndexDailyBar.source == "tushare",
+            )
+        ).one()
+        # 起点前后有节假日，留 10 天余量，免得每天都从头重拉三年
+        start = target_start if first is None or first > target_start + timedelta(days=10) else last
+        try:
+            result = refresh_market_index_daily_bars(db, normalized_code, start_date=start, end_date=today)
+        except RuntimeError as exc:
+            db.rollback()
+            failures.append(f"{normalized_code}: {exc}")
+            continue
+        fetched += result.fetched_count
+        inserted += result.inserted_count
+        updated += result.updated_count
+    return JobResult(
+        success=not failures,
+        message="; ".join(failures) if failures else f"synced {len(codes)} indices",
+        fetched_count=fetched,
+        processed_count=len(codes) - len(failures),
+        inserted_count=inserted,
+        updated_count=updated,
+        extra={"failures": failures} if failures else None,
+    )
+
+
+def list_cached_market_index_daily_bars(
+    db: Session,
+    code: str,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    limit: int | None = 50,
+) -> list[MarketIndexDailyBar]:
+    """只读缓存的指数日K，取最近 limit 根、按日期正序，不触发 Tushare 拉取。只开放主要指数。"""
+    normalized_code = _normalize_market_index_code(code)
+    if normalized_code not in {item["code"] for item in MAJOR_A_SHARE_INDICES}:
+        raise ValueError(f"unsupported index code: {normalized_code}")
+    stmt = select(MarketIndexDailyBar).where(MarketIndexDailyBar.code == normalized_code, MarketIndexDailyBar.source == "tushare")
+    if start_date is not None:
+        stmt = stmt.where(MarketIndexDailyBar.trade_date >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(MarketIndexDailyBar.trade_date <= end_date)
+    safe_limit = normalize_limit(limit, maximum=DAILY_BAR_MAX_LIMIT)
+    rows = list(db.scalars(stmt.order_by(MarketIndexDailyBar.trade_date.desc(), MarketIndexDailyBar.id.desc()).limit(safe_limit)))
+    return list(reversed(rows))
+
+
 def _mark_major_indices_failed(db: Session, message: str) -> None:
     for item in MAJOR_A_SHARE_INDICES:
         _upsert_market_index_quote(db, item["code"], item["name"], status="failed", error_message=message)

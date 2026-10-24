@@ -62,6 +62,8 @@ RISK_LEVEL_RANK = {"none": 0, "watch": 1, "warning": 2, "severe": 3}
 RISK_LEVEL_LABELS = {"warning": "警示", "severe": "严重"}
 VALUE_ZONES = {"deep_below", "below", "around", "above", "far_above"}
 LONG_TRENDS = {"up", "flat", "down"}
+MARKET_REGIMES = {"uptrend", "range", "downtrend"}
+POSITION_DIRECTIONS = {"add", "reduce", "hold"}
 
 BENCHMARK_CODE = "000300.SH"
 HORIZONS = (5, 20, 60)
@@ -92,6 +94,13 @@ def import_advice(
         raise ValueError("微操报告缺少字段: items（必须是数组）")
     code = _optional_text(payload.get("researcher_code")) or _optional_text(researcher_code)
     snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
+    # 大盘与整体仓位判断是后加的选填项：缺失或取值不合法时退化为空，不让整份报告导入失败
+    market_view = payload.get("market_view") if isinstance(payload.get("market_view"), dict) else None
+    position_plan = payload.get("position_plan") if isinstance(payload.get("position_plan"), dict) else {}
+    ratio_low = _ratio_or_none(position_plan.get("target_stock_ratio_low"))
+    ratio_high = _ratio_or_none(position_plan.get("target_stock_ratio_high"))
+    if ratio_low is not None and ratio_high is not None and ratio_low > ratio_high:
+        ratio_low = ratio_high = None
     # 要在作废同日旧报告之前取：同日重导时，上一份就是被作废的那份
     previous_levels = _previous_risk_levels(db, portfolio_id, code, target_trade_date)
 
@@ -119,6 +128,12 @@ def import_advice(
         cash_ratio_before=_optional_float(payload.get("cash_ratio_before")),
         cash_ratio_after=_optional_float(payload.get("cash_ratio_after")),
         continuity_note=_optional_text(payload.get("continuity_note")),
+        market_regime=_enum_or_none(market_view.get("market_regime"), MARKET_REGIMES) if market_view else None,
+        market_risk=_enum_or_none(market_view.get("market_risk"), RISK_LEVELS) if market_view else None,
+        target_stock_ratio_low=ratio_low,
+        target_stock_ratio_high=ratio_high,
+        position_direction=_enum_or_none(position_plan.get("direction"), POSITION_DIRECTIONS),
+        market_view_json=json.dumps(market_view, ensure_ascii=False) if market_view else None,
         status="active",
     )
     db.add(advice)
@@ -450,12 +465,90 @@ def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, lim
             "增持收益 > +1% 或减持后跌超 1% 为 correct，反向超过 1% 为 wrong，其余 neutral。"
             "胜率只统计价格触及区间的建议，连续多日对同一标的的同方向未执行建议只算一次。"
             "warning 及以上警示 20 日跑输沪深300 超过 3% 为 hit。"
+            "整体仓位方向按沪深300 自 T 起 20 日收益判定：净增持后涨超 1% 或净减持后跌超 1% 为 correct，"
+            "连续多份报告同一方向只算第一份。"
         ),
         "summary": _summary(advices, items_by_advice),
         "reports": [_advice_dict(advice, items_by_advice[advice.id]) for advice in recent],
         "signal_stats": _signal_stats(advices, items_by_advice),
         "risk_stats": _risk_stats(advices, items_by_advice),
+        "market_review": _market_review(db, advices, {advice.id for advice in recent}),
     }
+
+
+def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids: set[int]) -> dict:
+    """大盘与整体仓位判断的事后表现：每份报告按沪深300 自 T 起的收益评估方向，查询时现算、不落列。
+
+    advices 按 T 正序；rows 只给最近几份（倒序），stats 用全部历史。
+    """
+    judged = [advice for advice in advices if advice.market_regime or advice.position_direction]
+    if not judged:
+        return {"rows": [], "stats": []}
+    bars = db.execute(
+        select(MarketIndexDailyBar.trade_date, MarketIndexDailyBar.close)
+        .where(MarketIndexDailyBar.code == BENCHMARK_CODE, MarketIndexDailyBar.trade_date >= min(a.target_trade_date for a in judged))
+        .order_by(MarketIndexDailyBar.trade_date.asc())
+    ).all()
+    trade_dates = [day for day, _close in bars]
+    closes = [close for _day, close in bars]
+
+    rows: list[dict] = []
+    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    last_direction: dict[int | None, str | None] = {}
+    for advice in judged:
+        returns = _index_returns(advice.target_trade_date, trade_dates, closes)
+        direction = advice.position_direction
+        row = {
+            "advice_id": advice.id,
+            "portfolio_id": advice.portfolio_id,
+            "target_trade_date": advice.target_trade_date,
+            "market_regime": advice.market_regime,
+            "market_risk": advice.market_risk,
+            "value_zone": _loads(advice.market_view_json).get("value_zone"),
+            "target_stock_ratio_low": advice.target_stock_ratio_low,
+            "target_stock_ratio_high": advice.target_stock_ratio_high,
+            "stock_ratio_before": round(1 - advice.cash_ratio_before, 4) if advice.cash_ratio_before is not None else None,
+            "stock_ratio_after": round(1 - advice.cash_ratio_after, 4) if advice.cash_ratio_after is not None else None,
+            "position_direction": direction,
+            **returns,
+            "verdict": _verdict(direction, returns["index_return_20d"]) if direction else None,
+            # 连续多份报告维持同一方向视为同一次判断，只算第一份，免得一段行情被重复计数
+            "counted": False,
+        }
+        if direction in DIRECTIONAL_ACTIONS and last_direction.get(advice.portfolio_id) != direction and row["verdict"]:
+            row["counted"] = True
+            grouped[(advice.market_regime or "unknown", direction)].append(row)
+        if direction:
+            last_direction[advice.portfolio_id] = direction
+        if advice.id in recent_ids:
+            rows.append(row)
+    stats = []
+    for (regime, direction), samples in sorted(grouped.items()):
+        sign = 1 if direction == "add" else -1
+        correct = sum(1 for sample in samples if sample["verdict"] == "correct")
+        stats.append(
+            {
+                "market_regime": regime,
+                "direction": direction,
+                "samples": len(samples),
+                "correct": correct,
+                "wrong": sum(1 for sample in samples if sample["verdict"] == "wrong"),
+                "win_rate": round(correct / len(samples), 4),
+                "avg_effect_20d": round(sum(sample["index_return_20d"] * sign for sample in samples) / len(samples), 6),
+            }
+        )
+    return {"rows": list(reversed(rows)), "stats": stats}
+
+
+def _index_returns(target: date, trade_dates: list[date], closes: list[float]) -> dict[str, float | None]:
+    result: dict[str, float | None] = {f"index_return_{horizon}d": None for horizon in HORIZONS}
+    start_index = bisect_left(trade_dates, target)
+    if start_index >= len(trade_dates) or not closes[start_index]:
+        return result
+    for horizon in HORIZONS:
+        if start_index + horizon < len(trade_dates):
+            result[f"index_return_{horizon}d"] = round(closes[start_index + horizon] / closes[start_index] - 1, 6)
+    return result
 
 
 def advice_dict(db: Session, advice: PortfolioAdjustAdvice) -> dict:
@@ -478,6 +571,15 @@ def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjust
         "target_trade_date": advice.target_trade_date,
         "has_opportunity": advice.has_opportunity,
         "continuity_note": advice.continuity_note,
+        # 研究员靠这几项接上一份的大盘判断（状态改判须连续确认）
+        "market_regime": advice.market_regime,
+        "market_risk": advice.market_risk,
+        "target_stock_ratio_low": advice.target_stock_ratio_low,
+        "target_stock_ratio_high": advice.target_stock_ratio_high,
+        "position_direction": advice.position_direction,
+        "cash_ratio_before": advice.cash_ratio_before,
+        "cash_ratio_after": advice.cash_ratio_after,
+        "market_view": _loads(advice.market_view_json) or None,
         "items": [_item_dict(item, stock) for item, stock in rows],
     }
 
@@ -830,6 +932,11 @@ def _optional_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _ratio_or_none(value: Any) -> float | None:
+    number = _optional_float(value)
+    return number if number is not None and 0 <= number <= 1 else None
 
 
 def _optional_int(value: Any) -> int | None:

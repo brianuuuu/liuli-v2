@@ -11,7 +11,28 @@ export const initialAdviceReviews: AdjustAdviceReviews = {
   summary: { report_count: 0, advice_count: 0, executed_count: 0, tracked_count: 0, pending_count: 0, alert_count: 0 },
   reports: [],
   signal_stats: { by_signal: [], by_category: [] },
-  risk_stats: []
+  risk_stats: [],
+  market_review: { rows: [], stats: [] }
+};
+
+const regimeLabels: Record<string, { label: string; color?: string }> = {
+  uptrend: { label: "上升", color: "red" },
+  range: { label: "震荡" },
+  downtrend: { label: "下降", color: "green" }
+};
+
+const valueZoneLabels: Record<string, string> = {
+  deep_below: "深度偏低",
+  below: "偏低",
+  around: "中枢附近",
+  above: "偏高",
+  far_above: "显著偏高"
+};
+
+const directionLabels: Record<string, { label: string; color?: string }> = {
+  add: { label: "净增持", color: "red" },
+  reduce: { label: "净减持", color: "green" },
+  hold: { label: "维持" }
 };
 
 const actionLabels: Record<string, { label: string; color?: string }> = {
@@ -98,8 +119,73 @@ export function adviceKpis(data: AdjustAdviceReviews) {
     reduceRate: actionWinRate(data.signal_stats.by_signal, "reduce"),
     executed: { rate: ratio(data.summary.executed_count, data.summary.tracked_count), note: `${data.summary.executed_count} / ${data.summary.tracked_count}` },
     risk: { rate: ratio(riskHits, riskSamples), samples: riskSamples },
-    pending: { count: data.summary.pending_count, total: data.summary.advice_count }
+    pending: { count: data.summary.pending_count, total: data.summary.advice_count },
+    market: marketWinRate(data)
   };
+}
+
+function marketWinRate(data: AdjustAdviceReviews) {
+  const samples = data.market_review.stats.reduce((sum, row) => sum + row.samples, 0);
+  const correct = data.market_review.stats.reduce((sum, row) => sum + row.correct, 0);
+  return { samples, rate: ratio(correct, samples) };
+}
+
+function formatRatio(value?: number | null) {
+  return value === null || value === undefined ? "-" : `${Math.round(value * 100)}%`;
+}
+
+export const marketReviewHint =
+  "研究员按沪深300 的中枢位置、年线方向和系统性风险给出目标股票仓位区间与整体方向；净增持后沪深300 20 日涨超 1%、净减持后跌超 1% 为对，连续多份同一方向只算第一份（灰色行未计入）。";
+
+/** 大盘判断：逐份报告列出状态、区间、方向与沪深300 之后的表现，表头下方按状态 × 方向汇总胜率 */
+export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
+  const { rows, stats } = data.market_review;
+  return (
+    <>
+      <Table
+        rowKey="advice_id"
+        size="small"
+        rowClassName={(row) => (row.counted || !row.position_direction || row.position_direction === "hold" ? "" : "market-review-uncounted")}
+        dataSource={rows}
+        pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+        locale={{ emptyText: "暂无大盘判断；新格式的微操报告导入后显示" }}
+        scroll={{ x: 980 }}
+        columns={[
+          { title: "适用交易日", dataIndex: "target_trade_date", width: 108 },
+          { title: "大盘状态", dataIndex: "market_regime", width: 88, render: (value) => labelTag(regimeLabels, value) },
+          { title: "系统风险", dataIndex: "market_risk", width: 88, render: (value) => (value && value !== "none" ? labelTag(riskLabels, value) : "-") },
+          { title: "沪深300位置", dataIndex: "value_zone", width: 100, render: (value?: string | null) => (value ? valueZoneLabels[value] || value : "-") },
+          {
+            title: "目标区间",
+            key: "target",
+            width: 96,
+            render: (_, row) => (row.target_stock_ratio_low == null ? "-" : `${formatRatio(row.target_stock_ratio_low)}—${formatRatio(row.target_stock_ratio_high)}`)
+          },
+          {
+            title: <Tooltip title="报告给出的调整前 → 调整后股票仓位（计划值）">股票仓位</Tooltip>,
+            key: "ratio",
+            width: 104,
+            render: (_, row) => (row.stock_ratio_before == null ? "-" : `${formatRatio(row.stock_ratio_before)} → ${formatRatio(row.stock_ratio_after)}`)
+          },
+          { title: "方向", dataIndex: "position_direction", width: 80, render: (value) => labelTag(directionLabels, value) },
+          { title: "沪深300 5日", dataIndex: "index_return_5d", width: 96, align: "right", render: formatReturn },
+          { title: "20日", dataIndex: "index_return_20d", width: 80, align: "right", render: formatReturn },
+          { title: "60日", dataIndex: "index_return_60d", width: 80, align: "right", render: formatReturn },
+          { title: "对错", dataIndex: "verdict", width: 64, align: "center", render: (value) => labelTag(verdictLabels, value) }
+        ]}
+      />
+      {stats.length ? (
+        <div className="market-review-stats">
+          {stats.map((row) => (
+            <span key={`${row.market_regime}-${row.direction}`}>
+              {regimeLabels[row.market_regime]?.label || "未标注"} · {directionLabels[row.direction]?.label}：
+              <b>{(row.win_rate * 100).toFixed(1)}%</b>（<SampleCount value={row.samples} /> 次）
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 /** 还没跑过评估（触及、执行、收益都为空）：评估列合成一格说明，不铺一排横线 */

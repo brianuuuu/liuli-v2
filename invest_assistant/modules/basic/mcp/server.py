@@ -92,6 +92,12 @@ MCP_TOOL_DESCRIPTIONS = {
         "该工具只读本地缓存，不触发行情刷新；不要把股票代码直接当 stock_id，"
         "缺少 ID 时先用 stock_analysis.list_pool 查询。limit 最多 800 根，更长周期请按日期分段取。"
     ),
+    "stock_analysis.get_index_daily_bars": (
+        "按指数代码查询本地缓存的大盘指数日 K，用于研判大盘中枢、年线方向和整体仓位。"
+        "index_code 默认 000300.SH（沪深300），支持 000001.SH、399001.SZ、399006.SZ、000688.SH、000905.SH；"
+        "沪深300、中证500、创业板指每个工作日收盘后同步约三年，其余指数只有按需缓存的数据。"
+        "只读本地缓存，不触发行情刷新；limit 最多 800 根，按日期正序返回。"
+    ),
     "knowledge_base.get_researcher_profile": (
         "读取完整研究员 profile，包括简介、价值观和方法论三段正文。"
         "支持 researcher 按展示名称、researcher_code 或 ID 精确匹配。"
@@ -133,7 +139,7 @@ MCP_TOOL_DESCRIPTIONS = {
     "portfolio.list_adjust_advice_reviews": (
         "读取最近 limit 份微操报告（默认 10）及系统事后评估：每只持仓的建议、是否触及价格区间、执行情况、"
         "5/20/60 日收益与对错、风险警示是否命中；另附基于全部历史的按方向+主信号、方向+信号大类的胜率，"
-        "以及按风险代码的警示命中率。portfolio_id 留空为全部组合。评估由系统按固定口径计算，只读。"
+        "以及按风险代码的警示命中率；每份报告带大盘状态、系统风险、目标股票仓位区间与整体方向，market_review 按沪深300 20 日收益评估整体仓位方向。portfolio_id 留空为全部组合。评估由系统按固定口径计算，只读。"
     ),
     "portfolio.get_overview": (
         "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持股数量、持仓市值、总资产、当日盈亏和持仓分布。"
@@ -343,6 +349,21 @@ def _register_tools(server: FastMCP) -> None:
             "stock_analysis.get_daily_bars",
             {"stock_id": stock_id, "start_date": _parse_optional_date(start_date), "end_date": _parse_optional_date(end_date), "limit": limit},
             stock_analysis.get_daily_bars,
+        )
+
+    @server.tool(name="stock_analysis.get_index_daily_bars", description=MCP_TOOL_DESCRIPTIONS["stock_analysis.get_index_daily_bars"])
+    def mcp_stock_analysis_get_index_daily_bars(
+        ctx: Context,
+        index_code: str = "000300.SH",
+        start_date: str | None = None,
+        end_date: str | None = None,
+        limit: int = 50,
+    ) -> dict:
+        return _run_tool(
+            ctx,
+            "stock_analysis.get_index_daily_bars",
+            {"index_code": index_code, "start_date": _parse_optional_date(start_date), "end_date": _parse_optional_date(end_date), "limit": limit},
+            stock_analysis.get_index_daily_bars,
         )
 
     @server.tool(name="knowledge_base.get_researcher_profile", description=MCP_TOOL_DESCRIPTIONS["knowledge_base.get_researcher_profile"])

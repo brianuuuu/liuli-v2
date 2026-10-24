@@ -113,3 +113,35 @@ def get_daily_bars(
         },
         handler=handler,
     )
+
+
+def get_index_daily_bars(
+    *,
+    db,
+    client: McpClientConfig,
+    index_code: str = "000300.SH",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    limit: int = 50,
+) -> dict:
+    def handler(session, index_code: str, start_date: date | None, end_date: date | None, limit: int):
+        return stock_service.list_cached_market_index_daily_bars(
+            session,
+            index_code,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+
+    return execute_read_tool(
+        db=db,
+        client=client,
+        tool_name="stock_analysis.get_index_daily_bars",
+        arguments={
+            "index_code": index_code,
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit,
+        },
+        handler=handler,
+    )

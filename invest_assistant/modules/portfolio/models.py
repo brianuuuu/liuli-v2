@@ -195,6 +195,14 @@ class PortfolioAdjustAdvice(Base):
     cash_ratio_before: Mapped[float | None] = mapped_column(Float, nullable=True)
     cash_ratio_after: Mapped[float | None] = mapped_column(Float, nullable=True)
     continuity_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 大盘与整体仓位判断（profile 第二节）：分组统计要用的成列，其余原样留在 market_view_json；老报告为空
+    market_regime: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    market_risk: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    target_stock_ratio_low: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_stock_ratio_high: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # add / reduce / hold：整体仓位方向，事后按沪深300 收益评估
+    position_direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    market_view_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # active / superseded：同组合、同研究员、同 T 重新导入时旧报告作废，统计只算 active
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -271,9 +279,20 @@ def ensure_portfolio_schema(engine: Engine) -> None:
             "client_request_id": "ALTER TABLE portfolio_position_change ADD COLUMN client_request_id VARCHAR(64)",
         }
         missing_change_alters = [ddl for name, ddl in change_alters.items() if change_columns and name not in change_columns]
-        if needs_change or has_cost_price or missing_change_alters:
+        advice_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(portfolio_adjust_advice)")).all()}
+        # 大盘与整体仓位判断是后加的列。Postgres 见 tools/migrations/2026-10-24_adjust_advice_market_view.sql
+        advice_alters = {
+            "market_regime": "ALTER TABLE portfolio_adjust_advice ADD COLUMN market_regime VARCHAR(16)",
+            "market_risk": "ALTER TABLE portfolio_adjust_advice ADD COLUMN market_risk VARCHAR(16)",
+            "target_stock_ratio_low": "ALTER TABLE portfolio_adjust_advice ADD COLUMN target_stock_ratio_low FLOAT",
+            "target_stock_ratio_high": "ALTER TABLE portfolio_adjust_advice ADD COLUMN target_stock_ratio_high FLOAT",
+            "position_direction": "ALTER TABLE portfolio_adjust_advice ADD COLUMN position_direction VARCHAR(8)",
+            "market_view_json": "ALTER TABLE portfolio_adjust_advice ADD COLUMN market_view_json TEXT",
+        }
+        missing_advice_alters = [ddl for name, ddl in advice_alters.items() if advice_columns and name not in advice_columns]
+        if needs_change or has_cost_price or missing_change_alters or missing_advice_alters:
             _backup_sqlite_database(engine)
-        for ddl in missing_change_alters:
+        for ddl in missing_change_alters + missing_advice_alters:
             conn.execute(text(ddl))
         for name, ddl in missing_alters.items():
             if name not in columns:

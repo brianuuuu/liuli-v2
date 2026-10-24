@@ -52,7 +52,7 @@
 - 请求没带 limit 时直接用上限；
 - 请求 limit 超过上限时，返回里 `truncated` 为 `true`。
 
-目前只有 `stock_analysis.get_daily_bars` 声明了工具级上限（800，约三年交易日）。
+目前只有 `stock_analysis.get_daily_bars` 和 `stock_analysis.get_index_daily_bars` 声明了工具级上限（800，约三年交易日）。
 
 详情类工具（`get_track_detail`、`get_stock_profile`、`get_researcher_profile`、`read_report_content`、`portfolio.get_overview`）不接受 limit，它们用各自的 `sections` / `history_limit` / `list_limit` 控制体积。
 
@@ -100,6 +100,7 @@
 | `stock_analysis.list_pool` | 只读 | low | 列表 | `stock_analysis.service.list_pool` |
 | `stock_analysis.get_stock_profile` | 只读 | low | 单体 | `stock_analysis.service.get_stock_detail` |
 | `stock_analysis.get_daily_bars` | 只读 | low | 列表 | `stock_analysis.service.list_cached_stock_daily_bars` |
+| `stock_analysis.get_index_daily_bars` | 只读 | low | 列表 | `stock_analysis.service.list_cached_market_index_daily_bars` |
 | `knowledge_base.get_researcher_profile` | 只读 | low | 单体 | `knowledge_base.service.get_researcher_profile_bundle` |
 | `knowledge_base.upload_research_feedback` | 写入 | medium | 单体 | `knowledge_base.service.upload_research_feedback` |
 | `report_library.list_reports` | 只读 | low | 分页 | `report_library.service.list_reports_page` |
@@ -336,6 +337,32 @@
 
 超过 800 根请按日期分段取。标的不存在抛 `[NOT_FOUND]`。
 
+### 4.8.1 stock_analysis.get_index_daily_bars
+
+读本地缓存的大盘指数日 K，**不触发行情刷新**，供组合微操研判大盘中枢与整体仓位。沪深300、中证500、创业板指由任务 `stock_analysis.sync_market_index_daily_bars` 每个工作日 18:25 增量同步，缓存不足时补齐约三年；其余主要指数只有按需缓存的数据。
+
+| 参数 | 类型 | 是否必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `index_code` | string | 否 | `"000300.SH"` | 只支持 `000001.SH`、`399001.SZ`、`399006.SZ`、`000688.SH`、`000300.SH`、`000905.SH`，大小写不敏感 |
+| `start_date` | string \| null | 否 | `null` | `YYYY-MM-DD` |
+| `end_date` | string \| null | 否 | `null` | `YYYY-MM-DD` |
+| `limit` | int | 否 | `50` | 取最近 N 个交易日，本工具上限 800 |
+
+#### 应答内容
+
+返回列表信封。
+
+| 字段路径 | 类型 | 说明 |
+|---|---|---|
+| `items[]` | object[] | 最近 limit 个交易日的指数日 K，按 `trade_date` 正序 |
+| `items[].code` / `name` | string | 指数代码与名称 |
+| `items[].trade_date` | string | 交易日期 |
+| `items[].open` / `high` / `low` / `close` / `pre_close` | number | 开、高、低、收、昨收点位（指数不复权） |
+| `items[].change` / `pct_chg` | number | 涨跌点数与涨跌幅 |
+| `items[].vol` / `amount` | number | 成交量与成交额 |
+
+均线不随指数日 K 下发，由调用方按收盘价自行计算。不支持的指数代码抛参数错误。
+
 ### 4.9 knowledge_base.get_researcher_profile
 
 读研究员 profile，含简介、价值观、方法论三段正文。
@@ -536,12 +563,15 @@
 |---|---|---|
 | `data.rules` | string | 评估口径说明 |
 | `data.summary` | object | 全部历史概况：`report_count`、`advice_count`（增持减持条数）、`executed_count`、`tracked_count`（已匹配执行的条数）、`pending_count`（尚无 20 日判定）、`alert_count` |
-| `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note` |
+| `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note`、`cash_ratio_before`、`cash_ratio_after` |
+| `data.reports[]` 大盘字段 | — | `market_regime`（uptrend / range / downtrend）、`market_risk`、`target_stock_ratio_low`、`target_stock_ratio_high`、`position_direction`（add / reduce / hold）、`market_view`（报告原样，含中枢、乖离分位、说明）；老报告为 `null` |
 | `data.reports[].items[]` | object[] | 每只持仓的建议：`stock_id`、`stock_code`、`stock_name`、`action`、`rating`、`quantity`、`price_low`、`price_high`、`primary_signal_code`、`value_zone`、`long_trend`、`bias60_pct`、`core_logic`、`history_note`、`risk_level`、`primary_risk_code`、`risk_summary` |
 | `data.reports[].items[]` 评估字段 | — | `trigger_status`（touched / not_touched / n_a）、`execution_status`（executed / partial / not_executed）、`executed_quantity`、`base_price`、`return_5d`、`return_20d`、`return_60d`、`benchmark_return_20d`、`verdict`（correct / wrong / neutral）、`risk_verdict`（hit / miss）；未到期为 `null` |
 | `data.signal_stats.by_signal[]` | object[] | 按 `action` + `signal_code` 汇总：`samples`、`correct`、`wrong`、`neutral`、`win_rate`、`avg_effect_20d` |
 | `data.signal_stats.by_category[]` | object[] | 按 `action` + `category`（value / allocation / risk / timing）汇总，字段同上 |
 | `data.risk_stats[]` | object[] | 按 `risk_code` 汇总 warning 及以上警示：`samples`、`hits`、`hit_rate` |
+| `data.market_review.rows[]` | object[] | 最近报告的大盘判断：上面的大盘字段 + `value_zone`、`stock_ratio_before/after`、沪深300 `index_return_5d/20d/60d`、`verdict`、`counted`（连续同方向只算第一份） |
+| `data.market_review.stats[]` | object[] | 全部历史按 `market_regime` + `direction` 汇总：`samples`、`correct`、`wrong`、`win_rate`、`avg_effect_20d` |
 
 胜率只统计价格触及区间的增持、减持；连续多份报告对同一标的的同方向未执行建议只算一次。
 

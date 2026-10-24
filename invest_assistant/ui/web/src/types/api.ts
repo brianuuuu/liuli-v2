@@ -1306,7 +1306,49 @@ export type AdjustAdviceReport = {
   target_trade_date: string;
   has_opportunity?: boolean | null;
   continuity_note?: string | null;
+  market_regime?: MarketRegime | null;
+  market_risk?: string | null;
+  target_stock_ratio_low?: number | null;
+  target_stock_ratio_high?: number | null;
+  position_direction?: PositionDirection | null;
+  cash_ratio_before?: number | null;
+  cash_ratio_after?: number | null;
+  market_view?: Record<string, unknown> | null;
   items: AdjustAdviceItem[];
+};
+
+export type MarketRegime = "uptrend" | "range" | "downtrend";
+export type PositionDirection = "add" | "reduce" | "hold";
+
+/** 一份报告的大盘与整体仓位判断，按沪深300 自 T 起的收益事后评估；查询时现算 */
+export type MarketReviewRow = {
+  advice_id: number;
+  portfolio_id?: number | null;
+  target_trade_date: string;
+  market_regime?: MarketRegime | null;
+  market_risk?: string | null;
+  value_zone?: string | null;
+  target_stock_ratio_low?: number | null;
+  target_stock_ratio_high?: number | null;
+  stock_ratio_before?: number | null;
+  stock_ratio_after?: number | null;
+  position_direction?: PositionDirection | null;
+  index_return_5d?: number | null;
+  index_return_20d?: number | null;
+  index_return_60d?: number | null;
+  verdict?: string | null;
+  /** 连续多份同方向只算第一份，未计入统计的为 false */
+  counted: boolean;
+};
+
+export type MarketReviewStat = {
+  market_regime: MarketRegime | "unknown";
+  direction: "add" | "reduce";
+  samples: number;
+  correct: number;
+  wrong: number;
+  win_rate: number;
+  avg_effect_20d: number;
 };
 
 export type AdjustAdviceWinRateRow = {
@@ -1337,6 +1379,7 @@ export type AdjustAdviceReviews = {
     by_category: AdjustAdviceWinRateRow[];
   };
   risk_stats: { risk_code: string; samples: number; hits: number; hit_rate: number }[];
+  market_review: { rows: MarketReviewRow[]; stats: MarketReviewStat[] };
 };
 
 export type AnyRecord = Record<string, unknown>;

@@ -999,13 +999,32 @@ body {
 /* 调仓复盘：指标分"实际调仓""AI 建议"两组，一行排开；组名在每组左侧竖列，指标只占三行 */
 .review-kpi-strip {
   display: grid;
-  /* 组名 + 2 个指标 | 组名 + 5 个指标：7 个指标列等宽，数值在同一条竖线上 */
-  grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto repeat(5, minmax(0, 1fr));
+  /* 组名 + 2 个指标 | 组名 + 6 个指标：8 个指标列等宽，数值在同一条竖线上 */
+  grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto repeat(6, minmax(0, 1fr));
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
   border-radius: 7px;
   background: var(--ll-panel);
+}
+
+/* 大盘判断：连续同方向未计入统计的报告淡化；表下按状态 × 方向汇总胜率 */
+.market-review-uncounted > td {
+  color: var(--ll-muted);
+}
+
+.market-review-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--ll-border-soft);
+  color: var(--ll-muted);
+  font-size: 13px;
+}
+
+.market-review-stats b {
+  color: var(--ll-text);
 }
 
 .review-kpi-group,

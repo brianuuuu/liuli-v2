@@ -15,6 +15,17 @@
 
 ---
 
+## 1.0.43 — 2026-10-24
+
+- **变更**：组合微操大师（portfolio_001）方法论新增"研判大盘走势与整体仓位"一节（原第二至九节顺延）。按沪深300 的中枢位置、年线方向判断大盘状态（上升 / 震荡 / 下降，改判须连续 3 日确认），叠加系统性风险级别，得出目标股票仓位区间；区间外每次最多调整总资产 5 个百分点，经个股增减持执行（主信号 `cash_rebalance`）。报告结论后加一行大盘与整体仓位判断，JSON 新增 `market_view`、`position_plan`。
+- **原因**：原方法论只看个股，整体仓位长期接近满仓，没有随大盘位置和风险调整的依据；沪深300 日线原来只在打开收益分析页时按需补一年，不够算年线和 500 日分位。
+- **变更（复盘）**：微操报告导入时 `market_view`、`position_plan` 落库；`list_adjust_advice_reviews` 每份报告带大盘判断，新增 `market_review`（沪深300 20 日收益评估整体仓位方向，按大盘状态 × 方向汇总胜率）；研究员据此接上一份的大盘状态。
+- **变更（数据）**：新增定时任务 `stock_analysis.sync_market_index_daily_bars`（工作日 18:25，排在 19:15 微操评估之前），增量同步沪深300、中证500、创业板指日线，缓存不足约三年时补齐；新增只读 MCP 工具 `stock_analysis.get_index_daily_bars`（≤ 800 根，只读缓存），方法论改为用它取指数日K。
+- **影响**：研究员 profile 与报告格式；MCP 新增只读工具，研究员客户端需在 `allowed_tools` 中加入 `stock_analysis.get_index_daily_bars`；任务中心新增一个定时任务；Web 调仓复盘新增"大盘判断"分段和"仓位方向"指标；Android 不变。
+- **数据库**：`portfolio_adjust_advice` 新增 `market_regime`、`market_risk`、`target_stock_ratio_low`、`target_stock_ratio_high`、`position_direction`、`market_view_json` 六个可空列；线上须在重启服务前执行 `tools/migrations/2026-10-24_adjust_advice_market_view.sql`，本地 SQLite 启动时自动补列（补前备份）。
+
+---
+
 ## 1.0.42 — 2026-10-24
 
 - **变更**：

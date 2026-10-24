@@ -15,6 +15,7 @@ from invest_assistant.services.deepseek import client as deepseek_client
 REVIEW_STOCK_EVENTS_JOB_NAME = "stock_analysis.review_stock_events_deepseek"
 SYNC_DAILY_BARS_JOB_NAME = "stock_analysis.sync_daily_bars"
 REFRESH_MAJOR_INDICES_JOB_NAME = "stock_analysis.refresh_major_indices_realtime"
+SYNC_MARKET_INDEX_DAILY_BARS_JOB_NAME = "stock_analysis.sync_market_index_daily_bars"
 DEFAULT_STOCK_EVENT_REVIEW_MODEL = "deepseek-v4-pro"
 DEFAULT_REVIEW_BATCH_SIZE = 20
 DEFAULT_REVIEW_MAX_ITEMS = 100
@@ -245,6 +246,14 @@ def refresh_major_indices_realtime_job(**kwargs) -> JobResult:
         db.close()
 
 
+def sync_market_index_daily_bars_job(years: int = 3, **kwargs) -> JobResult:
+    db = SessionLocal()
+    try:
+        return stock_service.sync_market_index_daily_bars(db, years=_positive_int(years, 3))
+    finally:
+        db.close()
+
+
 JOBS = [
     JobDefinition(
         job_name=REFRESH_MAJOR_INDICES_JOB_NAME,
@@ -276,6 +285,20 @@ JOBS = [
             "max_stocks": {"type": "number", "label": "最多标的", "default": 200, "min": 1},
         },
         tags=["stock_analysis", "daily_bar", "tushare"],
+    ),
+    JobDefinition(
+        job_name=SYNC_MARKET_INDEX_DAILY_BARS_JOB_NAME,
+        module_name="stock_analysis",
+        display_name="同步大盘指数日线",
+        description="增量同步沪深300、中证500、创业板指日线（缓存不足时补齐约三年），供微操研判大盘和复盘评估使用",
+        handler=sync_market_index_daily_bars_job,
+        trigger_type="both",
+        # 排在 19:15 微操评估之前，评估数交易日要用沪深300 日线
+        cron_expr="25 18 * * 1-5",
+        timeout_seconds=300,
+        max_retries=1,
+        params_schema={"years": {"type": "number", "label": "补齐年数", "default": 3, "min": 1}},
+        tags=["stock_analysis", "market_index", "tushare"],
     ),
     JobDefinition(
         job_name=REVIEW_STOCK_EVENTS_JOB_NAME,
