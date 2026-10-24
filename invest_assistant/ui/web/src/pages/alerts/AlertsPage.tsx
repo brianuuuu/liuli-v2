@@ -21,7 +21,13 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Page } from "../../types/api";
 
 const EVENT_PAGE_SIZE = 20;
-const HANDLED_STATUSES = ["read", "handled"];
+type StatusFilter = "all" | "unread" | "read";
+// "已读"含已读和已处理：两者都是看过的事件，用户不区分
+const STATUS_FILTERS: Record<StatusFilter, string[] | undefined> = {
+  all: undefined,
+  unread: ["unread"],
+  read: ["read", "handled"]
+};
 
 const emptyEventPage: Page<Record<string, unknown>> = {
   items: [],
@@ -37,17 +43,16 @@ export function AlertsPage() {
   const [activeTab, setActiveTab] = useState("events");
   const [eventPage, setEventPage] = useState(1);
   const [eventPageSize, setEventPageSize] = useState(EVENT_PAGE_SIZE);
-  // 停在规则页时不该重新拉事件，所以只用状态过滤本身作为依赖，而不是 activeTab。
-  const handledOnly = activeTab === "handled";
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const events = useAsyncData(
     useCallback(
       async () =>
         listAlertEvents({
           limit: eventPageSize,
           offset: (eventPage - 1) * eventPageSize,
-          ...(handledOnly ? { status: HANDLED_STATUSES } : {})
+          ...(STATUS_FILTERS[statusFilter] ? { status: STATUS_FILTERS[statusFilter] } : {})
         }),
-      [handledOnly, eventPage, eventPageSize]
+      [statusFilter, eventPage, eventPageSize]
     ),
     emptyEventPage
   );
@@ -62,8 +67,8 @@ export function AlertsPage() {
     await Promise.all([events.refresh(), stats.refresh()]);
   }
 
-  function switchTab(nextTab: string) {
-    setActiveTab(nextTab);
+  function switchStatus(nextStatus: StatusFilter) {
+    setStatusFilter(nextStatus);
     setEventPage(1);
   }
 
@@ -154,6 +159,11 @@ export function AlertsPage() {
   ];
 
   const unreadCount = stats.data.unread;
+  const statusViews: { value: StatusFilter; label: string; count: number }[] = [
+    { value: "all", label: "全部", count: stats.data.total },
+    { value: "unread", label: "未读", count: unreadCount },
+    { value: "read", label: "已读", count: stats.data.read + stats.data.handled }
+  ];
   const actions = activeTab === "events" && unreadCount ? <Button onClick={handleReadAllEvents}>一键已读</Button> : null;
   const eventPagination = {
     current: eventPage,
@@ -170,27 +180,35 @@ export function AlertsPage() {
   return (
     <>
       <PageHeader title="预警中心" description="事件 / 规则 / 处理" actions={actions} />
-      <ModuleTabs activeKey={activeTab} items={moduleTabs.alerts} onChange={switchTab} />
+      <ModuleTabs activeKey={activeTab} items={moduleTabs.alerts} onChange={setActiveTab} />
       {activeTab === "rules" ? (
         <RecordTable loading={rules.loading} data={rules.data} columns={ruleColumns} emptyText="暂无预警规则" drawerTitle="规则详情" />
-      ) : activeTab === "handled" ? (
-        <RecordTable
-          loading={events.loading}
-          data={events.data.items}
-          columns={eventColumns}
-          emptyText="暂无处理记录"
-          drawerTitle="处理记录详情"
-          pagination={eventPagination}
-        />
       ) : (
-        <RecordTable
-          loading={events.loading}
-          data={events.data.items}
-          columns={eventColumns}
-          emptyText="暂无预警事件"
-          drawerTitle="预警事件详情"
-          pagination={eventPagination}
-        />
+        // 状态切换作为表格框的顶栏，与组合管理的分段表格同一写法
+        <section className="tabbed-table-panel">
+          <div className="data-panel-toolbar tabbed-table-toolbar">
+            <Space size={4} className="toolbar-status-buttons">
+              {statusViews.map((item) => (
+                <Button
+                  key={item.value}
+                  size="small"
+                  className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => switchStatus(item.value)}
+                >
+                  {item.label} ({item.count})
+                </Button>
+              ))}
+            </Space>
+          </div>
+          <RecordTable
+            loading={events.loading}
+            data={events.data.items}
+            columns={eventColumns}
+            emptyText={statusFilter === "unread" ? "没有未读预警" : "暂无预警事件"}
+            drawerTitle="预警事件详情"
+            pagination={eventPagination}
+          />
+        </section>
       )}
     </>
   );

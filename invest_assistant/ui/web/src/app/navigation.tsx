@@ -56,8 +56,7 @@ export const moduleTabs: Record<string, { key: string; label: string }[]> = {
   ],
   alerts: [
     { key: "events", label: "预警事件" },
-    { key: "rules", label: "预警规则" },
-    { key: "handled", label: "预警复盘" }
+    { key: "rules", label: "预警规则" }
   ],
   portfolio: [
     { key: "portfolios", label: "组合看板" },

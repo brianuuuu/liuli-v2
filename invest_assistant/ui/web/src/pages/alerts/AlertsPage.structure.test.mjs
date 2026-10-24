@@ -26,3 +26,9 @@ assert.match(api, /\/api\/alerts\/events\/\$\{eventId\}/);
 assert.match(api, /\/api\/alerts\/rules\/\$\{ruleId\}\/enable/);
 assert.match(api, /\/api\/alerts\/rules\/\$\{ruleId\}\/disable/);
 assert.match(api, /\/api\/alerts\/rules\/\$\{ruleId\}/);
+// 预警复盘只是"已读"筛选，与预警事件重复，已并入事件页的状态切换
+const navigation = readFileSync("invest_assistant/ui/web/src/app/navigation.tsx", "utf8");
+assert.doesNotMatch(navigation, /预警复盘/);
+assert.doesNotMatch(page, /activeTab === "handled"/);
+assert.match(page, /STATUS_FILTERS/);
+assert.match(page, /label: "未读"/);
