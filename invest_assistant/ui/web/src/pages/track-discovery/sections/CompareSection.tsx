@@ -160,7 +160,8 @@ export function CompareSection() {
     ...SCORE_DIMENSIONS.map((dimension) => ({
       title: dimension.label,
       dataIndex: dimension.key as string,
-      width: dimension.label.length > 4 ? 96 : 86,
+      // 表头字数 × 14px + 排序图标 + 内边距，再窄就折成两行
+      width: dimension.label.length > 4 ? 120 : 106,
       align: "right" as const,
       sorter: scoreSorter(dimension.key),
       render: (value: number | null) => renderDimensionScore(value)
@@ -175,7 +176,7 @@ export function CompareSection() {
     {
       title: <Tooltip title="赛道绑定标签的 7 日资讯热度合计，与研究员打的资金热度不是一回事">资讯热度</Tooltip>,
       dataIndex: "current_heat",
-      width: 88,
+      width: 106,
       align: "right",
       sorter: (a, b) => a.current_heat - b.current_heat,
       render: (value: number) => (value ? value.toFixed(1) : <Typography.Text type="secondary">0</Typography.Text>)
@@ -240,7 +241,7 @@ export function CompareSection() {
           })
         }}
         pagination={{ defaultPageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-        scroll={{ x: 1380 }}
+        scroll={{ x: 1560 }}
         locale={{ emptyText: <EmptyAction description="暂无赛道，先在赛道库新建赛道" /> }}
       />
       <Modal
