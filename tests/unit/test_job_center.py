@@ -120,10 +120,10 @@ def test_worker_recovers_stale_running_request():
     db = SessionLocal()
     try:
         sync_job_definitions(db)
-        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one()
         config.config_json = {**config.config_json, "timeout_seconds": 1}
         request = JobRunRequest(
-            job_name="market_radar.fetch_news",
+            job_name="market_radar.fetch_futu_news",
             params_json="{}",
             status="running",
             started_at=utc_now() - timedelta(seconds=10),
@@ -146,7 +146,7 @@ def test_worker_registers_and_removes_enabled_schedule_jobs():
     scheduler = build_job_scheduler()
     try:
         sync_job_definitions(db)
-        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one()
         config.config_json = {
             "enabled": True,
             "execution_mode": "schedule",
@@ -160,14 +160,14 @@ def test_worker_registers_and_removes_enabled_schedule_jobs():
         db.commit()
 
         sync_scheduled_jobs(scheduler, db)
-        scheduled = scheduler.get_job("job-center:market_radar.fetch_news")
+        scheduled = scheduler.get_job("job-center:market_radar.fetch_futu_news")
         assert scheduled is not None
         assert scheduled.name == "*/5 * * * *"
 
         config.config_json = {**config.config_json, "enabled": False}
         db.commit()
         sync_scheduled_jobs(scheduler, db)
-        assert scheduler.get_job("job-center:market_radar.fetch_news") is None
+        assert scheduler.get_job("job-center:market_radar.fetch_futu_news") is None
     finally:
         db.close()
 
@@ -178,7 +178,7 @@ def test_worker_replaces_schedule_job_when_cron_changes():
     scheduler = build_job_scheduler()
     try:
         sync_job_definitions(db)
-        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one()
         config.config_json = {
             "enabled": True,
             "execution_mode": "schedule",
@@ -196,7 +196,7 @@ def test_worker_replaces_schedule_job_when_cron_changes():
         db.commit()
         sync_scheduled_jobs(scheduler, db)
 
-        scheduled = scheduler.get_job("job-center:market_radar.fetch_news")
+        scheduled = scheduler.get_job("job-center:market_radar.fetch_futu_news")
         assert scheduled is not None
         assert scheduled.name == "*/10 * * * *"
     finally:
@@ -223,7 +223,7 @@ def test_update_job_schedule_config_without_definition_fields():
     client.post("/api/jobs/sync-definitions", headers=headers)
 
     response = client.put(
-        "/api/jobs/market_radar.fetch_news",
+        "/api/jobs/market_radar.fetch_futu_news",
         json={
             "config_json": {
                 "enabled": True,
@@ -259,7 +259,7 @@ def test_sync_definitions_keeps_user_runtime_config():
     headers = login_headers(client)
     client.post("/api/jobs/sync-definitions", headers=headers)
     client.put(
-        "/api/jobs/market_radar.fetch_news",
+        "/api/jobs/market_radar.fetch_futu_news",
         json={
             "config_json": {
                 "enabled": False,
@@ -276,7 +276,7 @@ def test_sync_definitions_keeps_user_runtime_config():
     )
 
     sync_response = client.post("/api/jobs/sync-definitions", headers=headers)
-    response = client.get("/api/jobs/market_radar.fetch_news", headers=headers)
+    response = client.get("/api/jobs/market_radar.fetch_futu_news", headers=headers)
 
     assert sync_response.status_code == 200
     assert response.status_code == 200
@@ -306,9 +306,9 @@ def test_job_config_json_is_source_for_configuration_form():
             "max_retries": 2,
         }
     }
-    update_response = client.put("/api/jobs/market_radar.fetch_news", json=payload, headers=headers)
+    update_response = client.put("/api/jobs/market_radar.fetch_futu_news", json=payload, headers=headers)
     client.post("/api/jobs/sync-definitions", headers=headers)
-    get_response = client.get("/api/jobs/market_radar.fetch_news", headers=headers)
+    get_response = client.get("/api/jobs/market_radar.fetch_futu_news", headers=headers)
 
     assert update_response.status_code == 200
     assert get_response.status_code == 200

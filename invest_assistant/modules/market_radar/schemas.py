@@ -48,18 +48,6 @@ class SentimentImportItem(BaseModel):
     important: bool = Field(default=False, description="是否值得重点关注，标记后进入“重要”")
 
 
-class MarketFlashSyncCreate(BaseModel):
-    limit: int = 100
-
-
-class MarketFlashSyncResult(BaseModel):
-    success: bool
-    message: str = ""
-    fetched_count: int = 0
-    inserted_count: int = 0
-    skipped_count: int = 0
-
-
 class SourceTagRead(BaseModel):
     id: int
     source_item_id: int

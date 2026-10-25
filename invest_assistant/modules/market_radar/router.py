@@ -12,8 +12,6 @@ from invest_assistant.modules.market_radar.schemas import (
     AiTagSuggestionRead,
     HotwordCreate,
     HotwordRead,
-    MarketFlashSyncCreate,
-    MarketFlashSyncResult,
     SourceItemCreate,
     SourceItemRead,
     TagBindingCreate,
@@ -23,7 +21,6 @@ from invest_assistant.modules.market_radar.schemas import (
     TagRead,
     TagUpdate,
 )
-from invest_assistant.modules.basic.job_center.dispatcher import execute_job
 from invest_assistant.shared.pagination import Page
 
 router = APIRouter(prefix="/api/market-radar", tags=["market_radar"], dependencies=[Depends(get_current_user)])
@@ -72,18 +69,6 @@ def source_item_daily_stats(target_date: date | None = None, db: Session = Depen
 @router.post("/source-items", response_model=SourceItemRead)
 def create_source_item(payload: SourceItemCreate, db: Session = Depends(get_db)):
     return service.create_source_item(db, payload)
-
-
-@router.post("/source-items/sync-cls", response_model=MarketFlashSyncResult)
-def sync_cls_market_flashes(payload: MarketFlashSyncCreate, db: Session = Depends(get_db)):
-    result = execute_job(db, "market_radar.fetch_news", {"limit": payload.limit}, "manual")
-    return MarketFlashSyncResult(
-        success=result.success,
-        message=result.message,
-        fetched_count=result.fetched_count,
-        inserted_count=result.inserted_count,
-        skipped_count=result.skipped_count,
-    )
 
 
 @router.get("/source-items/{source_item_id}", response_model=SourceItemRead)

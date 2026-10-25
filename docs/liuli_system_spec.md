@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.43**（2026-10-24）
+> 当前版本：**1.0.44**（2026-10-25）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -277,7 +277,6 @@ MCP_PUBLIC_BASE_URL          MCP 对外地址，推导 host/origin 校验
 | 标的日线（前复权）、主要指数日线 | Tushare | `services/tushare` | `stock_analysis` |
 | 实时行情（持仓、主要指数） | Tushare 实时行情 | `services/tushare` | `portfolio`、`stock_analysis` |
 | 公告 | 巨潮资讯 | `disclosure_library/cninfo_client.py` | `basic/disclosure_library` |
-| 财联社快讯 | AkShare | `services/akshare` | `market_radar` |
 | 富途快讯 | 富途官网快讯接口（直连，15 秒超时，按 `seqMark` 翻页，带 `level` 重要标记） | `market_radar/futu_client.py` | `market_radar` |
 | 东方财富个股新闻 | AkShare | `services/akshare` | `market_radar` |
 | 社交媒体舆情（雪球 / 微博 / 知乎 / 股吧） | 外部程序经 MCP 批量导入 | `market_radar.import_sentiment_items` | `market_radar` |
@@ -407,7 +406,6 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 | `disclosure_library.download_file` | 下载公告财报文件 | 手动 | — |
 | `disclosure_library.parse_pdf` | 解析公告财报文件 | 手动 | — |
 | `market_radar.fetch_stock_news` | 抓取东方财富个股新闻 | 定时/手动 | `0 8 * * *` |
-| `market_radar.fetch_news` | 抓取财联社快讯 | 定时/手动 | `*/30 * * * *` |
 | `market_radar.fetch_futu_news` | 抓取富途快讯 | 定时/手动 | `*/30 * * * *` |
 | `market_radar.extract_tags` | 规则抽取信息流标签 | 定时/手动 | `*/5 * * * *` |
 | `market_radar.backfill_source_tags` | 信息流标签回溯打标 | 手动 | — |
@@ -1087,7 +1085,6 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/overview` | 市场看板 |
 | GET / POST | `/source-items` | 信息流（`q`、`source_name`、`source_type`、`important_only`、`tag_id`、`author` 精确筛选，分页）/ 新增 |
 | GET | `/source-items/daily-stats` | 信息流日统计 |
-| POST | `/source-items/sync-cls` | 同步财联社 |
 | GET | `/source-items/{id}` | 信息流详情 |
 | GET / POST | `/tags` | 标签列表 / 新增 |
 | GET / PUT / DELETE | `/tags/{tag_id}` | 详情 / 更新 / 归档 |

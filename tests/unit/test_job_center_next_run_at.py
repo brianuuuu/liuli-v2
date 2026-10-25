@@ -52,7 +52,7 @@ def test_sync_scheduled_jobs_persists_and_clears_next_run_at():
     scheduler = DummyScheduler()
     try:
         sync_job_definitions(db)
-        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one()
+        config = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one()
         config.config_json = {
             "enabled": True,
             "execution_mode": "schedule",

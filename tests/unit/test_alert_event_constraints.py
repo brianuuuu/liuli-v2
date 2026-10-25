@@ -208,7 +208,7 @@ def test_alert_rule_enable_disable_and_delete_actions_hide_deleted_rule():
 
     db.add(
         JobRunLog(
-            job_name="market_radar.fetch_news",
+            job_name="market_radar.fetch_futu_news",
             module_name="market_radar",
             trigger_type="manual",
             status="failed",
@@ -282,7 +282,7 @@ def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
     db.add_all(
         [
             JobConfig(
-                job_name="market_radar.fetch_news",
+                job_name="market_radar.fetch_futu_news",
                 module_name="market_radar",
                 display_name="抓取市场新闻",
                 description="",
@@ -295,7 +295,7 @@ def test_job_failure_rule_creates_one_alert_for_each_failed_job_run():
                     enabled=True,
             ),
             JobRunLog(
-                job_name="market_radar.fetch_news",
+                job_name="market_radar.fetch_futu_news",
                 module_name="market_radar",
                 trigger_type="manual",
                 status="failed",
@@ -342,7 +342,7 @@ def test_job_failure_rule_does_not_recreate_handled_alert_for_same_run_log():
         enabled=True,
     )
     failed_log = JobRunLog(
-        job_name="market_radar.fetch_news",
+        job_name="market_radar.fetch_futu_news",
         module_name="market_radar",
         trigger_type="manual",
         status="failed",
@@ -356,7 +356,7 @@ def test_job_failure_rule_does_not_recreate_handled_alert_for_same_run_log():
     db.add(
         AlertEvent(
             rule_id=rule.id,
-            title=f"任务失败：market_radar.fetch_news #{failed_log.id}",
+            title=f"任务失败：market_radar.fetch_futu_news #{failed_log.id}",
             message="handled old alert",
             status="handled",
         )
@@ -451,7 +451,7 @@ def test_job_failure_rule_skips_backlog_older_than_startup_window():
                 enabled=True,
             ),
             JobRunLog(
-                job_name="market_radar.fetch_news",
+                job_name="market_radar.fetch_futu_news",
                 module_name="market_radar",
                 trigger_type="schedule",
                 status="failed",
@@ -461,7 +461,7 @@ def test_job_failure_rule_skips_backlog_older_than_startup_window():
                 error_message="worker 停机期间的积压失败",
             ),
             JobRunLog(
-                job_name="market_radar.fetch_news",
+                job_name="market_radar.fetch_futu_news",
                 module_name="market_radar",
                 trigger_type="schedule",
                 status="failed",
@@ -494,7 +494,7 @@ def test_job_failure_rule_reports_failures_arriving_after_startup_watermark():
                 enabled=True,
             ),
             JobRunLog(
-                job_name="market_radar.fetch_news",
+                job_name="market_radar.fetch_futu_news",
                 module_name="market_radar",
                 trigger_type="schedule",
                 status="failed",
@@ -511,7 +511,7 @@ def test_job_failure_rule_reports_failures_arriving_after_startup_watermark():
 
     db.add(
         JobRunLog(
-            job_name="market_radar.fetch_news",
+            job_name="market_radar.fetch_futu_news",
             module_name="market_radar",
             trigger_type="schedule",
             status="failed",

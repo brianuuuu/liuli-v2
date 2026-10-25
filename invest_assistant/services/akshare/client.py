@@ -20,20 +20,6 @@ def fetch_a_stock_code_name_rows() -> list[dict]:
     return [dict(row) for _, row in df.iterrows()]
 
 
-def fetch_cls_news_rows(limit: int) -> list[dict]:
-    try:
-        import akshare as ak
-    except Exception as exc:
-        raise RuntimeError(f"akshare is unavailable: {exc}") from exc
-
-    try:
-        df = ak.stock_info_global_cls(symbol="全部")
-    except Exception as exc:
-        raise RuntimeError(f"failed to fetch CLS news: {exc}") from exc
-
-    return [dict(row) for _, row in df.head(max(int(limit), 1)).iterrows()]
-
-
 def _strip_eastmoney_markup(value) -> str:
     text_value = str(value or "").strip()
     text_value = re.sub(r"<[^>]+>", "", text_value)

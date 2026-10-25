@@ -9,7 +9,7 @@ import type { JobScheduleFormValues } from "./jobScheduleConfig";
 
 const dailyJob = getFormValuesFromJob({
   id: 1,
-  job_name: "market_radar.fetch_news",
+  job_name: "market_radar.fetch_futu_news",
   module_name: "market_radar",
   display_name: "抓取市场新闻",
   config_json: {

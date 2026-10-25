@@ -54,7 +54,7 @@ try {
     ...jobs,
     {
       id: 3,
-      job_name: "market_radar.fetch_news",
+      job_name: "market_radar.fetch_futu_news",
       module_name: "market_radar",
       display_name: "抓取市场新闻",
       config_json: { enabled: true },
@@ -72,7 +72,7 @@ try {
     ...jobs,
     {
       id: 3,
-      job_name: "market_radar.fetch_news",
+      job_name: "market_radar.fetch_futu_news",
       module_name: "market_radar",
       display_name: "抓取市场新闻",
       config_json: { enabled: false },

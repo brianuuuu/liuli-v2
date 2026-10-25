@@ -310,7 +310,7 @@ def test_system_config_crud():
     assert missing.status_code == 404
 
 
-def test_console_data_sources_show_stock_master_and_cls_news():
+def test_console_data_sources_show_stock_master_and_news():
     reset_db()
     client = TestClient(create_app())
     headers = login_headers(client)
@@ -330,17 +330,6 @@ def test_console_data_sources_show_stock_master_and_cls_news():
                 ext_json={},
                 last_status="success",
                 last_run_at=datetime(2026, 5, 21, 23, 12, 42),
-            )
-        )
-        db.add(
-            JobConfig(
-                job_name="market_radar.fetch_news",
-                module_name="market_radar",
-                display_name="抓取市场新闻",
-                config_json={},
-                ext_json={},
-                last_status="success",
-                last_run_at=datetime(2026, 5, 21, 23, 40, 38),
             )
         )
         db.add(
@@ -379,14 +368,6 @@ def test_console_data_sources_show_stock_master_and_cls_news():
         db.add(
             SourceItem(
                 source_type="news",
-                source_name="财联社",
-                title="测试快讯",
-                content="测试快讯",
-            )
-        )
-        db.add(
-            SourceItem(
-                source_type="news",
                 source_name="富途牛牛",
                 title="测试富途快讯",
                 content="测试富途快讯",
@@ -417,12 +398,11 @@ def test_console_data_sources_show_stock_master_and_cls_news():
 
     assert response.status_code == 200
     data = response.json()
-    assert [item["name"] for item in data] == ["股票基础库", "公告库（巨潮）", "信息流（财联社）", "信息流（富途牛牛）", "信息流（东方财富）"]
+    assert [item["name"] for item in data] == ["股票基础库", "公告库（巨潮）", "信息流（富途牛牛）", "信息流（东方财富）"]
     assert data[0]["record_count"] == 1
     assert data[1]["record_count"] == 1
     assert data[2]["record_count"] == 1
     assert data[3]["record_count"] == 1
-    assert data[4]["record_count"] == 1
     assert data[0]["last_sync_at"].startswith("2026-05-21T23:12:42")
     assert data[1]["last_sync_at"].startswith("2026-05-22T08:30:00")
     assert data[2]["last_sync_at"].startswith("2026-05-21T23:40:38")

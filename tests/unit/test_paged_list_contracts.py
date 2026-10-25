@@ -129,10 +129,10 @@ def test_job_request_and_log_lists_return_page_metadata():
     db = make_session()
     base_time = datetime(2026, 6, 10, 9, 0)
     for index in range(260):
-        db.add(JobRunRequest(job_name="market_radar.fetch_news", status="success", requested_at=base_time + timedelta(minutes=index)))
+        db.add(JobRunRequest(job_name="market_radar.fetch_futu_news", status="success", requested_at=base_time + timedelta(minutes=index)))
         db.add(
             JobRunLog(
-                job_name="market_radar.fetch_news" if index % 2 == 0 else "stock_analysis.sync_daily_bars",
+                job_name="market_radar.fetch_futu_news" if index % 2 == 0 else "stock_analysis.sync_daily_bars",
                 module_name="market_radar",
                 trigger_type="manual",
                 status="success",
@@ -143,7 +143,7 @@ def test_job_request_and_log_lists_return_page_metadata():
     db.commit()
 
     request_page = job_service.list_run_requests_page(db, limit=200, offset=0)
-    log_page = job_service.list_job_logs_page(db, "market_radar.fetch_news", limit=50, offset=100)
+    log_page = job_service.list_job_logs_page(db, "market_radar.fetch_futu_news", limit=50, offset=100)
 
     assert len(request_page.items) == 100
     assert request_page.total == 260

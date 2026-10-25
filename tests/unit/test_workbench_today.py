@@ -189,14 +189,14 @@ def test_workbench_operations_returns_inbox_counts_and_job_status():
             KnowledgeNote(title="随手记", content="c", note_type="idea", status="active"),
             KnowledgeNote(title="已归档", content="c", note_type="mcp", status="archived"),
             JobConfig(job_name=track_job, module_name="track_discovery", display_name="AI审核赛道事件", description="", next_run_at=now + timedelta(hours=1)),
-            JobConfig(job_name="market_radar.fetch_news", module_name="market_radar", display_name="同步财联社", description="", last_status="failed", last_run_at=now),
+            JobConfig(job_name="market_radar.fetch_futu_news", module_name="market_radar", display_name="抓取富途快讯", description="", last_status="failed", last_run_at=now),
             JobRunLog(
                 job_name=track_job, module_name="track_discovery", trigger_type="schedule", status="success",
                 started_at=now - timedelta(minutes=5), finished_at=now - timedelta(minutes=4), duration_ms=41000,
                 processed_count=12, inserted_count=3,
             ),
             JobRunLog(
-                job_name="market_radar.fetch_news", module_name="market_radar", trigger_type="schedule", status="failed",
+                job_name="market_radar.fetch_futu_news", module_name="market_radar", trigger_type="schedule", status="failed",
                 started_at=now - timedelta(minutes=2), finished_at=now - timedelta(minutes=2), duration_ms=30000,
                 error_message="timeout after 30s",
             ),
@@ -222,9 +222,9 @@ def test_workbench_operations_returns_inbox_counts_and_job_status():
     assert track["active_request"]["status"] == "running"
     assert track["next_run_at"] is not None
 
-    assert [item["job_name"] for item in result["failed_jobs"]] == ["market_radar.fetch_news"]
+    assert [item["job_name"] for item in result["failed_jobs"]] == ["market_radar.fetch_futu_news"]
     assert result["failed_jobs"][0]["error_message"] == "timeout after 30s"
-    assert [item["job_name"] for item in result["recent_runs"]] == ["market_radar.fetch_news", track_job]
-    assert result["recent_runs"][0]["display_name"] == "同步财联社"
+    assert [item["job_name"] for item in result["recent_runs"]] == ["market_radar.fetch_futu_news", track_job]
+    assert result["recent_runs"][0]["display_name"] == "抓取富途快讯"
     assert result["health"]["failed_jobs"] == 1
     assert result["health"]["running_jobs"] == 1

@@ -331,9 +331,6 @@ def system_status(db: Session = Depends(get_db)) -> dict:
 @router.get("/data-sources")
 def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | None]]:
     stock_count = db.scalar(text("SELECT COUNT(*) FROM stock")) or 0
-    cls_count = db.scalar(
-        text("SELECT COUNT(*) FROM source_item WHERE source_type = 'news' AND source_name = '财联社'")
-    ) or 0
     futu_count = db.scalar(
         text("SELECT COUNT(*) FROM source_item WHERE source_type = 'news' AND source_name = '富途牛牛'")
     ) or 0
@@ -347,7 +344,6 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
         db.query(func.count(StockDailyBar.id)).filter(StockDailyBar.source == "tushare").statement
     ) or 0
     stock_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_master.sync_stock_basic").one_or_none()
-    news_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_news").one_or_none()
     futu_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_futu_news").one_or_none()
     eastmoney_job = db.query(JobConfig).filter(JobConfig.job_name == "market_radar.fetch_stock_news").one_or_none()
     stock_daily_bar_job = db.query(JobConfig).filter(JobConfig.job_name == "stock_analysis.sync_daily_bars").one_or_none()
@@ -358,11 +354,6 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
         db.query(JobConfig).filter(JobConfig.job_name == "disclosure_library.fetch_stock_announcements").one_or_none()
     )
 
-    latest_cls_time = db.scalar(
-        db.query(func.max(SourceItem.publish_time))
-        .filter(SourceItem.source_type == "news", SourceItem.source_name == "财联社")
-        .statement
-    )
     latest_futu_time = db.scalar(
         db.query(func.max(SourceItem.publish_time))
         .filter(SourceItem.source_type == "news", SourceItem.source_name == "富途牛牛")
@@ -431,15 +422,6 @@ def data_sources(db: Session = Depends(get_db)) -> list[dict[str, str | int | No
                 if cninfo_disclosure_job is not None
                 else latest_cninfo_disclosure_time
             ),
-        },
-        {
-            "key": "cls-news",
-            "name": "信息流（财联社）",
-            "module": "market_radar",
-            "provider": "AkShare",
-            "record_count": int(cls_count),
-            "status": news_job.last_status if news_job is not None else "unknown",
-            "last_sync_at": _format_time(news_job.last_run_at if news_job is not None else latest_cls_time),
         },
         {
             "key": "futu-news",

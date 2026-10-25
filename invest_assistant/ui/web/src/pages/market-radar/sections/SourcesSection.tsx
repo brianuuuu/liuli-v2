@@ -85,7 +85,7 @@ export function SourcesSection() {
               setPageSize(nextPageSize);
             }
           }}
-          locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步财联社" /> }}
+          locale={{ emptyText: <EmptyAction description="暂无数据源，可手动新增或在快讯页同步富途快讯" /> }}
         />
       </DataPanel>
 
