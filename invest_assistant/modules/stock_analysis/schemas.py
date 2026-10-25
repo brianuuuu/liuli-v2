@@ -13,6 +13,14 @@ class StockPoolCreate(BaseModel):
     track_ids: list[int] = Field(default_factory=list)
 
 
+class StockEarningsFollowUpRead(BaseModel):
+    """新财报出来后还没跟上的研究项：missing 取 valuation / score / trend。"""
+
+    report_period: str
+    publish_date: date
+    missing: list[str]
+
+
 class StockPoolRead(StockPoolCreate):
     id: int
     symbol: str | None = None
@@ -21,6 +29,7 @@ class StockPoolRead(StockPoolCreate):
     investment_level: str | None = None
     expectation_gap_rate: float | None = None
     trend_level: str | None = None
+    earnings_follow_up: StockEarningsFollowUpRead | None = None
     tracks: list[dict] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

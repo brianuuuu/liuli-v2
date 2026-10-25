@@ -3732,6 +3732,17 @@ body {
   font-weight: normal;
 }
 
+/* 新财报出来后估值、评分、趋势没研究全的标的，名字后挂一个红点。 */
+.earnings-follow-up-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #dc2626;
+  vertical-align: super;
+}
+
 .stock-pool-target-meta {
   color: var(--ll-muted);
   font-size: 12px;

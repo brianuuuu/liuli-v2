@@ -1,4 +1,4 @@
-import { Button, Form, Modal, Select, Space, Table, message } from "antd";
+import { Button, Form, Modal, Select, Space, Table, Tooltip, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -9,6 +9,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Stock, StockPoolItem } from "../../../types/api";
+import { earningsFollowUpTip } from "../earningsFollowUp";
 import { ARCHIVED_STATUS, formatTime, poolStatusOptions, StatusTag } from "./shared";
 
 type PoolFormValues = {
@@ -19,6 +20,7 @@ type PoolFormValues = {
 
 export function PoolSection() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [followUpOnly, setFollowUpOnly] = useState(false);
   // 归档等同软删除：后端默认不返回，只有切到"归档"这个回收站视图才单独去取。
   const archivedView = statusFilter === ARCHIVED_STATUS;
   const pool = useAsyncData(
@@ -52,7 +54,14 @@ export function PoolSection() {
     ];
   }, [pool.data, archivedView]);
 
-  const rows = useMemo(() => pool.data.filter((item) => !statusFilter || item.status === statusFilter), [pool.data, statusFilter]);
+  const followUpCount = useMemo(() => pool.data.filter((item) => item.earnings_follow_up).length, [pool.data]);
+  const rows = useMemo(
+    () => pool.data.filter(
+      // 归档视图没有财报提醒，切过去时忽略这个筛选，免得列表被筛空。
+      (item) => (!statusFilter || item.status === statusFilter) && (archivedView || !followUpOnly || item.earnings_follow_up)
+    ),
+    [pool.data, statusFilter, followUpOnly, archivedView]
+  );
   const selectStockOptions = useMemo(
     () => stockOptions.map((item) => ({
       value: item.id,
@@ -146,7 +155,14 @@ export function PoolSection() {
         const stockLabel = value || record.symbol || record.stock_code || `Stock ID ${record.stock_id}`;
         return (
           <Link to={`/stock-analysis/stocks/${record.stock_id}`} className="stock-pool-target-link">
-            <span className="stock-pool-target-name">{stockLabel}</span>
+            <span className="stock-pool-target-name">
+              {stockLabel}
+              {record.earnings_follow_up ? (
+                <Tooltip title={earningsFollowUpTip(record.earnings_follow_up)}>
+                  <i className="earnings-follow-up-dot" aria-label="财报待研究" />
+                </Tooltip>
+              ) : null}
+            </span>
           </Link>
         );
       }
@@ -196,6 +212,15 @@ export function PoolSection() {
                   {item.label}
                 </Button>
               ))}
+              {archivedView ? null : (
+                <Button
+                  size="small"
+                  className={followUpOnly ? "toolbar-filter-button active" : "toolbar-filter-button"}
+                  onClick={() => setFollowUpOnly((value) => !value)}
+                >
+                  待研究财报 ({followUpCount})
+                </Button>
+              )}
             </Space>
             <div className="data-panel-toolbar-spacer" />
             <Button size="small" type="primary" onClick={openCreate}>加入标的</Button>

@@ -4,6 +4,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, url2pathname, urlopen
 
+from invest_assistant.modules.basic.disclosure_library.periodic_report import guess_disclosure_type
 from invest_assistant.modules.basic.disclosure_library.schemas import CompanyDisclosureCreate
 
 
@@ -54,7 +55,7 @@ def parse_cninfo_items(payload: dict[str, Any]) -> list[CompanyDisclosureCreate]
         result.append(
             CompanyDisclosureCreate(
                 source="cninfo",
-                disclosure_type=_guess_disclosure_type(title),
+                disclosure_type=guess_disclosure_type(title),
                 title=title,
                 publish_time=publish_time,
                 report_period=str(row.get("secCode") or "").strip() or None,
@@ -170,16 +171,6 @@ def download_url(url: str) -> bytes:
     request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urlopen(request, timeout=30) as response:
         return response.read()
-
-
-def _guess_disclosure_type(title: str) -> str:
-    if "年度报告" in title:
-        return "annual_report"
-    if "季度报告" in title or "一季报" in title or "三季报" in title:
-        return "quarterly_report"
-    if "半年度报告" in title or "中期报告" in title:
-        return "interim_report"
-    return "announcement"
 
 
 def _parse_publish_time(value: Any) -> datetime | None:

@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.45**（2026-10-25）
+> 当前版本：**1.0.46**（2026-10-25）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -633,6 +633,18 @@ AI 不直接创建 stock，只能推荐已有 A 股进入标的池；
 日线同步、公告拉取、个股新闻抓取均以标的池为范围。
 ```
 
+**财报待研究提醒**：非归档标的出了新一期定期报告，而估值、评分、趋势三项研究没有全部跟上时，标的卡片挂一个红点（Web 标的池在名称后，悬停提示报告期和缺的项；Android 看板标的卡片右上角）。Web 标的池工具栏有"待研究财报"筛选。实时计算，不落库：
+
+```text
+定期报告：公告库 company_disclosure 中标题以"X年年度报告 / 半年度报告 / 中期报告 / 第一季度报告 / 第三季度报告"结尾的公告，
+          解析出报告期 YYYY-QN（年报 Q4、半年报 Q2）；摘要、英文版、更正后、问询函、业绩预告 / 快报都不算；
+取最新一期，同一期重发按最早发布日；只认 2026-Q3 及以后的报告期；
+估值：存在 report_period ≥ 该期的估值快照；
+评分：最新评分 report_time ≥ 财报发布日（北京时间）；
+趋势：最新趋势 research_date ≥ 财报发布日；
+三项都满足红点消失。`GET /api/stock-analysis/pool` 每行带 earnings_follow_up {report_period, publish_date, missing[]}，无提醒为 null。
+```
+
 ### 12.3 关系与材料
 
 ```text
@@ -1124,7 +1136,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/dashboard` | 标的看板 |
-| GET / POST | `/pool` | 标的池 / 加入 |
+| GET / POST | `/pool` | 标的池（每行带 `earnings_follow_up` 财报待研究提醒）/ 加入 |
 | PUT | `/pool/{pool_id}` | 更新状态 |
 | GET | `/candidates` | 候选标的 |
 | GET | `/stocks/{stock_id}` | 标的主页 |

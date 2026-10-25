@@ -576,8 +576,16 @@ export type StockPoolItem = {
   status: string;
   source?: string | null;
   reason?: string | null;
+  earnings_follow_up?: StockEarningsFollowUp | null;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+/** 新财报出来后还没跟上的研究项，三项都补完后端就不再返回。 */
+export type StockEarningsFollowUp = {
+  report_period: string;
+  publish_date: string;
+  missing: ("valuation" | "score" | "trend")[];
 };
 
 export type StockScoreSnapshot = {

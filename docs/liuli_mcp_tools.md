@@ -274,6 +274,7 @@
 | `items[].track_ids` | int[] | 已绑定赛道 ID |
 | `items[].tracks` | object[] | 已绑定赛道 |
 | `items[].symbol` / `stock_code` / `stock_name` | string | 证券标识、代码与名称 |
+| `items[].earnings_follow_up` | object \| null | 财报待研究提醒：`report_period`（YYYY-QN）、`publish_date`、`missing`（valuation / score / trend 中尚未跟上的项）；无提醒为 null |
 | `items[].created_at` / `updated_at` | string | 创建与更新时间 |
 
 注意 `id` 是标的池条目 ID，`stock_id` 才是 `get_stock_profile` 和 `get_daily_bars` 要的那个；`track_ids` 可以直接拿去调 `track_discovery.get_track_detail`。范围限定在标的池内，不覆盖全量股票主表。

@@ -440,6 +440,8 @@ export type StockPoolItem = {
   investment_level?: string | null;
   expectation_gap_rate?: number | null;
   trend_level?: string | null;
+  /** 新财报出来后估值、评分、趋势没研究全时才有，卡片据此挂红点。 */
+  earnings_follow_up?: { report_period: string; publish_date: string; missing: string[] } | null;
   status: string;
   tracks?: StockPoolTrack[];
   created_at?: string | null;

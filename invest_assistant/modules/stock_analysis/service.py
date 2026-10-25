@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
+from invest_assistant.modules.basic.disclosure_library.periodic_report import (
+    PERIODIC_DISCLOSURE_TYPES,
+    normalize_report_period,
+    periodic_report_period,
+)
 from invest_assistant.modules.basic.job_center.types import JobResult
 from invest_assistant.modules.basic.stock_master.service import ensure_stock_tag
 from invest_assistant.modules.knowledge_base.entity_notes import list_stock_notes
@@ -35,9 +40,12 @@ from invest_assistant.modules.stock_analysis.schemas import (
 )
 from invest_assistant.services.tushare import client as tushare_client
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
+from invest_assistant.shared.time_utils import BEIJING_TZ
 
 
 ARCHIVED_STATUS = "archived"
+# 财报待研究提醒从这一期起算，更早的财报不再追。
+EARNINGS_FOLLOW_UP_START_PERIOD = "2026-Q3"
 # 日线按年看周期，通用分页上限 100 只够五个月；与 MCP 注册表里 get_daily_bars 的
 # max_result_limit 保持一致，约三年交易日。
 DAILY_BAR_MAX_LIMIT = 800
@@ -421,6 +429,9 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None, statu
     latest_scores = _latest_scores_by_stock(db, stock_ids)
     latest_valuations = _latest_valuations_by_stock(db, stock_ids)
     latest_trends = _latest_trends_by_stock(db, stock_ids)
+    # 归档标的不提醒财报待研究，回收站视图里也不带。
+    active_ids = [item.stock_id for item, _stock in rows if item.status != ARCHIVED_STATUS]
+    follow_ups = _earnings_follow_ups(db, active_ids, latest_scores, latest_trends)
     result = []
     for item, stock in rows:
         row = _pool_item_dict_from_stock(db, item, stock)
@@ -430,6 +441,7 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None, statu
         row["investment_level"] = score.investment_level if score else None
         row["expectation_gap_rate"] = valuation.expectation_gap_rate if valuation else None
         row["trend_level"] = trend.trend_level if trend else None
+        row["earnings_follow_up"] = follow_ups.get(item.stock_id)
         result.append(row)
     return result
 
@@ -933,6 +945,71 @@ def _latest_trends_by_stock(db: Session, stock_ids: list[int]) -> dict[int, Stoc
         if trend.stock_id not in latest:
             latest[trend.stock_id] = trend
     return latest
+
+
+def _beijing_date(value: datetime) -> date:
+    return value.astimezone(BEIJING_TZ).date() if value.tzinfo else value.date()
+
+
+def _latest_periodic_reports(db: Session, stock_ids: list[int]) -> dict[int, tuple[str, date]]:
+    """每只标的最新一期定期报告 (报告期, 首次发布日)；同一期重发的版本按最早发布日算。"""
+    if not stock_ids:
+        return {}
+    rows = db.execute(
+        select(CompanyDisclosure.stock_id, CompanyDisclosure.title, CompanyDisclosure.publish_time).where(
+            CompanyDisclosure.stock_id.in_(stock_ids),
+            CompanyDisclosure.disclosure_type.in_(PERIODIC_DISCLOSURE_TYPES),
+            CompanyDisclosure.publish_time.is_not(None),
+        )
+    ).all()
+    latest: dict[int, tuple[str, date]] = {}
+    for stock_id, title, publish_time in rows:
+        period = periodic_report_period(title)
+        if period is None or period < EARNINGS_FOLLOW_UP_START_PERIOD:
+            continue
+        publish_date = _beijing_date(publish_time)
+        current = latest.get(stock_id)
+        if current is None or period > current[0] or (period == current[0] and publish_date < current[1]):
+            latest[stock_id] = (period, publish_date)
+    return latest
+
+
+def _earnings_follow_ups(
+    db: Session,
+    stock_ids: list[int],
+    latest_scores: dict[int, StockScoreSnapshot],
+    latest_trends: dict[int, StockTrendSnapshot],
+) -> dict[int, dict]:
+    """新财报出来后，估值、评分、趋势三项研究没全部跟上的标的，返回待补的项。
+
+    估值按报告期比对（估值快照带 `YYYY-QN`）；评分、趋势没有报告期，财报发布日当天或之后做过就算覆盖。
+    """
+    reports = _latest_periodic_reports(db, stock_ids)
+    if not reports:
+        return {}
+    valued_periods: dict[int, str] = {}
+    for stock_id, report_period in db.execute(
+        select(StockValuationSnapshot.stock_id, StockValuationSnapshot.report_period).where(
+            StockValuationSnapshot.stock_id.in_(list(reports))
+        )
+    ):
+        period = normalize_report_period(report_period)
+        if period and period > valued_periods.get(stock_id, ""):
+            valued_periods[stock_id] = period
+    result: dict[int, dict] = {}
+    for stock_id, (period, publish_date) in reports.items():
+        score = latest_scores.get(stock_id)
+        trend = latest_trends.get(stock_id)
+        missing = []
+        if valued_periods.get(stock_id, "") < period:
+            missing.append("valuation")
+        if score is None or score.report_time < publish_date:
+            missing.append("score")
+        if trend is None or trend.research_date < publish_date:
+            missing.append("trend")
+        if missing:
+            result[stock_id] = {"report_period": period, "publish_date": publish_date, "missing": missing}
+    return result
 
 
 def _score_point(score: StockScoreSnapshot | None) -> dict | None:

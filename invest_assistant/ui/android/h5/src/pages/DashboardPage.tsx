@@ -566,6 +566,9 @@ function StockPoolView() {
                 <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
                 <span>{item.stock_code?.trim() || "--"}</span>
                 <PoolCardBadges badges={poolCardBadgeSet(item)} />
+                {item.earnings_follow_up ? (
+                  <i className="pool-card__follow-up-dot" aria-label={`${item.earnings_follow_up.report_period} 财报待研究`} />
+                ) : null}
               </button>
             ))}
             {layout.showPager ? (
