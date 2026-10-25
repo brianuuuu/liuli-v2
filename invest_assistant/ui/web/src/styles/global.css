@@ -3732,14 +3732,14 @@ body {
   font-weight: normal;
 }
 
-/* 新财报出来后估值、评分、趋势没研究全的标的，名字后挂一个红点。 */
+/* 新财报出来后估值、评分、趋势没研究全的标的，名字后挂一个红点；大小、红色与顶栏任务状态点一致。 */
 .earnings-follow-up-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   margin-left: 6px;
   border-radius: 50%;
-  background: #dc2626;
+  background: #ef4444;
   vertical-align: super;
 }
 
