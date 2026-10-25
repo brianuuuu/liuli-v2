@@ -586,13 +586,14 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
    居中排布下同一行的名称、代码、角标各自成一条直线。 */
 .pool-card { position: relative; display: flex; min-width: 0; min-height: 72px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 9px; border: 1px solid transparent; border-radius: 10px; background: var(--panel-soft); text-align: left; transition: background .15s ease, transform .12s ease; }
 .dashboard-flat-section .pool-card { background: var(--panel); }
-/* 新财报出来后估值、评分、趋势没研究全，卡片右上角挂红点。 */
-.pool-card__follow-up-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
-/* 长名称排满一行时给红点让位，免得压住最后一个字。 */
-.pool-card--follow-up strong { padding-right: 8px; }
 html:not(.pager-dragging) .pool-card:active { background: var(--blue-soft); transform: scale(.97); }
 /* 三层信息依次减弱：名称 > 代码 > 角标。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+/* 名称行：名称可省略，后面的财报红点固定不缩，贴在名称右上角。 */
+.pool-card span.pool-card__name { display: flex; max-width: 100%; overflow: visible; align-items: flex-start; gap: 2px; color: inherit; font-size: inherit; letter-spacing: 0; }
+.pool-card__name strong { min-width: 0; }
+/* 新财报出来后估值、评分、趋势没研究全，名称右上角挂红点。 */
+.pool-card__follow-up-dot { flex: none; width: 6px; height: 6px; margin-top: 1px; border-radius: 50%; background: #ef4444; }
 .pool-card span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; letter-spacing: .2px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 /* 角标独占代码下面一行：不再压在文字上，标的名和代码都能拿满整行，
    360px 机型上文字区只有 78px，四字名就占 52px，压角标时怎么排都要截断。 */

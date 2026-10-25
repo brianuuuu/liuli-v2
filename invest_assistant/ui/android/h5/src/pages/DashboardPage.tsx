@@ -562,18 +562,16 @@ function StockPoolView() {
         <>
           <div className="pool-card-grid">
             {layout.cards.map((item) => (
-              <button
-                type="button"
-                className={item.earnings_follow_up ? "pool-card pool-card--follow-up" : "pool-card"}
-                key={item.id}
-                onClick={() => navigate(`/stocks/${item.stock_id}`)}
-              >
-                <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+              <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+                {/* 红点贴在名称右上角，像角标一样跟着名字走；名称过长时名称省略，红点不被挤掉。 */}
+                <span className="pool-card__name">
+                  <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
+                  {item.earnings_follow_up ? (
+                    <i className="pool-card__follow-up-dot" aria-label={`${item.earnings_follow_up.report_period} 财报待研究`} />
+                  ) : null}
+                </span>
                 <span>{item.stock_code?.trim() || "--"}</span>
                 <PoolCardBadges badges={poolCardBadgeSet(item)} />
-                {item.earnings_follow_up ? (
-                  <i className="pool-card__follow-up-dot" aria-label={`${item.earnings_follow_up.report_period} 财报待研究`} />
-                ) : null}
               </button>
             ))}
             {layout.showPager ? (
