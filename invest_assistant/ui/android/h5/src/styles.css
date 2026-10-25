@@ -588,6 +588,8 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
 .dashboard-flat-section .pool-card { background: var(--panel); }
 /* 新财报出来后估值、评分、趋势没研究全，卡片右上角挂红点。 */
 .pool-card__follow-up-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
+/* 长名称排满一行时给红点让位，免得压住最后一个字。 */
+.pool-card--follow-up strong { padding-right: 8px; }
 html:not(.pager-dragging) .pool-card:active { background: var(--blue-soft); transform: scale(.97); }
 /* 三层信息依次减弱：名称 > 代码 > 角标。 */
 .pool-card strong { max-width: 100%; overflow: hidden; color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }

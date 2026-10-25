@@ -562,7 +562,12 @@ function StockPoolView() {
         <>
           <div className="pool-card-grid">
             {layout.cards.map((item) => (
-              <button type="button" className="pool-card" key={item.id} onClick={() => navigate(`/stocks/${item.stock_id}`)}>
+              <button
+                type="button"
+                className={item.earnings_follow_up ? "pool-card pool-card--follow-up" : "pool-card"}
+                key={item.id}
+                onClick={() => navigate(`/stocks/${item.stock_id}`)}
+              >
                 <strong>{item.stock_name?.trim() || "未命名标的"}</strong>
                 <span>{item.stock_code?.trim() || "--"}</span>
                 <PoolCardBadges badges={poolCardBadgeSet(item)} />
