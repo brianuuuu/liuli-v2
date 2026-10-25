@@ -109,8 +109,9 @@ def sync_job_definitions(db: Session) -> int:
 
 
 def list_job_configs(db: Session) -> list[JobConfig]:
-    configs = list(db.scalars(select(JobConfig).order_by(JobConfig.module_name.asc(), JobConfig.job_name.asc())))
-    return [_attach_definition_metadata(config) for config in configs]
+    """只列代码里还注册着的任务；已下线任务的配置行和运行记录留在库里，不再出现在任务中心。"""
+    configs = db.scalars(select(JobConfig).order_by(JobConfig.module_name.asc(), JobConfig.job_name.asc()))
+    return [_attach_definition_metadata(config) for config in configs if config.job_name in JOB_REGISTRY]
 
 
 def get_job_config(db: Session, job_name: str) -> JobConfig | None:

@@ -228,3 +228,25 @@ def test_workbench_operations_returns_inbox_counts_and_job_status():
     assert result["recent_runs"][0]["display_name"] == "抓取富途快讯"
     assert result["health"]["failed_jobs"] == 1
     assert result["health"]["running_jobs"] == 1
+
+
+def test_retired_jobs_are_hidden_from_job_center_and_workbench():
+    """代码里已删除的任务，配置行留在库里，但不进任务中心列表、异常任务和任务总数。"""
+    from invest_assistant.modules.basic.job_center.service import list_job_configs
+
+    db = make_session()
+    now = datetime(2026, 10, 25, 10, 0, 0)
+    db.add_all(
+        [
+            JobConfig(job_name="market_radar.fetch_futu_news", module_name="market_radar", display_name="抓取富途快讯", description="", last_status="success", last_run_at=now),
+            JobConfig(job_name="market_radar.fetch_news", module_name="market_radar", display_name="抓取市场新闻", description="", last_status="failed", last_run_at=now),
+        ]
+    )
+    db.commit()
+
+    assert [item.job_name for item in list_job_configs(db)] == ["market_radar.fetch_futu_news"]
+    result = workbench_operations(db)
+    assert result["failed_jobs"] == []
+    assert result["health"]["failed_jobs"] == 0
+    assert result["health"]["total_jobs"] == 1
+    assert db.query(JobConfig).count() == 2

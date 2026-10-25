@@ -235,7 +235,8 @@ def workbench_operations(db: Session = Depends(get_db)) -> dict:
     """工作台待办页：四类待办（与安卓待办同口径）+ AI 任务、异常任务、最近执行。只查这一页要用的数据，供轮询。"""
     todo = _todo_summary(db)
 
-    configs = {item.job_name: item for item in db.scalars(select(JobConfig))}
+    # 已下线任务的配置行还留在库里，不算进任务数和异常任务。
+    configs = {item.job_name: item for item in db.scalars(select(JobConfig)) if item.job_name in JOB_REGISTRY}
     active_requests: dict[str, JobRunRequest] = {}
     for item in db.scalars(
         select(JobRunRequest).where(JobRunRequest.status.in_(("pending", "running"))).order_by(JobRunRequest.id.asc())

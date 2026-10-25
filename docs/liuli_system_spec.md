@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.44**（2026-10-25）
+> 当前版本：**1.0.45**（2026-10-25）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -389,6 +389,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 
 - 各模块 `jobs.py` 暴露 `JOBS: list[JobDefinition]`，`registry.py` 汇总为 `JOB_REGISTRY`。
 - 代码里的 `JobDefinition` 是任务定义源头；`job_config` 是运行时配置状态。同步时新增缺失任务、更新展示信息，不覆盖控制台改过的启停和 Cron。
+- 代码里删掉的任务，其 `job_config` 行和运行记录留在库里，但不再调度，也不出现在任务中心列表、工作台异常任务和任务总数中。
 - `job_config` 只存身份、展示信息和 `config_json`（trigger_type、cron_expr、enabled、timeout_seconds、max_retries、params、params_schema）/ `ext_json`（tags、category、ui_order、notes），不把调度参数摊平成列。
 - 手动执行：控制台 → API 写 `job_run_request` → Worker 轮询执行 → 写 `job_run_log`。
 - 任务命名：`模块名.动作名`。`JobResult` 统一返回 success、message 和 fetched / processed / inserted / updated / skipped 计数。
