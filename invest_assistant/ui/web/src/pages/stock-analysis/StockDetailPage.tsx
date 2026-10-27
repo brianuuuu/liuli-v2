@@ -1,3 +1,4 @@
+import { SyncOutlined } from "@ant-design/icons";
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { EChartsOption } from "echarts";
@@ -517,7 +518,7 @@ function KlineTab({ stockId }: { stockId: number }) {
           </div>
           <Space size={12} wrap>
             {latest ? <StockKlineLatestSummary latest={latest} /> : null}
-            <Button size="small" type="primary" loading={loading} onClick={() => loadBars(true)}>刷新行情</Button>
+            <Button size="small" icon={<SyncOutlined />} loading={loading} onClick={() => loadBars(true)}>刷新行情</Button>
           </Space>
         </div>
         <div className="stock-detail-panel-section first">

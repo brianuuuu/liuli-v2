@@ -2,6 +2,7 @@ import { ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { FONT_FAMILY, themeColors } from "./themeColors";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -58,7 +59,17 @@ export function LiuliThemeProvider({ children }: { children: ReactNode }) {
           algorithm: resolvedMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: {
             borderRadius: 6,
-            colorPrimary: "#2563eb"
+            colorPrimary: themeColors(resolvedMode).accent,
+            fontFamily: FONT_FAMILY
+          },
+          components: {
+            // 实心主按钮用沉一档的蓝，白字对比度够；去掉 antd 默认的底部投影
+            Button: {
+              colorPrimary: themeColors(resolvedMode).fill,
+              colorPrimaryHover: themeColors(resolvedMode).fillHover,
+              colorPrimaryActive: themeColors(resolvedMode).fillActive,
+              primaryShadow: "none"
+            }
           }
         }}
       >

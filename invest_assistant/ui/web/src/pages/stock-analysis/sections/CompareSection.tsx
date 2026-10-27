@@ -9,6 +9,7 @@ import { listKnowledgeResearchers } from "../../../api/knowledge";
 import { deleteStockScore, listStockScoreComparison, listStockTrendComparison, listStockValuationComparison } from "../../../api/stockAnalysis";
 import { listTracks } from "../../../api/trackDiscovery";
 import { useLiuliTheme } from "../../../app/theme";
+import { themeColors } from "../../../app/themeColors";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { CountLabel } from "../../../components/common/CountLabel";
@@ -189,8 +190,8 @@ export function CompareSection() {
   );
 
   function radarOption(records: StockScoreComparisonItem[]): EChartsOption {
-    const textColor = resolvedMode === "dark" ? "#c9d1d9" : "#334155";
-    const gridColor = resolvedMode === "dark" ? "rgba(255, 255, 255, 0.12)" : "#e2e8f0";
+    const textColor = themeColors(resolvedMode).text2;
+    const gridColor = themeColors(resolvedMode).border;
     return {
       color: COMPARE_COLORS,
       tooltip: {},

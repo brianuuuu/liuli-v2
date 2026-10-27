@@ -6,6 +6,7 @@ import { getAiLogDailyUsage, getDataSources, getSystemStatus } from "../../../ap
 import { useLiuliTheme } from "../../../app/theme";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { chartGridColor } from "../../../components/charts/chartTheme";
+import { themeColors } from "../../../app/themeColors";
 import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 
@@ -24,10 +25,10 @@ const MCP_TEXT: Record<string, string> = {
   unknown: "未知"
 };
 
-function healthColor(value: string, mode: "light" | "dark") {
-  if (value === "ok") return mode === "dark" ? "#3fb950" : "#16a34a";
+function healthColor(value: string) {
+  if (value === "ok") return "var(--ll-success)";
   if (value === "unknown" || value === "not_configured") return "var(--ll-muted)";
-  return mode === "dark" ? "#f85149" : "#dc2626";
+  return "var(--ll-danger)";
 }
 
 function compactNumber(value: number) {
@@ -60,10 +61,11 @@ export function StatusSection() {
 
   const dark = resolvedMode === "dark";
   const gridLine = chartGridColor(resolvedMode);
-  const axisText = dark ? "#8b949e" : "#64748b";
-  const strongText = dark ? "#e6edf3" : "#0f172a";
+  const colors = themeColors(resolvedMode);
+  const axisText = colors.muted;
+  const strongText = colors.text;
   // 卡片底色：堆叠段之间的间隙用底色挖出来，而不是给柱子描一圈对比色边
-  const surface = dark ? "#161b22" : "#ffffff";
+  const surface = colors.panel;
   // 验证过的分类色槽 1/2（validate_palette.js 明暗双模式六项全过）
   // 主体蓝比默认槽位再压一档，大面积铺色不刺眼；强调橙保持不变，保证小色块仍能跳出来
   const seriesBlue = dark ? "#2f7ad0" : "#256abf";
@@ -75,8 +77,8 @@ export function StatusSection() {
   // 提示框跟随主题，暗色下不再是白底
   const tooltipBase = useMemo(
     () => ({
-      backgroundColor: dark ? "#21262d" : "#ffffff",
-      borderColor: dark ? "rgba(255,255,255,0.12)" : "#e2e8f0",
+      backgroundColor: dark ? colors.panelSubtle : colors.panel,
+      borderColor: colors.border,
       borderWidth: 1,
       padding: [10, 12],
       textStyle: { color: strongText, fontSize: 12 },
@@ -90,7 +92,7 @@ export function StatusSection() {
     (params: unknown, withTotal: boolean) => {
       const list = (Array.isArray(params) ? params : [params]) as TooltipRow[];
       if (!list.length) return "";
-      const divider = dark ? "rgba(255,255,255,0.10)" : "#e2e8f0";
+      const divider = colors.border;
       const key = (color: string) =>
         `<span style="display:inline-block;width:10px;height:2px;border-radius:1px;background:${color};margin-right:8px;vertical-align:middle"></span>`;
       const row = (color: string, name: string, value: number) =>
@@ -265,7 +267,7 @@ export function StatusSection() {
             <Statistic
               title="接口服务"
               value={HEALTH_TEXT[status.data.api] || status.data.api}
-              valueStyle={{ color: healthColor(status.data.api, resolvedMode) }}
+              valueStyle={{ color: healthColor(status.data.api) }}
               loading={status.loading}
             />
             <CardNote>后端 API 可用性</CardNote>
@@ -276,7 +278,7 @@ export function StatusSection() {
             <Statistic
               title="数据库"
               value={HEALTH_TEXT[status.data.database] || status.data.database}
-              valueStyle={{ color: healthColor(status.data.database, resolvedMode) }}
+              valueStyle={{ color: healthColor(status.data.database) }}
               loading={status.loading}
             />
             <CardNote>连接探测 SELECT 1</CardNote>
@@ -287,7 +289,7 @@ export function StatusSection() {
             <Statistic
               title="MCP 服务"
               value={MCP_TEXT[mcp.status] || mcp.status}
-              valueStyle={{ color: healthColor(mcp.status, resolvedMode) }}
+              valueStyle={{ color: healthColor(mcp.status) }}
               loading={status.loading}
             />
             <CardNote>

@@ -169,6 +169,10 @@ export function TopStatusBar() {
   }, []);
 
   const taskStatus = useMemo(() => getTaskStatus(jobs, requests, loading), [jobs, loading, requests]);
+  // 状态词（异常 / 运行中…）单独着色，后面的任务名和时间保持正文色
+  const statusSplit = taskStatus.label.search(/[:·]/);
+  const statusWord = statusSplit < 0 ? taskStatus.label : taskStatus.label.slice(0, statusSplit).trimEnd();
+  const statusDetail = taskStatus.label.slice(statusWord.length);
   const userLabel = currentUser?.display_name || currentUser?.username || "用户";
   const userMenuItems: MenuProps["items"] = [
     { key: "change-password", icon: <KeyOutlined />, label: "修改密码" },
@@ -260,7 +264,11 @@ export function TopStatusBar() {
               suffix={<span className="search-shortcut">⌘ K</span>}
             />
           </AutoComplete>
-          <span className={`status-chip ${taskStatus.className}`}><i />{taskStatus.label}</span>
+          <span className={`status-chip ${taskStatus.className}`}>
+            <i />
+            <span className="status-chip-word">{statusWord}</span>
+            {statusDetail}
+          </span>
         </Space>
         <Space size={6} className="top-status-right">
           <Button

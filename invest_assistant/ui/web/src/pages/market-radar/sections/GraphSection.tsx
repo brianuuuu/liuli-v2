@@ -9,6 +9,7 @@ import { WorkbenchCard } from "../../../components/common/WorkbenchCard";
 import { ChartCard } from "../../../components/charts/ChartCard";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useLiuliTheme } from "../../../app/theme";
+import { themeColors } from "../../../app/themeColors";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { tagKey, windowOptions } from "./shared";
 
@@ -89,9 +90,10 @@ export function GraphSection() {
 
   const option = useMemo<EChartsOption>(() => {
     const isDark = resolvedMode === "dark";
+    const colors = themeColors(resolvedMode);
     
     // Modern tech-palette colors
-    const stockColor = "#2563eb"; 
+    const stockColor = colors.accent;
     const trackColor = isDark ? "#ffaf40" : "#f97316";
     const hotwordColor = "#10b981";
 
@@ -176,9 +178,9 @@ export function GraphSection() {
 
     return {
       tooltip: {
-        backgroundColor: isDark ? "#1f2937" : "#ffffff",
-        borderColor: isDark ? "#374151" : "#e2e8f0",
-        textStyle: { color: isDark ? "#f3f4f6" : "#1f2937" }
+        backgroundColor: isDark ? colors.panelSubtle : colors.panel,
+        borderColor: colors.border,
+        textStyle: { color: colors.text }
       },
       legend: {
         data: type === "track" 
@@ -186,7 +188,7 @@ export function GraphSection() {
           : (type === "hotword" ? ["标的", "市场热词"] : ["赛道", "市场热词"]),
         left: "left",
         top: "top",
-        textStyle: { color: isDark ? "#9ca3af" : "#475569" }
+        textStyle: { color: colors.muted }
       },
       series: [
         {
@@ -206,7 +208,7 @@ export function GraphSection() {
             show: true,
             position: "bottom",
             distance: 6,
-            color: isDark ? "#cbd5e1" : "#334155",
+            color: colors.text2,
             fontSize: 11,
             fontWeight: 500
           },

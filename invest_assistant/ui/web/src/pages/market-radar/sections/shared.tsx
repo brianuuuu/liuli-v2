@@ -1,5 +1,6 @@
 import { Tag } from "antd";
 import type { EChartsOption } from "echarts";
+import { themeColors } from "../../../app/themeColors";
 import type { MarketTag, TagHeat, TagTrendPoint } from "../../../types/api";
 
 export const rankingTypeOptions = [
@@ -84,8 +85,9 @@ export function trendSummary(rows: TagTrendPoint[]): TrendSummary | null {
 
 export function trendLineOption(rows: TagTrendPoint[], mode: "light" | "dark", windowType?: string): EChartsOption {
   const dark = mode === "dark";
-  const lineColor = dark ? "#3b82f6" : "#2563eb";
-  const textColor = dark ? "#8b949e" : "#64748b";
+  const colors = themeColors(mode);
+  const lineColor = colors.accent;
+  const textColor = colors.muted;
   const gridColor = dark ? "rgba(255, 255, 255, 0.06)" : "rgba(15, 23, 42, 0.06)";
   const axisColor = dark ? "rgba(255, 255, 255, 0.12)" : "rgba(15, 23, 42, 0.12)";
   const showTime = windowType !== "30d";
@@ -94,11 +96,11 @@ export function trendLineOption(rows: TagTrendPoint[], mode: "light" | "dark", w
     animationDuration: 400,
     tooltip: {
       trigger: "axis",
-      backgroundColor: dark ? "#21262d" : "#ffffff",
+      backgroundColor: dark ? colors.panelSubtle : colors.panel,
       borderColor: axisColor,
       borderWidth: 1,
       padding: [8, 12],
-      textStyle: { color: dark ? "#e6edf3" : "#0f172a", fontSize: 12 },
+      textStyle: { color: colors.text, fontSize: 12 },
       axisPointer: { type: "line", lineStyle: { color: axisColor, type: "dashed" } },
       formatter: (params: unknown) => {
         const points = Array.isArray(params) ? params : [params];
@@ -142,7 +144,7 @@ export function trendLineOption(rows: TagTrendPoint[], mode: "light" | "dark", w
         symbolSize: 6,
         data: rows.map((item) => Number(item.heat_score || 0)),
         lineStyle: { width: 2, color: lineColor },
-        itemStyle: { color: lineColor, borderColor: dark ? "#161b22" : "#ffffff", borderWidth: 2 },
+        itemStyle: { color: lineColor, borderColor: colors.panel, borderWidth: 2 },
         areaStyle: {
           color: {
             type: "linear",

@@ -10,6 +10,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { useLiuliTheme } from "../../../app/theme";
+import { themeColors } from "../../../app/themeColors";
 import type { TrackMaterial } from "../../../types/api";
 import { DirectionTag, directionAccentColor, formatTime } from "./shared";
 import {
@@ -222,9 +223,10 @@ export function MaterialsSection() {
   }, [materialRows, directionFilter, typeFilter]);
 
   // ECharts config options for Circular Glow display
-  const accentColor = resolvedMode === "dark" ? "#58a6ff" : "#2563eb";
-  const shadowColor = resolvedMode === "dark" ? "rgba(88, 166, 255, 0.6)" : "rgba(37, 99, 235, 0.6)";
-  const borderColor = resolvedMode === "dark" ? "#161b22" : "#ffffff";
+  const accentColor = resolvedMode === "dark" ? "#4493f8" : "#2563eb";
+  const shadowColor = resolvedMode === "dark" ? "rgba(68, 147, 248, 0.6)" : "rgba(37, 99, 235, 0.6)";
+  const colors = themeColors(resolvedMode);
+  const borderColor = colors.panel;
 
   const chartOption = useMemo(() => ({
     backgroundColor: "transparent",
@@ -245,16 +247,16 @@ export function MaterialsSection() {
     xAxis: {
       type: "category",
       data: chartData.map((d) => d.date),
-      axisLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.08)" : "#e2e8f0" } },
-      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 },
+      axisLine: { lineStyle: { color: colors.border } },
+      axisLabel: { color: colors.muted, fontSize: 10 },
       axisTick: { show: false }
     },
     yAxis: {
       type: "value",
       minInterval: 1,
       axisLine: { show: false },
-      splitLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.03)" : "#f1f5f9" } },
-      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 }
+      splitLine: { lineStyle: { color: colors.borderSoft } },
+      axisLabel: { color: colors.muted, fontSize: 10 }
     },
     series: [
       {
@@ -588,7 +590,7 @@ export function MaterialsSection() {
             {/* Today Statistics */}
             <div className="track-material-stats-panel" style={{ height: "auto", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
-                <SlidersOutlined style={{ color: "#10b981", fontSize: "14px" }} />
+                <SlidersOutlined style={{ color: "var(--ll-success)", fontSize: "14px" }} />
                 <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>今日数据统计</span>
               </div>
               <div className="stats-grid" style={{ minHeight: "86px" }}>
@@ -611,7 +613,7 @@ export function MaterialsSection() {
             <div className="track-material-pending-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
-                  <NotificationOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
+                  <NotificationOutlined style={{ color: "var(--ll-warn)", fontSize: "14px" }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>待处理队列</span>
                   <span className="section-head-count">({filteredPending.length})</span>
                 </Space>

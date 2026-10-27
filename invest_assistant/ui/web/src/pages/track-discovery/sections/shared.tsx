@@ -130,10 +130,9 @@ export function directionTagColor(direction?: string | null) {
 }
 
 export function directionAccentColor(direction?: string | null) {
-  if (direction === "support") return "#16a34a";
-  if (direction === "weaken") return "#dc2626";
-  if (direction === "noise") return "#64748b";
-  if (direction === "neutral") return "#2563eb";
+  if (direction === "support") return "var(--ll-success)";
+  if (direction === "weaken") return "var(--ll-danger)";
+  if (direction === "noise") return "var(--ll-muted)";
   return "var(--ll-accent)";
 }
 

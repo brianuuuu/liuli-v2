@@ -6,6 +6,7 @@ import { getPortfolioReviewPerformance } from "../../api/portfolio";
 import { useLiuliTheme } from "../../app/theme";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
+import { themeColors } from "../../app/themeColors";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -59,7 +60,7 @@ export function PerformanceReview({ portfolioId, portfolioOptions, onPortfolioCh
     const gridColor = chartGridColor(resolvedMode);
     const rows = data.curve_points;
     return {
-      color: [upColorForMode(resolvedMode), "#2563eb", "#64748b"],
+      color: [upColorForMode(resolvedMode), themeColors(resolvedMode).accent, themeColors(resolvedMode).muted],
       tooltip: {
         trigger: "axis",
         backgroundColor: tooltipBackgroundColor(resolvedMode),

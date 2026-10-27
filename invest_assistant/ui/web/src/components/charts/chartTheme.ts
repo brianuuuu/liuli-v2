@@ -1,5 +1,7 @@
+import { themeColors } from "../../app/themeColors";
+
 export function chartTextColor(mode: "light" | "dark") {
-  return mode === "dark" ? "#d1d5db" : "#374151";
+  return themeColors(mode).text2;
 }
 
 export function chartGridColor(mode: "light" | "dark") {

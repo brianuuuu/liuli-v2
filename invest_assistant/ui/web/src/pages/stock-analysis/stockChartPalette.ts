@@ -17,7 +17,7 @@ export function stockChartPalette(mode: StockChartMode): StockChartPalette {
   return {
     text: dark ? "#aab2bf" : "#64748b",
     grid: dark ? "#2b333e" : "#e5eaf1",
-    accent: dark ? "#60a5fa" : "#2563eb",
+    accent: dark ? "#4493f8" : "#2563eb",
     muted: dark ? "#64748b" : "#94a3b8",
     splitArea: dark
       ? ["rgba(96,165,250,0.02)", "rgba(96,165,250,0.05)"]

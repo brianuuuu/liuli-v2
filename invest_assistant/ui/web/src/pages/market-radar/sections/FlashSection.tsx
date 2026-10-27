@@ -27,6 +27,11 @@ const sourceFilterOptions = [
 
 const sourceTypeNames: Record<string, string> = Object.fromEntries(sourceTypeOptions.map((option) => [option.value, option.label]));
 
+function sameText(a?: string | null, b?: string | null) {
+  const normalize = (value?: string | null) => (value || "").replace(/\s+/g, "");
+  return normalize(a) === normalize(b);
+}
+
 function isSentiment(item: SourceItem) {
   return item.source_type === "sentiment";
 }
@@ -209,7 +214,10 @@ export function FlashSection() {
                           {item.is_important ? <Tag color="orange">重要</Tag> : null}
                         </div>
                         {sentiment ? null : <div className="flash-title">{item.title}</div>}
-                        <div className={sentiment ? "flash-content sentiment" : "flash-content"}>{item.content}</div>
+                        {/* 快讯摘要常和标题一字不差，重复时只留标题 */}
+                        {!sentiment && sameText(item.title, item.content) ? null : (
+                          <div className={sentiment ? "flash-content sentiment" : "flash-content"}>{item.content}</div>
+                        )}
                         <div className="flash-tags">
                           {itemTags.length ? itemTags.map((tag) => (
                             <Tag

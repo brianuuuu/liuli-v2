@@ -25,6 +25,7 @@ import {
 import { searchStocks } from "../../api/stocks";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
+import { themeColors } from "../../app/themeColors";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { CountLabel } from "../../components/common/CountLabel";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -121,7 +122,7 @@ function allocationColorsForMode(mode: "light" | "dark") {
 }
 
 function chartMutedTextColor(mode: "light" | "dark") {
-  return mode === "dark" ? "#8b949e" : "#64748b";
+  return themeColors(mode).muted;
 }
 
 function formatMoney(value?: number | null) {
@@ -621,7 +622,7 @@ export function PortfolioPage() {
     const total = data.reduce((sum, item) => sum + item.market_value, 0);
     const textColor = chartTextColor(resolvedMode);
     const mutedColor = chartMutedTextColor(resolvedMode);
-    const panelColor = resolvedMode === "dark" ? "#161b22" : "#ffffff";
+    const panelColor = themeColors(resolvedMode).panel;
     return {
       color: allocationColorsForMode(resolvedMode),
       tooltip: {

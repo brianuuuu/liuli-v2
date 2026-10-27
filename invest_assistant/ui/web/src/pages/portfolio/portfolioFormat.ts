@@ -1,5 +1,7 @@
 // 组合页与收益分析共用的格式化和图表配色
 
+import { themeColors } from "../../app/themeColors";
+
 export function formatPercent(value?: number | null) {
   if (value === null || value === undefined) return "-";
   return `${value.toFixed(2)}%`;
@@ -13,7 +15,7 @@ export function pnlColor(value?: number | null) {
 
 /** ECharts 画在 canvas 上读不到 CSS 变量，按主题给实际色值，与 --ll-up 一致 */
 export function upColorForMode(mode: "light" | "dark") {
-  return mode === "dark" ? "#f87171" : "#b42318";
+  return themeColors(mode).up;
 }
 
 export function tooltipBackgroundColor(mode: "light" | "dark") {

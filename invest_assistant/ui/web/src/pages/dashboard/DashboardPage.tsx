@@ -25,6 +25,7 @@ import { getWorkbenchToday, refreshWorkbenchMarket } from "../../api/console";
 import { listReports, getReportContent } from "../../api/reports";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
+import { themeColors } from "../../app/themeColors";
 import { DataPanel } from "../../components/common/DataPanel";
 import { EmptyAction } from "../../components/common/EmptyAction";
 import { MarkdownViewer } from "../../components/common/MarkdownViewer";
@@ -286,7 +287,7 @@ function TodayDashboardSection() {
           type: "bar",
           barWidth: 34,
           data: labels.map((key) => todaySourceCounts[key]),
-          itemStyle: { color: "#2563eb", borderRadius: [4, 4, 0, 0] }
+          itemStyle: { color: themeColors(resolvedMode).accent, borderRadius: [4, 4, 0, 0] }
         }
       ]
     };
@@ -303,7 +304,6 @@ function TodayDashboardSection() {
             <span className="workbench-market-time">数据 {formatShortDateTime(marketDataTime)}</span>
             <Button
               size="small"
-              type="primary"
               icon={<SyncOutlined />}
               loading={marketSubmitting}
               onClick={submitRefreshMarket}

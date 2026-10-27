@@ -6,6 +6,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listTrackComparison } from "../../../api/trackDiscovery";
 import { useLiuliTheme } from "../../../app/theme";
+import { themeColors } from "../../../app/themeColors";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { CountLabel } from "../../../components/common/CountLabel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
@@ -100,8 +101,8 @@ export function CompareSection() {
   );
 
   function radarOption(records: TrackComparisonItem[]): EChartsOption {
-    const textColor = resolvedMode === "dark" ? "#c9d1d9" : "#334155";
-    const gridColor = resolvedMode === "dark" ? "rgba(255, 255, 255, 0.12)" : "#e2e8f0";
+    const textColor = themeColors(resolvedMode).text2;
+    const gridColor = themeColors(resolvedMode).border;
     return {
       color: COMPARE_COLORS,
       tooltip: {},

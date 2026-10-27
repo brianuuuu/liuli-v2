@@ -27,6 +27,7 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { useLiuliTheme } from "../../../app/theme";
+import { themeColors } from "../../../app/themeColors";
 import type { StockMaterial } from "../../../types/api";
 import { formatTime } from "./shared";
 
@@ -234,7 +235,8 @@ export function EventsSection() {
   // ECharts visual settings
   const accentColor = "#10b981"; // Emerald green for stock events
   const shadowColor = resolvedMode === "dark" ? "rgba(16, 185, 129, 0.4)" : "rgba(16, 185, 129, 0.25)";
-  const borderColor = resolvedMode === "dark" ? "#161b22" : "#ffffff";
+  const colors = themeColors(resolvedMode);
+  const borderColor = colors.panel;
 
   const chartOption = useMemo(() => ({
     backgroundColor: "transparent",
@@ -255,16 +257,16 @@ export function EventsSection() {
     xAxis: {
       type: "category",
       data: chartData.map((d) => d.date),
-      axisLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.08)" : "#e2e8f0" } },
-      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 },
+      axisLine: { lineStyle: { color: colors.border } },
+      axisLabel: { color: colors.muted, fontSize: 10 },
       axisTick: { show: false }
     },
     yAxis: {
       type: "value",
       minInterval: 1,
       axisLine: { show: false },
-      splitLine: { lineStyle: { color: resolvedMode === "dark" ? "rgba(255,255,255,0.03)" : "#f1f5f9" } },
-      axisLabel: { color: resolvedMode === "dark" ? "#8b949e" : "#64748b", fontSize: 10 }
+      splitLine: { lineStyle: { color: colors.borderSoft } },
+      axisLabel: { color: colors.muted, fontSize: 10 }
     },
     series: [
       {
@@ -553,7 +555,7 @@ export function EventsSection() {
                         <div 
                           className="track-material-card-note" 
                           style={{ 
-                            borderLeftColor: item.impact_direction === "positive" ? "#10b981" : item.impact_direction === "negative" ? "#ef4444" : "var(--ll-accent)"
+                            borderLeftColor: item.impact_direction === "positive" ? "var(--ll-success)" : item.impact_direction === "negative" ? "var(--ll-danger)" : "var(--ll-accent)"
                           }}
                         >
                           <span className="note-label">个股视点：</span>
@@ -602,7 +604,7 @@ export function EventsSection() {
             {/* Statistics Board */}
             <div className="track-material-stats-panel" style={{ height: "auto", display: "flex", flexDirection: "column", gap: "10px", marginBottom: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
-                <SlidersOutlined style={{ color: "#10b981", fontSize: "14px" }} />
+                <SlidersOutlined style={{ color: "var(--ll-success)", fontSize: "14px" }} />
                 <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>标的数据统计</span>
               </div>
               <div className="stats-grid" style={{ minHeight: "86px" }}>
@@ -625,7 +627,7 @@ export function EventsSection() {
             <div className="track-material-pending-panel" style={{ border: "1px solid var(--ll-border)", borderRadius: "7px", background: "var(--ll-panel)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", borderBottom: "1px solid var(--ll-border)", paddingBottom: "8px" }}>
                 <Space size={8} align="baseline">
-                  <NotificationOutlined style={{ color: "#f59e0b", fontSize: "14px" }} />
+                  <NotificationOutlined style={{ color: "var(--ll-warn)", fontSize: "14px" }} />
                   <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ll-text)" }}>待处理队列</span>
                   <span className="section-head-count">({pendingEvents.length})</span>
                 </Space>

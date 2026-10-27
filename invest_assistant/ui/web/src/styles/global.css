@@ -1,7 +1,11 @@
+/* 主题 token。图表画在 canvas 上读不到 CSS 变量，用到的颜色在 app/themeColors.ts 有一份 JS 镜像，改色两边一起改。
+   圆角 4 / 6 / 8。
+   字重别随手改：Windows 上中文走微软雅黑、英文数字走 Segoe UI，实测 500 = 中文常规 + 英文半粗，
+   600 = 中文粗体 + 英文常规，700 = 两者都粗，现有取值是按这个效果调出来的。 */
 :root {
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  color: #1e293b;
-  background: #eaeff5;
+  /* 大号数字：西文字体优先，数字字形更紧凑 */
+  --ll-font-num: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Microsoft YaHei UI", sans-serif;
+  --ll-bg: #eaeff5;
   --ll-border: #e2e8f0;
   --ll-border-soft: #f1f5f9;
   --ll-panel: #ffffff;
@@ -14,6 +18,14 @@
   /* 涨跌色（红涨绿跌）：浅色用深一档保证白底对比度，深色主题换亮一档 */
   --ll-up: #b42318;
   --ll-down: #047857;
+  /* 状态色：成功 / 提醒 / 异常，与涨跌色分开，浅色取深一档保证白底上的文字对比度 */
+  --ll-success: #15803d;
+  --ll-warn: #b45309;
+  --ll-danger: #dc2626;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  /* 默认正文比 --ll-text（标题、强调）低一档，整页不刺眼 */
+  color: #1e293b;
+  background: var(--ll-bg);
 }
 
 * {
@@ -62,7 +74,7 @@ body {
   height: calc(100vh - 14px);
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--ll-panel);
   box-shadow:
     0 4px 12px -2px rgba(24, 42, 70, 0.04),
@@ -143,7 +155,7 @@ body {
   margin: 4px 0;
   border-radius: 6px;
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .app-sider .ant-menu-item:hover {
@@ -240,7 +252,7 @@ body {
   background: var(--ll-panel);
   color: var(--ll-text);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   max-width: 560px;
   overflow: hidden;
@@ -254,16 +266,24 @@ body {
   border-radius: 50%;
 }
 
+.status-chip.status-warn .status-chip-word {
+  color: var(--ll-warn);
+}
+
+.status-chip.status-danger .status-chip-word {
+  color: var(--ll-danger);
+}
+
 .status-ok i {
-  background: #10b981;
+  background: var(--ll-success);
 }
 
 .status-warn i {
-  background: #f97316;
+  background: var(--ll-warn);
 }
 
 .status-danger i {
-  background: #ef4444;
+  background: var(--ll-danger);
 }
 
 .toolbar-item,
@@ -282,7 +302,7 @@ body {
 .toolbar-icon.ant-btn {
   padding: 0 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ll-muted);
   box-shadow: none;
@@ -326,6 +346,7 @@ body {
 
 .module-tabs .ant-tabs-tab {
   padding: 8px 2px;
+  /* 二级导航不弱于卡片标题（14px 粗体）；选中只换强调色和下划线，不切粗细 */
   font-weight: 600;
 }
 
@@ -383,7 +404,7 @@ body {
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   box-shadow: none;
 }
@@ -459,7 +480,7 @@ body {
 .metric-panel {
   padding: 14px 15px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
@@ -562,7 +583,7 @@ body {
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -621,7 +642,7 @@ body {
 .workbench-index-price {
   margin-top: 10px;
   color: var(--ll-text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ll-font-num);
   font-size: 20px;
   font-weight: 650;
   line-height: 1.1;
@@ -633,19 +654,19 @@ body {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 7px;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ll-font-num);
   font-size: 12px;
   font-weight: 600;
 }
 
 .workbench-index-change.up,
 .workbench-portfolio-stats strong.up {
-  color: #dc2626;
+  color: var(--ll-up);
 }
 
 .workbench-index-change.down,
 .workbench-portfolio-stats strong.down {
-  color: #16a34a;
+  color: var(--ll-down);
 }
 
 .workbench-index-change.flat,
@@ -688,7 +709,7 @@ body {
 
 .workbench-portfolio-total strong {
   color: var(--ll-text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ll-font-num);
   font-size: 24px;
   font-weight: 650;
   line-height: 1;
@@ -712,7 +733,7 @@ body {
 
 .workbench-portfolio-stats strong {
   color: var(--ll-text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ll-font-num);
   font-size: 15px;
   font-weight: 650;
   text-align: right;
@@ -739,17 +760,17 @@ body {
 }
 
 .workbench-market-status.running {
-  color: #2563eb;
-  border-color: rgba(37, 99, 235, 0.28);
+  color: var(--ll-accent);
+  border-color: color-mix(in srgb, var(--ll-accent) 28%, transparent);
 }
 
 .workbench-market-status.success {
-  color: #059669;
+  color: var(--ll-success);
   border-color: rgba(5, 150, 105, 0.28);
 }
 
 .workbench-market-status.failed {
-  color: #dc2626;
+  color: var(--ll-danger);
   border-color: rgba(220, 38, 38, 0.28);
 }
 
@@ -792,7 +813,7 @@ body {
 .workbench-metric-tile-premium:hover {
   border-color: var(--ll-accent);
   background: var(--ll-panel);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.05);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ll-accent) 5%, transparent);
   transform: translateY(-1px);
 }
 
@@ -836,7 +857,7 @@ body {
   font-size: 19px;
   font-weight: 600;
   line-height: 1.1;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--ll-font-num);
 }
 
 .workbench-metric-loading {
@@ -1004,7 +1025,7 @@ body {
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -1071,7 +1092,7 @@ body {
 
 .review-kpi-value.is-pending {
   color: var(--ll-muted);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 调仓复盘全页：表头不要组件自带的列竖分隔线 */
@@ -1120,9 +1141,7 @@ body {
 .trade-review .advice-item-table.ant-table-wrapper .ant-table-thead > tr > th {
   background: transparent;
   border-bottom-color: var(--ll-border-soft);
-  color: var(--ll-muted);
   font-size: 12px !important;
-  font-weight: 400 !important;
 }
 
 .trade-review .advice-item-table.ant-table-wrapper .ant-table-tbody > tr:hover > td {
@@ -1140,7 +1159,7 @@ body {
 }
 
 .advice-rating {
-  color: #d97706;
+  color: var(--ll-warn);
   letter-spacing: 1px;
 }
 
@@ -1154,7 +1173,7 @@ body {
   margin-bottom: 10px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -1231,7 +1250,7 @@ body {
 }
 
 .record-time.is-stale {
-  color: #d97706;
+  color: var(--ll-warn);
   cursor: help;
 }
 
@@ -1263,7 +1282,7 @@ body {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #d97706;
+  background: var(--ll-warn);
   content: "";
 }
 
@@ -1470,7 +1489,7 @@ body {
   min-height: 38px;
   padding: 5px 10px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -1500,7 +1519,7 @@ body {
 
 .data-panel-toolbar .ant-segmented .ant-segmented-item {
   min-height: 28px;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--ll-muted);
   display: inline-flex;
   align-items: center;
@@ -1545,7 +1564,7 @@ body {
 .data-panel-toolbar .ant-select:hover .ant-select-selector,
 .data-panel-toolbar .ant-select-focused .ant-select-selector {
   background: var(--ll-panel-subtle) !important;
-  border-radius: 5px !important;
+  border-radius: 6px !important;
 }
 
 .data-panel-toolbar .ant-select .ant-select-selection-placeholder {
@@ -1572,20 +1591,10 @@ body {
   color: var(--ll-text);
 }
 
-.data-panel-toolbar .ant-btn-primary,
-.workbench-card .ant-card-extra .ant-btn-primary {
-  background: var(--ll-accent);
-  color: #ffffff;
+/* 描边主按钮在深色下用亮一档的强调色，按钮主题里的实心底色当文字太暗 */
+[data-theme="dark"] .ant-btn-primary.ant-btn-background-ghost:not(:disabled) {
   border-color: var(--ll-accent);
-}
-
-[data-theme="dark"] .data-panel-toolbar .ant-btn-primary,
-[data-theme="dark"] .workbench-card .ant-card-extra .ant-btn-primary {
-  color: #ffffff;
-}
-
-.data-panel-toolbar .ant-btn-primary:hover {
-  opacity: 0.88;
+  color: var(--ll-accent);
 }
 
 /* Toolbar controls: ghost-style search input */
@@ -1630,7 +1639,7 @@ body {
   min-width: 46px;
   padding-inline: 10px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ll-muted);
 }
@@ -1692,7 +1701,7 @@ body {
 
 .track-material-chart-card {
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   padding: 14px;
   height: 160px;
@@ -1717,7 +1726,7 @@ body {
 
 .track-material-stats-panel {
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   padding: 14px;
   height: 160px;
@@ -1756,8 +1765,8 @@ body {
   margin-top: 4px;
 }
 
-.color-pending { color: #f97316; }
-.color-confirmed { color: #10b981; }
+.color-pending { color: var(--ll-warn); }
+.color-confirmed { color: var(--ll-success); }
 .color-ignored { color: var(--ll-muted); }
 
 .track-material-section-head {
@@ -2009,7 +2018,7 @@ body {
 .track-material-drawer-hint {
   padding: 10px 12px;
   border: 1px solid var(--ll-border-soft);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
 }
 
@@ -2051,7 +2060,7 @@ body {
   align-items: center;
   padding: 13px 14px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -2063,7 +2072,7 @@ body {
   width: 36px;
   height: 36px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
   color: var(--ll-accent);
   font-size: 18px;
@@ -2127,11 +2136,11 @@ body {
 }
 
 .track-change.up {
-  color: #dc2626;
+  color: var(--ll-up);
 }
 
 .track-change.down {
-  color: #16a34a;
+  color: var(--ll-down);
 }
 
 .track-focus-grid {
@@ -2147,7 +2156,7 @@ body {
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   color: var(--ll-text);
   text-align: left;
@@ -2156,7 +2165,7 @@ body {
 
 .track-focus-card:hover,
 .track-focus-card.selected {
-  border-color: rgba(37, 99, 235, 0.38);
+  border-color: color-mix(in srgb, var(--ll-accent) 38%, transparent);
   background: var(--ll-panel-subtle);
 }
 
@@ -2222,7 +2231,7 @@ body {
   min-height: 76px;
   padding: 10px 12px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
 }
 
@@ -2251,16 +2260,8 @@ body {
   min-height: 76px;
   padding: 10px 12px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
-}
-
-[data-theme="dark"] .track-change.up {
-  color: #f87171;
-}
-
-[data-theme="dark"] .track-change.down {
-  color: #34d399;
 }
 
 [data-theme="dark"] .track-focus-card:hover,
@@ -2288,7 +2289,7 @@ body {
   align-items: center;
   padding: 13px 14px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -2300,7 +2301,7 @@ body {
   width: 36px;
   height: 36px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
   color: var(--ll-accent);
   font-size: 18px;
@@ -2398,7 +2399,7 @@ body {
 .stock-detail-code {
   color: var(--ll-muted);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .stock-detail-tags {
@@ -2445,7 +2446,7 @@ body {
   overflow: hidden;
   color: var(--ll-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2589,7 +2590,7 @@ body {
   min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
 }
 
@@ -2624,11 +2625,11 @@ body {
 }
 
 .stock-valuation-gap.positive {
-  color: #10b981;
+  color: var(--ll-success);
 }
 
 .stock-valuation-gap.negative {
-  color: #f97316;
+  color: var(--ll-warn);
 }
 
 .stock-valuation-gap.flat {
@@ -2643,7 +2644,7 @@ body {
 }
 
 .stock-trend-level.strong {
-  color: #10b981;
+  color: var(--ll-success);
 }
 
 .stock-trend-level.medium {
@@ -2665,7 +2666,7 @@ body {
   margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .stock-trend-dimension {
@@ -2712,7 +2713,7 @@ body {
   min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .stock-trend-note > span {
@@ -2768,19 +2769,19 @@ body {
 .stock-valuation-assumption-title {
   display: block;
   margin-bottom: 4px;
-  color: var(--ll-text-muted);
+  color: var(--ll-muted);
   font-size: 12px;
 }
 
 .stock-valuation-assumption-values {
   margin-right: 8px;
-  color: var(--ll-text-muted);
+  color: var(--ll-muted);
   font-style: normal;
   font-variant-numeric: tabular-nums;
 }
 
 .stock-valuation-assumption-empty {
-  color: var(--ll-text-muted);
+  color: var(--ll-muted);
   font-size: 12px;
 }
 
@@ -2843,11 +2844,11 @@ body {
 
 .stock-rating-copy {
   padding-left: 10px;
-  border-left: 3px solid #2563eb;
+  border-left: 3px solid var(--ll-accent);
 }
 
 .stock-rating-copy.risk {
-  border-left-color: #d97706;
+  border-left-color: var(--ll-warn);
 }
 
 .stock-rating-copy p {
@@ -2895,7 +2896,7 @@ body {
 .stock-detail-list-item strong {
   overflow: hidden;
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2953,11 +2954,11 @@ body {
 }
 
 .stock-kline-latest-summary strong.positive {
-  color: #dc2626;
+  color: var(--ll-up);
 }
 
 .stock-kline-latest-summary strong.negative {
-  color: #16a34a;
+  color: var(--ll-down);
 }
 
 .stock-kline-chart {
@@ -3003,7 +3004,7 @@ body {
 }
 
 .stock-kline-legend-button:focus-visible {
-  outline: 2px solid var(--ll-primary);
+  outline: 2px solid var(--ll-accent);
   outline-offset: 3px;
 }
 
@@ -3106,7 +3107,7 @@ body {
   overflow: hidden;
   color: var(--ll-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3206,7 +3207,7 @@ body {
 .track-score-bar {
   position: relative;
   height: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--ll-panel-subtle);
 }
 
@@ -3214,7 +3215,7 @@ body {
   display: block;
   height: 100%;
   min-width: 2px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--ll-accent);
 }
 
@@ -3293,11 +3294,11 @@ body {
 }
 
 .track-segment-column--benefiting .track-segment-column__head {
-  color: #16a34a;
+  color: var(--ll-success);
 }
 
 .track-segment-column--pressured .track-segment-column__head {
-  color: #dc2626;
+  color: var(--ll-danger);
 }
 
 .track-segment-item + .track-segment-item {
@@ -3352,11 +3353,11 @@ body {
 }
 
 .track-scenario-card--bull {
-  border-top-color: #16a34a;
+  border-top-color: var(--ll-success);
 }
 
 .track-scenario-card--bear {
-  border-top-color: #dc2626;
+  border-top-color: var(--ll-danger);
 }
 
 .track-scenario-card__head {
@@ -3404,7 +3405,7 @@ body {
 .track-detail-list-item strong {
   overflow: hidden;
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3572,7 +3573,7 @@ body {
   background: var(--ll-panel) !important;
   color: var(--ll-muted) !important;
   font-size: 12px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   transition: all 0.2s ease !important;
   height: 24px !important;
   line-height: 22px !important;
@@ -3643,8 +3644,8 @@ body {
 }
 
 [data-theme="dark"] .ll-radio-group .ant-radio-button-wrapper-checked.ll-radio-btn-neutral {
-  background: rgba(37, 99, 235, 0.15) !important;
-  border-color: rgba(37, 99, 235, 0.3) !important;
+  background: color-mix(in srgb, var(--ll-accent) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ll-accent) 30%, transparent) !important;
   color: #3b82f6 !important;
 }
 
@@ -3680,22 +3681,24 @@ body {
 /* ── Global table styles (standalone tables outside DataPanel) ── */
 .ant-table-wrapper .ant-table {
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th {
   background: var(--ll-panel);
   border-bottom-color: var(--ll-border);
-  color: var(--ll-text);
+  /* 表头是标签不是内容：灰色常规字重，不和数据行抢视线 */
+  color: var(--ll-muted);
   font-size: 13px !important;
-  font-weight: 600 !important;
+  font-weight: 400 !important;
   padding: 8px 10px !important;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr:not(.ant-table-measure-row) > td {
   border-bottom-color: var(--ll-border-soft);
   font-size: 13px !important;
+  font-variant-numeric: tabular-nums;
   padding: 8px 10px !important;
 }
 
@@ -3747,7 +3750,7 @@ body {
   height: 6px;
   margin-left: 6px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--ll-danger);
   vertical-align: super;
 }
 
@@ -3842,13 +3845,13 @@ body {
 }
 
 .stock-compare-score-value.is-weak {
-  color: #d97706;
+  color: var(--ll-warn);
   font-weight: 600;
 }
 
 /* 趋势页：研究员建议的分组与标的池当前分组不同 */
 .stock-compare-suggest-change {
-  color: #d97706;
+  color: var(--ll-warn);
   font-weight: 600;
   cursor: help;
 }
@@ -3880,7 +3883,7 @@ body {
 
 .stock-compare-score-value {
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 赛道对比弹窗：结论文字按字段分组，每组里几个赛道逐行并排 */
@@ -3913,7 +3916,7 @@ body {
 
 .track-compare-text-name {
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 @media (max-width: 640px) {
@@ -3945,11 +3948,11 @@ body {
 }
 
 .stock-compare-gap.positive {
-  color: #10b981;
+  color: var(--ll-success);
 }
 
 .stock-compare-gap.negative {
-  color: #f97316;
+  color: var(--ll-warn);
 }
 
 .graph-fullscreen-overlay {
@@ -3989,7 +3992,7 @@ body {
   min-height: 48px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--ll-border);
-  border-radius: 7px 7px 0 0;
+  border-radius: 8px 8px 0 0;
   background: color-mix(in srgb, var(--ll-panel) 88%, var(--ll-panel-subtle));
 }
 
@@ -4026,7 +4029,7 @@ body {
   border-radius: 6px;
   background: var(--ll-panel);
   color: var(--ll-text);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .flash-command-actions .ant-btn:hover {
@@ -4038,7 +4041,7 @@ body {
 .flash-feed-panel,
 .flash-filter-panel {
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -4176,12 +4179,12 @@ body {
 }
 
 .flash-dot.important {
-  border-color: #f97316;
+  border-color: var(--ll-warn);
   background: var(--ll-panel);
 }
 
 .flash-dot.filing {
-  border-color: #10b981;
+  border-color: var(--ll-success);
   background: var(--ll-panel);
 }
 
@@ -4287,7 +4290,7 @@ body {
   background: #f8fafc;
   color: #334155;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 18px;
 }
 
@@ -4302,7 +4305,7 @@ body {
   border-color: #d6dee8;
   background: #f8fafc;
   color: #334155;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .job-center-layout {
@@ -4346,7 +4349,7 @@ body {
 }
 
 .job-summary-item.danger strong {
-  color: #dc2626;
+  color: var(--ll-danger);
 }
 
 .job-center-toolbar .ant-segmented {
@@ -4360,7 +4363,7 @@ body {
 
 .job-center-toolbar .ant-segmented .ant-segmented-item {
   min-height: 28px;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--ll-muted);
   font-size: 13px;
   display: inline-flex;
@@ -4407,14 +4410,14 @@ body {
   overflow: hidden;
   padding: 12px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .job-card:hover {
-  border-color: rgba(37, 99, 235, 0.32);
+  border-color: color-mix(in srgb, var(--ll-accent) 32%, transparent);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
   transform: translateY(-1px);
 }
@@ -4641,7 +4644,7 @@ body {
   border: 1px solid rgba(22, 163, 74, 0.24);
   border-radius: 6px;
   background: rgba(22, 163, 74, 0.06);
-  color: #166534;
+  color: var(--ll-success);
   font-size: 13px;
 }
 
@@ -4704,7 +4707,7 @@ body {
   gap: 9px;
   padding: 10px;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   color: var(--ll-text);
   text-align: left;
@@ -4713,7 +4716,7 @@ body {
 
 .job-run-event:hover,
 .job-run-event.open {
-  border-color: rgba(37, 99, 235, 0.28);
+  border-color: color-mix(in srgb, var(--ll-accent) 28%, transparent);
   background: var(--ll-panel-subtle);
 }
 
@@ -4726,7 +4729,7 @@ body {
 }
 
 .job-run-dot.success {
-  background: #16a34a;
+  background: var(--ll-success);
 }
 
 .job-run-dot.running {
@@ -4734,7 +4737,7 @@ body {
 }
 
 .job-run-dot.failed {
-  background: #dc2626;
+  background: var(--ll-danger);
 }
 
 .job-run-main {
@@ -4784,7 +4787,7 @@ body {
 .job-run-metrics span {
   padding: 2px 6px;
   border: 1px solid var(--ll-border);
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--ll-panel);
   color: var(--ll-muted);
   font-size: 12px;
@@ -4833,7 +4836,7 @@ body {
 .flash-load-more {
   padding: 14px 0 4px 42px;
   color: var(--ll-muted);
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: inherit;
   font-size: 12px;
   text-align: center;
 }
@@ -4858,6 +4861,12 @@ body {
   border-color: rgba(88, 166, 255, 0.4);
   background: rgba(88, 166, 255, 0.12);
   color: #e6edf3;
+}
+
+/* 深色下亮字本身就够突出，标题和日期去掉粗体免得一屏发沉；浅色白底上常规字压不住，保留粗体 */
+[data-theme="dark"] .flash-title,
+[data-theme="dark"] .flash-date-label {
+  font-weight: 400;
 }
 
 [data-theme="dark"] .flash-content {
@@ -4966,23 +4975,29 @@ body {
 }
 
 [data-theme="dark"] {
-  color: #c9d1d9;
-  background: #010409;
-  --ll-border: rgba(255, 255, 255, 0.08);
-  --ll-border-soft: rgba(255, 255, 255, 0.03);
+  --ll-bg: #010409;
+  /* 分隔线两档：行间 .06、卡片边框 .10；原来 .03 在深色底上几乎看不见 */
+  --ll-border: rgba(255, 255, 255, 0.1);
+  --ll-border-soft: rgba(255, 255, 255, 0.06);
   --ll-panel: #161b22;
   --ll-panel-subtle: #21262d;
   --ll-surface: #0d1117;
   --ll-text: #e6edf3;
   --ll-muted: #8b949e;
-  --ll-accent: #2563eb;
-  --ll-accent-soft: rgba(37, 99, 235, 0.15);
+  /* 浅色的 #2563eb 在深色面板上对比度只有约 3.4:1，换 GitHub Dark 的蓝（约 6:1） */
+  --ll-accent: #4493f8;
+  --ll-accent-soft: rgba(68, 147, 248, 0.15);
   --ll-up: #f87171;
   --ll-down: #34d399;
+  --ll-success: #3fb950;
+  --ll-warn: #d29922;
+  --ll-danger: #f85149;
+  color: #c9d1d9;
+  background: var(--ll-bg);
 }
 
 [data-theme="dark"] body {
-  background: #010409;
+  background: var(--ll-bg);
 }
 
 [data-theme="dark"] .app-shell {
@@ -5041,13 +5056,8 @@ body {
   box-shadow: none !important;
 }
 
-[data-theme="dark"] .module-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+[data-theme="dark"] .module-tabs .ant-tabs-tab:not(.ant-tabs-tab-active):not(:hover) .ant-tabs-tab-btn {
   color: #9fb4cc;
-}
-
-[data-theme="dark"] .module-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn,
-[data-theme="dark"] .module-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--ll-accent);
 }
 
 [data-theme="dark"] .metric-panel {
@@ -5055,7 +5065,7 @@ body {
 }
 
 [data-theme="dark"] .login-page {
-  background: #010409;
+  background: var(--ll-bg);
 }
 
 /* Premium Flash News Details Drawer */
@@ -5084,7 +5094,7 @@ body {
   background: var(--ll-panel-subtle);
   border: 1px solid var(--ll-border-soft);
   font-size: 12px;
-  color: var(--ll-text-subtle);
+  color: var(--ll-muted);
 }
 
 .flash-detail-meta-item {
@@ -5142,7 +5152,7 @@ body {
   flex-direction: column;
   min-height: 0;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
   overflow: hidden;
 }
@@ -5348,7 +5358,7 @@ body {
   margin-bottom: 8px;
   padding: 10px 11px;
   border: 1px solid var(--ll-border-soft);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel-subtle);
 }
 
@@ -5401,11 +5411,11 @@ body {
 
 .knowledge-note-action-btn:hover {
   color: var(--ll-accent) !important;
-  background: rgba(37, 99, 235, 0.08) !important;
+  background: color-mix(in srgb, var(--ll-accent) 8%, transparent) !important;
 }
 
 .knowledge-note-action-btn.danger:hover {
-  color: #ef4444 !important;
+  color: var(--ll-danger) !important;
   background: rgba(239, 68, 68, 0.08) !important;
 }
 
@@ -5424,7 +5434,7 @@ body {
 [data-theme="dark"] .knowledge-group-row.active,
 [data-theme="dark"] .knowledge-group-row:hover {
   border-color: rgba(96, 165, 250, 0.35);
-  background: rgba(37, 99, 235, 0.16);
+  background: color-mix(in srgb, var(--ll-accent) 16%, transparent);
 }
 
 .knowledge-drawer-form {
@@ -5624,11 +5634,11 @@ body {
 }
 
 .tag-trend-stat strong.track-change.up {
-  color: #dc2626;
+  color: var(--ll-up);
 }
 
 .tag-trend-stat strong.track-change.down {
-  color: #16a34a;
+  color: var(--ll-down);
 }
 
 .tag-trend-chart {
@@ -5657,8 +5667,8 @@ body {
 
 /* 工作台 · 待办 */
 .todo-workbench {
-  --todo-success: #16a34a;
-  --todo-danger: #dc2626;
+  --todo-success: var(--ll-success);
+  --todo-danger: var(--ll-danger);
   --todo-danger-bg: rgba(220, 38, 38, 0.08);
   --todo-warning: #b45309;
   --todo-warning-bg: rgba(217, 119, 6, 0.1);
@@ -5667,8 +5677,6 @@ body {
 }
 
 [data-theme="dark"] .todo-workbench {
-  --todo-success: #3fb950;
-  --todo-danger: #f85149;
   --todo-danger-bg: rgba(248, 81, 73, 0.12);
   --todo-warning: #d29922;
   --todo-warning-bg: rgba(210, 153, 34, 0.14);
@@ -5678,7 +5686,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -5751,7 +5759,7 @@ body {
   min-height: 560px;
   overflow: hidden;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -5803,7 +5811,7 @@ body {
   min-width: 20px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--ll-accent-soft);
   color: var(--ll-accent);
   font-size: 12px;
@@ -5816,7 +5824,7 @@ body {
 .todo-tab-count.zero {
   background: var(--ll-border-soft);
   color: var(--ll-muted);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .todo-tabs-hint {
@@ -6093,7 +6101,7 @@ body {
 .todo-rail-card {
   overflow: hidden;
   border: 1px solid var(--ll-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ll-panel);
 }
 
@@ -6159,7 +6167,7 @@ body {
   min-width: 18px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
