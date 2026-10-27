@@ -1,3 +1,4 @@
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 import math
@@ -428,6 +429,7 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None, statu
     stock_ids = [item.stock_id for item, _stock in rows]
     latest_scores = _latest_scores_by_stock(db, stock_ids)
     latest_valuations = _latest_valuations_by_stock(db, stock_ids)
+    live_valuations = _live_valuation_fields(db, list(latest_valuations.values()))
     latest_trends = _latest_trends_by_stock(db, stock_ids)
     # 归档标的不提醒财报待研究，回收站视图里也不带。
     active_ids = [item.stock_id for item, _stock in rows if item.status != ARCHIVED_STATUS]
@@ -439,7 +441,9 @@ def list_pool(db: Session, q: str | None = None, limit: int | None = None, statu
         valuation = latest_valuations.get(item.stock_id)
         trend = latest_trends.get(item.stock_id)
         row["investment_level"] = score.investment_level if score else None
-        row["expectation_gap_rate"] = valuation.expectation_gap_rate if valuation else None
+        row["expectation_gap_rate"] = (
+            live_valuations.get(valuation.id, {}).get("expectation_gap_rate", valuation.expectation_gap_rate) if valuation else None
+        )
         row["trend_level"] = trend.trend_level if trend else None
         row["earnings_follow_up"] = follow_ups.get(item.stock_id)
         result.append(row)
@@ -650,6 +654,9 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         *(item.updated_at for item in notes),
         *(item.get("updated_at") for item in materials),
     ]
+    latest_valuation = _valuation_snapshot_dict(valuation_history[-1]) if valuation_history else None
+    if latest_valuation is not None:
+        latest_valuation.update(_live_valuation_fields(db, [valuation_history[-1]]).get(valuation_history[-1].id, {}))
     return {
         "stock": _stock_dict(stock),
         "pool": _pool_item_dict_from_stock(db, pool_item, stock) if pool_item else None,
@@ -662,7 +669,7 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         },
         "latest_score": _score_snapshot_dict(score_history[-1]) if score_history else None,
         "score_history": [_score_snapshot_dict(item) for item in score_history],
-        "latest_valuation": _valuation_snapshot_dict(valuation_history[-1]) if valuation_history else None,
+        "latest_valuation": latest_valuation,
         "valuation_history": [_valuation_snapshot_dict(item) for item in valuation_history],
         "latest_trend": _trend_snapshot_dict(trend_history[-1]) if trend_history else None,
         "trend_history": [_trend_snapshot_dict(item) for item in trend_history],
@@ -925,6 +932,53 @@ def _latest_valuations_by_stock(db: Session, stock_ids: list[int]) -> dict[int, 
     return latest
 
 
+def _live_valuation_fields(db: Session, valuations: list[StockValuationSnapshot]) -> dict[int, dict]:
+    """把估值快照的市值和三年空间滚到最新交易日，按快照 id 返回覆盖字段。
+
+    快照里的 current_market_value 是估值当天的市值，三年空间导入时据此算一次就落库，股价再怎么走都不变。
+    这里用前复权日线把估值日市值按涨跌幅折到最新收盘：前复权比值含分红，会比真实市值变化多出一个股息率，
+    但送转、拆股都能对上，裸价在除权日会断崖。日线每次同步都整窗重拉，窗口内前复权口径一致。
+    估值日早于日线窗口或标的没有日线（不在池里、同步没跑）时不覆盖，展示快照原值。
+    """
+    base_dates = {
+        item.id: item.analysis_date or item.created_at.date()
+        for item in valuations
+        if item.current_market_value and item.expected_market_value_3y is not None
+    }
+    if not base_dates:
+        return {}
+    stock_ids = {item.stock_id for item in valuations if item.id in base_dates}
+    rows = db.execute(
+        select(StockDailyBar.stock_id, StockDailyBar.trade_date, StockDailyBar.close)
+        .where(
+            StockDailyBar.stock_id.in_(stock_ids),
+            StockDailyBar.adj == "qfq",
+            StockDailyBar.source == "tushare",
+            StockDailyBar.trade_date >= min(base_dates.values()) - timedelta(days=30),
+        )
+        .order_by(StockDailyBar.stock_id.asc(), StockDailyBar.trade_date.asc())
+    ).all()
+    bars: dict[int, list[tuple[date, float]]] = defaultdict(list)
+    for stock_id, trade_date, close in rows:
+        bars[stock_id].append((trade_date, close))
+
+    result: dict[int, dict] = {}
+    for item in valuations:
+        base_date = base_dates.get(item.id)
+        series = bars.get(item.stock_id)
+        if base_date is None or not series:
+            continue
+        base_index = bisect_right(series, base_date, key=lambda bar: bar[0]) - 1
+        if base_index < 0 or not series[base_index][1]:
+            continue
+        market_value = item.current_market_value * series[-1][1] / series[base_index][1]
+        result[item.id] = {
+            "current_market_value": round(market_value, 4),
+            "expectation_gap_rate": round(item.expected_market_value_3y / market_value - 1, 6),
+        }
+    return result
+
+
 def _latest_trends_by_stock(db: Session, stock_ids: list[int]) -> dict[int, StockTrendSnapshot]:
     """趋势快照同一标的同一天允许多份，取研究日期最新、同日内最后写入的那份。"""
     if not stock_ids:
@@ -1164,6 +1218,7 @@ def _latest_valuation(db: Session, stock_id: int) -> dict | None:
         "expectation_gap_rate": item.expectation_gap_rate,
         "analysis_date": item.analysis_date,
         "researcher": item.researcher,
+        **_live_valuation_fields(db, [item]).get(item.id, {}),
     }
 
 
@@ -1211,7 +1266,11 @@ def _latest_valuations(db: Session, stock_ids: list[int], stock_by_id: dict[int,
     for row in rows:
         if row.stock_id not in latest:
             latest[row.stock_id] = row
-    result = [_valuation_row(item, stock_by_id.get(stock_id)) for stock_id, item in latest.items()]
+    live = _live_valuation_fields(db, list(latest.values()))
+    result = [
+        {**_valuation_row(item, stock_by_id.get(stock_id)), **live.get(item.id, {})}
+        for stock_id, item in latest.items()
+    ]
     result.sort(
         key=lambda row: (
             -(row["analysis_date"].toordinal() if row["analysis_date"] is not None else 0),
@@ -1543,6 +1602,7 @@ def _valuation_comparison_dict(db: Session, item: StockPoolItem, stock: Stock) -
             "analysis_date": valuation.analysis_date,
             "researcher": valuation.researcher,
             "created_at": valuation.created_at,
+            **_live_valuation_fields(db, [valuation]).get(valuation.id, {}),
         }
     )
     return row

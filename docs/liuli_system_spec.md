@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.46**（2026-10-25）
+> 当前版本：**1.0.47**（2026-10-27）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -662,7 +662,7 @@ stock_material：与 track_material 平行，来源为 source_item（信息流�
 | 表 | 来源报告 | 要点 |
 |---|---|---|
 | `stock_score_snapshot` | 标的评级报告 | 护城河、管理层、治理、战略、确定性、成长六项分 + total_score + investment_level |
-| `stock_valuation_snapshot` | 标的估值报告 | 财务表现、趋势参考、指引核对、利润/FCF/收入模型、三年合理市值；导入时按当前市值重算 `expectation_gap_rate` |
+| `stock_valuation_snapshot` | 标的估值报告 | 财务表现、趋势参考、指引核对、利润/FCF/收入模型、三年合理市值；导入时按当前市值重算 `expectation_gap_rate` 落库。读取最新估值时（标的池、看板、标的详情、估值对比）用前复权日线把估值日市值按涨跌幅折到最新收盘，`current_market_value` 和 `expectation_gap_rate` 返回实时值；估值历史保留快照原值；估值日之前没有日线时退回快照原值 |
 | `stock_trend_snapshot` | 趋势研究 | trend_level T0—T5（T0 最强）、六维（赛道三周期、公司地位、市场认可、资金认可、位置、周期）、建议分组 |
 
 ```text
