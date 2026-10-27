@@ -2387,6 +2387,28 @@ describe("mobile H5 app", () => {
     ));
   });
 
+  it("编辑笔记没有改动时保存置灰，有改动时返回先确认放弃", async () => {
+    window.localStorage.setItem(tokenStorageKey, "token");
+    window.location.hash = "#/notes/7";
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => new Response(
+      String(input).includes("note-groups") ? "[]" : JSON.stringify({ id: 7, content: "原始内容", status: "active", group_id: null }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    )));
+
+    renderApp();
+
+    const save = await screen.findByRole("button", { name: "保存修改" });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByDisplayValue("原始内容"), { target: { value: "改过的内容" } });
+    expect(save).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "返回" }));
+    expect(screen.getByRole("dialog", { name: "放弃未保存的修改？" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "继续编辑" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("改过的内容")).toBeInTheDocument();
+  });
+
   it("从分组页签点进笔记再返回，仍停在原分组", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";

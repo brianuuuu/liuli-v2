@@ -186,9 +186,10 @@ describe("mobile card elevation", () => {
     }
     expect(styles).not.toMatch(/\.pool-card__badge--space-/s);
     expect(styles).not.toMatch(/\.pool-card__badge--trend-T\d/s);
-    // 只有强档带色：中档、弱档同走中性底，否则满屏琥珀色会把真正的重点淹掉。
+    // 只有强档带色，且用品牌蓝：红色留给涨跌和新财报红点。中档中性灰底，弱档只留细边框。
+    expect(styles).toMatch(/\.pool-card__badge--tier-strong\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
     expect(styles).toMatch(/\.pool-card__badge--tier-mid\s*\{[^}]*background:\s*#eef1f5;/s);
-    expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*#f4f6f9;/s);
+    expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*inset 0 0 0 1px/s);
     // 排序按钮不是分组，推到状态行尾单独成一档。
     expect(styles).toMatch(/\.pill-segments button\.pool-sort-toggle\s*\{[^}]*margin-left:\s*auto;/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
