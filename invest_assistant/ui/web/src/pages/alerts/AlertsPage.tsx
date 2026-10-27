@@ -15,6 +15,7 @@ import {
   markAllAlertsRead
 } from "../../api/alerts";
 import { PageHeader } from "../../components/common/PageHeader";
+import { CountLabel } from "../../components/common/CountLabel";
 import { RecordTable } from "../../components/common/RecordTable";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -195,7 +196,7 @@ export function AlertsPage() {
                   className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                   onClick={() => switchStatus(item.value)}
                 >
-                  {item.label} ({item.count})
+                  <CountLabel label={item.label} count={item.count} />
                 </Button>
               ))}
             </Space>

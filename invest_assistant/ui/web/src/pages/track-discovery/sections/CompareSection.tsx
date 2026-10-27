@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { listTrackComparison } from "../../../api/trackDiscovery";
 import { useLiuliTheme } from "../../../app/theme";
 import { DataPanel } from "../../../components/common/DataPanel";
+import { CountLabel } from "../../../components/common/CountLabel";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackComparisonItem } from "../../../types/api";
@@ -82,10 +83,10 @@ export function CompareSection() {
       return acc;
     }, {} as Record<string, number>);
     return [
-      { value: undefined, label: `全部 (${comparison.data.length})` },
+      { value: undefined, label: "全部", count: comparison.data.length },
       ...thesisStatusOptions
         .filter((opt) => counts[opt.value])
-        .map((opt) => ({ value: opt.value, label: `${opt.label} (${counts[opt.value]})` }))
+        .map((opt) => ({ value: opt.value, label: opt.label, count: counts[opt.value] }))
     ];
   }, [comparison.data]);
 
@@ -211,14 +212,14 @@ export function CompareSection() {
                 className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                 onClick={() => setStatusFilter(item.value)}
               >
-                {item.label}
+                <CountLabel label={item.label} count={item.count} />
               </Button>
             ))}
           </Space>
           <div className="data-panel-toolbar-spacer" />
           <Tooltip title={selected.length < 2 ? `勾选 2–${MAX_COMPARE} 个已研究的赛道后叠加对比` : undefined}>
             <Button size="small" type="primary" ghost disabled={selected.length < 2} onClick={() => setCompareOpen(true)}>
-              对比雷达{selected.length ? ` (${selected.length})` : ""}
+              <CountLabel label="对比雷达" count={selected.length || null} />
             </Button>
           </Tooltip>
         </>

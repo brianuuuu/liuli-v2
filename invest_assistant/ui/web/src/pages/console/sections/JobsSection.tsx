@@ -5,6 +5,7 @@ import { listJobLogs, listJobs, listRunRequests, runJob, syncJobDefinitions, upd
 import type { JobConfig, JobRunLog } from "../../../types/api";
 
 import { EmptyAction } from "../../../components/common/EmptyAction";
+import { CountLabel } from "../../../components/common/CountLabel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { DetailRows, formatTime } from "./shared";
 import { JobCard } from "./JobCard";
@@ -383,11 +384,11 @@ export function JobsSection() {
             size="small"
             value={statusFilter}
             options={[
-              { value: "all", label: `全部 (${jobSummary.total})` },
-              { value: "failed", label: `异常 (${jobSummary.failed})` },
-              { value: "running", label: `运行中 (${jobSummary.running})` },
-              { value: "idle", label: `未运行 (${jobSummary.idle})` },
-              { value: "completed", label: `已完成 (${jobSummary.completed})` }
+              { value: "all", label: <CountLabel label="全部" count={jobSummary.total} /> },
+              { value: "failed", label: <CountLabel label="异常" count={jobSummary.failed} /> },
+              { value: "running", label: <CountLabel label="运行中" count={jobSummary.running} /> },
+              { value: "idle", label: <CountLabel label="未运行" count={jobSummary.idle} /> },
+              { value: "completed", label: <CountLabel label="已完成" count={jobSummary.completed} /> }
             ]}
             onChange={(value) => setStatusFilter(String(value))}
           />
@@ -404,8 +405,8 @@ export function JobsSection() {
             value={enabledFilter}
             options={[
               { value: "all", label: "显示全部" },
-              { value: "true", label: `启用 (${jobSummary.enabled})` },
-              { value: "false", label: `停用 (${jobSummary.total - jobSummary.enabled})` }
+              { value: "true", label: <CountLabel label="启用" count={jobSummary.enabled} /> },
+              { value: "false", label: <CountLabel label="停用" count={jobSummary.total - jobSummary.enabled} /> }
             ]}
             onChange={setEnabledFilter}
             style={{ width: 110 }}

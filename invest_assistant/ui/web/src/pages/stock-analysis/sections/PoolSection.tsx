@@ -7,6 +7,7 @@ import { searchStocks } from "../../../api/stocks";
 import { listTracks } from "../../../api/trackDiscovery";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
+import { CountLabel } from "../../../components/common/CountLabel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Stock, StockPoolItem } from "../../../types/api";
 import { earningsFollowUpTip } from "../earningsFollowUp";
@@ -42,14 +43,15 @@ export function PoolSection() {
     }, {} as Record<string, number>);
 
     // 回收站和常规列表是两份数据，只给当前这份标计数，免得另一份显示成 0。
-    const counted = (value: string | undefined, label: string, total: number) =>
-      (value === ARCHIVED_STATUS) === archivedView ? `${label} (${total})` : label;
+    const counted = (value: string | undefined, total: number) =>
+      (value === ARCHIVED_STATUS) === archivedView ? total : undefined;
 
     return [
-      { value: undefined, label: counted(undefined, "全部", pool.data.length) },
+      { value: undefined, label: "全部", count: counted(undefined, pool.data.length) },
       ...poolStatusOptions.map((opt) => ({
         value: opt.value,
-        label: counted(opt.value, opt.label, counts[opt.value] || 0)
+        label: opt.label,
+        count: counted(opt.value, counts[opt.value] || 0)
       }))
     ];
   }, [pool.data, archivedView]);
@@ -209,7 +211,7 @@ export function PoolSection() {
                   className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                   onClick={() => setStatusFilter(item.value)}
                 >
-                  {item.label}
+                  <CountLabel label={item.label} count={item.count} />
                 </Button>
               ))}
               {archivedView ? null : (
@@ -218,7 +220,7 @@ export function PoolSection() {
                   className={followUpOnly ? "toolbar-filter-button active" : "toolbar-filter-button"}
                   onClick={() => setFollowUpOnly((value) => !value)}
                 >
-                  待研究财报 ({followUpCount})
+                  <CountLabel label="待研究财报" count={followUpCount} />
                 </Button>
               )}
             </Space>

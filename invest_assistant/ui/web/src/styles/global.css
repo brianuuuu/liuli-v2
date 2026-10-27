@@ -1618,6 +1618,14 @@ body {
   flex-wrap: wrap;
 }
 
+/* 筛选按钮上的计数：不加括号，浅一档的等宽数字，颜色跟随按钮（选中时跟着变强调色） */
+.count-label-num {
+  margin-left: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
 .data-panel-toolbar .toolbar-filter-button {
   min-width: 46px;
   padding-inline: 10px;

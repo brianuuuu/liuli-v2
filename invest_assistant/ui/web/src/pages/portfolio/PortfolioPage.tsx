@@ -26,6 +26,7 @@ import { searchStocks } from "../../api/stocks";
 import { ChartCard } from "../../components/charts/ChartCard";
 import { chartGridColor, chartTextColor } from "../../components/charts/chartTheme";
 import { EmptyAction } from "../../components/common/EmptyAction";
+import { CountLabel } from "../../components/common/CountLabel";
 import { PageHeader } from "../../components/common/PageHeader";
 import { WorkbenchCard } from "../../components/common/WorkbenchCard";
 import { ModuleTabs } from "../../components/layout/ModuleTabs";
@@ -939,7 +940,7 @@ export function PortfolioPage() {
                   className={tradesView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                   onClick={() => setTradesView(item.value)}
                 >
-                  {item.label} ({item.count})
+                  <CountLabel label={item.label} count={item.count} />
                 </Button>
               ))}
             </Space>

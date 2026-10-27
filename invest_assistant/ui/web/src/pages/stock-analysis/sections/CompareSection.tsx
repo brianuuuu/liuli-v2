@@ -11,6 +11,7 @@ import { listTracks } from "../../../api/trackDiscovery";
 import { useLiuliTheme } from "../../../app/theme";
 import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
+import { CountLabel } from "../../../components/common/CountLabel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { StockScoreComparisonItem, StockTrendComparisonItem, StockValuationComparisonItem } from "../../../types/api";
 import { TREND_LEVELS, suggestedGroupLabel, trendLevelTone } from "../trendPresentation";
@@ -126,8 +127,8 @@ export function CompareSection() {
       return acc;
     }, {} as Record<string, number>);
     return [
-      { value: undefined, label: `全部 (${activeSourceRows.length})` },
-      ...poolStatusOptions.map((opt) => ({ value: opt.value, label: `${opt.label} (${counts[opt.value] || 0})` }))
+      { value: undefined, label: "全部", count: activeSourceRows.length },
+      ...poolStatusOptions.map((opt) => ({ value: opt.value, label: opt.label, count: counts[opt.value] || 0 }))
     ];
   }, [activeSourceRows]);
 
@@ -146,8 +147,8 @@ export function CompareSection() {
       .filter((item) => item.count > 0 || item.value === trackFilter)
       .sort((a, b) => b.count - a.count);
     return [
-      { value: "all", label: `全部 (${activeSourceRows.length})` },
-      ...items.map((item) => ({ value: item.value, label: `${item.name} (${item.count})` }))
+      { value: "all", label: "全部", count: activeSourceRows.length },
+      ...items.map((item) => ({ value: item.value, label: item.name, count: item.count }))
     ];
   }, [visibleTracks, activeTrackCounts, activeSourceRows.length, trackFilter]);
 
@@ -360,7 +361,7 @@ export function CompareSection() {
     activeTab === "score" ? (
       <Tooltip title={selectedScores.length < 2 ? `勾选 2–${MAX_COMPARE} 只标的后叠加对比六维雷达` : undefined}>
         <Button size="small" type="primary" ghost disabled={selectedScores.length < 2} onClick={() => setCompareOpen(true)}>
-          对比雷达{selectedScores.length ? ` (${selectedScores.length})` : ""}
+          <CountLabel label="对比雷达" count={selectedScores.length || null} />
         </Button>
       </Tooltip>
     ) : null;
@@ -396,7 +397,7 @@ export function CompareSection() {
                 className={statusFilter === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                 onClick={() => setStatusFilter(item.value)}
               >
-                {item.label}
+                <CountLabel label={item.label} count={item.count} />
               </Button>
             ))}
           </Space>
@@ -413,7 +414,7 @@ export function CompareSection() {
                 className={trackFilter === opt.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                 onClick={() => setTrackFilter(opt.value)}
               >
-                {opt.label}
+                <CountLabel label={opt.label} count={opt.count} />
               </Button>
             ))}
           </Space>

@@ -2,6 +2,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { Button, Space, Tooltip } from "antd";
 import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
+import { CountLabel } from "../../components/common/CountLabel";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewData } from "../../types/api";
 import {
@@ -121,7 +122,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
                 className={statsView === item.value ? "toolbar-filter-button active" : "toolbar-filter-button"}
                 onClick={() => setStatsView(item.value)}
               >
-                {item.label} ({item.count})
+                <CountLabel label={item.label} count={item.count} />
               </Button>
             ))}
           </Space>
