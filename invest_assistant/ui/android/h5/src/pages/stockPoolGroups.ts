@@ -80,7 +80,7 @@ export function trendLevelBadge(trendLevel?: string | null): TrendLevel | null {
 
 /**
  * 三个维度共用一套强/中/弱配色：颜色只编码"好到什么程度"，不编码"这是哪个维度"。
- * 各自一套色时 A 和 B 同为蓝色，等级高低反而看不出来；统一之后一张卡片红得越多越好。
+ * 各自一套色时 A 和 B 同为蓝色，等级高低反而看不出来；统一之后一张卡片蓝得越多越好。
  */
 export type BadgeTier = "strong" | "mid" | "weak";
 
