@@ -604,13 +604,14 @@ html:not(.pager-dragging) .pool-card:active { background: var(--blue-soft); tran
    B/C、T3-T4、中为中，D、T5、小为弱。
    强档用品牌蓝浅底：红色已经留给涨跌和"新财报待研究"红点，徽章再用红会把红点淹没。
    中档是中性灰底（评级口径外的未知值走同样的默认底色，不会被看成强档），
-   弱档只留细边框，和中档的实底一眼分开。 */
+   弱档同样是实底，只把底色和文字一起调淡：细边框空框在 16px 的小格里像未勾选的复选框，
+   和旁边的实底徽章也不成一组。 */
 .pool-card__badge--tier-strong { background: var(--blue-soft); color: var(--blue); }
 .pool-card__badge--tier-mid { background: #eef1f5; color: #4b5563; }
-.pool-card__badge--tier-weak { background: transparent; box-shadow: inset 0 0 0 1px #e5e7eb; color: #aeb6c2; }
+.pool-card__badge--tier-weak { background: #f4f6f9; color: #9aa3b0; font-weight: 500; }
 :root[data-theme="dark"] .pool-card__badge--tier-strong { background: var(--blue-soft); color: var(--blue); }
 :root[data-theme="dark"] .pool-card__badge--tier-mid { background: #272b33; color: #c3cad6; }
-:root[data-theme="dark"] .pool-card__badge--tier-weak { background: transparent; box-shadow: inset 0 0 0 1px #2b2f36; color: #6b7280; }
+:root[data-theme="dark"] .pool-card__badge--tier-weak { background: #1f2228; color: #7b8494; font-weight: 500; }
 /* 翻页格与标的卡片同尺寸，但它是整屏最不重要的一格，不能是最重的一块色。
    虚线空框：唯一保留描边的地方，因为它要和实底的标的卡片区分开，
    虚线本身就说明这一格不是数据。 */
