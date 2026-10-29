@@ -622,7 +622,9 @@ html:not(.pager-dragging) .pool-card:active { background: var(--blue-soft); tran
 /* 翻页格与标的卡片同尺寸，但它是整屏最不重要的一格，不能是最重的一块色。
    虚线空框：唯一保留描边的地方，因为它要和实底的标的卡片区分开，
    虚线本身就说明这一格不是数据。 */
-.pool-card--pager { align-items: center; justify-content: center; gap: 2px; border: 1px dashed var(--border); background: transparent; }
+/* 翻页格固定排在最右一列：末页卡片不满一行时贴到行尾，和首页第 24 格同一位置；
+   末行已排满时只能另起一行，但仍靠右 */
+.pool-card--pager { grid-column-end: -1; align-items: center; justify-content: center; gap: 2px; border: 1px dashed var(--border); background: transparent; }
 .dashboard-flat-section .pool-card--pager { background: transparent; }
 html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); background: var(--blue-soft); }
 .pool-card--pager strong { color: var(--blue); font-size: 12px; font-weight: 650; }

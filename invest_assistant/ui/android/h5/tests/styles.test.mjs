@@ -172,6 +172,7 @@ describe("mobile card elevation", () => {
     expect(styles).not.toMatch(/\.pool-card em\s*\{/s);
     // 翻页格是整屏最不重要的一格：虚线空框，不能是最重的一块实色。
     expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*border:\s*1px dashed var\(--border\);[^}]*background:\s*transparent;/s);
+    expect(styles).toMatch(/\.pool-card--pager\s*\{[^}]*grid-column-end:\s*-1;/s);
     // 角标独占代码下面一行，不再绝对定位压在文字上，因此文字也不需要预留任何槽位。
     expect(styles).not.toMatch(/\.pool-card strong\s*\{[^}]*padding-right:/s);
     expect(styles).not.toMatch(/\.pool-card span\s*\{[^}]*padding-right:/s);
