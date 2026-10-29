@@ -3,15 +3,16 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ForwardedRef,
   type ReactElement,
   type ReactNode,
   type RefObject
 } from "react";
+import { flushSync } from "react-dom";
 import { resolvePagerTarget, type PagerRelease } from "./pagerGesture";
 import { touchPagerCache } from "./pagerCache";
 import type { PagerMotion, PagerMotionSink } from "./pagerMotion";
@@ -24,10 +25,6 @@ type Props<T extends string> = {
   onChange: (key: T) => void;
   motionSink?: RefObject<PagerMotionSink | null>;
   renderPage: (key: T) => ReactNode;
-};
-
-type PagerStyle = CSSProperties & {
-  "--pager-settle-duration": string;
 };
 
 type GestureSample = {
@@ -50,11 +47,36 @@ export type HorizontalTabPagerHandle<T extends string> = {
 const AXIS_DOMINANCE_RATIO = 1.25;
 const AXIS_LOCK_DISTANCE = 8;
 const EDGE_RESISTANCE = 0.18;
-const MIN_SETTLE_DURATION_MS = 140;
-const MAX_SETTLE_DURATION_MS = 240;
 const CLICK_SUPPRESSION_MS = 500;
 const VELOCITY_WINDOW_MS = 100;
 const MIN_VELOCITY_SAMPLE_MS = 8;
+/** 空闲时预挂载左右相邻页，起手拖动时就不用当场渲染一整页列表。 */
+const NEIGHBOR_PREFETCH_DELAY_MS = 300;
+
+/**
+ * 归位曲线取 easeOutQuint，和安卓 ViewPager 的五次方减速同一个手感：前段快、尾巴长。
+ * 曲线起点斜率是 1 / 0.23，甩出去的归位按这个斜率反推时长，让动画起速正好接住手指的速度。
+ */
+export const PAGER_SETTLE_EASING = "cubic-bezier(.23, 1, .32, 1)";
+const SETTLE_INITIAL_SLOPE = 1 / 0.23;
+const MIN_FLING_VELOCITY = 300;
+const MIN_FLING_SETTLE_MS = 180;
+const MAX_FLING_SETTLE_MS = 420;
+const MIN_SETTLE_MS = 200;
+const MAX_SETTLE_MS = 280;
+
+/**
+ * 归位时长。松手速度朝着归位方向且够快时按速度接力；
+ * 慢慢松手、点页签切换、反向回弹都按剩余距离占屏宽的比例取。
+ */
+export function pagerSettleDuration(distance: number, width: number, velocityTowardTarget = 0) {
+  if (velocityTowardTarget >= MIN_FLING_VELOCITY) {
+    const matched = SETTLE_INITIAL_SLOPE * distance / velocityTowardTarget * 1000;
+    return Math.round(Math.min(MAX_FLING_SETTLE_MS, Math.max(MIN_FLING_SETTLE_MS, matched)));
+  }
+  const fraction = Math.min(1, Math.max(0, distance / Math.max(1, width)));
+  return Math.round(MIN_SETTLE_MS + (MAX_SETTLE_MS - MIN_SETTLE_MS) * fraction);
+}
 
 /**
  * 起手时不猜「这是点还是滑」：8px 轴锁会判，误触的点击由 suppressClickUntil 吃掉。
@@ -113,17 +135,19 @@ function HorizontalTabPagerInner<T extends string>(
   forwardedRef: ForwardedRef<HorizontalTabPagerHandle<T>>
 ) {
   const activeIndex = Math.max(0, items.findIndex((item) => item.key === activeKey));
-  const [settleDuration, setSettleDuration] = useState(MAX_SETTLE_DURATION_MS);
   const [settling, setSettling] = useState(false);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState<number | null>(null);
   const [mountedKeys, setMountedKeys] = useState<T[]>([activeKey]);
   const pagerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef(new Map<T, HTMLElement>());
   const dragXRef = useRef(0);
+  const settleDurationRef = useRef(0);
   const gestureRef = useRef<PointerGesture | null>(null);
   const transitionLocked = useRef(false);
   const settleTimer = useRef<number | null>(null);
   const dragFrame = useRef<number | null>(null);
   const pendingDrag = useRef<number | null>(null);
+  const pendingScrollRestore = useRef<number | null>(null);
   const suppressClickUntil = useRef(0);
   const scrollPositions = useRef(new Map<T, number>());
 
@@ -137,9 +161,56 @@ function HorizontalTabPagerInner<T extends string>(
     setMountedKeys((keys) => touchPagerCache(keys, activeKey, [activeKey]));
   }, [activeKey]);
 
+  useEffect(() => {
+    const neighbors = [activeIndex - 1, activeIndex + 1]
+      .filter((index) => index >= 0 && index < items.length)
+      .map((index) => items[index].key);
+    if (!neighbors.length) return;
+    const timer = window.setTimeout(() => {
+      // 正在拖动或归位时不预挂载：渲染整页会和动画抢主线程，切换完成后会重新排一次。
+      if (transitionLocked.current || gestureRef.current?.axis === "horizontal") return;
+      setMountedKeys((keys) => neighbors.reduce(
+        (next, key) => next.includes(key) ? next : touchPagerCache(next, key, [activeKey, ...neighbors]),
+        keys
+      ));
+    }, NEIGHBOR_PREFETCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, activeKey, items]);
+
   const publishMotion = useCallback((motion: PagerMotion | null) => {
     motionSink?.current?.setMotion(motion);
   }, [motionSink]);
+
+  /**
+   * 位移直接写到每张页自己的 transform 上，不走父级 CSS 变量：变量会被整棵子树继承，
+   * 拖动每一帧都要把三整页重算样式，长列表上必掉帧。
+   * 相邻页按它自己记住的滚动位置错位摆放（纵向偏移 = 当前滚动 − 它的滚动），
+   * 拖动途中露出来的就是离开时的样子，松手后不用再跳一次滚动位置。
+   */
+  const applyPages = useCallback((dragX: number, duration: number) => {
+    const scrollY = window.scrollY;
+    const transition = duration > 0 ? `transform ${duration}ms ${PAGER_SETTLE_EASING}` : "none";
+    for (const [key, page] of pageRefs.current) {
+      const offset = Number(page.dataset.pagerOffset ?? 0);
+      const shiftY = offset === 0 ? 0 : scrollY - (scrollPositions.current.get(key) ?? 0);
+      if (page.style.transition !== transition) page.style.transition = transition;
+      page.style.transform = offset === 0
+        ? `translate3d(${dragX}px, 0, 0)`
+        : `translate3d(calc(${offset * 100}% + ${dragX}px), ${shiftY}px, 0)`;
+    }
+  }, []);
+
+  // 每次提交后按最新格位重摆：先恢复新当前页的滚动，再算相邻页的错位。
+  // 归位途中重渲染时 transform 与 transition 都和正在跑的动画一致，不会打断它。
+  useLayoutEffect(() => {
+    if (pendingScrollRestore.current !== null) {
+      const top = pendingScrollRestore.current;
+      pendingScrollRestore.current = null;
+      document.documentElement.scrollTop = top;
+      document.body.scrollTop = top;
+    }
+    applyPages(dragXRef.current, settleDurationRef.current);
+  });
 
   // 手势现在会从可点区域起手，滑起来就得让按下态失效，否则横滑一路闪蓝。
   const setDragging = useCallback((dragging: boolean) => {
@@ -147,9 +218,10 @@ function HorizontalTabPagerInner<T extends string>(
     document.documentElement.classList.toggle("pager-dragging", dragging);
   }, []);
 
-  const writeDrag = useCallback((nextDragX: number, explicitTargetIndex?: number) => {
+  const writeDrag = useCallback((nextDragX: number, explicitTargetIndex?: number, duration = 0) => {
     dragXRef.current = nextDragX;
-    pagerRef.current?.style.setProperty("--pager-drag-x", `${nextDragX}px`);
+    settleDurationRef.current = duration;
+    applyPages(nextDragX, duration);
     const width = pagerRef.current?.clientWidth || window.innerWidth;
     const inferredTarget = nextDragX < 0
       ? activeIndex + 1
@@ -158,15 +230,16 @@ function HorizontalTabPagerInner<T extends string>(
         : activeIndex;
     const targetIndex = explicitTargetIndex ?? inferredTarget;
     if (targetIndex < 0 || targetIndex >= items.length || targetIndex === activeIndex) {
-      publishMotion(null);
+      publishMotion(duration > 0 ? { fromIndex: activeIndex, toIndex: activeIndex, progress: 0, duration } : null);
       return;
     }
     publishMotion({
       fromIndex: activeIndex,
       toIndex: targetIndex,
-      progress: Math.min(1, Math.abs(nextDragX) / width)
+      progress: Math.min(1, Math.abs(nextDragX) / width),
+      duration
     });
-  }, [activeIndex, items.length, publishMotion]);
+  }, [activeIndex, applyPages, items.length, publishMotion]);
 
   const flushPendingDrag = useCallback(() => {
     if (dragFrame.current !== null) {
@@ -191,36 +264,33 @@ function HorizontalTabPagerInner<T extends string>(
     });
   }, [writeDrag]);
 
-  const durationForDistance = useCallback((distance: number) => {
-    const width = pagerRef.current?.clientWidth || window.innerWidth;
-    const fraction = Math.min(1, Math.max(0, distance / Math.max(1, width)));
-    return Math.round(
-      MIN_SETTLE_DURATION_MS
-      + (MAX_SETTLE_DURATION_MS - MIN_SETTLE_DURATION_MS) * fraction
-    );
-  }, []);
-
+  /**
+   * 归位结束：切换当前页、恢复它的滚动、清掉位移必须落在同一帧。
+   * 分开提交时中间会有一帧旧页的格位配着清零的位移，画面闪回旧页。
+   */
   const finishSettle = useCallback((targetIndex: number | null) => {
+    dragXRef.current = 0;
+    settleDurationRef.current = 0;
     if (targetIndex !== null) {
       const targetKey = items[targetIndex].key;
-      setMountedKeys((keys) => touchPagerCache(keys, targetKey, [targetKey]));
-      onChange(targetKey);
-      window.requestAnimationFrame(() => {
-        const scrollTop = scrollPositions.current.get(targetKey) ?? 0;
-        document.documentElement.scrollTop = scrollTop;
-        document.body.scrollTop = scrollTop;
+      pendingScrollRestore.current = scrollPositions.current.get(targetKey) ?? 0;
+      flushSync(() => {
+        setMountedKeys((keys) => touchPagerCache(keys, targetKey, [targetKey]));
+        onChange(targetKey);
+        setSettling(false);
+        setTransitionTargetIndex(null);
       });
+    } else {
+      applyPages(0, 0);
+      setSettling(false);
+      setTransitionTargetIndex(null);
     }
-    dragXRef.current = 0;
-    pagerRef.current?.style.setProperty("--pager-drag-x", "0px");
     setDragging(false);
-    setSettling(false);
-    setTransitionTargetIndex(null);
     transitionLocked.current = false;
     publishMotion(null);
-  }, [items, onChange, publishMotion, setDragging]);
+  }, [applyPages, items, onChange, publishMotion, setDragging]);
 
-  const springBack = useCallback(() => {
+  const springBack = useCallback((velocityX = 0) => {
     flushPendingDrag();
     if (transitionLocked.current || dragXRef.current === 0) {
       publishMotion(null);
@@ -228,14 +298,16 @@ function HorizontalTabPagerInner<T extends string>(
     }
     transitionLocked.current = true;
     setDragging(false);
-    const duration = durationForDistance(Math.abs(dragXRef.current));
-    setSettleDuration(duration);
+    const width = pagerRef.current?.clientWidth || window.innerWidth;
+    // 回弹朝 0 走：拖向左（负）时，向右（正）的速度才算顺着回弹方向
+    const towardRest = dragXRef.current < 0 ? velocityX : -velocityX;
+    const duration = pagerSettleDuration(Math.abs(dragXRef.current), width, towardRest);
     setSettling(true);
-    writeDrag(0);
+    writeDrag(0, undefined, duration);
     settleTimer.current = window.setTimeout(() => finishSettle(null), duration);
-  }, [durationForDistance, finishSettle, flushPendingDrag, publishMotion, setDragging, writeDrag]);
+  }, [finishSettle, flushPendingDrag, publishMotion, setDragging, writeDrag]);
 
-  const settleToIndex = useCallback((targetIndex: number) => {
+  const settleToIndex = useCallback((targetIndex: number, velocityX = 0) => {
     if (
       transitionLocked.current
       || targetIndex === activeIndex
@@ -253,10 +325,10 @@ function HorizontalTabPagerInner<T extends string>(
     const startSettle = () => {
       const width = pagerRef.current?.clientWidth || window.innerWidth;
       const targetDragX = targetIndex > activeIndex ? -width : width;
-      const duration = durationForDistance(Math.abs(targetDragX - dragXRef.current));
-      setSettleDuration(duration);
+      const towardTarget = targetDragX < 0 ? -velocityX : velocityX;
+      const duration = pagerSettleDuration(Math.abs(targetDragX - dragXRef.current), width, towardTarget);
       setSettling(true);
-      writeDrag(targetDragX, targetIndex);
+      writeDrag(targetDragX, targetIndex, duration);
       settleTimer.current = window.setTimeout(() => finishSettle(targetIndex), duration);
     };
     if (Math.abs(targetIndex - activeIndex) > 1) {
@@ -266,7 +338,6 @@ function HorizontalTabPagerInner<T extends string>(
   }, [
     activeIndex,
     activeKey,
-    durationForDistance,
     finishSettle,
     flushPendingDrag,
     items,
@@ -316,7 +387,7 @@ function HorizontalTabPagerInner<T extends string>(
           const targetIndex = deltaX < 0 ? activeIndex + 1 : activeIndex - 1;
           if (targetIndex >= 0 && targetIndex < items.length) {
             const targetKey = items[targetIndex].key;
-            setMountedKeys((keys) => touchPagerCache(
+            setMountedKeys((keys) => keys.includes(targetKey) ? keys : touchPagerCache(
               keys,
               targetKey,
               [activeKey, targetKey]
@@ -364,16 +435,15 @@ function HorizontalTabPagerInner<T extends string>(
         viewportWidth: pager.clientWidth || window.innerWidth
       });
       if (targetIndex === activeIndex) {
-        springBack();
+        springBack(velocityX);
       } else {
-        settleToIndex(targetIndex);
+        settleToIndex(targetIndex, velocityX);
       }
     };
 
     const onPointerUp = (event: PointerEvent) => endGesture(event, false);
     const onPointerCancel = (event: PointerEvent) => endGesture(event, true);
 
-    pager.style.setProperty("--pager-drag-x", "0px");
     document.documentElement.classList.add("horizontal-tab-pager-document");
     surface.classList.add("horizontal-tab-pager-surface");
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -417,9 +487,6 @@ function HorizontalTabPagerInner<T extends string>(
           suppressClickUntil.current = 0;
         }
       }}
-      style={{
-        "--pager-settle-duration": `${settleDuration}ms`
-      } as PagerStyle}
     >
       {visiblePages.map(({ index, key }) => {
         const offset = pageSlotOffset(index, activeIndex, transitionTargetIndex);
@@ -430,7 +497,11 @@ function HorizontalTabPagerInner<T extends string>(
                 ? "horizontal-tab-pager__page--current"
                 : "horizontal-tab-pager__page--off"
             }`}
-            style={{ "--pager-page-offset": String(offset) } as CSSProperties}
+            data-pager-offset={offset}
+            ref={(element) => {
+              if (element) pageRefs.current.set(key, element);
+              else pageRefs.current.delete(key);
+            }}
             aria-hidden={index !== activeIndex}
             key={key}
           >

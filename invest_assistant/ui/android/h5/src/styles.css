@@ -107,6 +107,10 @@ a { color: var(--blue); text-decoration: none; }
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
+  /* 拖动中颜色由组件按进度写入，归位时用和指示条同一条曲线、同一个时长收尾 */
+  transition-property: color;
+  transition-duration: 0ms;
+  transition-timing-function: cubic-bezier(.23, 1, .32, 1);
 }
 /* 选中只加粗、转深色，字号不变：放大会在切换瞬间跳字，和跟手滑动的指示条节奏对不上。
    蓝色只留给下面那截短条，和页内浅蓝底的筛选分开层级。 */
@@ -119,7 +123,7 @@ a { color: var(--blue); text-decoration: none; }
   pointer-events: none;
   transition-duration: 0ms;
   transition-property: transform, width;
-  transition-timing-function: cubic-bezier(.2, .75, .25, 1);
+  transition-timing-function: cubic-bezier(.23, 1, .32, 1);
 }
 .secondary-navigation__item.is-active { color: var(--text); font-weight: 700; }
 .secondary-navigation__end-action {
@@ -136,8 +140,9 @@ a { color: var(--blue); text-decoration: none; }
   font-weight: 600;
   white-space: nowrap;
 }
+/* 拖动位移、归位动画由组件直接写到每张页的 transform / transition 上（见 HorizontalTabPager），
+   这里只管格位摆放；不要再用继承的 CSS 变量传位移，那会让整棵子树每帧重算样式。 */
 .horizontal-tab-pager {
-  --pager-drag-x: 0px;
   position: relative;
   width: 100%;
   min-width: 0;
@@ -162,20 +167,15 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .horizontal-tab-pager.is-dragging .horizontal-tab-pager__page,
 .horizontal-tab-pager.is-settling .horizontal-tab-pager__page { will-change: transform; }
-.horizontal-tab-pager__page--current {
-  position: relative;
-  transform: translate3d(var(--pager-drag-x), 0, 0);
-}
-/* 非当前页按 --pager-page-offset 指定的格位摆放：三个以上标签时，同侧的两张页
+.horizontal-tab-pager__page--current { position: relative; }
+/* 非当前页按 data-pager-offset 指定的格位摆放：三个以上标签时，同侧的两张页
    不能共用一个 ±100%，否则会叠在同一格，切换途中露出另一张页的内容。 */
 .horizontal-tab-pager__page--off {
   position: absolute;
   top: 0;
   left: 0;
-  transform: translate3d(calc(var(--pager-page-offset) * 100% + var(--pager-drag-x)), 0, 0);
   pointer-events: none;
 }
-.horizontal-tab-pager.is-settling .horizontal-tab-pager__page { transition: transform var(--pager-settle-duration) cubic-bezier(.2, .8, .2, 1); }
 .page-stack { display: grid; gap: 10px; }
 /* 今日页门面卡：纯色灰蓝底，比下面的白卡沉一档，靠底色差立住层次；
    不用渐变也不用大面积品牌蓝，蓝色只留给「投研工作台」这行小字和 logo 呼应。

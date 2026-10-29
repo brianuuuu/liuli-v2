@@ -72,7 +72,9 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.horizontal-tab-pager\s*\{[^}]*contain:\s*layout paint;/s);
     expect(styles).toMatch(/\.horizontal-tab-pager\.is-dragging \.horizontal-tab-pager__page,\s*\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*will-change:\s*transform;/s);
     expect(styles.match(/will-change:\s*transform;/g)).toHaveLength(1);
-    expect(styles).toMatch(/\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*transition:\s*transform var\(--pager-settle-duration\)/s);
+    // 位移与归位动画由组件写到每张页上，不能再走会被整棵子树继承的 CSS 变量
+    expect(styles).not.toMatch(/--pager-drag-x/);
+    expect(styles).not.toMatch(/--pager-settle-duration/);
   });
 
   it("今日门面卡用纯色灰蓝底，不用渐变", () => {

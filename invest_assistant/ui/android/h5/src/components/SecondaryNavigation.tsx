@@ -38,6 +38,32 @@ type TabGeometry = {
 /** 指示条是页签下方居中的一截短条，宽度固定，不随页签宽窄变化。 */
 const INDICATOR_WIDTH = 16;
 
+/**
+ * 拖动途中两个页签的文字颜色按进度在灰与深色之间渐变，粗细在过半时切换；
+ * 停下来就清掉行内样式，交回 .is-active 的类样式。
+ */
+function paintTabEmphasis(tabs: Array<HTMLButtonElement | null>, motion: PagerMotion | null, duration: number) {
+  tabs.forEach((tab, index) => {
+    if (!tab) return;
+    const emphasis = !motion
+      ? null
+      : index === motion.fromIndex
+        ? 1 - (motion.progress ?? 0)
+        : index === motion.toIndex
+          ? motion.progress ?? 0
+          : null;
+    if (emphasis === null) {
+      tab.style.color = "";
+      tab.style.fontWeight = "";
+      tab.style.transitionDuration = "";
+      return;
+    }
+    tab.style.transitionDuration = `${duration}ms`;
+    tab.style.color = `color-mix(in srgb, var(--text) ${Math.round(emphasis * 100)}%, var(--muted))`;
+    tab.style.fontWeight = emphasis >= 0.5 ? "700" : "500";
+  });
+}
+
 function settleDurationForProgress(progressDistance: number) {
   return Math.round(Math.max(120, Math.min(220, 220 * progressDistance)));
 }
@@ -86,6 +112,7 @@ function SecondaryNavigationInner<T extends string>({
     indicator.style.width = `${from.width + (to.width - from.width) * progress}px`;
     indicator.style.transform = `translate3d(${from.left + (to.left - from.left) * progress}px, 0, 0)`;
     indicator.style.transitionDuration = `${duration}ms`;
+    paintTabEmphasis(tabRefs.current, motion, duration);
     previousMotion.current = motion;
   }, [activeKey, items]);
 

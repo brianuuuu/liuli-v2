@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   HorizontalTabPager,
   type HorizontalTabPagerHandle,
+  pagerSettleDuration,
   pagerTargetIndex
 } from "../src/components/HorizontalTabPager";
 import { touchPagerCache } from "../src/components/pagerCache";
@@ -13,6 +14,11 @@ const items = [
   { key: "market", label: "市场" },
   { key: "track", label: "赛道" }
 ] as const;
+
+/** 位移直接写在当前页的 transform 上，不再挂父级 CSS 变量。 */
+function currentPageTransform() {
+  return document.querySelector<HTMLElement>(".horizontal-tab-pager__page--current")?.style.transform;
+}
 
 function pointerSwipe(
   target: Element,
@@ -83,7 +89,8 @@ describe("horizontal tab pager", () => {
       clientY: 108
     });
     act(() => vi.advanceTimersByTime(20));
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-120px" });
+    expect(currentPageTransform()).toBe("translate3d(-120px, 0, 0)");
+    expect(pager.style.getPropertyValue("--pager-drag-x")).toBe("");
     fireEvent.pointerUp(pager, {
       pointerId: 1,
       pointerType: "touch",
@@ -93,7 +100,7 @@ describe("horizontal tab pager", () => {
     act(() => vi.advanceTimersByTime(20));
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-312px" });
+    expect(currentPageTransform()).toBe("translate3d(-312px, 0, 0)");
     act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledWith("track");
   });
@@ -230,7 +237,7 @@ describe("horizontal tab pager", () => {
 
     pointerSwipe(pager, { toX: 225 });
     expect(pager).toHaveClass("is-settling");
-    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    expect(currentPageTransform()).toBe("translate3d(0px, 0, 0)");
     act(() => vi.advanceTimersByTime(300));
     expect(onChange).not.toHaveBeenCalled();
 
@@ -352,7 +359,7 @@ describe("horizontal tab pager", () => {
     act(() => vi.advanceTimersByTime(20));
     expect(onChange).not.toHaveBeenCalled();
     expect(pager).toHaveClass("is-settling");
-    expect(pager).toHaveStyle({ "--pager-drag-x": "-320px" });
+    expect(currentPageTransform()).toBe("translate3d(-320px, 0, 0)");
     act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledWith("market");
   });
@@ -425,7 +432,7 @@ describe("horizontal tab pager", () => {
     const pager = screen.getByTestId("horizontal-tab-pager");
     pointerSwipe(pager, { toX: 280, fromY: 300, toY: 260 });
     act(() => vi.advanceTimersByTime(300));
-    expect(pager).toHaveStyle({ "--pager-drag-x": "0px" });
+    expect(currentPageTransform()).toBe("translate3d(0px, 0, 0)");
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -443,6 +450,81 @@ describe("horizontal tab pager", () => {
   });
 });
 
+describe("horizontal tab pager motion", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    window.scrollY = 0;
+  });
+
+  it("matches the settle animation to the release velocity and falls back to distance", () => {
+    // 甩得越快归位越短，但夹在 180–420ms 之间
+    expect(pagerSettleDuration(100, 400, 2000)).toBe(Math.round(100 / 0.23 / 2000 * 1000));
+    expect(pagerSettleDuration(300, 400, 600)).toBe(420);
+    expect(pagerSettleDuration(20, 400, 5000)).toBe(180);
+    // 慢松手、点页签、反向速度：按剩余距离占屏宽比例取 200–280ms
+    expect(pagerSettleDuration(400, 400, 0)).toBe(280);
+    expect(pagerSettleDuration(0, 400, -2000)).toBe(200);
+  });
+
+  it("parks a neighbour page at its own remembered scroll position and restores it in the same commit", () => {
+    vi.useFakeTimers();
+    const ref = createRef<HorizontalTabPagerHandle<(typeof items)[number]["key"]>>();
+    const changes: string[] = [];
+    function Harness() {
+      const [activeKey, setActiveKey] = React.useState<(typeof items)[number]["key"]>("today");
+      return (
+        <HorizontalTabPager
+          ref={ref}
+          items={items}
+          activeKey={activeKey}
+          onChange={(key) => { changes.push(key); setActiveKey(key); }}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      );
+    }
+    const { container } = render(<Harness />);
+    const page = (key: string) => [...container.querySelectorAll<HTMLElement>(".horizontal-tab-pager__page")]
+      .find((element) => element.textContent === key);
+
+    // 在「今日」滚到 600 后切到「市场」，「市场」从顶部开始
+    window.scrollY = 600;
+    act(() => ref.current?.requestChange("market"));
+    act(() => vi.advanceTimersByTime(400));
+    expect(changes).toEqual(["market"]);
+    expect(document.documentElement.scrollTop).toBe(0);
+    // 切换完成的同一次提交里位移已清零、过渡已撤掉，不会闪回旧页
+    expect(page("market")?.style.transform).toBe("translate3d(0px, 0, 0)");
+    expect(page("market")?.style.transition).toBe("none");
+
+    // 「市场」滚到 100 时，左边的「今日」按它自己的 600 错位：100 − 600 = −500
+    window.scrollY = 100;
+    act(() => ref.current?.requestChange("today"));
+    expect(page("today")?.style.transform).toBe("translate3d(calc(-100% + 0px), -500px, 0)");
+    act(() => vi.advanceTimersByTime(400));
+    expect(changes).toEqual(["market", "today"]);
+    expect(document.documentElement.scrollTop).toBe(600);
+  });
+
+  it("pre-mounts both neighbours once the pager is idle", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="market"
+        onChange={vi.fn()}
+        renderPage={(key) => <div>{key}</div>}
+      />
+    );
+    expect(container.querySelectorAll(".horizontal-tab-pager__page")).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(300));
+    const pages = [...container.querySelectorAll<HTMLElement>(".horizontal-tab-pager__page")];
+    expect(pages.map((page) => [page.textContent, page.dataset.pagerOffset])).toEqual(
+      expect.arrayContaining([["today", "-1"], ["market", "0"], ["track", "1"]])
+    );
+  });
+});
+
 describe("horizontal tab pager slots", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -452,7 +534,7 @@ describe("horizontal tab pager slots", () => {
   function slotOffsets(container: HTMLElement) {
     return [...container.querySelectorAll<HTMLElement>(".horizontal-tab-pager__page")].map((page) => ({
       key: page.textContent,
-      offset: page.style.getPropertyValue("--pager-page-offset").trim()
+      offset: page.dataset.pagerOffset ?? ""
     }));
   }
 
