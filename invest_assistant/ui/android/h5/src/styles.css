@@ -477,9 +477,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .suggestion-card__content strong { display: block; min-width: 0; font-size: var(--content-font-size); font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
 .suggestion-card__content > span { display: -webkit-box; overflow: hidden; margin-top: 5px; color: var(--muted); font-size: var(--content-font-size); line-height: 1.55; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .suggestion-list-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: center; margin-top: 2px; }
-.suggestion-list-actions .load-more { height: 42px; border: 1px solid var(--blue); border-radius: 8px; background: var(--panel); }
+.suggestion-list-actions .load-more { height: 42px; border-radius: 8px; background: var(--panel); }
 .suggestion-list-end { display: flex; height: 42px; align-items: center; justify-content: center; color: var(--subtle); font-size: 11px; }
-.reject-loaded-button { height: 42px; padding: 0 10px; border: 1px solid #dc2626; border-radius: 8px; background: var(--panel); color: #dc2626; font-size: 12px; }
+.reject-loaded-button { height: 42px; padding: 0 10px; border-radius: 8px; background: var(--panel); color: #dc2626; font-size: 12px; }
 .reject-loaded-button:disabled { opacity: .6; }
 .batch-feedback { padding: 9px 12px; border-radius: 8px; background: var(--panel-soft); color: var(--muted); font-size: 12px; text-align: center; }
 .pending-reports-panel { gap: 8px; }
@@ -490,9 +490,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .pending-report-card__meta em { color: var(--blue); font-style: normal; }
 .pending-report-card__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .pending-report-card__actions button { height: 36px; border-radius: 8px; font-size: 13px; }
-.pending-report-card__actions .is-read { border: 1px solid var(--border); background: var(--panel-soft); color: var(--text); }
+.pending-report-card__actions .is-read { background: var(--chip-bg); color: var(--text); }
 .pending-report-card__actions .is-import { background: var(--blue); color: #fff; font-weight: 600; }
-.pending-report-card__actions .is-delete { border: 1px solid #fecaca; background: var(--panel); color: #dc2626; }
+.pending-report-card__actions .is-delete { background: var(--danger-soft); color: #dc2626; }
 
 /* 记一笔调仓：白卡片分组，卡内为“左标签、右取值”的行；底部按钮吸底 */
 /* 底部按钮固定在屏幕底部，表单底部留出按钮高度 */
@@ -574,7 +574,7 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
 .suggestion-review-form input { margin-top: 0; }
 .suggestion-review-submit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 2px; }
 .suggestion-review-submit button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; }
-.danger-button { border: 1px solid #fecaca; background: var(--panel); color: #dc2626; }
+.danger-button { background: var(--panel); color: #dc2626; }
 .danger-text { color: #dc2626 !important; }
 .composer-sheet label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .composer-sheet .compact-textarea { min-height: 90px; }
@@ -639,7 +639,7 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 .segmented button.is-active { background: var(--panel); color: var(--blue); box-shadow: var(--shadow); }
 .settings-row { display: flex; width: 100%; min-height: 48px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); text-align: left; }
 .settings-row:last-child { border-bottom: 0; }
-.logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }
+.logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; background: var(--panel); color: #dc2626; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 
 .stock-profile { padding: 14px; border-radius: 10px; background: var(--panel); }
@@ -827,11 +827,12 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .note-action-confirm p { margin: 0; color: var(--muted); line-height: 1.6; }
 .note-action-confirm-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .note-action-confirm-buttons button { min-height: 44px; border-radius: 10px; }
-.note-action-confirm-buttons .danger-button { border-color: #dc2626; background: #dc2626; color: #fff; }
+.note-action-confirm-buttons .danger-button { background: #dc2626; color: #fff; }
 .detail-message { color: var(--muted); font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
 .level-badge { display: inline-block; padding: 3px 7px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 11px; }
 .detail-actions { display: flex; gap: 10px; }
-.detail-actions button { min-height: 44px; flex: 1; border: 1px solid var(--border); border-radius: 9px; }
+.detail-actions button { min-height: 44px; flex: 1; border-radius: 9px; }
+.detail-actions button:not(.primary-button) { background: var(--panel); }
 .handled-state { display: flex; align-items: center; gap: 5px; color: var(--muted); }
 .report-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .report-list > button { min-width: 0; width: 100%; padding: 14px; border-radius: 10px; background: var(--panel); text-align: left; }
@@ -845,7 +846,7 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .markdown-body pre { overflow-x: auto; padding: 12px; border-radius: 8px; background: var(--panel-soft); }
 .markdown-body table { display: block; overflow-x: auto; border-collapse: collapse; }
 .markdown-body th, .markdown-body td { padding: 7px; border: 1px solid var(--border); white-space: nowrap; }
-.report-download { width: 100%; height: 44px; margin-top: 20px; border: 1px solid var(--border); border-radius: 9px; color: var(--blue); }
+.report-download { width: 100%; height: 44px; margin-top: 20px; border-radius: 9px; background: var(--panel); color: var(--blue); }
 
 @media (min-width: 390px) and (max-width: 599px) {
   .donut-chart { width: 160px; height: 168px; }
