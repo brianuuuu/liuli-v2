@@ -35,8 +35,8 @@ type TabGeometry = {
   width: number;
 };
 
-const INDICATOR_INSET_RATIO = 0.26;
-const INDICATOR_WIDTH_RATIO = 0.48;
+/** 指示条是页签下方居中的一截短条，宽度固定，不随页签宽窄变化。 */
+const INDICATOR_WIDTH = 16;
 
 function settleDurationForProgress(progressDistance: number) {
   return Math.round(Math.max(120, Math.min(220, 220 * progressDistance)));
@@ -94,8 +94,8 @@ function SecondaryNavigationInner<T extends string>({
   useLayoutEffect(() => {
     const measure = () => {
       geometries.current = tabRefs.current.map((tab) => tab ? {
-        left: tab.offsetLeft + tab.offsetWidth * INDICATOR_INSET_RATIO,
-        width: tab.offsetWidth * INDICATOR_WIDTH_RATIO
+        left: tab.offsetLeft + (tab.offsetWidth - INDICATOR_WIDTH) / 2,
+        width: INDICATOR_WIDTH
       } : null);
       applyMotion(previousMotion.current);
     };
@@ -120,7 +120,7 @@ function SecondaryNavigationInner<T extends string>({
   }, [activeKey, applyMotion, items]);
 
   return (
-    <div className="secondary-navigation" data-height="36" role="tablist" aria-label="二级导航">
+    <div className="secondary-navigation" data-height="44" role="tablist" aria-label="二级导航">
       <div
         ref={trackRef}
         className={`secondary-navigation__track${visibleCount ? " secondary-navigation__track--fixed-count" : ""}`}

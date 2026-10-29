@@ -20,7 +20,7 @@ describe("secondary navigation", () => {
 
     const navigation = screen.getByRole("tablist");
     expect(navigation).toHaveClass("secondary-navigation");
-    expect(navigation).toHaveAttribute("data-height", "36");
+    expect(navigation).toHaveAttribute("data-height", "44");
     fireEvent.click(screen.getByRole("tab", { name: "重要" }));
     expect(onChange).toHaveBeenCalledWith("important");
   });
@@ -124,8 +124,9 @@ describe("secondary navigation", () => {
 
     const indicator = screen.getByTestId("secondary-navigation-indicator");
     expect(indicator).toHaveStyle({
-      transform: "translate3d(81.2px, 0, 0)",
-      width: "57.6px"
+      // 两个页签中心分别在 50、170，短条宽 16，左缘 42 → 162，走到一半是 102
+      transform: "translate3d(102px, 0, 0)",
+      width: "16px"
     });
     expect(renderCount).toBe(rendersBeforeMotion);
   });

@@ -96,7 +96,7 @@ describe("mobile H5 app", () => {
     renderApp();
 
     expect(await screen.findByRole("tab", { name: "个股" })).toBeInTheDocument();
-    expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "36");
+    expect(screen.getByRole("tablist")).toHaveAttribute("data-height", "44");
   });
 
   it("keeps each news day header in the same container as all of that day's items", async () => {

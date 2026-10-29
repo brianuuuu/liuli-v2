@@ -51,13 +51,15 @@ describe("mobile card elevation", () => {
   it("keeps the mobile content surface full-height across WebView viewport implementations", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.mobile-page-frame__content\s*\{[^}]*min-height:\s*calc\(100vh - 36px\);[^}]*min-height:\s*calc\(100dvh - 36px\);/s);
+    expect(styles).toMatch(/\.mobile-page-frame__content\s*\{[^}]*min-height:\s*calc\(100vh - var\(--top-nav-height\)\);[^}]*min-height:\s*calc\(100dvh - var\(--top-nav-height\)\);/s);
   });
 
   it("keeps every secondary menu fixed above short and long content", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.mobile-page-frame\s*\{[^}]*padding-top:\s*36px;/s);
+    expect(styles).toMatch(/:root\s*\{[^}]*--top-nav-height:\s*44px;/s);
+    expect(styles).toMatch(/\.mobile-page-frame\s*\{[^}]*padding-top:\s*var\(--top-nav-height\);/s);
+    expect(styles).toMatch(/\.mobile-page-frame__top\s*\{[^}]*height:\s*var\(--top-nav-height\);/s);
     expect(styles).toMatch(/\.mobile-page-frame__top\s*\{[^}]*position:\s*fixed;[^}]*top:\s*0;[^}]*right:\s*0;[^}]*left:\s*0;/s);
   });
 

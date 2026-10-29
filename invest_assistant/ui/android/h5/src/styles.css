@@ -17,6 +17,8 @@
   --shadow: none;
   --float-shadow: 0 2px 14px rgba(17, 24, 39, .1);
   --top-bg: #ffffff;
+  /* 顶部二级页签栏高度：页框留白、吸顶偏移都跟着它走 */
+  --top-nav-height: 44px;
   --content-font-size: 14px;
   /* 看板内容列的左右内缩由两层叠加而成：页框 .mobile-page-frame__content 的 12px
      再加看板内容自身的 15px。底部视图切换器 portal 到 body，继承不到这两层，
@@ -61,20 +63,20 @@ button { border: 0; background: transparent; }
 button:disabled { opacity: .5; }
 a { color: var(--blue); text-decoration: none; }
 
-.mobile-page-frame { width: 100%; min-width: 0; max-width: 100%; min-height: 100dvh; overflow-x: clip; padding-top: 36px; background: var(--bg); }
+.mobile-page-frame { width: 100%; min-width: 0; max-width: 100%; min-height: 100dvh; overflow-x: clip; padding-top: var(--top-nav-height); background: var(--bg); }
 .mobile-page-frame__top {
   position: fixed;
   z-index: 20;
   top: 0;
   right: 0;
   left: 0;
-  height: 36px;
+  height: var(--top-nav-height);
   background: var(--top-bg);
 }
-.mobile-page-frame__content { width: 100%; min-width: 0; max-width: 100%; min-height: calc(100vh - 36px); min-height: calc(100dvh - 36px); overflow-x: clip; padding: 12px 12px 28px; }
+.mobile-page-frame__content { width: 100%; min-width: 0; max-width: 100%; min-height: calc(100vh - var(--top-nav-height)); min-height: calc(100dvh - var(--top-nav-height)); overflow-x: clip; padding: 12px 12px 28px; }
 .secondary-navigation {
   display: flex;
-  height: 36px;
+  height: var(--top-nav-height);
   overflow: hidden;
   background: var(--top-bg);
 }
@@ -82,7 +84,7 @@ a { color: var(--blue); text-decoration: none; }
   position: relative;
   display: flex;
   min-width: 0;
-  height: 36px;
+  height: var(--top-nav-height);
   flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
@@ -99,30 +101,32 @@ a { color: var(--blue); text-decoration: none; }
 .secondary-navigation__item {
   position: relative;
   min-width: 20%;
-  height: 36px;
+  height: var(--top-nav-height);
   padding: 0 15px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
 }
+/* 选中只加粗、转深色，字号不变：放大会在切换瞬间跳字，和跟手滑动的指示条节奏对不上。
+   蓝色只留给下面那截短条，和页内浅蓝底的筛选分开层级。 */
 .secondary-navigation__indicator {
   position: absolute;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 3px;
   background: var(--blue);
   pointer-events: none;
   transition-duration: 0ms;
   transition-property: transform, width;
   transition-timing-function: cubic-bezier(.2, .75, .25, 1);
 }
-.secondary-navigation__item.is-active { color: var(--blue); font-weight: 650; }
+.secondary-navigation__item.is-active { color: var(--text); font-weight: 700; }
 .secondary-navigation__end-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
+  height: var(--top-nav-height);
   flex: 0 0 auto;
   padding: 0 12px;
   background: var(--top-bg);
@@ -442,7 +446,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 
 .timeline-list { position: relative; padding-left: 18px; }
 .timeline-list::before { position: absolute; top: 38px; bottom: 18px; left: 5px; width: 1px; background: var(--border); content: ""; }
-.timeline-day { position: sticky; z-index: 4; top: 36px; margin: 0 0 8px -18px; padding: 8px 0 5px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 650; }
+.timeline-day { position: sticky; z-index: 4; top: var(--top-nav-height); margin: 0 0 8px -18px; padding: 8px 0 5px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 650; }
 .timeline-item { position: relative; min-width: 0; max-width: 100%; padding: 4px 2px 20px 0; }
 /* 圆点只做时间轴上的节点提示，不抢正文：5px 实心点压在竖线中心（x=5.5），去掉外圈描边并降低不透明度 */
 .timeline-dot { position: absolute; top: 11px; left: -15px; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); opacity: 0.55; }
