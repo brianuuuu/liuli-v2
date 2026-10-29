@@ -572,6 +572,9 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
 .suggestion-review-form { display: grid; gap: 12px; }
 .suggestion-review-form label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .suggestion-review-form input { margin-top: 0; }
+/* 审核表单直接铺在灰底上，输入框改白底不描边，聚焦时才出蓝框；
+   登录页、新建弹层、调仓卡片都是白底，那里的输入框仍保留描边 */
+.suggestion-review-form input, .suggestion-review-form select { border-color: transparent; background: var(--panel); }
 .suggestion-review-submit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 2px; }
 .suggestion-review-submit button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; }
 .danger-button { background: var(--panel); color: #dc2626; }
