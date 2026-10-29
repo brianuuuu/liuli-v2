@@ -133,19 +133,18 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.pull-to-refresh__spinner\s*\{[^}]*animation:\s*pull-to-refresh-spin \.8s linear infinite;/s);
   });
 
-  it("keeps both market ranking filters side by side below the list", () => {
+  it("market ranking filters share one floating pill with a divider between the two groups", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.market-ranking-filters\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[^}]*gap:\s*8px;/s);
-    // 这组筛选器只出现在底部浮条里，基础规则不再带被浮条覆盖掉的描边与间距。
-    expect(styles).not.toMatch(/\.market-ranking-filters\s*\{[^}]*border-top:/s);
-    // 热度排行筛选器沉底吸附，与标的页切换器共用同一条内容列、同一套变量和同一套浮层做法。
-    expect(styles).toMatch(/\.market-filter-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*10px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border-radius:\s*12px;[^}]*background:\s*var\(--panel\);[^}]*box-shadow:\s*var\(--float-shadow\);/s);
-    expect(styles).not.toMatch(/\.market-filter-bar\s*\{[^}]*border:\s*1px solid/s);
+    // 底部浮动工具栏一套规则：胶囊、白底、阴影不描边，左右算回内容列；选中态走浅蓝底。
+    expect(styles).toMatch(/\.float-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*10px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--panel\);[^}]*box-shadow:\s*var\(--float-shadow\);/s);
+    expect(styles).not.toMatch(/\.float-bar\s*\{[^}]*border:\s*1px solid/s);
+    expect(styles).toMatch(/\.float-bar button\.is-active\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
+    expect(styles).toMatch(/\.float-bar__divider\s*\{[^}]*flex:\s*0 0 1px;[^}]*background:\s*var\(--border\);/s);
+    // 两组不再各套一条灰色轨道
+    expect(styles).not.toMatch(/\.market-ranking-filters/);
     expect(styles).toMatch(/\.market-filter-stack\s*\{[^}]*padding-bottom:\s*62px;/s);
-    expect(styles).toMatch(/\.market-ranking-filters \.segmented\s*\{[^}]*min-width:\s*0;[^}]*padding:\s*3px;/s);
-    expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters\s*\{[^}]*gap:\s*6px;/s);
-    expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.market-ranking-filters \.segmented button\s*\{[^}]*font-size:\s*11px;/s);
+    expect(styles).toMatch(/@media \(max-width:\s*359px\)\s*\{[\s\S]*?\.float-bar button\s*\{[^}]*font-size:\s*12px;/s);
   });
 
   it("keeps ranking movement compact and right aligned", () => {
@@ -189,7 +188,7 @@ describe("mobile card elevation", () => {
     }
     expect(styles).not.toMatch(/\.pool-card__badge--space-/s);
     expect(styles).not.toMatch(/\.pool-card__badge--trend-T\d/s);
-    // 只有强档带色，且用品牌蓝：红色留给涨跌和新财报红点。中档中性灰底，弱档只留细边框。
+    // 只有强档带色，且用品牌蓝：红色留给涨跌和新财报红点。中档中性灰底，弱档更浅的实底。
     expect(styles).toMatch(/\.pool-card__badge--tier-strong\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
     expect(styles).toMatch(/\.pool-card__badge--tier-mid\s*\{[^}]*background:\s*#eef1f5;/s);
     expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*#f4f6f9;/s);
@@ -197,15 +196,13 @@ describe("mobile card elevation", () => {
     // 排序按钮不是分组，推到状态行尾单独成一档。
     expect(styles).toMatch(/\.pill-segments button\.pool-sort-toggle\s*\{[^}]*margin-left:\s*auto;/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
-    expect(styles).toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*fixed;[^}]*right:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*bottom:\s*10px;[^}]*left:\s*calc\(var\(--dashboard-page-gutter\) \+ var\(--dashboard-flat-inset\)\);[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--panel\);[^}]*box-shadow:\s*var\(--float-shadow\);/s);
+    expect(styles).toMatch(/\.float-bar\s*\{[^}]*position:\s*fixed;[^}]*border-radius:\s*999px;/s);
     // 浮层不描边，改用阴影说明层级；--shadow 恒为 none，浮层另开 --float-shadow，两个主题都要有。
-    expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*border:\s*1px solid/s);
+    expect(styles).not.toMatch(/\.stock-view-bar\s*\{/s);
     expect(styles).toMatch(/:root\s*\{[^}]*--float-shadow:[^;}]+;/s);
     expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--float-shadow:[^;}]+;/s);
-    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*58px;/s);
-    expect(styles).not.toMatch(/\.stock-view-bar\s*\{[^}]*position:\s*sticky;/s);
-    expect(styles).toMatch(/\.stock-view-bar \.pill-segments\s*\{[^}]*margin-bottom:\s*0;/s);
-    expect(styles).toMatch(/\.stock-view-bar \.pill-segments button\s*\{[^}]*flex:\s*1 1 0;[^}]*padding:\s*8px 0;[^}]*text-align:\s*center;/s);
+    expect(styles).toMatch(/\.stock-view-stack\s*\{[^}]*padding-bottom:\s*62px;/s);
+    expect(styles).not.toMatch(/\.float-bar\s*\{[^}]*position:\s*sticky;/s);
   });
 
   it("标的详情档案卡与状态徽章", () => {

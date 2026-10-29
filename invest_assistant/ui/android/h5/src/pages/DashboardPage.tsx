@@ -261,22 +261,21 @@ function MarketDashboard({ active }: { active: boolean }) {
           </div>
         </SectionCard>
         {active ? createPortal(
-          <div className="market-filter-bar" data-swipe-ignore="true">
-            <div className="market-ranking-filters">
-              <div className="segmented" role="group" aria-label="排行榜类型">
-                {([
-                  ["all", "市场"],
-                  ["track", "赛道"],
-                  ["stock", "标的"]
-                ] as const).map(([value, label]) => (
-                  <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
-                ))}
-              </div>
-              <div className="segmented" role="group" aria-label="时间范围">
-                {(["24h", "7d", "30d"] as const).map((value) => (
-                  <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
-                ))}
-              </div>
+          <div className="float-bar market-filter-bar" data-swipe-ignore="true">
+            <div className="float-bar__group" role="group" aria-label="排行榜类型">
+              {([
+                ["all", "市场"],
+                ["track", "赛道"],
+                ["stock", "标的"]
+              ] as const).map(([value, label]) => (
+                <button type="button" className={rankingType === value ? "is-active" : ""} aria-pressed={rankingType === value} onClick={() => setRankingType(value)} key={value}>{label}</button>
+              ))}
+            </div>
+            <i className="float-bar__divider" aria-hidden="true" />
+            <div className="float-bar__group" role="group" aria-label="时间范围">
+              {(["24h", "7d", "30d"] as const).map((value) => (
+                <button type="button" className={rankingWindow === value ? "is-active" : ""} aria-pressed={rankingWindow === value} onClick={() => setRankingWindow(value)} key={value}>{value}</button>
+              ))}
             </div>
           </div>,
           document.body
@@ -311,8 +310,8 @@ function TrackDashboard({ active }: { active: boolean }) {
       <div className="page-stack track-view-stack">
         {view === "materials" ? <TrackMaterialsView /> : <TrackLibraryView />}
         {active ? createPortal(
-          <div className="stock-view-bar" data-swipe-ignore="true">
-            <div className="pill-segments" role="group" aria-label="赛道视图">
+          <div className="float-bar stock-view-bar" data-swipe-ignore="true">
+            <div className="float-bar__group" role="group" aria-label="赛道视图">
               {TRACK_TAB_VIEWS.map((item) => (
                 <button
                   type="button"
@@ -496,8 +495,8 @@ function StockDashboard({ active }: { active: boolean }) {
       <div className="page-stack stock-view-stack">
         {view === "materials" ? <StockMaterialsView /> : <StockPoolView />}
         {active ? createPortal(
-          <div className="stock-view-bar" data-swipe-ignore="true">
-            <div className="pill-segments" role="group" aria-label="标的视图">
+          <div className="float-bar stock-view-bar" data-swipe-ignore="true">
+            <div className="float-bar__group" role="group" aria-label="标的视图">
               {STOCK_TAB_VIEWS.map((item) => (
                 <button
                   type="button"
