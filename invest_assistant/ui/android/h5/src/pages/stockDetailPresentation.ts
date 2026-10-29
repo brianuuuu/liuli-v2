@@ -159,3 +159,143 @@ export function parseValuationAssumptions(raw?: string | null): ValuationAssumpt
 export function valuationHistoryRows(rows: StockValuationSnapshot[]) {
   return [...rows].sort((a, b) => String(b.analysis_date || "").localeCompare(String(a.analysis_date || "")));
 }
+
+/*
+ * 概览是"投资一页纸"：只放结论、跟踪点和变化，评分雷达、估值明细、六维这些证据留在各自页签。
+ * 每条都带上出处页签，点一下跳过去看全文。
+ */
+
+export type OverviewThesis = { label: string; values: string[]; risk: boolean; section: StockDetailSection };
+
+/** 评级的核心逻辑讲基本面，趋势的核心逻辑讲交易，两份研究合起来才是完整论点；两边风险合成一条，原文相同的只留一份。 */
+export function overviewTheses(detail: StockDetail): OverviewThesis[] {
+  const score = detail.latest_score;
+  const trend = detail.latest_trend;
+  const text = (value?: string | null) => value?.trim() || "";
+  const risks = [...new Set([text(score?.primary_risk), text(trend?.primary_risk)].filter(Boolean))];
+  return [
+    { label: "基本面逻辑", values: [text(score?.core_logic)].filter(Boolean), risk: false, section: "rating" as const },
+    { label: "交易逻辑", values: [text(trend?.core_logic)].filter(Boolean), risk: false, section: "trend" as const },
+    { label: "主要风险", values: risks, risk: true, section: text(score?.primary_risk) ? "rating" as const : "trend" as const }
+  ].filter((item) => item.values.length > 0);
+}
+
+export type OverviewWatchItem = { label: string; value: string; section: StockDetailSection };
+
+/** 跟踪清单：下一期要验证什么。估值假设就是下一期财报要兑现的指标，持有时最该盯。 */
+export function overviewWatchlist(detail: StockDetail): OverviewWatchItem[] {
+  const trend = detail.latest_trend;
+  const assumptions = parseValuationAssumptions(detail.latest_valuation?.valuation_assumptions_json);
+  const current = (assumptions?.current_assumptions ?? [])
+    .map((item) => (item.assumed ? `${item.metric} ${item.assumed}` : item.metric))
+    .join(" · ");
+  const resultCounts = new Map<string, number>();
+  for (const item of assumptions?.last_assumptions_vs_actual ?? []) {
+    if (item.result) resultCounts.set(item.result, (resultCounts.get(item.result) ?? 0) + 1);
+  }
+  const verified = [...resultCounts].map(([result, count]) => `${count} 项${result}`).join(" · ");
+  return [
+    { label: "下一验证点", value: trend?.next_verification?.trim() || "", section: "trend" as const },
+    { label: "估值假设", value: current, section: "valuation" as const },
+    { label: "上期兑现", value: verified, section: "valuation" as const },
+    { label: "证据缺口", value: trend?.data_gaps?.trim() || "", section: "trend" as const }
+  ].filter((item) => Boolean(item.value));
+}
+
+export type OverviewChange = {
+  label: string;
+  from: string | null;
+  to: string;
+  /** up 变好、down 变差，配色沿用涨红跌绿；first 表示只有一期，无从比较。 */
+  direction: "up" | "down" | "flat" | "first";
+  date: string;
+  section: StockDetailSection;
+};
+
+function compareDirection(previous: number, current: number): OverviewChange["direction"] {
+  if (current > previous) return "up";
+  if (current < previous) return "down";
+  return "flat";
+}
+
+/**
+ * 最近一次研究和上一次比变了什么。估值比的是三年合理市值而不是估值空间：
+ * 空间跟着每天收盘价动，合理市值只在研究员重估时变，才算研究结论的变化。
+ */
+export function overviewChanges(detail: StockDetail): OverviewChange[] {
+  const changes: OverviewChange[] = [];
+  const scores = scoreTrendRows(detail.score_history ?? [], 2);
+  const score = scores[scores.length - 1];
+  if (score) {
+    const previous = scores.length > 1 ? scores[0] : null;
+    const describe = (item: StockScoreSnapshot) => `${item.investment_level || "-"} ${formatScore(item.total_score)}`;
+    changes.push({
+      label: "评级",
+      from: previous ? describe(previous) : null,
+      to: describe(score),
+      direction: previous ? compareDirection(Number(previous.total_score), Number(score.total_score)) : "first",
+      date: dateOnly(score.report_time),
+      section: "rating"
+    });
+  }
+  const trends = trendHistoryRows(detail.trend_history ?? []);
+  const trend = trends[0];
+  if (trend) {
+    const previous = trends[1] ?? null;
+    // T0 最强：档位序号变小才是变好，所以拿负的序号比较；认不出的档位不判方向。
+    const rank = (item: StockTrendSnapshot) => TREND_LEVELS.indexOf(String(item.trend_level).toUpperCase());
+    const comparable = previous !== null && rank(previous) >= 0 && rank(trend) >= 0;
+    changes.push({
+      label: "趋势",
+      from: previous ? previous.trend_level : null,
+      to: trend.trend_level,
+      direction: !previous ? "first" : comparable ? compareDirection(-rank(previous), -rank(trend)) : "flat",
+      date: dateOnly(trend.research_date),
+      section: "trend"
+    });
+  }
+  const valuations = valuationHistoryRows(detail.valuation_history ?? []);
+  const valuation = valuations[0];
+  if (valuation && valuation.expected_market_value_3y !== null && valuation.expected_market_value_3y !== undefined) {
+    const previous = valuations[1]?.expected_market_value_3y ?? null;
+    changes.push({
+      label: "合理市值",
+      from: previous === null ? null : formatScore(previous),
+      to: formatScore(valuation.expected_market_value_3y),
+      direction: previous === null ? "first" : compareDirection(Number(previous), Number(valuation.expected_market_value_3y)),
+      date: dateOnly(valuation.analysis_date),
+      section: "valuation"
+    });
+  }
+  return changes;
+}
+
+export function overviewChangeTone(direction: OverviewChange["direction"]) {
+  return direction === "up" ? "positive" : direction === "down" ? "negative" : "";
+}
+
+/** 超过一个季度没更新的研究，中间至少隔了一期财报，结论可能已经过时。 */
+export const RESEARCH_STALE_DAYS = 90;
+
+export type ResearchFreshness = { label: string; date: string; stale: boolean };
+
+export function researchFreshness(detail: StockDetail, today: Date = new Date()): ResearchFreshness[] {
+  const entries = [
+    { label: "评级", date: dateOnly(detail.latest_score?.report_time) },
+    { label: "估值", date: dateOnly(detail.latest_valuation?.analysis_date) },
+    { label: "趋势", date: dateOnly(detail.latest_trend?.research_date) }
+  ].filter((item) => Boolean(item.date));
+  return entries.map((item) => {
+    const time = new Date(`${item.date}T00:00:00`).getTime();
+    const stale = !Number.isNaN(time) && today.getTime() - time > RESEARCH_STALE_DAYS * 24 * 3600 * 1000;
+    return { ...item, stale };
+  });
+}
+
+function dateOnly(value?: string | null) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function formatScore(value?: number | null) {
+  return value === null || value === undefined ? "-" : Number(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}

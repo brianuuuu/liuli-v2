@@ -659,6 +659,7 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 .stock-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
 .stock-profile__metrics span { color: var(--muted); font-size: 11px; }
 .stock-profile__metrics strong { overflow: hidden; font-size: 17px; font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.stock-profile__metrics strong small { margin-left: 5px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .stock-status { flex: 0 0 auto; padding: 4px 9px; border-radius: 999px; background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 620; line-height: 1.35; white-space: nowrap; }
 .stock-status--focused { background: var(--blue-soft); color: var(--blue); }
 .stock-status--watching { background: #fff3e0; color: #b45309; }
@@ -747,6 +748,25 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .stock-detail-copy span { color: var(--muted); font-size: 12px; }
 .stock-detail-copy p { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
 .stock-detail-meta { margin-top: 12px; color: var(--subtle); font-size: 11px; }
+/* 概览（投资一页纸）：结论段落截三行，整段可点，跳到出处页签看全文 */
+.stock-overview-copy { display: block; width: 100%; text-align: left; }
+.stock-overview-copy:first-of-type { margin-top: 0; }
+.stock-overview-copy .stock-overview-copy__text { display: -webkit-box; overflow: hidden; margin-top: 4px; color: var(--text); font-size: var(--content-font-size); line-height: 1.62; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.stock-overview-changes { display: grid; }
+.stock-overview-changes button { display: flex; width: 100%; align-items: baseline; gap: 12px; padding: 10px 0; text-align: left; }
+.stock-overview-changes button + button { border-top: 1px solid var(--border); }
+.stock-overview-changes span { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
+.stock-overview-changes b { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 560; font-variant-numeric: tabular-nums; }
+.stock-overview-changes b i { margin: 0 6px; color: var(--subtle); font-style: normal; font-weight: 400; }
+.stock-overview-changes b s { color: var(--muted); font-weight: 400; text-decoration: none; }
+.stock-overview-changes b strong { font-weight: 650; }
+.stock-overview-changes b em { margin-right: 6px; color: var(--subtle); font-size: 12px; font-style: normal; font-weight: 400; }
+.stock-overview-changes time { flex: 0 0 auto; color: var(--subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* 笔记、材料、公告三组之间同样用分隔线，和组内条目之间一致 */
+.stock-overview-news > * + * { border-top: 1px solid var(--border); }
+.stock-overview-news .note-card p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.stock-overview-freshness { margin: 0; padding: 0 4px; color: var(--subtle); font-size: 11px; line-height: 1.6; }
+.stock-overview-freshness .is-stale { color: #d97706; }
 .stock-trend-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .stock-trend-head > div { min-width: 0; }
 .stock-trend-head > div b { display: block; font-size: 15px; font-weight: 650; }

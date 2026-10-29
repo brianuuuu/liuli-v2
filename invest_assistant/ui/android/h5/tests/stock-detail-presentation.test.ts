@@ -6,7 +6,12 @@ import {
   actionableMaterials,
   assumptionResultTone,
   formatValuationGap,
+  overviewChanges,
+  overviewChangeTone,
+  overviewTheses,
+  overviewWatchlist,
   parseValuationAssumptions,
+  researchFreshness,
   priorityRankLabel,
   scoreDimensions,
   scoreTrendRows,
@@ -215,5 +220,100 @@ describe("估值假设解析", () => {
     expect(assumptionResultTone("符合预期")).toBe("neutral");
     expect(assumptionResultTone("略好于预期")).toBe("neutral");
     expect(assumptionResultTone(null)).toBeNull();
+  });
+});
+
+describe("概览（投资一页纸）", () => {
+  const baseDetail = {
+    stock: { id: 1 },
+    score_history: [],
+    valuation_history: [],
+    trend_history: [],
+    materials: [],
+    disclosures: [],
+    tracks: [],
+    notes: []
+  } as unknown as StockDetail;
+
+  it("投资要点合并两份研究：基本面、交易逻辑各一段，相同的风险只留一份", () => {
+    const detail = {
+      ...baseDetail,
+      latest_score: { ...score, core_logic: "订单放量", primary_risk: "客户集中" },
+      latest_trend: { ...trend, core_logic: "主线发酵", primary_risk: "客户集中" }
+    } as StockDetail;
+    expect(overviewTheses(detail)).toEqual([
+      { label: "基本面逻辑", values: ["订单放量"], risk: false, section: "rating" },
+      { label: "交易逻辑", values: ["主线发酵"], risk: false, section: "trend" },
+      { label: "主要风险", values: ["客户集中"], risk: true, section: "rating" }
+    ]);
+    expect(overviewTheses(baseDetail)).toEqual([]);
+  });
+
+  it("跟踪清单汇总验证点、估值假设和上期兑现，空项不占位", () => {
+    const detail = {
+      ...baseDetail,
+      latest_trend: { ...trend, next_verification: "三季报毛利率", data_gaps: "" },
+      latest_valuation: {
+        id: 3,
+        valuation_assumptions_json: JSON.stringify({
+          current_assumptions: [{ metric: "营收增速", assumed: "25%" }, { metric: "毛利率", assumed: "40%" }],
+          last_assumptions_vs_actual: [
+            { metric: "营收", result: "超预期" },
+            { metric: "利润", result: "超预期" },
+            { metric: "毛利率", result: "不如预期" }
+          ]
+        })
+      }
+    } as StockDetail;
+    expect(overviewWatchlist(detail)).toEqual([
+      { label: "下一验证点", value: "三季报毛利率", section: "trend" },
+      { label: "估值假设", value: "营收增速 25% · 毛利率 40%", section: "valuation" },
+      { label: "上期兑现", value: "2 项超预期 · 1 项不如预期", section: "valuation" }
+    ]);
+  });
+
+  it("最近变化和上一期比：评级看总分，趋势 T 级变小算变好，估值比合理市值", () => {
+    const detail = {
+      ...baseDetail,
+      score_history: [
+        { ...score, id: 1, report_time: "2026-05-01", total_score: 7.2, investment_level: "B" },
+        { ...score, id: 2, report_time: "2026-08-31", total_score: 7.8, investment_level: "A" }
+      ],
+      trend_history: [
+        { ...trend, id: 1, research_date: "2026-09-11", trend_level: "T2" },
+        { ...trend, id: 2, research_date: "2026-08-01", trend_level: "T3" }
+      ],
+      valuation_history: [
+        { id: 1, analysis_date: "2026-06-01", expected_market_value_3y: 1500 },
+        { id: 2, analysis_date: "2026-09-01", expected_market_value_3y: 1200 }
+      ]
+    } as unknown as StockDetail;
+    expect(overviewChanges(detail)).toEqual([
+      { label: "评级", from: "B 7.2", to: "A 7.8", direction: "up", date: "2026-08-31", section: "rating" },
+      { label: "趋势", from: "T3", to: "T2", direction: "up", date: "2026-09-11", section: "trend" },
+      { label: "合理市值", from: "1,500", to: "1,200", direction: "down", date: "2026-09-01", section: "valuation" }
+    ]);
+    expect(overviewChangeTone("up")).toBe("positive");
+    expect(overviewChangeTone("down")).toBe("negative");
+    expect(overviewChangeTone("first")).toBe("");
+  });
+
+  it("只有一期时标为首次，历史缺字段不报错", () => {
+    const detail = { ...baseDetail, score_history: [score], trend_history: undefined, valuation_history: undefined } as unknown as StockDetail;
+    expect(overviewChanges(detail)).toEqual([
+      { label: "评级", from: null, to: "- 7.8", direction: "first", date: "2026-08-31", section: "rating" }
+    ]);
+  });
+
+  it("研究时效超过 90 天标为过期", () => {
+    const detail = {
+      ...baseDetail,
+      latest_score: { ...score, report_time: "2026-05-01" },
+      latest_trend: { ...trend, research_date: "2026-09-11" }
+    } as StockDetail;
+    expect(researchFreshness(detail, new Date("2026-09-20T12:00:00"))).toEqual([
+      { label: "评级", date: "2026-05-01", stale: true },
+      { label: "趋势", date: "2026-09-11", stale: false }
+    ]);
   });
 });

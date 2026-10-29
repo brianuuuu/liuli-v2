@@ -10,7 +10,13 @@ import {
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
   formatValuationGap,
+  overviewChanges,
+  overviewChangeTone,
+  overviewTheses,
+  overviewWatchlist,
   priorityRankLabel,
+  researchFreshness,
+  RESEARCH_STALE_DAYS,
   scoreDimensions,
   scoreTrendRows,
   suggestedGroupLabel,
@@ -49,6 +55,11 @@ export function StockDetailPage() {
     return <DetailFrame title="标的详情"><ErrorState message="标的详情加载失败" onRetry={() => void query.refetch()} /></DetailFrame>;
   }
   const detail = query.data;
+  // 概览里点一条结论跳到出处页签，回到顶部从页签开头看，不停在原来的滚动位置。
+  const openSection = (next: StockDetailSection) => {
+    setSection(next);
+    window.scrollTo({ top: 0 });
+  };
   return (
     <DetailFrame title="标的详情">
       <div className="page-stack">
@@ -66,7 +77,7 @@ export function StockDetailPage() {
             </button>
           ))}
         </div>
-        {section === "overview" ? <OverviewSection detail={detail} /> : null}
+        {section === "overview" ? <OverviewSection detail={detail} onOpenSection={openSection} /> : null}
         {section === "rating" ? <RatingSection detail={detail} /> : null}
         {section === "valuation" ? <ValuationSection detail={detail} /> : null}
         {section === "trend" ? <TrendSection detail={detail} /> : null}
@@ -77,13 +88,17 @@ export function StockDetailPage() {
   );
 }
 
-/** 档案头：顶部标题栏只写“标的详情”，这张卡负责公司名、代码、状态、赛道和三项关键指标。 */
+/**
+ * 档案头：顶部标题栏只写“标的详情”，这张卡负责公司名、代码、状态、赛道和三项关键指标。
+ * 三项指标和标的池卡片的三个角标一一对应：趋势、评级、三年空间。
+ */
 function StockProfile({ detail }: { detail: StockDetail }) {
   const status = detail.pool?.status ?? detail.stock.status;
   const tracks = trackNames(detail);
   const code = detail.stock.stock_code?.trim();
   const score = detail.latest_score;
   const gap = detail.latest_valuation?.expectation_gap_rate;
+  const trendLevel = detail.latest_trend?.trend_level;
   return (
     <section className="stock-profile">
       <div className="stock-profile__head">
@@ -99,56 +114,137 @@ function StockProfile({ detail }: { detail: StockDetail }) {
         </div>
       ) : null}
       <div className="stock-profile__metrics">
-        <div><span>综合评分</span><strong>{score ? formatNumber(score.total_score, 2) : "-"}</strong></div>
-        <div><span>投资等级</span><strong>{score?.investment_level || "-"}</strong></div>
+        <div><span>趋势</span><strong className={trendLevelTone(trendLevel)}>{trendLevel || "-"}</strong></div>
+        <div>
+          <span>评级</span>
+          <strong>{score?.investment_level || "-"}{score ? <small>{formatNumber(score.total_score, 2)}</small> : null}</strong>
+        </div>
         <div><span>三年空间</span><strong className={valuationGapTone(gap)}>{formatValuationGap(gap)}</strong></div>
       </div>
     </section>
   );
 }
 
-function OverviewSection({ detail }: { detail: StockDetail }) {
-  const score = detail.latest_score;
-  const valuation = detail.latest_valuation;
-  const trend = detail.latest_trend;
+/** 投资一页纸：为什么关注、要盯什么、最近变了什么、最新动态。明细都留在各自页签，点一条跳过去看全文。 */
+function OverviewSection({ detail, onOpenSection }: { detail: StockDetail; onOpenSection: (section: StockDetailSection) => void }) {
+  const navigate = useNavigate();
+  const theses = overviewTheses(detail);
+  const watchlist = overviewWatchlist(detail);
+  const changes = overviewChanges(detail);
+  const freshness = researchFreshness(detail);
+  const latestNote = detail.notes[0];
+  const materials = actionableMaterials(detail.materials)
+    .sort((a, b) => String(b.material_time ?? "").localeCompare(String(a.material_time ?? "")))
+    .slice(0, 3);
+  const disclosures = detail.disclosures.slice(0, 2);
+  const hasNews = Boolean(latestNote || materials.length || disclosures.length);
+  if (!theses.length && !watchlist.length && !changes.length && !hasNews) {
+    return <SectionCard><EmptyState title="暂无研究结论" detail="等待研究员写入评级、估值或趋势" /></SectionCard>;
+  }
   return (
     <>
-      <SectionCard title="最新评级">
-        {score ? (
-          <>
-            <Suspense fallback={<ChartFallback height={220} />}>
-              <RatingRadar dimensions={scoreDimensions(score)} />
-            </Suspense>
-            {score.core_logic ? <div className="stock-detail-copy"><span>核心逻辑</span><p>{score.core_logic}</p></div> : null}
-            {score.primary_risk ? <div className="stock-detail-copy is-risk"><span>主要风险</span><p>{score.primary_risk}</p></div> : null}
-            <footer className="stock-detail-meta">{score.researcher_code || "未标注研究员"} · {score.report_time}</footer>
-          </>
-        ) : <EmptyState title="暂无评级" detail="等待研究员写入评分" />}
-      </SectionCard>
-      <SectionCard title="最新估值">
-        {valuation ? (
-          <div className="detail-facts">
-            <div><span>最新市值</span><b>{formatNumber(valuation.current_market_value, 2)}</b></div>
-            <div><span>三年合理市值</span><b>{formatNumber(valuation.expected_market_value_3y, 2)}</b></div>
-            <div><span>三年估值空间</span><b className={valuationGapTone(valuation.expectation_gap_rate)}>{formatValuationGap(valuation.expectation_gap_rate)}</b></div>
-            <div><span>估值报告时间</span><b>{valuation.analysis_date || "-"}</b></div>
-            <div><span>估值期</span><b>{valuation.report_period || "-"}</b></div>
-            <div><span>估值依据</span><b>{valuationModelLabel(valuation.primary_model)}</b></div>
+      {theses.length ? (
+        <SectionCard title="投资要点">
+          {theses.map((item) => (
+            <button
+              type="button"
+              className={`stock-detail-copy stock-overview-copy${item.risk ? " is-risk" : ""}`}
+              key={item.label}
+              onClick={() => onOpenSection(item.section)}
+            >
+              <span>{item.label}</span>
+              {item.values.map((value) => <span className="stock-overview-copy__text" key={value}>{value}</span>)}
+            </button>
+          ))}
+        </SectionCard>
+      ) : null}
+      {watchlist.length ? (
+        <SectionCard title="跟踪清单">
+          <dl className="stock-trend-dimensions">
+            {watchlist.map((item) => (
+              <div key={item.label} role="button" tabIndex={0} onClick={() => onOpenSection(item.section)}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </SectionCard>
+      ) : null}
+      {changes.length ? (
+        <SectionCard title="最近变化">
+          <div className="stock-overview-changes">
+            {changes.map((item) => (
+              <button type="button" key={item.label} onClick={() => onOpenSection(item.section)}>
+                <span>{item.label}</span>
+                {/* 旧值压灰，只给新值上涨跌色，一眼看到现在落在哪 */}
+                <b>
+                  {item.from === null ? <em>首次</em> : item.from === item.to ? null : <><s>{item.from}</s><i>→</i></>}
+                  <strong className={overviewChangeTone(item.direction)}>{item.to}</strong>
+                </b>
+                <time>{item.date.slice(5) || "-"}</time>
+              </button>
+            ))}
           </div>
-        ) : <EmptyState title="暂无估值" detail="等待研究员写入估值快照" />}
-      </SectionCard>
-      <SectionCard title="最新趋势">
-        {trend ? (
-          <div className="detail-facts">
-            <div><span>T 等级</span><b className={trendLevelTone(trend.trend_level)}>{trend.trend_level}</b></div>
-            <div><span>日线位置</span><b>{trend.stock_stage || "-"}</b></div>
-            <div><span>主赛道</span><b>{trend.main_track || "-"}</b></div>
-            <div><span>分组建议</span><b>{suggestedGroupLabel(trend.suggested_group)}</b></div>
-            <div><span>全池排名</span><b>{trend.priority_rank ?? "-"}</b></div>
-            <div><span>研究日期</span><b>{trend.research_date}</b></div>
+        </SectionCard>
+      ) : null}
+      {hasNews ? (
+        <SectionCard
+          title="最新动态"
+          action={<button type="button" className="text-button" onClick={() => onOpenSection("materials")}>全部材料</button>}
+        >
+          <div className="stock-overview-news">
+          {latestNote ? (
+            <div className="note-list entity-note-list">
+              <article className="note-card" onClick={() => navigate(`/notes/${latestNote.id}`)}>
+                <header>
+                  <div className="note-card-meta">
+                    <time>{formatDateTime(latestNote.created_at ?? latestNote.updated_at)}</time>
+                    <span className="note-card-source">我的笔记</span>
+                  </div>
+                </header>
+                <p>{latestNote.content}</p>
+              </article>
+            </div>
+          ) : null}
+          {materials.length ? (
+            <div className="material-list">
+              {materials.map((item) => (
+                <MaterialCard
+                  key={item.id}
+                  item={{
+                    id: item.id,
+                    owner: "stock",
+                    direction: item.impact_direction,
+                    title: item.material_title,
+                    summary: item.material_summary,
+                    sourceName: item.material_source_name,
+                    materialTime: item.material_time
+                  }}
+                  onOpen={(card) => navigate(materialDetailPath(card))}
+                />
+              ))}
+            </div>
+          ) : null}
+          {disclosures.length ? (
+            <div>
+              {disclosures.map((item) => (
+                <ListRow key={item.id} title={item.title} meta={`${item.disclosure_type} · ${formatDateTime(item.publish_time)}`} />
+              ))}
+            </div>
+          ) : null}
           </div>
-        ) : <EmptyState title="暂无趋势研究" detail="等待研究员写入趋势快照" />}
-      </SectionCard>
+        </SectionCard>
+      ) : null}
+      {freshness.length ? (
+        <p className="stock-overview-freshness">
+          研究时效：
+          {freshness.map((item, index) => (
+            <span key={item.label} className={item.stale ? "is-stale" : ""}>
+              {index ? " · " : ""}{item.label} {item.date.slice(2)}{item.stale ? `（超 ${RESEARCH_STALE_DAYS} 天）` : ""}
+            </span>
+          ))}
+        </p>
+      ) : null}
     </>
   );
 }
