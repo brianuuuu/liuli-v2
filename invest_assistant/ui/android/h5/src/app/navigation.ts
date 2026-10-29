@@ -16,10 +16,10 @@ export const rootSections: NavigationItem<SectionKey>[] = [
 
 export const dashboardTabs = [
   { key: "today", label: "今日" },
+  { key: "portfolio", label: "组合" },
   { key: "market", label: "市场" },
   { key: "track", label: "赛道" },
-  { key: "stock", label: "标的" },
-  { key: "portfolio", label: "组合" }
+  { key: "stock", label: "标的" }
 ] as const;
 
 export function sectionForPath(pathname: string): SectionKey {

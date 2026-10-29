@@ -14,7 +14,7 @@ describe("mobile navigation", () => {
   });
 
   it("keeps the dashboard tabs in the approved order", () => {
-    expect(dashboardTabs.map((item) => item.label)).toEqual(["今日", "市场", "赛道", "标的", "组合"]);
+    expect(dashboardTabs.map((item) => item.label)).toEqual(["今日", "组合", "市场", "赛道", "标的"]);
   });
 
   it("maps ordinary detail routes to their parent native section", () => {
