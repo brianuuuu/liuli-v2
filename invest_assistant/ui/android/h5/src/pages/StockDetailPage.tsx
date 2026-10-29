@@ -10,13 +10,9 @@ import {
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
   formatValuationGap,
-  overviewChanges,
   overviewChangeTone,
-  overviewTheses,
-  overviewWatchlist,
+  overviewTrends,
   priorityRankLabel,
-  researchFreshness,
-  RESEARCH_STALE_DAYS,
   scoreDimensions,
   scoreTrendRows,
   suggestedGroupLabel,
@@ -39,6 +35,7 @@ import { formatDateTime, formatNumber } from "../utils/format";
 
 const RatingRadar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.RatingRadar })));
 const ScoreTrendBar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ScoreTrendBar })));
+const ResearchTrendLine = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ResearchTrendLine })));
 
 function ChartFallback({ height }: { height: number }) {
   return <div className="stock-detail-chart is-loading" style={{ height }} />;
@@ -125,127 +122,36 @@ function StockProfile({ detail }: { detail: StockDetail }) {
   );
 }
 
-/** 投资一页纸：为什么关注、要盯什么、最近变了什么、最新动态。明细都留在各自页签，点一条跳过去看全文。 */
+/**
+ * 概览只看「最近变化」：评级总分、趋势 T 级、三年合理市值各一条历次研究的曲线，
+ * 标题行写上一期 → 最新，点标题行进对应页签看明细。
+ */
 function OverviewSection({ detail, onOpenSection }: { detail: StockDetail; onOpenSection: (section: StockDetailSection) => void }) {
-  const navigate = useNavigate();
-  const theses = overviewTheses(detail);
-  const watchlist = overviewWatchlist(detail);
-  const changes = overviewChanges(detail);
-  const freshness = researchFreshness(detail);
-  const latestNote = detail.notes[0];
-  const materials = actionableMaterials(detail.materials)
-    .sort((a, b) => String(b.material_time ?? "").localeCompare(String(a.material_time ?? "")))
-    .slice(0, 3);
-  const disclosures = detail.disclosures.slice(0, 2);
-  const hasNews = Boolean(latestNote || materials.length || disclosures.length);
-  if (!theses.length && !watchlist.length && !changes.length && !hasNews) {
-    return <SectionCard><EmptyState title="暂无研究结论" detail="等待研究员写入评级、估值或趋势" /></SectionCard>;
+  const trends = overviewTrends(detail);
+  if (!trends.length) {
+    return <SectionCard><EmptyState title="暂无研究记录" detail="等待研究员写入评级、估值或趋势" /></SectionCard>;
   }
   return (
-    <>
-      {theses.length ? (
-        <SectionCard title="投资要点">
-          {theses.map((item) => (
-            <button
-              type="button"
-              className={`stock-detail-copy stock-overview-copy${item.risk ? " is-risk" : ""}`}
-              key={item.label}
-              onClick={() => onOpenSection(item.section)}
-            >
+    <SectionCard title="最近变化">
+      <div className="stock-overview-trends">
+        {trends.map((item) => (
+          <section className="stock-overview-trend" key={item.key}>
+            <button type="button" className="stock-overview-trend__head" onClick={() => onOpenSection(item.section)}>
               <span>{item.label}</span>
-              {item.values.map((value) => <span className="stock-overview-copy__text" key={value}>{value}</span>)}
+              {/* 旧值压灰，只给新值上涨跌色，一眼看到现在落在哪 */}
+              <b>
+                {item.from === null ? <em>首次</em> : item.from === item.to ? null : <><s>{item.from}</s><i>→</i></>}
+                <strong className={overviewChangeTone(item.direction)}>{item.to}</strong>
+              </b>
+              <time>{item.date.slice(5) || "-"}</time>
             </button>
-          ))}
-        </SectionCard>
-      ) : null}
-      {watchlist.length ? (
-        <SectionCard title="跟踪清单">
-          <dl className="stock-trend-dimensions">
-            {watchlist.map((item) => (
-              <div key={item.label} role="button" tabIndex={0} onClick={() => onOpenSection(item.section)}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </SectionCard>
-      ) : null}
-      {changes.length ? (
-        <SectionCard title="最近变化">
-          <div className="stock-overview-changes">
-            {changes.map((item) => (
-              <button type="button" key={item.label} onClick={() => onOpenSection(item.section)}>
-                <span>{item.label}</span>
-                {/* 旧值压灰，只给新值上涨跌色，一眼看到现在落在哪 */}
-                <b>
-                  {item.from === null ? <em>首次</em> : item.from === item.to ? null : <><s>{item.from}</s><i>→</i></>}
-                  <strong className={overviewChangeTone(item.direction)}>{item.to}</strong>
-                </b>
-                <time>{item.date.slice(5) || "-"}</time>
-              </button>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
-      {hasNews ? (
-        <SectionCard
-          title="最新动态"
-          action={<button type="button" className="text-button" onClick={() => onOpenSection("materials")}>全部材料</button>}
-        >
-          <div className="stock-overview-news">
-          {latestNote ? (
-            <div className="note-list entity-note-list">
-              <article className="note-card" onClick={() => navigate(`/notes/${latestNote.id}`)}>
-                <header>
-                  <div className="note-card-meta">
-                    <time>{formatDateTime(latestNote.created_at ?? latestNote.updated_at)}</time>
-                    <span className="note-card-source">我的笔记</span>
-                  </div>
-                </header>
-                <p>{latestNote.content}</p>
-              </article>
-            </div>
-          ) : null}
-          {materials.length ? (
-            <div className="material-list">
-              {materials.map((item) => (
-                <MaterialCard
-                  key={item.id}
-                  item={{
-                    id: item.id,
-                    owner: "stock",
-                    direction: item.impact_direction,
-                    title: item.material_title,
-                    summary: item.material_summary,
-                    sourceName: item.material_source_name,
-                    materialTime: item.material_time
-                  }}
-                  onOpen={(card) => navigate(materialDetailPath(card))}
-                />
-              ))}
-            </div>
-          ) : null}
-          {disclosures.length ? (
-            <div>
-              {disclosures.map((item) => (
-                <ListRow key={item.id} title={item.title} meta={`${item.disclosure_type} · ${formatDateTime(item.publish_time)}`} />
-              ))}
-            </div>
-          ) : null}
-          </div>
-        </SectionCard>
-      ) : null}
-      {freshness.length ? (
-        <p className="stock-overview-freshness">
-          研究时效：
-          {freshness.map((item, index) => (
-            <span key={item.label} className={item.stale ? "is-stale" : ""}>
-              {index ? " · " : ""}{item.label} {item.date.slice(2)}{item.stale ? `（超 ${RESEARCH_STALE_DAYS} 天）` : ""}
-            </span>
-          ))}
-        </p>
-      ) : null}
-    </>
+            <Suspense fallback={<ChartFallback height={118} />}>
+              <ResearchTrendLine kind={item.key} points={item.points} />
+            </Suspense>
+          </section>
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 

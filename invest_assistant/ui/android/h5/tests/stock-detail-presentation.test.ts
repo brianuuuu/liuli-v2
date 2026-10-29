@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { parentPathForDetail, sectionForPath } from "../src/app/navigation";
+import { scoreAxisRange } from "../src/components/StockDetailCharts";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
   STOCK_DETAIL_SECTIONS,
   actionableMaterials,
   assumptionResultTone,
   formatValuationGap,
-  overviewChanges,
+  OVERVIEW_TREND_POINTS,
   overviewChangeTone,
-  overviewTheses,
-  overviewWatchlist,
+  overviewTrends,
   parseValuationAssumptions,
-  researchFreshness,
   priorityRankLabel,
   scoreDimensions,
   scoreTrendRows,
@@ -223,7 +222,7 @@ describe("估值假设解析", () => {
   });
 });
 
-describe("概览（投资一页纸）", () => {
+describe("概览：最近变化曲线", () => {
   const baseDetail = {
     stock: { id: 1 },
     score_history: [],
@@ -235,49 +234,12 @@ describe("概览（投资一页纸）", () => {
     notes: []
   } as unknown as StockDetail;
 
-  it("投资要点合并两份研究：基本面、交易逻辑各一段，相同的风险只留一份", () => {
-    const detail = {
-      ...baseDetail,
-      latest_score: { ...score, core_logic: "订单放量", primary_risk: "客户集中" },
-      latest_trend: { ...trend, core_logic: "主线发酵", primary_risk: "客户集中" }
-    } as StockDetail;
-    expect(overviewTheses(detail)).toEqual([
-      { label: "基本面逻辑", values: ["订单放量"], risk: false, section: "rating" },
-      { label: "交易逻辑", values: ["主线发酵"], risk: false, section: "trend" },
-      { label: "主要风险", values: ["客户集中"], risk: true, section: "rating" }
-    ]);
-    expect(overviewTheses(baseDetail)).toEqual([]);
-  });
-
-  it("跟踪清单汇总验证点、估值假设和上期兑现，空项不占位", () => {
-    const detail = {
-      ...baseDetail,
-      latest_trend: { ...trend, next_verification: "三季报毛利率", data_gaps: "" },
-      latest_valuation: {
-        id: 3,
-        valuation_assumptions_json: JSON.stringify({
-          current_assumptions: [{ metric: "营收增速", assumed: "25%" }, { metric: "毛利率", assumed: "40%" }],
-          last_assumptions_vs_actual: [
-            { metric: "营收", result: "超预期" },
-            { metric: "利润", result: "超预期" },
-            { metric: "毛利率", result: "不如预期" }
-          ]
-        })
-      }
-    } as StockDetail;
-    expect(overviewWatchlist(detail)).toEqual([
-      { label: "下一验证点", value: "三季报毛利率", section: "trend" },
-      { label: "估值假设", value: "营收增速 25% · 毛利率 40%", section: "valuation" },
-      { label: "上期兑现", value: "2 项超预期 · 1 项不如预期", section: "valuation" }
-    ]);
-  });
-
-  it("最近变化和上一期比：评级看总分，趋势 T 级变小算变好，估值比合理市值", () => {
+  it("三条曲线按时间正序，标题行比较最新两期：评级看总分，T 级变小算变好，估值比合理市值", () => {
     const detail = {
       ...baseDetail,
       score_history: [
-        { ...score, id: 1, report_time: "2026-05-01", total_score: 7.2, investment_level: "B" },
-        { ...score, id: 2, report_time: "2026-08-31", total_score: 7.8, investment_level: "A" }
+        { ...score, id: 2, report_time: "2026-08-31", total_score: 7.8, investment_level: "A" },
+        { ...score, id: 1, report_time: "2026-05-01", total_score: 7.2, investment_level: "B" }
       ],
       trend_history: [
         { ...trend, id: 1, research_date: "2026-09-11", trend_level: "T2" },
@@ -288,32 +250,67 @@ describe("概览（投资一页纸）", () => {
         { id: 2, analysis_date: "2026-09-01", expected_market_value_3y: 1200 }
       ]
     } as unknown as StockDetail;
-    expect(overviewChanges(detail)).toEqual([
-      { label: "评级", from: "B 7.2", to: "A 7.8", direction: "up", date: "2026-08-31", section: "rating" },
-      { label: "趋势", from: "T3", to: "T2", direction: "up", date: "2026-09-11", section: "trend" },
-      { label: "合理市值", from: "1,500", to: "1,200", direction: "down", date: "2026-09-01", section: "valuation" }
+    expect(overviewTrends(detail)).toEqual([
+      {
+        key: "score", label: "综合评分", from: "B 7.2", to: "A 7.8", direction: "up", date: "2026-08-31", section: "rating",
+        points: [
+          { date: "2026-05-01", value: 7.2, label: "B 7.2" },
+          { date: "2026-08-31", value: 7.8, label: "A 7.8" }
+        ]
+      },
+      {
+        key: "trend", label: "趋势", from: "T3", to: "T2", direction: "up", date: "2026-09-11", section: "trend",
+        points: [
+          { date: "2026-08-01", value: 3, label: "T3" },
+          { date: "2026-09-11", value: 2, label: "T2" }
+        ]
+      },
+      {
+        key: "valuation", label: "合理市值", from: "1,500", to: "1,200", direction: "down", date: "2026-09-01", section: "valuation",
+        points: [
+          { date: "2026-06-01", value: 1500, label: "1,500" },
+          { date: "2026-09-01", value: 1200, label: "1,200" }
+        ]
+      }
     ]);
     expect(overviewChangeTone("up")).toBe("positive");
     expect(overviewChangeTone("down")).toBe("negative");
     expect(overviewChangeTone("first")).toBe("");
   });
 
-  it("只有一期时标为首次，历史缺字段不报错", () => {
-    const detail = { ...baseDetail, score_history: [score], trend_history: undefined, valuation_history: undefined } as unknown as StockDetail;
-    expect(overviewChanges(detail)).toEqual([
-      { label: "评级", from: null, to: "- 7.8", direction: "first", date: "2026-08-31", section: "rating" }
-    ]);
-  });
-
-  it("研究时效超过 90 天标为过期", () => {
+  it("只有一期标为首次；缺字段、认不出的 T 级和没填合理市值的估值都略过", () => {
     const detail = {
       ...baseDetail,
-      latest_score: { ...score, report_time: "2026-05-01" },
-      latest_trend: { ...trend, research_date: "2026-09-11" }
-    } as StockDetail;
-    expect(researchFreshness(detail, new Date("2026-09-20T12:00:00"))).toEqual([
-      { label: "评级", date: "2026-05-01", stale: true },
-      { label: "趋势", date: "2026-09-11", stale: false }
+      score_history: [score],
+      trend_history: [{ ...trend, trend_level: "待定" }],
+      valuation_history: [{ id: 1, analysis_date: "2026-06-01", expected_market_value_3y: null }]
+    } as unknown as StockDetail;
+    expect(overviewTrends(detail)).toEqual([
+      {
+        key: "score", label: "综合评分", from: null, to: "- 7.8", direction: "first", date: "2026-08-31", section: "rating",
+        points: [{ date: "2026-08-31", value: 7.8, label: "- 7.8" }]
+      }
     ]);
+    expect(overviewTrends({ ...baseDetail, trend_history: undefined, valuation_history: undefined } as unknown as StockDetail)).toEqual([]);
+  });
+
+  it("每条曲线只留最近若干期", () => {
+    const history = Array.from({ length: OVERVIEW_TREND_POINTS + 3 }, (_, index) => ({
+      ...score,
+      id: index,
+      report_time: `2025-${String(index % 12 + 1).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
+      total_score: 6 + index / 10
+    }));
+    const [scoreTrend] = overviewTrends({ ...baseDetail, score_history: history } as unknown as StockDetail);
+    expect(scoreTrend.points).toHaveLength(OVERVIEW_TREND_POINTS);
+  });
+});
+
+describe("评分曲线纵轴", () => {
+  it("整数上下界、等距刻度，跨度大时两分一格且补成偶数", () => {
+    expect(scoreAxisRange([7.1, 8.3])).toEqual({ min: 6, max: 9, interval: 1 });
+    expect(scoreAxisRange([3.2, 8.9])).toEqual({ min: 2, max: 10, interval: 2 });
+    expect(scoreAxisRange([0.2, 9.8])).toEqual({ min: 0, max: 10, interval: 2 });
+    expect(scoreAxisRange([7.5])).toEqual({ min: 7, max: 8, interval: 1 });
   });
 });

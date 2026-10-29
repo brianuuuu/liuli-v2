@@ -773,25 +773,17 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .stock-detail-copy span { color: var(--muted); font-size: 12px; }
 .stock-detail-copy p { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
 .stock-detail-meta { margin-top: 12px; color: var(--subtle); font-size: 11px; }
-/* 概览（投资一页纸）：结论段落截三行，整段可点，跳到出处页签看全文 */
-.stock-overview-copy { display: block; width: 100%; text-align: left; }
-.stock-overview-copy:first-of-type { margin-top: 0; }
-.stock-overview-copy .stock-overview-copy__text { display: -webkit-box; overflow: hidden; margin-top: 4px; color: var(--text); font-size: var(--content-font-size); line-height: 1.62; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.stock-overview-changes { display: grid; }
-.stock-overview-changes button { display: flex; width: 100%; align-items: baseline; gap: 12px; padding: 10px 0; text-align: left; }
-.stock-overview-changes button + button { border-top: 1px solid var(--border); }
-.stock-overview-changes span { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
-.stock-overview-changes b { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 560; font-variant-numeric: tabular-nums; }
-.stock-overview-changes b i { margin: 0 6px; color: var(--subtle); font-style: normal; font-weight: 400; }
-.stock-overview-changes b s { color: var(--muted); font-weight: 400; text-decoration: none; }
-.stock-overview-changes b strong { font-weight: 650; }
-.stock-overview-changes b em { margin-right: 6px; color: var(--subtle); font-size: 12px; font-style: normal; font-weight: 400; }
-.stock-overview-changes time { flex: 0 0 auto; color: var(--subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
-/* 笔记、材料、公告三组之间同样用分隔线，和组内条目之间一致 */
-.stock-overview-news > * + * { border-top: 1px solid var(--border); }
-.stock-overview-news .note-card p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.stock-overview-freshness { margin: 0; padding: 0 4px; color: var(--subtle); font-size: 11px; line-height: 1.6; }
-.stock-overview-freshness .is-stale { color: #d97706; }
+/* 概览「最近变化」：每个指标一段，标题行（指标 | 上一期 → 最新 | 日期）下面是它的曲线，段与段之间分隔线 */
+.stock-overview-trends { display: grid; }
+.stock-overview-trend + .stock-overview-trend { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.stock-overview-trend__head { display: flex; width: 100%; align-items: baseline; gap: 12px; padding: 8px 0 4px; text-align: left; }
+.stock-overview-trend__head span { flex: 0 0 64px; color: var(--muted); font-size: 12px; }
+.stock-overview-trend__head b { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 560; font-variant-numeric: tabular-nums; }
+.stock-overview-trend__head b i { margin: 0 6px; color: var(--subtle); font-style: normal; font-weight: 400; }
+.stock-overview-trend__head b s { color: var(--muted); font-weight: 400; text-decoration: none; }
+.stock-overview-trend__head b strong { font-weight: 650; }
+.stock-overview-trend__head b em { margin-right: 6px; color: var(--subtle); font-size: 12px; font-style: normal; font-weight: 400; }
+.stock-overview-trend__head time { flex: 0 0 auto; color: var(--subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
 .stock-trend-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .stock-trend-head > div { min-width: 0; }
 .stock-trend-head > div b { display: block; font-size: 15px; font-weight: 650; }
