@@ -73,12 +73,14 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*transition:\s*transform var\(--pager-settle-duration\)/s);
   });
 
-  it("keeps the suggestion list actions symmetric with action-colored borders", () => {
+  it("keeps the suggestion list actions symmetric as borderless filled buttons", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).toMatch(/\.suggestion-list-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/s);
-    expect(styles).toMatch(/\.suggestion-list-actions \.load-more\s*\{[^}]*border:\s*1px solid var\(--blue\);/s);
-    expect(styles).toMatch(/\.reject-loaded-button\s*\{[^}]*border:\s*1px solid #dc2626;/s);
+    expect(styles).toMatch(/\.suggestion-list-actions \.load-more\s*\{[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.reject-loaded-button\s*\{[^}]*background:\s*var\(--panel\);[^}]*color:\s*#dc2626;/s);
+    expect(styles).not.toMatch(/\.suggestion-list-actions \.load-more\s*\{[^}]*border:/s);
+    expect(styles).not.toMatch(/\.reject-loaded-button\s*\{[^}]*border:/s);
   });
 
   it("allows the composer to scroll inside the visual viewport", () => {
@@ -189,7 +191,8 @@ describe("mobile card elevation", () => {
     // 只有强档带色，且用品牌蓝：红色留给涨跌和新财报红点。中档中性灰底，弱档只留细边框。
     expect(styles).toMatch(/\.pool-card__badge--tier-strong\s*\{[^}]*background:\s*var\(--blue-soft\);[^}]*color:\s*var\(--blue\);/s);
     expect(styles).toMatch(/\.pool-card__badge--tier-mid\s*\{[^}]*background:\s*#eef1f5;/s);
-    expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*inset 0 0 0 1px/s);
+    expect(styles).toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*background:\s*#f4f6f9;/s);
+    expect(styles).not.toMatch(/\.pool-card__badge--tier-weak\s*\{[^}]*box-shadow:/s);
     // 排序按钮不是分组，推到状态行尾单独成一档。
     expect(styles).toMatch(/\.pill-segments button\.pool-sort-toggle\s*\{[^}]*margin-left:\s*auto;/s);
     // 视图切换器 portal 到 body，继承不到页框与看板内容的两层内缩，必须显式算回同一条内容列。
@@ -207,7 +210,9 @@ describe("mobile card elevation", () => {
   it("标的详情档案卡与状态徽章", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
-    expect(styles).toMatch(/\.stock-profile\s*\{[^}]*border:\s*1px solid var\(--border\);[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).toMatch(/\.stock-profile\s*\{[^}]*border-radius:\s*10px;[^}]*background:\s*var\(--panel\);/s);
+    expect(styles).not.toMatch(/\.stock-profile\s*\{[^}]*border:/s);
+    expect(styles).toMatch(/\.stock-profile__tracks span\s*\{[^}]*background:\s*var\(--chip-bg\);/s);
     expect(styles).toMatch(/\.stock-profile__head\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*space-between;/s);
     expect(styles).toMatch(/\.stock-profile__head h2\s*\{[^}]*font-size:\s*19px;[^}]*text-overflow:\s*ellipsis;/s);
     expect(styles).toMatch(/\.stock-profile__metrics\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);[^}]*border-top:\s*1px solid var\(--border\);/s);
