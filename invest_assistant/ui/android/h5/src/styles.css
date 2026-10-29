@@ -11,6 +11,8 @@
   --blue-soft: #eaf1ff;
   --chip-bg: #eef1f5;
   --danger-soft: #fef2f2;
+  --rise-soft: #fdeaea;
+  --fall-soft: #e3f6e9;
   --sentiment: #8b5cf6;
   --shadow: none;
   --float-shadow: 0 2px 14px rgba(17, 24, 39, .1);
@@ -36,6 +38,8 @@
   --blue-soft: #17243b;
   --chip-bg: #272b33;
   --danger-soft: #351b1e;
+  --rise-soft: #3a1c1f;
+  --fall-soft: #15291d;
   --sentiment: #a78bfa;
   --shadow: none;
   --float-shadow: 0 2px 14px rgba(0, 0, 0, .5);
@@ -534,8 +538,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-side { height: 36px; border-radius: 7px; color: var(--muted); font-size: 14px; }
 .trade-side:disabled { color: var(--subtle); opacity: .55; }
 .trade-side.is-active { font-weight: 600; }
-.trade-side--buy.is-active { background: rgba(220, 38, 38, .1); color: #dc2626; }
-.trade-side--sell.is-active { background: rgba(22, 163, 74, .12); color: #16a34a; }
+/* 用不透明的浅红/浅绿：半透明色叠在偏蓝的灰轨道上会混成发灰的脏粉 */
+.trade-side--buy.is-active { background: var(--rise-soft); color: #dc2626; }
+.trade-side--sell.is-active { background: var(--fall-soft); color: #16a34a; }
 .trade-switch { position: relative; width: 44px; height: 26px; flex: 0 0 44px; margin: 0 0 0 auto; border-radius: 13px; appearance: none; background: var(--border); transition: background .15s; }
 .trade-switch::before { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(17, 24, 39, .25); content: ""; transition: transform .15s; }
 .trade-switch:checked { background: var(--blue); }
