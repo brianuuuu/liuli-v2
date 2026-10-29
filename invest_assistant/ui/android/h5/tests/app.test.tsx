@@ -2055,9 +2055,16 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    // 数量为 0 的笔记不出现
-    expect(await screen.findByText("待处理：推荐词 5 · 报告 2 · 预警 3")).toBeInTheDocument();
+    // 按类型拆成数字，数量为 0 的笔记不出现
+    expect(await screen.findByRole("button", { name: "推荐词待审 5" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "报告待处理 2" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "预警未读 3" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /笔记待归档/ })).not.toBeInTheDocument();
     expect(screen.queryByText("重要信息、风险事件和研究记录集中在这里。")).not.toBeInTheDocument();
+
+    // 点数字直接进待办里对应的页签
+    fireEvent.click(screen.getByRole("button", { name: "预警未读 3" }));
+    expect(await screen.findByRole("tab", { name: "预警" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("keeps the welcome description when there are no unhandled tasks", async () => {
@@ -2079,7 +2086,7 @@ describe("mobile H5 app", () => {
     renderApp();
 
     expect(await screen.findByText("重要信息、风险事件和研究记录集中在这里。")).toBeInTheDocument();
-    expect(screen.queryByText(/待处理：/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /待审|待处理|待归档|未读/ })).not.toBeInTheDocument();
   });
 
   it("shows the web-aligned portfolio performance on the today dashboard", async () => {

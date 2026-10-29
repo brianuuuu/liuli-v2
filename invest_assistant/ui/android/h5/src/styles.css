@@ -177,17 +177,37 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
   pointer-events: none;
 }
 .page-stack { display: grid; gap: 10px; }
+/* 今日门面卡：浅色渐变底上右上角两团预先模糊好的冷色光斑，再盖一层半透明白，做出玻璃的通透层次。
+   光斑只在一角，日期和数字所在的左侧保持干净；不用 backdrop-filter，WebView 里实时模糊太吃 GPU。 */
 .welcome-card {
-  padding: 18px;
+  position: relative;
+  overflow: hidden;
   border: 0;
-  border-radius: 12px;
-  background: linear-gradient(145deg, #ffffff, #eef5ff);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #ffffff, #f1f5fc);
   box-shadow: var(--shadow);
 }
-:root[data-theme="dark"] .welcome-card { background: linear-gradient(145deg, #17191d, #14213a); }
-.welcome-card span, .eyebrow { color: var(--blue); font-size: 12px; font-weight: 650; }
-.welcome-card strong { display: block; margin-top: 5px; font-size: 20px; }
-.welcome-card p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.welcome-card__glow { position: absolute; border-radius: 50%; filter: blur(36px); pointer-events: none; }
+.welcome-card__glow--a { top: -70px; right: -50px; width: 170px; height: 170px; background: #93c5fd; opacity: .55; }
+.welcome-card__glow--b { top: 40px; right: 60px; width: 130px; height: 130px; background: #c7d2fe; opacity: .5; }
+.welcome-card__body { position: relative; padding: 18px; background: rgba(255, 255, 255, .35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95); }
+:root[data-theme="dark"] .welcome-card { background: linear-gradient(145deg, #17191d, #141a26); }
+:root[data-theme="dark"] .welcome-card__glow--a { background: #1e40af; }
+:root[data-theme="dark"] .welcome-card__glow--b { background: #4338ca; opacity: .35; }
+:root[data-theme="dark"] .welcome-card__body { background: rgba(23, 25, 29, .25); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
+.welcome-card__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.welcome-card__brand, .eyebrow { color: var(--blue); font-size: 12px; font-weight: 650; }
+/* 交易中用品牌蓝的点，其余状态走灰：红色留给涨跌和新财报红点 */
+.welcome-card__session { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.welcome-card__session i { width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); }
+.welcome-card__session.is-live i { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.welcome-card__date { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; color: var(--text); font-size: 22px; font-weight: 700; }
+.welcome-card__date em { color: var(--muted); font-size: 15px; font-style: normal; font-weight: 500; }
+.welcome-card__stats { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(15, 23, 42, .08); }
+:root[data-theme="dark"] .welcome-card__stats { border-top-color: rgba(255, 255, 255, .08); }
+.welcome-card__stats button { display: grid; justify-items: start; gap: 1px; padding: 0; color: var(--muted); font-size: 11px; text-align: left; }
+.welcome-card__stats b { color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.welcome-card__hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 /* 不画轮廓线：白底压在页面灰底上已经是一层分隔，卡片之间再靠 .page-stack
    的 10px 灰底撑开，四周那圈近似色的线只会在边缘糊一道脏边。

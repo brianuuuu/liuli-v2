@@ -1,10 +1,12 @@
 import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpDown, Plus } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { mobileApi, type MarketRankingType, type MarketRankingWindow } from "../api/mobileApi";
 import { dashboardTabs } from "../app/navigation";
+import { marketSession, shanghaiClock } from "./marketSession";
+import { rememberTaskTab, type TaskTab } from "./tasksViewState";
 import { DashboardMaterialFeed, type DashboardMaterialItem } from "../components/DashboardMaterialFeed";
 import { materialDetailPath } from "../components/MaterialCard";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
@@ -96,17 +98,17 @@ function rankMovementDisplay(item: Pick<TagHeat, "rank_change" | "rank_movement"
 const TASK_COUNT_SOURCES = [
   {
     key: "suggestions",
-    label: "推荐词",
+    label: "推荐词待审",
     count: (signal: AbortSignal) => mobileApi.aiTagSuggestions({ status: "pending", limit: 1, offset: 0 }, signal).then((page) => page.total)
   },
-  { key: "pending-reports", label: "报告", count: (signal: AbortSignal) => mobileApi.pendingReports(signal).then((rows) => rows.length) },
+  { key: "pending-reports", label: "报告待处理", count: (signal: AbortSignal) => mobileApi.pendingReports(signal).then((rows) => rows.length) },
   {
     key: "notes",
-    label: "笔记",
+    label: "笔记待归档",
     count: () => mobileApi.notes({ limit: 1, offset: 0, status: "active", ungrouped: true, note_type: "mcp" }).then((page) => page.total)
   },
-  { key: "alerts", label: "预警", count: (signal: AbortSignal) => mobileApi.unreadAlerts(0, 1, signal).then((page) => page.total) }
-] as const;
+  { key: "alerts", label: "预警未读", count: (signal: AbortSignal) => mobileApi.unreadAlerts(0, 1, signal).then((page) => page.total) }
+] as const satisfies readonly { key: TaskTab; label: string; count: (signal: AbortSignal) => Promise<number> }[];
 
 export function DashboardPage() {
   const [tab, setTab] = useState<DashboardTab>(() => lastDashboardTab() as DashboardTab);
@@ -122,6 +124,50 @@ export function DashboardPage() {
         return <PortfolioDashboard active={key === tab} />;
       }} />
     </MobilePageFrame>
+  );
+}
+
+/**
+ * 今日门面卡：日期为主、星期弱化跟在后面；右上角是 A 股交易状态；
+ * 待处理按类型拆成数字，点一下直接进待办里对应的页签。
+ * 背后两团预先模糊好的光斑加一层半透明白做出玻璃感，不用 backdrop-filter，滚动和横滑时零开销。
+ */
+function WelcomeCard({ stats, quoteTimes, onOpenTasks }: {
+  stats: { key: TaskTab; label: string; count: number }[];
+  quoteTimes: Array<string | null | undefined>;
+  onOpenTasks: (key: TaskTab) => void;
+}) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    // 倒计时精确到分钟，半分钟刷一次足够
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const session = marketSession(now, quoteTimes);
+  const clock = shanghaiClock(now);
+  const [, month, day] = clock.date.split("-").map(Number);
+  const weekday = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][clock.weekday];
+  return (
+    <section className="welcome-card">
+      <i className="welcome-card__glow welcome-card__glow--a" aria-hidden="true" />
+      <i className="welcome-card__glow welcome-card__glow--b" aria-hidden="true" />
+      <div className="welcome-card__body">
+        <header className="welcome-card__top">
+          <span className="welcome-card__brand">投研工作台</span>
+          <span className={`welcome-card__session${session.live ? " is-live" : ""}`}><i aria-hidden="true" />{session.label}</span>
+        </header>
+        <h2 className="welcome-card__date">{month}月{day}日<em>{weekday}</em></h2>
+        {stats.length ? (
+          <div className="welcome-card__stats">
+            {stats.map((item) => (
+              <button type="button" key={item.key} aria-label={`${item.label} ${item.count}`} onClick={() => onOpenTasks(item.key)}>
+                <b>{item.count}</b>{item.label}
+              </button>
+            ))}
+          </div>
+        ) : <p className="welcome-card__hint">重要信息、风险事件和研究记录集中在这里。</p>}
+      </div>
+    </section>
   );
 }
 
@@ -142,11 +188,9 @@ function TodayDashboard() {
     }))
   });
   // 只列有待办的类型；某一类拉取失败就略过它，全都没有时退回原来的说明文案。
-  const pendingSummary = TASK_COUNT_SOURCES
-    .map((source, index) => ({ label: source.label, count: taskCounts[index].data ?? 0 }))
-    .filter((item) => item.count > 0)
-    .map((item) => `${item.label} ${item.count}`)
-    .join(" · ");
+  const pendingStats = TASK_COUNT_SOURCES
+    .map((source, index) => ({ key: source.key, label: source.label, count: taskCounts[index].data ?? 0 }))
+    .filter((item) => item.count > 0);
   return (
     <PullToRefresh
       ariaLabel="今日看板下拉刷新"
@@ -156,11 +200,11 @@ function TodayDashboard() {
       }}
     >
       <div className="page-stack">
-      <section className="welcome-card">
-        <span>投研工作台</span>
-        <strong>{new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date())}</strong>
-        <p>{pendingSummary ? `待处理：${pendingSummary}` : "重要信息、风险事件和研究记录集中在这里。"}</p>
-      </section>
+      <WelcomeCard
+        stats={pendingStats}
+        quoteTimes={market.data?.market_indices.items.map((item) => item.quote_time) ?? []}
+        onOpenTasks={(key) => { rememberTaskTab(key); navigate("/tasks"); }}
+      />
       <SectionCard title="今日大盘">
         {market.isLoading ? <LoadingState /> : market.isError ? <ErrorState message="大盘行情加载失败" onRetry={() => void market.refetch()} /> : market.data?.market_indices.items.length ? (
           <div className="market-index-grid">
