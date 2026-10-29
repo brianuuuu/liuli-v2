@@ -79,17 +79,11 @@ export function buildPortfolioTreemapOption(
 
   return {
     animationDuration: 260,
-    tooltip: {
-      trigger: "item",
-      renderMode: "richText",
-      formatter: (params: { data: TreemapDatum }) => {
-        const item = params.data;
-        return `${item.name}\n现价 ${formatPrice(item.currentPrice)}\n今日 ${formatDayPct(item.dayPct)}`;
-      }
-    },
     series: [{
       type: "treemap",
       data,
+      // 纯展示：块上已写名称和涨跌，不吃触摸，手指从图上起手也能横滑切页签
+      silent: true,
       roam: false,
       nodeClick: false,
       sort: "desc",

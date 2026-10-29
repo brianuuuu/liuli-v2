@@ -737,7 +737,7 @@ function PortfolioDashboard({ active }: { active: boolean }) {
           <SectionCard title="标的组合">
             <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
               <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
-            </Suspense><div className="portfolio-allocation__list" data-swipe-ignore="true">
+            </Suspense><div className="portfolio-allocation__list">
               {pieItems.map((item, index) => (
                 <div className="portfolio-allocation__item" key={`${item.label}-${index}`}>
                   <span className="portfolio-allocation__marker" style={{ backgroundColor: PORTFOLIO_ALLOCATION_COLORS[index % PORTFOLIO_ALLOCATION_COLORS.length] }} aria-hidden="true" />

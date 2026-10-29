@@ -5,6 +5,7 @@ type TreemapSeries = {
   type: string;
   roam: boolean;
   nodeClick: boolean;
+  silent: boolean;
   sort: string;
   breadcrumb: { show: boolean };
   data: Array<{
@@ -20,6 +21,12 @@ function firstSeries(option: ReturnType<typeof buildPortfolioTreemapOption>) {
 }
 
 describe("portfolio treemap option", () => {
+  it("is display-only so a swipe starting on the chart switches tabs", () => {
+    const option = buildPortfolioTreemapOption([{ name: "宁德时代", marketValue: 1, weight: 40, currentPrice: 1, dayPct: 1 }], "light");
+    expect(firstSeries(option)).toEqual(expect.objectContaining({ silent: true, roam: false, nodeClick: false }));
+    expect(option).not.toHaveProperty("tooltip");
+  });
+
   it("shows name, price, and signed change in a large rising holding", () => {
     const series = firstSeries(buildPortfolioTreemapOption([{
       name: "宁德时代",

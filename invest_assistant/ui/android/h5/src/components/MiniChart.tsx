@@ -42,9 +42,10 @@ export function DonutChart({ items }: { items: Array<{ name: string; value: numb
     chart.setOption({
       animationDuration: 260,
       color: PORTFOLIO_ALLOCATION_COLORS,
-      tooltip: { trigger: "item", formatter: "{b}<br/>¥{c}（{d}%）" },
       series: [{
         type: "pie",
+        // 纯展示：明细都在右侧列表里。不吃触摸，手指从图上起手也能横滑切页签
+        silent: true,
         radius: ["52%", "76%"],
         center: ["50%", "50%"],
         label: { show: false },
@@ -55,5 +56,5 @@ export function DonutChart({ items }: { items: Array<{ name: string; value: numb
     observer.observe(ref.current);
     return () => { observer.disconnect(); chart.dispose(); };
   }, [items]);
-  return <div className="donut-chart" ref={ref} aria-label="标的组合图" data-swipe-ignore="true" />;
+  return <div className="donut-chart" ref={ref} aria-label="标的组合图" />;
 }
