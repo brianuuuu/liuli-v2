@@ -73,6 +73,14 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.horizontal-tab-pager\.is-settling \.horizontal-tab-pager__page\s*\{[^}]*transition:\s*transform var\(--pager-settle-duration\)/s);
   });
 
+  it("今日门面卡用纯色灰蓝底，不用渐变", () => {
+    const styles = readFileSync("src/styles.css", "utf8");
+
+    expect(styles).toMatch(/\.welcome-card\s*\{[^}]*background:\s*#e3eaf4;/s);
+    expect(styles).toMatch(/:root\[data-theme="dark"\] \.welcome-card\s*\{[^}]*background:\s*#1c2536;/s);
+    expect(styles).not.toMatch(/\.welcome-card[^{]*\{[^}]*gradient/s);
+  });
+
   it("keeps the suggestion list actions symmetric as borderless filled buttons", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 

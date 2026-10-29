@@ -173,17 +173,21 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .horizontal-tab-pager.is-settling .horizontal-tab-pager__page { transition: transform var(--pager-settle-duration) cubic-bezier(.2, .8, .2, 1); }
 .page-stack { display: grid; gap: 10px; }
+/* 今日页门面卡：纯色灰蓝底，比下面的白卡沉一档，靠底色差立住层次；
+   不用渐变也不用大面积品牌蓝，蓝色只留给「投研工作台」这行小字和 logo 呼应。
+   灰蓝底上默认的 --muted 对比度不够，说明文字单独压深一点。 */
 .welcome-card {
   padding: 18px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(145deg, #ffffff, #eef5ff);
+  background: #e3eaf4;
   box-shadow: var(--shadow);
 }
-:root[data-theme="dark"] .welcome-card { background: linear-gradient(145deg, #17191d, #14213a); }
+:root[data-theme="dark"] .welcome-card { background: #1c2536; }
 .welcome-card span, .eyebrow { color: var(--blue); font-size: 12px; font-weight: 650; }
 .welcome-card strong { display: block; margin-top: 5px; font-size: 20px; }
-.welcome-card p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.welcome-card p { margin: 8px 0 0; color: #5b6576; font-size: 13px; line-height: 1.6; }
+:root[data-theme="dark"] .welcome-card p { color: var(--muted); }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 /* 不画轮廓线：白底压在页面灰底上已经是一层分隔，卡片之间再靠 .page-stack
    的 10px 灰底撑开，四周那圈近似色的线只会在边缘糊一道脏边。
