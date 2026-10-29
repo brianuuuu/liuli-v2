@@ -9,6 +9,8 @@
   --border: #e5e9f0;
   --blue: #2563eb;
   --blue-soft: #eaf1ff;
+  --chip-bg: #eef1f5;
+  --danger-soft: #fef2f2;
   --sentiment: #8b5cf6;
   --shadow: none;
   --float-shadow: 0 2px 14px rgba(17, 24, 39, .1);
@@ -32,6 +34,8 @@
   --border: #2b2f36;
   --blue: #60a5fa;
   --blue-soft: #17243b;
+  --chip-bg: #272b33;
+  --danger-soft: #351b1e;
   --sentiment: #a78bfa;
   --shadow: none;
   --float-shadow: 0 2px 14px rgba(0, 0, 0, .5);
@@ -638,13 +642,13 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 .logout-button { display: flex; height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: #dc2626; }
 .version-text { margin: 2px 0 0; color: var(--subtle); font-size: 11px; text-align: center; }
 
-.stock-profile { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.stock-profile { padding: 14px; border-radius: 10px; background: var(--panel); }
 .stock-profile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .stock-profile__head > div { min-width: 0; }
 .stock-profile__head h2 { overflow: hidden; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .2px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .stock-profile__head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
 .stock-profile__tracks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.stock-profile__tracks span { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
+.stock-profile__tracks span { padding: 3px 8px; border-radius: 6px; background: var(--chip-bg); color: var(--muted); font-size: 11px; }
 .stock-profile__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .stock-profile__metrics div { display: grid; min-width: 0; gap: 4px; padding-left: 12px; border-left: 1px solid var(--border); }
 .stock-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
@@ -684,13 +688,13 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 :root[data-theme="dark"] .track-badge--grade-A, :root[data-theme="dark"] .track-badge--tier-T1 { background: #2a2113; color: #f59e0b; }
 
 /* 赛道详情档案头，结构与 stock-profile 对齐 */
-.track-profile { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.track-profile { padding: 14px; border-radius: 10px; background: var(--panel); }
 .track-profile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .track-profile__head > div { min-width: 0; }
 .track-profile__head h2 { overflow: hidden; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .2px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .track-profile__head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
 .track-profile__phases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.track-profile__phases span { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
+.track-profile__phases span { padding: 3px 8px; border-radius: 6px; background: var(--chip-bg); color: var(--muted); font-size: 11px; }
 .track-profile__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .track-profile__metrics div { display: grid; min-width: 0; gap: 4px; padding-left: 12px; border-left: 1px solid var(--border); }
 .track-profile__metrics div:first-child { padding-left: 0; border-left: 0; }
@@ -719,7 +723,7 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .track-segment-row strong { font-size: 13px; }
 .track-segment-row p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .track-segment-row__stocks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.track-segment-row__stocks span { padding: 2px 7px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }
+.track-segment-row__stocks span { padding: 2px 7px; border-radius: 6px; background: var(--chip-bg); color: var(--muted); font-size: 11px; }
 
 .track-snapshot-row + .track-snapshot-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .track-snapshot-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
