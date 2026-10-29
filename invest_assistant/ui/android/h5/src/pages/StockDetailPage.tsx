@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
 import { MaterialCard, materialDetailPath } from "../components/MaterialCard";
 import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
@@ -37,6 +38,9 @@ const RatingRadar = lazy(() => import("../components/StockDetailCharts").then((m
 const ScoreTrendBar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ScoreTrendBar })));
 const ResearchTrendLine = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ResearchTrendLine })));
 
+/** 子页签交给横滑分页器：同看板一样能左右滑切换，点胶囊页签也走同一段归位动画。 */
+const STOCK_DETAIL_TABS = STOCK_DETAIL_SECTIONS.map((item) => ({ key: item.value, label: item.label }));
+
 function ChartFallback({ height }: { height: number }) {
   return <div className="stock-detail-chart is-loading" style={{ height }} />;
 }
@@ -44,6 +48,7 @@ function ChartFallback({ height }: { height: number }) {
 export function StockDetailPage() {
   const id = Number(useParams().id);
   const [section, setSection] = useState<StockDetailSection>(DEFAULT_STOCK_DETAIL_SECTION);
+  const pager = useRef<HorizontalTabPagerHandle<StockDetailSection>>(null);
   // 研究报告导入后要马上看到新评级/估值/快照：每次进入都在后台重取，先显示缓存再替换。
   // 全局 refetchOnMount=false 会让离开不到 5 分钟的重进一直停在旧数据。
   const query = useQuery({ queryKey: ["stock-detail", id], queryFn: () => mobileApi.stockDetail(id), refetchOnMount: "always" });
@@ -52,10 +57,15 @@ export function StockDetailPage() {
     return <DetailFrame title="标的详情"><ErrorState message="标的详情加载失败" onRetry={() => void query.refetch()} /></DetailFrame>;
   }
   const detail = query.data;
-  // 概览里点一条结论跳到出处页签，回到顶部从页签开头看，不停在原来的滚动位置。
-  const openSection = (next: StockDetailSection) => {
-    setSection(next);
-    window.scrollTo({ top: 0 });
+  // 每个子页签的滚动位置由分页器各自记着，切过去停在上次离开的地方
+  const openSection = (next: StockDetailSection) => pager.current?.requestChange(next);
+  const renderSection = (key: StockDetailSection) => {
+    if (key === "overview") return <OverviewSection detail={detail} onOpenSection={openSection} />;
+    if (key === "rating") return <RatingSection detail={detail} />;
+    if (key === "valuation") return <ValuationSection detail={detail} />;
+    if (key === "trend") return <TrendSection detail={detail} />;
+    if (key === "notes") return <NotesSection detail={detail} />;
+    return <MaterialsSection detail={detail} />;
   };
   return (
     <DetailFrame title="标的详情">
@@ -68,18 +78,21 @@ export function StockDetailPage() {
               key={item.value}
               className={section === item.value ? "is-active" : ""}
               aria-pressed={section === item.value}
-              onClick={() => setSection(item.value)}
+              onClick={() => openSection(item.value)}
             >
               {item.label}
             </button>
           ))}
         </div>
-        {section === "overview" ? <OverviewSection detail={detail} onOpenSection={openSection} /> : null}
-        {section === "rating" ? <RatingSection detail={detail} /> : null}
-        {section === "valuation" ? <ValuationSection detail={detail} /> : null}
-        {section === "trend" ? <TrendSection detail={detail} /> : null}
-        {section === "notes" ? <NotesSection detail={detail} /> : null}
-        {section === "materials" ? <MaterialsSection detail={detail} /> : null}
+        <div className="stock-detail-pager">
+          <HorizontalTabPager
+            ref={pager}
+            items={STOCK_DETAIL_TABS}
+            activeKey={section}
+            onChange={setSection}
+            renderPage={(key) => <div className="page-stack">{renderSection(key)}</div>}
+          />
+        </div>
       </div>
     </DetailFrame>
   );

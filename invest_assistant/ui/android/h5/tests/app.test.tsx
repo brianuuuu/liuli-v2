@@ -1215,7 +1215,10 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
+    // 子页签挂在横滑分页器上，点胶囊页签也走分页器的归位动画
     fireEvent.click(await screen.findByRole("button", { name: "材料" }));
+    expect(screen.getByTestId("horizontal-tab-pager")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "材料" })).toHaveAttribute("aria-pressed", "true"));
 
     const positive = await screen.findByText("利好");
     expect(positive).toHaveClass("material-direction--positive");

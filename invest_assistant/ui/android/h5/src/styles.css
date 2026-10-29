@@ -766,6 +766,8 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 /* 底部分段器是 fixed 的，列表尾部要留出它的高度，否则最后一条被压住 */
 .track-view-stack { padding-bottom: 62px; }
 
+/* 档案卡和胶囊页签固定在上面，只有下面的子页面跟着横滑 */
+.stock-detail-pager { min-width: 0; }
 .stock-detail-chart { width: 100%; }
 .stock-detail-chart.is-loading { border-radius: 8px; background: var(--panel-soft); }
 .stock-detail-copy { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--blue); }
