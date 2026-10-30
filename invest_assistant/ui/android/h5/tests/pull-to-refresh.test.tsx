@@ -151,6 +151,30 @@ describe("PullToRefresh", () => {
     expect(onRowClick).toHaveBeenCalledTimes(1);
   });
 
+  it("pulls from blank page space below short content, only on the current pager page", () => {
+    const onCurrent = vi.fn(async () => undefined);
+    const onNeighbour = vi.fn(async () => undefined);
+    render(
+      <div className="mobile-page-frame__content">
+        <section className="horizontal-tab-pager__page horizontal-tab-pager__page--current">
+          <PullToRefresh onRefresh={onCurrent}><div>当前页</div></PullToRefresh>
+        </section>
+        <section className="horizontal-tab-pager__page horizontal-tab-pager__page--off">
+          <PullToRefresh onRefresh={onNeighbour}><div>相邻页</div></PullToRefresh>
+        </section>
+        <div>页面空白</div>
+      </div>
+    );
+    const blank = screen.getByText("页面空白");
+
+    touch(blank, "touchStart", 100, 600);
+    touch(blank, "touchMove", 100, 710);
+    touch(blank, "touchEnd", 100, 710);
+
+    expect(onCurrent).toHaveBeenCalledTimes(1);
+    expect(onNeighbour).not.toHaveBeenCalled();
+  });
+
   it("keeps content visible and reports a failed refresh briefly", async () => {
     vi.useFakeTimers();
     const onRefresh = vi.fn(async () => {

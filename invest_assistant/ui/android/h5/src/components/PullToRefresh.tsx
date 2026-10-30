@@ -70,6 +70,10 @@ export function PullToRefresh({
     mountedRef.current = true;
     const root = rootRef.current;
     if (!root) return;
+    // 组件本身只有内容那么高，内容少时下半屏拉不动；手势改挂到撑满一屏的页面内容区上。
+    // 横滑分页里相邻页也挂着各自的实例，不在当前页的不接手。
+    const surface = root.closest<HTMLElement>(".mobile-page-frame__content") ?? root;
+    const isOnCurrentPage = () => !root.closest(".horizontal-tab-pager__page--off");
 
     const resetGesture = () => {
       gestureRef.current = {
@@ -107,6 +111,7 @@ export function PullToRefresh({
       if (
         disabledRef.current
         || statusRef.current !== "idle"
+        || !isOnCurrentPage()
         || !isDocumentAtTop()
         || isIgnoredTarget(event.target)
         || event.touches.length !== 1
@@ -169,16 +174,27 @@ export function PullToRefresh({
       if (statusRef.current === "pulling" || statusRef.current === "ready") settleToIdle();
     };
 
-    root.addEventListener("touchstart", onTouchStart, { passive: true });
-    root.addEventListener("touchmove", onTouchMove, { passive: false });
-    root.addEventListener("touchend", onTouchEnd);
-    root.addEventListener("touchcancel", onTouchCancel);
+    // 起手点可能在组件外的页面空白或别的元素上，误触点击也要在同一个范围里吃掉
+    const onClickCapture = (event: MouseEvent) => {
+      const origin = suppressClickFor.current;
+      suppressClickFor.current = null;
+      if (!origin || !(event.target instanceof Node) || !event.target.contains(origin)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    surface.addEventListener("touchstart", onTouchStart, { passive: true });
+    surface.addEventListener("touchmove", onTouchMove, { passive: false });
+    surface.addEventListener("touchend", onTouchEnd);
+    surface.addEventListener("touchcancel", onTouchCancel);
+    surface.addEventListener("click", onClickCapture, true);
     return () => {
       mountedRef.current = false;
-      root.removeEventListener("touchstart", onTouchStart);
-      root.removeEventListener("touchmove", onTouchMove);
-      root.removeEventListener("touchend", onTouchEnd);
-      root.removeEventListener("touchcancel", onTouchCancel);
+      surface.removeEventListener("touchstart", onTouchStart);
+      surface.removeEventListener("touchmove", onTouchMove);
+      surface.removeEventListener("touchend", onTouchEnd);
+      surface.removeEventListener("touchcancel", onTouchCancel);
+      surface.removeEventListener("click", onClickCapture, true);
       if (errorTimerRef.current !== null) window.clearTimeout(errorTimerRef.current);
     };
   }, []);
@@ -197,13 +213,6 @@ export function PullToRefresh({
     <div
       ref={rootRef}
       className={`pull-to-refresh pull-to-refresh--${status}`}
-      onClickCapture={(event) => {
-        const origin = suppressClickFor.current;
-        suppressClickFor.current = null;
-        if (!origin || !(event.target instanceof Node) || !event.target.contains(origin)) return;
-        event.preventDefault();
-        event.stopPropagation();
-      }}
       style={{ "--pull-distance": `${distance}px` } as CSSProperties}
       aria-label={ariaLabel}
     >

@@ -1469,6 +1469,8 @@ describe("mobile H5 app", () => {
     const before = listCalls();
 
     const pullRegion = screen.getByLabelText("待处理报告下拉刷新");
+    // 切页动画落定前报告页还是相邻页，下拉只归当前页
+    await waitFor(() => expect(pullRegion.closest(".horizontal-tab-pager__page--current")).not.toBeNull());
     fireEvent.touchStart(pullRegion, { touches: [{ identifier: 1, clientX: 120, clientY: 100, target: pullRegion }] });
     fireEvent.touchMove(pullRegion, { touches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
     fireEvent.touchEnd(pullRegion, { changedTouches: [{ identifier: 1, clientX: 121, clientY: 230, target: pullRegion }] });
