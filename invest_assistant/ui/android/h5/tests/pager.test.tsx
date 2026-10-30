@@ -2,6 +2,7 @@ import React, { createRef } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  computedTranslateX,
   HorizontalTabPager,
   type HorizontalTabPagerHandle,
   pagerSettleDuration,
@@ -389,6 +390,83 @@ describe("horizontal tab pager", () => {
     act(() => vi.advanceTimersByTime(300));
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("track");
+  });
+
+  it("catches a settling page under the finger so a quick second swipe still counts", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    function PagerHarness() {
+      const [activeKey, setActiveKey] = React.useState<(typeof items)[number]["key"]>("today");
+      return (
+        <HorizontalTabPager
+          items={items}
+          activeKey={activeKey}
+          onChange={(key) => { onChange(key); setActiveKey(key); }}
+          renderPage={(key) => <div>{key}</div>}
+        />
+      );
+    }
+    render(<PagerHarness />);
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 320 });
+
+    pointerSwipe(pager, { fromX: 300, toX: 180 });
+    act(() => vi.advanceTimersByTime(20));
+    expect(pager).toHaveClass("is-settling");
+
+    // 归位动画已经走过半屏：按下就把「市场」提交为当前页，剩下的 120px 留在手指下
+    vi.spyOn(window, "getComputedStyle").mockReturnValueOnce({
+      transform: "matrix(1, 0, 0, 1, -200, 0)"
+    } as CSSStyleDeclaration);
+    fireEvent.pointerDown(pager, { pointerId: 8, pointerType: "touch", isPrimary: true, clientX: 300, clientY: 500 });
+    expect(onChange).toHaveBeenLastCalledWith("market");
+    expect(pager).not.toHaveClass("is-settling");
+    expect(currentPageTransform()).toBe("translate3d(120px, 0, 0)");
+
+    act(() => vi.advanceTimersByTime(120));
+    fireEvent.pointerMove(pager, { pointerId: 8, pointerType: "touch", isPrimary: true, clientX: 100, clientY: 504 });
+    act(() => vi.advanceTimersByTime(20));
+    expect(currentPageTransform()).toBe("translate3d(-80px, 0, 0)");
+    fireEvent.pointerUp(pager, { pointerId: 8, pointerType: "touch", isPrimary: true, clientX: 100, clientY: 504 });
+    act(() => vi.advanceTimersByTime(500));
+    expect(onChange).toHaveBeenLastCalledWith("track");
+  });
+
+  it("springs a caught page back to the nearer side and swallows the tap", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const onClick = vi.fn();
+    render(
+      <HorizontalTabPager
+        items={items}
+        activeKey="today"
+        onChange={onChange}
+        renderPage={(key) => <button type="button" onClick={onClick}>{key}</button>}
+      />
+    );
+    const pager = screen.getByTestId("horizontal-tab-pager");
+    Object.defineProperty(pager, "clientWidth", { configurable: true, value: 320 });
+
+    pointerSwipe(pager, { fromX: 300, toX: 180 });
+    act(() => vi.advanceTimersByTime(20));
+    const card = screen.getByRole("button", { name: "today" });
+    vi.spyOn(window, "getComputedStyle").mockReturnValueOnce({
+      transform: "matrix(1, 0, 0, 1, -100, 0)"
+    } as CSSStyleDeclaration);
+    fireEvent.pointerDown(card, { pointerId: 9, pointerType: "touch", isPrimary: true, clientX: 160, clientY: 500 });
+    expect(currentPageTransform()).toBe("translate3d(-100px, 0, 0)");
+    fireEvent.pointerUp(card, { pointerId: 9, pointerType: "touch", isPrimary: true, clientX: 160, clientY: 500 });
+    fireEvent.click(card);
+    expect(onClick).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(300));
+    expect(currentPageTransform()).toBe("translate3d(0px, 0, 0)");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("reads the horizontal offset out of a computed transform matrix", () => {
+    expect(computedTranslateX("matrix(1, 0, 0, 1, -187.5, 0)")).toBe(-187.5);
+    expect(computedTranslateX("matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 42, 7, 0, 1)")).toBe(42);
+    expect(computedTranslateX("none")).toBeNull();
   });
 
   it("uses viewport distance and release velocity to choose one adjacent page", () => {

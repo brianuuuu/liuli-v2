@@ -37,6 +37,8 @@ type PointerGesture = {
   startX: number;
   startY: number;
   axis: "pending" | "horizontal" | "vertical";
+  /** 起手时页面已有的位移（手指坐标系，未乘边缘阻尼）：从归位途中接住时不为 0。 */
+  baseX: number;
   samples: GestureSample[];
 };
 
@@ -111,6 +113,39 @@ export function pageSlotOffset(
   return index > activeIndex ? 2 : -2;
 }
 
+/** 页签下划线跟随位移：dragX 为负朝下一页，为正朝上一页；超出首尾或回到原位时不联动。 */
+function dragMotion(
+  activeIndex: number,
+  itemCount: number,
+  dragX: number,
+  width: number,
+  duration: number,
+  explicitTargetIndex?: number
+): PagerMotion | null {
+  const inferredTarget = dragX < 0 ? activeIndex + 1 : dragX > 0 ? activeIndex - 1 : activeIndex;
+  const targetIndex = explicitTargetIndex ?? inferredTarget;
+  if (targetIndex < 0 || targetIndex >= itemCount || targetIndex === activeIndex) {
+    return duration > 0 ? { fromIndex: activeIndex, toIndex: activeIndex, progress: 0, duration } : null;
+  }
+  return {
+    fromIndex: activeIndex,
+    toIndex: targetIndex,
+    progress: Math.min(1, Math.abs(dragX) / width),
+    duration
+  };
+}
+
+/**
+ * 从 computed transform 读出此刻的水平位移。归位动画跑到一半时它就是画面上的真实位置；
+ * 浏览器给的是 matrix(a, b, c, d, tx, ty) 或 matrix3d 的 16 个数，tx 分别在第 5、第 13 位。
+ */
+export function computedTranslateX(transform: string) {
+  const match = /^matrix(3d)?\((.+)\)$/.exec(transform.trim());
+  if (!match) return null;
+  const x = Number(match[2].split(",")[match[1] ? 12 : 4]);
+  return Number.isFinite(x) ? x : null;
+}
+
 export function pagerTargetIndex(
   currentIndex: number,
   itemCount: number,
@@ -145,6 +180,9 @@ function HorizontalTabPagerInner<T extends string>(
   const gestureRef = useRef<PointerGesture | null>(null);
   const transitionLocked = useRef(false);
   const settleTimer = useRef<number | null>(null);
+  const settleFrame = useRef<number | null>(null);
+  /** 正在归位去的目标页；回弹归位为 null。 */
+  const settleTargetRef = useRef<number | null>(null);
   const dragFrame = useRef<number | null>(null);
   const pendingDrag = useRef<number | null>(null);
   const pendingScrollRestore = useRef<number | null>(null);
@@ -223,22 +261,7 @@ function HorizontalTabPagerInner<T extends string>(
     settleDurationRef.current = duration;
     applyPages(nextDragX, duration);
     const width = pagerRef.current?.clientWidth || window.innerWidth;
-    const inferredTarget = nextDragX < 0
-      ? activeIndex + 1
-      : nextDragX > 0
-        ? activeIndex - 1
-        : activeIndex;
-    const targetIndex = explicitTargetIndex ?? inferredTarget;
-    if (targetIndex < 0 || targetIndex >= items.length || targetIndex === activeIndex) {
-      publishMotion(duration > 0 ? { fromIndex: activeIndex, toIndex: activeIndex, progress: 0, duration } : null);
-      return;
-    }
-    publishMotion({
-      fromIndex: activeIndex,
-      toIndex: targetIndex,
-      progress: Math.min(1, Math.abs(nextDragX) / width),
-      duration
-    });
+    publishMotion(dragMotion(activeIndex, items.length, nextDragX, width, duration, explicitTargetIndex));
   }, [activeIndex, applyPages, items.length, publishMotion]);
 
   const flushPendingDrag = useCallback(() => {
@@ -267,10 +290,12 @@ function HorizontalTabPagerInner<T extends string>(
   /**
    * 归位结束：切换当前页、恢复它的滚动、清掉位移必须落在同一帧。
    * 分开提交时中间会有一帧旧页的格位配着清零的位移，画面闪回旧页。
+   * 归位途中被手指接住时位移不清零，留下的 residualX 同样在这一帧写上。
    */
-  const finishSettle = useCallback((targetIndex: number | null) => {
-    dragXRef.current = 0;
+  const finishSettle = useCallback((targetIndex: number | null, residualX = 0) => {
+    dragXRef.current = residualX;
     settleDurationRef.current = 0;
+    settleTargetRef.current = null;
     if (targetIndex !== null) {
       const targetKey = items[targetIndex].key;
       pendingScrollRestore.current = scrollPositions.current.get(targetKey) ?? 0;
@@ -281,7 +306,7 @@ function HorizontalTabPagerInner<T extends string>(
         setTransitionTargetIndex(null);
       });
     } else {
-      applyPages(0, 0);
+      applyPages(residualX, 0);
       setSettling(false);
       setTransitionTargetIndex(null);
     }
@@ -297,6 +322,7 @@ function HorizontalTabPagerInner<T extends string>(
       return;
     }
     transitionLocked.current = true;
+    settleTargetRef.current = null;
     setDragging(false);
     const width = pagerRef.current?.clientWidth || window.innerWidth;
     // 回弹朝 0 走：拖向左（负）时，向右（正）的速度才算顺着回弹方向
@@ -317,12 +343,14 @@ function HorizontalTabPagerInner<T extends string>(
       return;
     }
     transitionLocked.current = true;
+    settleTargetRef.current = targetIndex;
     flushPendingDrag();
     setDragging(false);
     scrollPositions.current.set(activeKey, window.scrollY);
     const targetKey = items[targetIndex].key;
     setMountedKeys((keys) => touchPagerCache(keys, targetKey, [activeKey, targetKey]));
     const startSettle = () => {
+      settleFrame.current = null;
       const width = pagerRef.current?.clientWidth || window.innerWidth;
       const targetDragX = targetIndex > activeIndex ? -width : width;
       const towardTarget = targetDragX < 0 ? -velocityX : velocityX;
@@ -334,7 +362,7 @@ function HorizontalTabPagerInner<T extends string>(
     if (Math.abs(targetIndex - activeIndex) > 1) {
       setTransitionTargetIndex(targetIndex);
     }
-    window.requestAnimationFrame(startSettle);
+    settleFrame.current = window.requestAnimationFrame(startSettle);
   }, [
     activeIndex,
     activeKey,
@@ -344,6 +372,50 @@ function HorizontalTabPagerInner<T extends string>(
     setDragging,
     writeDrag
   ]);
+
+  /**
+   * 归位途中又按下：把页面接在手指下面继续拖，不丢掉这次触摸——
+   * 连续快滑时第二下失效，就是因为按下落在上一下的归位动画里被整个忽略了。
+   * 动画冻结在此刻画面上的真实位移；已经过半就先把目标页提交为当前页，
+   * 剩下的位移留给新手势接着拖，画面不跳。跨格跳转的目标页借的是临时格位，
+   * 提交后格位会整体重排，接不住，直接落到目标页。
+   * 返回新手势的起始位移（换算回手指坐标，边缘阻尼区要除回去）；0 表示已经落定，按普通手势起手。
+   */
+  const catchSettle = useCallback(() => {
+    if (settleTimer.current !== null) {
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+    }
+    if (settleFrame.current !== null) {
+      window.cancelAnimationFrame(settleFrame.current);
+      settleFrame.current = null;
+    }
+    const target = settleTargetRef.current;
+    if (target !== null && Math.abs(target - activeIndex) > 1) {
+      finishSettle(target);
+      return 0;
+    }
+    const width = pagerRef.current?.clientWidth || window.innerWidth;
+    const page = pageRefs.current.get(activeKey);
+    const visualX = (page && computedTranslateX(window.getComputedStyle(page).transform)) ?? dragXRef.current;
+    const direction = target === null ? 0 : target > activeIndex ? 1 : -1;
+    const passedHalf = direction !== 0 && -visualX * direction > width / 2;
+    const nextIndex = passedHalf && target !== null ? target : activeIndex;
+    const rawResidual = passedHalf ? visualX + direction * width : visualX;
+    // 不足一像素就当已经落定，这次按下照常可以是一次点击
+    const residualX = Math.abs(rawResidual) < 1 ? 0 : rawResidual;
+    finishSettle(passedHalf ? nextIndex : null, residualX);
+    if (residualX === 0) return 0;
+    // 停在两页之间，接着拖往哪边都可能露出邻页，两侧都挂上
+    const keep = [nextIndex - 1, nextIndex + 1, nextIndex]
+      .filter((index) => index >= 0 && index < items.length)
+      .map((index) => items[index].key);
+    setMountedKeys((keys) => keep.reduce((next, key) => touchPagerCache(next, key, keep), keys));
+    setDragging(true);
+    publishMotion(dragMotion(nextIndex, items.length, residualX, width, 0));
+    const overscroll = (nextIndex === 0 && residualX > 0) || (nextIndex === items.length - 1 && residualX < 0);
+    return overscroll ? residualX / EDGE_RESISTANCE : residualX;
+  }, [activeIndex, activeKey, finishSettle, items, publishMotion, setDragging]);
 
   useImperativeHandle(forwardedRef, () => ({
     requestChange: (key: T) => settleToIndex(items.findIndex((item) => item.key === key))
@@ -356,18 +428,20 @@ function HorizontalTabPagerInner<T extends string>(
 
     const onPointerDown = (event: PointerEvent) => {
       if (
-        transitionLocked.current
-        || gestureRef.current
+        gestureRef.current
         || event.isPrimary === false
         || shouldIgnoreSwipeTarget(event.target)
       ) {
         return;
       }
+      // 接住的页面停在两页之间，起手就是横向拖动，不再等轴锁
+      const baseX = transitionLocked.current ? catchSettle() : 0;
       gestureRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        axis: "pending",
+        axis: baseX === 0 ? "pending" : "horizontal",
+        baseX,
         samples: [{ x: event.clientX, time: event.timeStamp }]
       };
     };
@@ -403,9 +477,10 @@ function HorizontalTabPagerInner<T extends string>(
       gesture.samples.push({ x: event.clientX, time: event.timeStamp });
       const sampleCutoff = event.timeStamp - VELOCITY_WINDOW_MS;
       gesture.samples = gesture.samples.filter((sample) => sample.time >= sampleCutoff);
-      const atFirst = activeIndex === 0 && deltaX > 0;
-      const atLast = activeIndex === items.length - 1 && deltaX < 0;
-      queueDrag(atFirst || atLast ? deltaX * EDGE_RESISTANCE : deltaX);
+      const dragX = gesture.baseX + deltaX;
+      const atFirst = activeIndex === 0 && dragX > 0;
+      const atLast = activeIndex === items.length - 1 && dragX < 0;
+      queueDrag(atFirst || atLast ? dragX * EDGE_RESISTANCE : dragX);
     };
 
     const endGesture = (event: PointerEvent, cancelled: boolean) => {
@@ -417,6 +492,8 @@ function HorizontalTabPagerInner<T extends string>(
         if (gesture.axis === "horizontal") springBack();
         return;
       }
+      // 接住页面后原地松手也算拖动过，下面卡片的点击不能放出去
+      suppressClickUntil.current = Date.now() + CLICK_SUPPRESSION_MS;
       const deltaX = event.clientX - gesture.startX;
       const deltaY = event.clientY - gesture.startY;
       const finalSample = { x: event.clientX, time: event.timeStamp };
@@ -428,12 +505,17 @@ function HorizontalTabPagerInner<T extends string>(
       const velocityX = elapsed >= MIN_VELOCITY_SAMPLE_MS
         ? (finalSample.x - oldest.x) / elapsed * 1000
         : 0;
-      const targetIndex = resolvePagerTarget(activeIndex, items.length, {
+      const width = pager.clientWidth || window.innerWidth;
+      let targetIndex = resolvePagerTarget(activeIndex, items.length, {
         deltaX,
         deltaY,
         velocityX,
-        viewportWidth: pager.clientWidth || window.innerWidth
+        viewportWidth: width
       });
+      // 接住的手势起手就停在两页之间：手指这一下没定出新方向时，落到离得近的那一页
+      if (targetIndex === activeIndex && Math.abs(dragXRef.current) > width / 2) {
+        targetIndex = Math.max(0, Math.min(items.length - 1, activeIndex + (dragXRef.current < 0 ? 1 : -1)));
+      }
       if (targetIndex === activeIndex) {
         springBack(velocityX);
       } else {
@@ -462,6 +544,7 @@ function HorizontalTabPagerInner<T extends string>(
   }, [
     activeKey,
     activeIndex,
+    catchSettle,
     flushPendingDrag,
     items,
     queueDrag,
@@ -472,6 +555,7 @@ function HorizontalTabPagerInner<T extends string>(
 
   useEffect(() => () => {
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    if (settleFrame.current !== null) window.cancelAnimationFrame(settleFrame.current);
     if (dragFrame.current !== null) window.cancelAnimationFrame(dragFrame.current);
   }, []);
 
