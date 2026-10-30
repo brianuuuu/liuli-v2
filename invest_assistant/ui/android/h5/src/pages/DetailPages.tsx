@@ -8,14 +8,14 @@ import { MarkdownBody } from "../components/MarkdownBody";
 import { TagPicker } from "../components/TagPicker";
 import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
 import { nativeBridge, requestAppBack } from "../native/bridge";
-import { formatDateTime, formatModule } from "../utils/format";
+import { formatDateTime, formatModule, plainMarkdownText } from "../utils/format";
 
-export function DetailFrame({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+export function DetailFrame({ title, action, className, children }: { title: string; action?: React.ReactNode; className?: string; children: React.ReactNode }) {
   useLayoutEffect(() => {
     document.documentElement.scrollLeft = 0;
     document.body.scrollLeft = 0;
   }, []);
-  return <main className="detail-page"><header className="detail-header"><button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button><h1>{title}</h1>{action ?? <span />}</header><div className="detail-content">{children}</div></main>;
+  return <main className={className ? `detail-page ${className}` : "detail-page"}><header className="detail-header"><button type="button" aria-label="返回" onClick={requestAppBack}><ArrowLeft /></button><h1>{title}</h1>{action ?? <span />}</header><div className="detail-content">{children}</div></main>;
 }
 
 export function NewsDetailPage() {
@@ -160,7 +160,7 @@ export function AlertDetailPage() {
 export function ReportsPage() {
   const navigate = useNavigate();
   const query = useQuery({ queryKey: ["reports"], queryFn: () => mobileApi.reports(0, 50) });
-  return <DetailFrame title="报告中心">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : <div className="report-list">{query.data?.items.map((report) => <button key={report.id} onClick={() => navigate(`/reports/${report.id}`)}><span>{formatModule(report.source_module)}</span><strong>{report.title}</strong><p>{report.summary}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time></button>)}</div>}</DetailFrame>;
+  return <DetailFrame title="报告中心">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : <div className="report-list">{query.data?.items.map((report) => <button key={report.id} onClick={() => navigate(`/reports/${report.id}`)}><span>{formatModule(report.source_module)}</span><strong>{report.title}</strong><p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time></button>)}</div>}</DetailFrame>;
 }
 
 export function ReportReaderPage() {
@@ -169,5 +169,5 @@ export function ReportReaderPage() {
   const content = useQuery({ queryKey: ["report-content", id], queryFn: () => mobileApi.reportContent(id) });
   if (metadata.isLoading || content.isLoading) return <DetailFrame title="报告"><LoadingState /></DetailFrame>;
   if (metadata.isError || content.isError) return <DetailFrame title="报告"><ErrorState onRetry={() => { void metadata.refetch(); void content.refetch(); }} /></DetailFrame>;
-  return <DetailFrame title={metadata.data?.title ?? "报告"}><MarkdownBody content={content.data ?? ""} /><button className="report-download" onClick={() => nativeBridge.openDownloadedFile(`/api/reports/${id}/content`, `${metadata.data?.title ?? "报告"}.md`)}>下载并打开</button></DetailFrame>;
+  return <DetailFrame title={metadata.data?.title ?? "报告"} className="report-reader"><MarkdownBody content={content.data ?? ""} /><button className="report-download" onClick={() => nativeBridge.openDownloadedFile(`/api/reports/${id}/content`, `${metadata.data?.title ?? "报告"}.md`)}>下载并打开</button></DetailFrame>;
 }

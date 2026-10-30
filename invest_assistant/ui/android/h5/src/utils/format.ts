@@ -42,3 +42,18 @@ export function formatModule(value?: string | null) {
   if (!value) return "";
   return MODULE_LABELS[value] ?? value;
 }
+
+/**
+ * 列表摘要是从报告正文截出来的 Markdown，卡片里按纯文本显示：
+ * 去掉加粗/斜体/行内代码标记、标题与引用前缀，链接和图片只留文字。
+ */
+export function plainMarkdownText(value?: string | null) {
+  if (!value) return "";
+  return value
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>)\s*/gm, "")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/(^|[^\w*])\*(?!\s)([^*]+?)\*/g, "$1$2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
