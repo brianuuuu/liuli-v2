@@ -160,7 +160,7 @@ export function AlertDetailPage() {
 export function ReportsPage() {
   const navigate = useNavigate();
   const query = useQuery({ queryKey: ["reports"], queryFn: () => mobileApi.reports(0, 50) });
-  return <DetailFrame title="报告中心">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : <div className="report-list">{query.data?.items.map((report) => <button key={report.id} onClick={() => navigate(`/reports/${report.id}`)}><span>{formatModule(report.source_module)}</span><strong>{report.title}</strong><p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time></button>)}</div>}</DetailFrame>;
+  return <DetailFrame title="报告中心" className="report-center">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : <div className="report-list">{query.data?.items.map((report) => <button key={report.id} onClick={() => navigate(`/reports/${report.id}`)}><span>{formatModule(report.source_module)}</span><strong>{report.title}</strong><p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time></button>)}</div>}</DetailFrame>;
 }
 
 export function ReportReaderPage() {

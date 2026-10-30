@@ -836,6 +836,8 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .detail-header { position: sticky; z-index: 20; top: 0; display: grid; height: 48px; align-items: center; grid-template-columns: 56px 1fr 56px; border-bottom: 1px solid var(--border); background: var(--top-bg); }
 /* 顶栏和 Tab 页顶部一样用 --top-bg：深色下与纯黑状态栏连成一块，不再夹一条卡片灰；底线压淡只做分隔 */
 :root[data-theme="dark"] .detail-header { border-bottom-color: #1d2025; }
+/* 报告中心和阅读页的顶栏不画底线，靠顶栏与正文的底色差分开 */
+.report-center .detail-header, .report-reader .detail-header { border-bottom: 0; }
 .detail-header button { display: grid; height: 48px; place-items: center; }
 .detail-header h1 { overflow: hidden; margin: 0; font-size: 16px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .detail-header .detail-header__action { color: var(--blue); font-size: 15px; font-weight: 600; }
