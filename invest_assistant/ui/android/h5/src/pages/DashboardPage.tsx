@@ -577,7 +577,7 @@ function StockPoolView() {
   const visible = sortPool(filterPoolByStatus(items, status), sort);
   const layout = poolPageLayout(visible, page);
   return (
-    <SectionCard className="dashboard-flat-section">
+    <SectionCard className="dashboard-flat-section stock-pool-section">
       <div className="pill-segments pill-segments--compact" data-swipe-ignore="true" role="group" aria-label="标的池状态">
         {POOL_STATUS_OPTIONS.map((option) => (
           <button

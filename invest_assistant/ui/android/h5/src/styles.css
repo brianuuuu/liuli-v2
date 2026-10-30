@@ -614,6 +614,9 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
 .profile-avatar { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); }
 .profile-row strong, .profile-row span { display: block; }
 .profile-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+/* 三列密排卡片之间只有 8px，两侧再留满 27px 就显得被往中间挤；标的池单独把看板内缩收到 4px，
+   连同上方分组条一起外扩，左右总留白落在 16px。 */
+.dashboard-flat-section.stock-pool-section { padding: 0 4px; }
 .pool-card-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* 不画描边：白底压在页面灰底上已经是一层分隔，再加一圈近似色的线只会让密排的卡片发脏。
    边框留成透明的 1px 占位，按压态和后面的翻页格改边框时布局不会跳。
