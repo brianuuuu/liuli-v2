@@ -322,9 +322,8 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .skeleton-list i { height: 92px; border-radius: 10px; background: linear-gradient(90deg, var(--panel), var(--panel-soft), var(--panel)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .hero-number { display: block; margin: 8px 0 4px; font-size: 27px; }
-.mini-chart { height: 148px; }
-.donut-chart { width: 150px; height: 160px; }
-.portfolio-treemap { width: 100%; min-width: 0; height: 280px; }
+/* 容器越接近正方形，按仓位切出的块越接近方块，小仓位也放得下名字；按宽度自适应，宽屏封顶 */
+.portfolio-treemap { width: 100%; min-width: 0; aspect-ratio: 1 / 1; max-height: 420px; }
 .pull-to-refresh { --pull-distance: 0px; position: relative; min-width: 0; }
 .pull-to-refresh__indicator {
   position: absolute;
@@ -380,14 +379,6 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 }
 .portfolio-day-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .portfolio-day-row span { padding: 10px; border-radius: 8px; background: var(--panel-soft); font-size: 17px; font-weight: 680; text-align: center; }
-.portfolio-allocation { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 12px; }
-.portfolio-allocation__list { min-width: 0; height: 160px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.portfolio-allocation__item { display: grid; min-height: 32px; align-items: center; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 6px; border-bottom: 1px solid var(--border); }
-.portfolio-allocation__item:last-child { border-bottom: 0; }
-.portfolio-allocation__marker { width: 7px; height: 7px; border-radius: 50%; }
-.portfolio-allocation__item strong { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.portfolio-allocation__metrics { display: grid; min-width: 39px; justify-items: end; color: var(--muted); font-size: 10px; line-height: 1.25; }
-.portfolio-allocation__metrics .positive, .portfolio-allocation__metrics .negative { font-size: 11px; font-weight: 650; }
 
 .login-page { display: flex; min-height: 100dvh; flex-direction: column; justify-content: center; padding: 28px 26px; background: var(--panel); }
 .login-brand { margin-bottom: 40px; text-align: center; }
@@ -905,11 +896,6 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 :root[data-theme="dark"] .report-reader .markdown-body pre { background: #22252b; }
 :root[data-theme="dark"] .report-reader .markdown-body :is(th, td) { border-color: #33373f; }
 :root[data-theme="dark"] .report-reader .report-download { background: #22252b; }
-
-@media (min-width: 390px) and (max-width: 599px) {
-  .donut-chart { width: 160px; height: 168px; }
-  .portfolio-allocation { grid-template-columns: 160px minmax(0, 1fr); }
-}
 
 @media (max-width: 359px) {
   .float-bar button { font-size: 12px; }

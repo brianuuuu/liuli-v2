@@ -30,7 +30,6 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.section-card\s*\{[^}]*border:\s*0;[^}]*background:\s*var\(--panel\);/s);
     expect(styles).toMatch(/\.metric\s*\{[^}]*border:\s*0;[^}]*background:\s*var\(--panel\);/s);
     // 分隔线留下：卡片内部分行没有底色差可依靠，线是唯一在干活的东西。
-    expect(styles).toMatch(/\.portfolio-allocation__item\s*\{[^}]*border-bottom:\s*1px solid var\(--border\);/s);
     expect(styles).toMatch(/\.settings-row\s*\{[^}]*border-bottom:\s*1px solid var\(--border\);/s);
     expect(styles).toMatch(/\.stock-profile__metrics\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
     // --dashboard-page-gutter 是页框左右内边距的副本，页框一改这里必须同步，否则底部切换器会错位。
@@ -94,23 +93,11 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.composer-sheet\s*\{[^}]*max-height:\s*100%;[^}]*overflow-y:\s*auto;/s);
   });
 
-  it("keeps the target portfolio ring large and five compact rows visible", () => {
+  it("drops the target portfolio ring now that the treemap carries position weights", () => {
     const styles = readFileSync("src/styles.css", "utf8");
 
     expect(styles).not.toMatch(/\.portfolio-refresh/);
-    expect(styles).toMatch(/\.donut-chart\s*\{[^}]*width:\s*150px;[^}]*height:\s*160px;/s);
-    expect(styles).toMatch(/\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*150px minmax\(0,\s*1fr\);[^}]*gap:\s*12px;/s);
-    expect(styles).toMatch(/\.portfolio-allocation__list\s*\{[^}]*height:\s*160px;[^}]*overflow-y:\s*auto;/s);
-    expect(styles).toMatch(/\.portfolio-allocation__item\s*\{[^}]*min-height:\s*32px;/s);
-    expect(styles).toMatch(/\.portfolio-allocation__marker\s*\{[^}]*border-radius:\s*50%;/s);
-    expect(styles).toMatch(/\.portfolio-allocation__metrics\s*\{[^}]*justify-items:\s*end;/s);
-  });
-
-  it("uses the extra logical width of high-density compact Android screens", () => {
-    const styles = readFileSync("src/styles.css", "utf8");
-
-    expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[^}]*\.donut-chart\s*\{[^}]*width:\s*160px;[^}]*height:\s*168px;/s);
-    expect(styles).toMatch(/@media \(min-width:\s*390px\) and \(max-width:\s*599px\)\s*\{[\s\S]*?\.portfolio-allocation\s*\{[^}]*grid-template-columns:\s*160px minmax\(0,\s*1fr\);/s);
+    expect(styles).not.toMatch(/\.donut-chart|\.portfolio-allocation|\.mini-chart/);
   });
 
   it("keeps the portfolio treemap full-width and in normal document flow", () => {
@@ -119,7 +106,9 @@ describe("mobile card elevation", () => {
 
     expect(treemapRule).toMatch(/width:\s*100%;/);
     expect(treemapRule).toMatch(/min-width:\s*0;/);
-    expect(treemapRule).toMatch(/height:\s*280px;/);
+    // 接近正方形才切得出方块，小仓位也放得下名字；随宽度缩放，宽屏封顶
+    expect(treemapRule).toMatch(/aspect-ratio:\s*1 \/ 1;/);
+    expect(treemapRule).toMatch(/max-height:\s*420px;/);
     expect(treemapRule).not.toMatch(/position:\s*(fixed|sticky|absolute)/);
   });
 

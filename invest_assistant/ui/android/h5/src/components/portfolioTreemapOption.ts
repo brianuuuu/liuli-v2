@@ -4,7 +4,6 @@ export type PortfolioTreemapItem = {
   name: string;
   marketValue: number;
   weight?: number | null;
-  currentPrice?: number | null;
   dayPct?: number | null;
 };
 
@@ -13,7 +12,6 @@ export type PortfolioTreemapTheme = "light" | "dark";
 type TreemapDatum = {
   name: string;
   value: number;
-  currentPrice?: number | null;
   dayPct?: number | null;
   label: {
     formatter: string;
@@ -37,8 +35,8 @@ const TREEMAP_COLORS = {
   }
 } as const;
 
-function formatPrice(value?: number | null) {
-  return value === null || value === undefined || !Number.isFinite(value) ? "--" : `¥${value.toFixed(2)}`;
+function formatWeight(value?: number | null) {
+  return value === null || value === undefined || !Number.isFinite(value) ? "--" : `${value.toFixed(1)}%`;
 }
 
 function formatDayPct(value?: number | null) {
@@ -52,11 +50,12 @@ function colorForDayPct(value: number | null | undefined, theme: PortfolioTreema
   return value > 0 ? TREEMAP_COLORS[theme].up[level] : TREEMAP_COLORS[theme].down[level];
 }
 
+/** 块越小字越少；组合视角下仓位占比比现价有用，大块写占比不写现价。 */
 function labelForItem(item: PortfolioTreemapItem) {
   const weight = item.weight ?? 0;
   if (weight < 3) return item.name;
   if (weight < 8) return `${item.name}\n${formatDayPct(item.dayPct)}`;
-  return `${item.name}\n${formatPrice(item.currentPrice)}\n${formatDayPct(item.dayPct)}`;
+  return `${item.name}\n${formatWeight(item.weight)}\n${formatDayPct(item.dayPct)}`;
 }
 
 export function buildPortfolioTreemapOption(
@@ -66,7 +65,6 @@ export function buildPortfolioTreemapOption(
   const data: TreemapDatum[] = items.map((item) => ({
     name: item.name,
     value: item.marketValue,
-    currentPrice: item.currentPrice,
     dayPct: item.dayPct,
     label: {
       formatter: labelForItem(item),

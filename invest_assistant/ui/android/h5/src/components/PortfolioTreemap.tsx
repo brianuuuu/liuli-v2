@@ -22,5 +22,5 @@ export function PortfolioTreemap({ items }: { items: PortfolioTreemapItem[] }) {
     };
   }, [items]);
 
-  return <div className="portfolio-treemap" ref={ref} aria-label="标的热力图" />;
+  return <div className="portfolio-treemap" ref={ref} aria-label="持仓热力图" />;
 }

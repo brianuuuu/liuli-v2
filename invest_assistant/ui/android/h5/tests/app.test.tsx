@@ -10,15 +10,9 @@ import { resetNewsViewState } from "../src/pages/newsViewState";
 import { resetNotesViewState } from "../src/pages/notesViewState";
 import { resetTasksViewState } from "../src/pages/tasksViewState";
 
-vi.mock("../src/components/MiniChart", () => ({
-  DonutChart: ({ items }: { items: Array<{ name: string; value: number }> }) => (
-    <div aria-label="标的组合图">{items.map((item) => item.name).join("、")}</div>
-  )
-}));
-
 vi.mock("../src/components/PortfolioTreemap", () => ({
-  PortfolioTreemap: ({ items }: { items: Array<{ name: string; currentPrice?: number | null; dayPct?: number | null }> }) => (
-    <div aria-label="标的热力图">{items.map((item) => `${item.name}:${item.currentPrice ?? "--"}:${item.dayPct ?? "--"}`).join("、")}</div>
+  PortfolioTreemap: ({ items }: { items: Array<{ name: string; weight?: number | null; dayPct?: number | null }> }) => (
+    <div aria-label="持仓热力图">{items.map((item) => `${item.name}:${item.weight ?? "--"}:${item.dayPct ?? "--"}`).join("、")}</div>
   )
 }));
 
@@ -2221,8 +2215,7 @@ describe("mobile H5 app", () => {
 
     const selector = await screen.findByRole("heading", { name: "组合选择" });
     const today = screen.getByRole("heading", { name: "今日表现" });
-    const allocation = screen.getByRole("heading", { name: "标的组合" });
-    const treemap = screen.getByRole("heading", { name: "标的热力图" });
+    const treemap = screen.getByRole("heading", { name: "持仓热力图" });
     const recentTrades = screen.getByRole("heading", { name: "最近调仓" });
     const tradeEntry = screen.getByRole("button", { name: "记一笔调仓" });
     const totalValue = screen.getByText("总市值");
@@ -2230,18 +2223,15 @@ describe("mobile H5 app", () => {
     expect(screen.getByText("月度盈亏")).toBeInTheDocument();
     expect(screen.queryByText("年度盈亏")).not.toBeInTheDocument();
     expect(totalValue.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(today.compareDocumentPosition(allocation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(allocation.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(today.compareDocumentPosition(treemap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(treemap.compareDocumentPosition(recentTrades) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(recentTrades.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tradeEntry).toHaveClass("floating-button");
     expect(screen.queryByRole("heading", { name: "标的市值占比" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("刷新标的组合")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("标的组合图")).toBeInTheDocument();
-    expect(screen.getByLabelText("标的热力图")).toHaveTextContent("宁德时代:286.5:1.2");
-    expect(screen.getByText("40.0%")).toBeInTheDocument();
-    expect(screen.getByText("+1.2%")).toBeInTheDocument();
-    expect(screen.getAllByText("--")).toHaveLength(2);
+    // 标的组合卡片已去掉，仓位占比和涨跌都交给持仓热力图
+    expect(screen.queryByRole("heading", { name: "标的组合" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("持仓热力图")).toHaveTextContent("宁德时代:40:1.2、贵州茅台:30:-0.8、缺失行情:--:--");
 
     fireEvent.click(screen.getByRole("button", { name: "成长组合" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/portfolios/overview?portfolio_id=7"))).toBe(true));
@@ -2369,9 +2359,9 @@ describe("mobile H5 app", () => {
     fireEvent.click(portfolioTab);
     await waitFor(() => expect(portfolioTab).toHaveAttribute("aria-selected", "true"));
 
-    expect(await screen.findByRole("heading", { name: "标的热力图" })).toBeInTheDocument();
-    expect(screen.getByText("暂无标的热力图数据")).toBeInTheDocument();
-    expect(screen.queryByLabelText("标的热力图")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "持仓热力图" })).toBeInTheDocument();
+    expect(screen.getByText("暂无持仓数据")).toBeInTheDocument();
+    expect(screen.queryByLabelText("持仓热力图")).not.toBeInTheDocument();
   });
 
   it.each([

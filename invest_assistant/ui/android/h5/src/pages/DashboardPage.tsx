@@ -11,7 +11,6 @@ import { DashboardMaterialFeed, type DashboardMaterialItem } from "../components
 import { materialDetailPath } from "../components/MaterialCard";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
-import { PORTFOLIO_ALLOCATION_COLORS } from "../components/chartPalette";
 import type { PagerMotionSink } from "../components/pagerMotion";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
@@ -78,7 +77,6 @@ import { ADVICE_STATUS_LABELS, REASON_TYPE_LABELS, adviceActionLabel, tradeDelta
 import { formatDateTime, formatModule, formatMoney, formatNumber } from "../utils/format";
 
 type DashboardTab = typeof dashboardTabs[number]["key"];
-const DonutChart = lazy(() => import("../components/MiniChart").then((module) => ({ default: module.DonutChart })));
 const PortfolioTreemap = lazy(() => import("../components/PortfolioTreemap").then((module) => ({ default: module.PortfolioTreemap })));
 
 function rankMovementDisplay(item: Pick<TagHeat, "rank_change" | "rank_movement">) {
@@ -733,36 +731,17 @@ function PortfolioDashboard({ active }: { active: boolean }) {
             <span className={(summary?.day_pct ?? 0) >= 0 ? "positive" : "negative"}>{formatSigned(summary?.day_pct, "%")}</span>
           </div>
         </SectionCard>
-        {pieItems.length ? (
-          <SectionCard title="标的组合">
-            <div className="portfolio-allocation"><Suspense fallback={<LoadingState />}>
-              <DonutChart items={pieItems.map((item) => ({ name: item.label, value: item.market_value }))} />
-            </Suspense><div className="portfolio-allocation__list">
-              {pieItems.map((item, index) => (
-                <div className="portfolio-allocation__item" key={`${item.label}-${index}`}>
-                  <span className="portfolio-allocation__marker" style={{ backgroundColor: PORTFOLIO_ALLOCATION_COLORS[index % PORTFOLIO_ALLOCATION_COLORS.length] }} aria-hidden="true" />
-                  <strong title={item.label}>{item.label}</strong>
-                  <span className="portfolio-allocation__metrics">
-                    <span>{formatPercent(item.weight)}</span>
-                    <span className={valueTone(item.day_pct)}>{formatSigned(item.day_pct, "%")}</span>
-                  </span>
-                </div>
-              ))}
-            </div></div>
-          </SectionCard>
-        ) : <EmptyState title="暂无标的组合数据" />}
-        <SectionCard title="标的热力图">
+        <SectionCard title="持仓热力图">
           {pieItems.length ? (
             <Suspense fallback={<LoadingState />}>
               <PortfolioTreemap items={pieItems.map((item) => ({
                 name: item.label,
                 marketValue: item.market_value,
                 weight: item.weight,
-                currentPrice: item.current_price,
                 dayPct: item.day_pct
               }))} />
             </Suspense>
-          ) : <EmptyState title="暂无标的热力图数据" />}
+          ) : <EmptyState title="暂无持仓数据" />}
         </SectionCard>
         <SectionCard title="最近调仓">
           {trades.isError ? <ErrorState onRetry={() => void trades.refetch()} /> : trades.data?.length ? (
@@ -830,11 +809,6 @@ function formatSignedMoney(value?: number | null) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${formatMoney(value)}`;
-}
-
-function formatPercent(value?: number | null) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
-  return `${new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value))}%`;
 }
 
 function valueTone(value?: number | null) {
