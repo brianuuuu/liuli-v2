@@ -203,9 +203,9 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .welcome-card__session.is-live i { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
 .welcome-card__date { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; color: var(--text); font-size: 22px; font-weight: 700; }
 .welcome-card__date em { color: var(--muted); font-size: 15px; font-style: normal; font-weight: 500; }
-.welcome-card__stats { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(15, 23, 42, .08); }
-:root[data-theme="dark"] .welcome-card__stats { border-top-color: rgba(255, 255, 255, .08); }
-.welcome-card__stats button { display: grid; justify-items: start; gap: 1px; padding: 0; color: var(--muted); font-size: 11px; text-align: left; }
+/* 待办数字跟在日期下面一行排开，不再用分割线另起一块；数字和说明同一行按基线对齐 */
+.welcome-card__stats { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; }
+.welcome-card__stats button { display: inline-flex; align-items: baseline; gap: 5px; padding: 0; color: var(--muted); font-size: 11px; text-align: left; }
 .welcome-card__stats b { color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .welcome-card__hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

@@ -161,7 +161,7 @@ function WelcomeCard({ stats, quoteTimes, onOpenTasks }: {
           <div className="welcome-card__stats">
             {stats.map((item) => (
               <button type="button" key={item.key} aria-label={`${item.label} ${item.count}`} onClick={() => onOpenTasks(item.key)}>
-                <b>{item.count}</b>{item.label}
+                {item.label}<b>{item.count}</b>
               </button>
             ))}
           </div>
