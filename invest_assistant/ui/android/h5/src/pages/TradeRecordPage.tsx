@@ -231,8 +231,23 @@ export function TradeRecordPage() {
   // 持仓列表的占比按组合总资产（持仓市值 + 现金）算，和确认页口径一致
   const totalValue = positions.reduce((sum, item) => sum + Number(item.market_value ?? 0), 0) + Number(detail.data?.summary.cash_amount ?? 0);
   const showQuantityPreview = Boolean(stock) && quantity !== null && quantity > 0 && quantityAfter >= 0;
+  // 主操作和编辑笔记一样放在顶栏右侧：底部吸底按钮会压在系统手势条上；没选标的时也不出现
+  const nextButton = stock ? (
+    <button
+      type="button"
+      className="detail-header__action"
+      disabled={Boolean(error) || detail.isLoading}
+      onClick={() => {
+        setRequestId(newTradeRequestId());
+        submit.reset();
+        setStep("confirm");
+      }}
+    >
+      下一步
+    </button>
+  ) : undefined;
   return (
-    <DetailFrame title="记一笔调仓">
+    <DetailFrame title="记一笔调仓" action={nextButton}>
       <div className="trade-form">
         <section className="trade-card">
           {fixedPortfolioId ? (
@@ -403,21 +418,8 @@ export function TradeRecordPage() {
         </section>
         </> : null}
 
-        <div className="trade-footer">
-          {/* 不可用时按钮直接写原因，不用猜哪里没填 */}
-          <button
-            type="button"
-            className="primary-button"
-            disabled={Boolean(error) || detail.isLoading}
-            onClick={() => {
-              setRequestId(newTradeRequestId());
-              submit.reset();
-              setStep("confirm");
-            }}
-          >
-            {detail.isLoading ? "加载中…" : error ?? "下一步"}
-          </button>
-        </div>
+        {/* 下一步在顶栏右上角不可用时，原因写在表单末尾，不用猜哪里没填 */}
+        {stock && error ? <p className="trade-hint trade-form__reason">{error}</p> : null}
       </div>
     </DetailFrame>
   );
