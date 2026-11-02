@@ -545,9 +545,11 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .trade-options strong { min-width: 0; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .trade-options strong small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .trade-options em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; font-variant-numeric: tabular-nums; }
-.trade-selected { display: grid; min-width: 0; flex: 1 1 auto; justify-items: end; gap: 2px; }
-.trade-selected strong { max-width: 100%; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
-.trade-selected small { color: var(--muted); font-size: 12px; }
+/* 选中的标的和持有股数排在同一行：名字长时省略名字，持有股数始终完整 */
+.trade-selected { display: flex; min-width: 0; flex: 1 1 auto; align-items: baseline; justify-content: flex-end; gap: 6px; }
+.trade-selected strong { min-width: 0; overflow: hidden; font-size: 14px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.trade-selected small { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.trade-row > .text-button { flex: none; white-space: nowrap; }
 .trade-sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 9px; background: var(--panel-soft); }
 .trade-side { height: 36px; border-radius: 7px; color: var(--muted); font-size: 14px; }
 .trade-side:disabled { color: var(--subtle); opacity: .55; }
@@ -824,12 +826,13 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 /* 详情页笔记放在卡片里，卡片已有内边距，笔记卡左右不再留白。 */
 .entity-note-list .note-card { padding-inline: 0; cursor: pointer; }
 .detail-page { width: 100%; min-width: 0; max-width: 100%; min-height: 100dvh; overflow-x: clip; background: var(--bg); }
-.detail-header { position: sticky; z-index: 20; top: 0; display: grid; height: 48px; align-items: center; grid-template-columns: 56px 1fr 56px; background: var(--top-bg); }
+.detail-header { position: sticky; z-index: 20; top: 0; display: grid; height: 48px; align-items: center; grid-template-columns: 64px 1fr 64px; background: var(--top-bg); }
 /* 顶栏和 Tab 页顶部一样用 --top-bg：深色下与纯黑状态栏连成一块，不再夹一条卡片灰；
    也和 Tab 页顶部一样不画底线，靠顶栏与正文的底色差分开 */
 .detail-header button { display: grid; height: 48px; place-items: center; }
 .detail-header h1 { overflow: hidden; margin: 0; font-size: 16px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.detail-header .detail-header__action { color: var(--blue); font-size: 15px; font-weight: 600; }
+/* 右上角操作靠右、右边留出和正文一样的 14px；不用按钮默认的左右内边距，否则三个字（"下一步"）会折成两行 */
+.detail-header .detail-header__action { justify-self: end; padding: 0 14px 0 0; color: var(--blue); font-size: 15px; font-weight: 600; white-space: nowrap; }
 .detail-header .detail-header__action:disabled { color: var(--subtle); opacity: 1; }
 .detail-content { width: 100%; min-width: 0; max-width: 100%; overflow-x: clip; padding: 14px 14px 30px; }
 .article-detail { min-width: 0; max-width: 100%; padding: 2px 2px 20px; }
