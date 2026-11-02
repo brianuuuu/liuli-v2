@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPortfolioTreemapOption } from "../src/components/portfolioTreemapOption";
+import { buildPortfolioTreemapOption, fitTreemapLabel } from "../src/components/portfolioTreemapOption";
 
 type TreemapSeries = {
   type: string;
@@ -101,5 +101,43 @@ describe("portfolio treemap option", () => {
       sort: "desc",
       breadcrumb: { show: false }
     }));
+  });
+});
+
+// 尺寸取自真机持仓在 360 / 412 宽屏上排出来的块（已扣描边）
+describe("treemap labels fitted to the laid-out tile", () => {
+  const holding = (name: string, weight: number, dayPct: number) => ({ name, marketValue: weight, weight, dayPct });
+
+  it("shows name, weight, and change when the tile is big enough", () => {
+    expect(fitTreemapLabel(holding("招商银行", 23.4, -0.85), { width: 147, height: 194 }))
+      .toEqual({ show: true, formatter: "招商银行\n23.4%\n-0.85%", fontSize: 12, lineHeight: 17 });
+  });
+
+  it("drops the weight line before clipping the change on a flat tile", () => {
+    expect(fitTreemapLabel(holding("万东医疗", 8.2, 0.42), { width: 148, height: 45 }))
+      .toEqual({ show: true, formatter: "万东医疗\n+0.42%", fontSize: 12, lineHeight: 17 });
+  });
+
+  it("shrinks the font before wrapping a name on a narrow tile", () => {
+    expect(fitTreemapLabel(holding("佳驰科技", 4, 7.25), { width: 52, height: 84 }))
+      .toEqual({ show: true, formatter: "佳驰科技\n4.0%\n+7.25%", fontSize: 11, lineHeight: 15 });
+  });
+
+  it("wraps the name and shortens the change instead of truncating on a very narrow tile", () => {
+    expect(fitTreemapLabel(holding("航天南湖", 3, 8.21), { width: 43, height: 52 }))
+      .toEqual({ show: true, formatter: "航天\n南湖\n+8.2%", fontSize: 10, lineHeight: 14 });
+  });
+
+  it("writes nothing on a sliver too small for one line", () => {
+    expect(fitTreemapLabel(holding("零头", 0.2, 1), { width: 30, height: 12 })).toEqual({ show: false });
+  });
+
+  it("feeds the fitted labels into the chart option by data index", () => {
+    const data = firstSeries(buildPortfolioTreemapOption(
+      [holding("航天南湖", 3, 8.21)],
+      "light",
+      new Map([["0", { width: 43, height: 52 }]])
+    )).data;
+    expect(data[0].label.formatter).toBe("航天\n南湖\n+8.2%");
   });
 });
