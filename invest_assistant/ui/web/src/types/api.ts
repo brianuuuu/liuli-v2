@@ -1177,6 +1177,9 @@ export type PositionChangeReviewDetail = {
   effect_5d?: number | null;
   effect_20d?: number | null;
   effect_60d?: number | null;
+  /** 至今收益：没满 60 个交易日按最新收盘算，满了固定为 60 日；to_date_days 为已过交易日数 */
+  effect_to_date?: number | null;
+  to_date_days?: number | null;
   impact_20d?: number | null;
   verdict?: "correct" | "wrong" | "neutral" | null;
   advice_item_id?: number | null;

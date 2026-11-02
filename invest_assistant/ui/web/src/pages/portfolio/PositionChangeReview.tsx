@@ -56,10 +56,13 @@ export function positionChangeHint(rules: string) {
   );
 }
 
-const impactTitle = <Tooltip title="调仓金额 × 按方向折算的 20 日收益：增持后赚亏、减持后避开或错过的金额（估算）">20日影响</Tooltip>;
+// 至今收益算到满 60 个交易日为止，与后端 TO_DATE_CAP_DAYS 一致
+const TO_DATE_CAP_DAYS = 60;
 
-// 没满 20 个交易日的调仓：20日、60日、20日影响、对错合成一个空格子，不铺一排横线
-const EVAL_COLUMNS = 4;
+const impactTitle =<Tooltip title="调仓金额 × 按方向折算的 20 日收益：增持后赚亏、减持后避开或错过的金额（估算）">20日影响</Tooltip>;
+
+// 没满 20 个交易日的调仓：20日、20日影响、对错合成一个空格子，不铺一排横线；"至今"不在其中，刚调完也有数
+const EVAL_COLUMNS = 3;
 const evalLead = (row: PositionChangeReviewDetail) => ({ colSpan: row.effect_20d == null ? EVAL_COLUMNS : 1 });
 const evalRest = (row: PositionChangeReviewDetail) => ({ colSpan: row.effect_20d == null ? 0 : 1 });
 
@@ -117,6 +120,21 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
   { title: "金额", dataIndex: "amount", width: 92, align: "right", render: (value?: number | null) => formatAmount(value) },
   { title: "5日", dataIndex: "effect_5d", width: 76, align: "right", render: formatReturn },
   {
+    // 同一列里各行算的天数不同，没满 60 日的行标出已过交易日数，才能互相比
+    title: <Tooltip title="未满 60 个交易日按最新收盘计算，满 60 日后固定为 60 日收益；只作过程参考，不参与对错">至今</Tooltip>,
+    dataIndex: "effect_to_date",
+    width: 112,
+    align: "right",
+    render: (value: number | null | undefined, row) => (
+      <>
+        {formatReturn(value)}
+        {value != null && row.to_date_days != null && row.to_date_days < TO_DATE_CAP_DAYS ? (
+          <Typography.Text type="secondary"> · {row.to_date_days}日</Typography.Text>
+        ) : null}
+      </>
+    )
+  },
+  {
     title: "20日",
     dataIndex: "effect_20d",
     width: 76,
@@ -124,7 +142,6 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
     onCell: evalLead,
     render: (value: number | null | undefined) => (value == null ? null : formatReturn(value))
   },
-  { title: "60日", dataIndex: "effect_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: impactTitle, dataIndex: "impact_20d", width: 92, align: "right", onCell: evalRest, render: (value?: number | null) => formatAmount(value, true) },
   {
     title: <Tooltip title="满 20 个交易日后判定：增持后涨超 1% 或减持后跌超 1% 为对，反向超过 1% 为错，其余为平">对错</Tooltip>,

@@ -81,6 +81,9 @@ assert.match(positionChange, /impact_20d/);
 assert.match(positionChange, /quantity_delta/);
 assert.doesNotMatch(positionChange, /expandedRowRender/);
 assert.match(positionChange, /不是已实现盈亏/);
+// 60日常年空着，换成"至今"（满 60 日后固定为 60 日），并且不和 20 日那几列合并
+assert.match(positionChange, /effect_to_date/);
+assert.doesNotMatch(positionChange, /title: "60日"/);
 // 微操报告放在数据面板里，表格样式与调仓来源表一致；"显示更多"开关在本表表头最右端，口径说明挂在明细"对错"表头
 assert.match(adjustAdvice, /<DataPanel>/);
 assert.doesNotMatch(adjustAdvice, /WorkbenchCard/);

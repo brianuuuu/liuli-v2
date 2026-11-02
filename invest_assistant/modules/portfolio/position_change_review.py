@@ -5,13 +5,15 @@
 - 收益在同一份前复权日线里算 close(T+N) / close(T) - 1。手填的调仓价是除权前的实际价，
   与前复权价不能直接相除，所以收益基准统一取 T 收盘。
 - 增持后 20 日收益 > +1% 或减持后 20 日跌超 1% 为 correct，反向超过 1% 为 wrong，其余 neutral。
+- 至今收益：没满 60 个交易日按最新收盘算（同时给出已过交易日数），满 60 日后固定为 T+60；
+  刚调完就能看到过程，只作参考，不参与对错和胜率。
 - 公司行为（送转、配股、打新中签）不是主动判断，不计入。
 - 金额：调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算；记价格之前的老记录在这里按同口径现算估价，不回写）；20 日影响 = 调仓金额 × 按方向折算的 20 日收益，
   即"增持后赚 / 亏了多少、减持后避开 / 错过了多少"，是相对不做这笔调仓的估算，不是已实现盈亏。
 每次查询现算，不落库：调仓记录量小，也免得多一个评估任务。
 """
 
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from datetime import date
 
@@ -30,6 +32,8 @@ from invest_assistant.modules.portfolio.models import Portfolio, PortfolioPositi
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar
 
 REVIEW_REASON_TYPES = ("ai_advice", "personal", "fund_allocation", "other", "unlabeled")
+# 至今收益最多算到最长评估期，满了就固定下来
+TO_DATE_CAP_DAYS = HORIZONS[-1]
 
 
 def review_position_changes(db: Session, portfolio_id: int | None = None, start_date: date | None = None) -> dict:
@@ -76,20 +80,28 @@ def review_position_changes(db: Session, portfolio_id: int | None = None, start_
         "rules": (
             "以调仓日 T 收盘为基准（非交易日顺延），按交易日数到 T+5/T+20/T+60 收盘计算收益，20 日为主判定。"
             "增持后 20 日涨超 1% 或减持后 20 日跌超 1% 为对，反向超过 1% 为错，其余为平。"
+            "至今收益未满 60 个交易日按最新收盘计算、满 60 日后固定为 T+60，只作过程参考，不参与判定。"
             "公司行为不计入；收益基准统一取前复权收盘价，不用手填的调仓价。"
         ),
         "rows": rows,
     }
 
 
-def _returns(change_date: date, trade_dates: list[date], series) -> dict[str, float | None]:
-    result: dict[str, float | None] = {f"return_{horizon}d": None for horizon in HORIZONS}
+def _returns(change_date: date, trade_dates: list[date], series) -> dict[str, float | int | None]:
+    result: dict[str, float | int | None] = {f"return_{horizon}d": None for horizon in HORIZONS}
+    result.update(return_to_date=None, to_date_days=None)
     start_index = bisect_left(trade_dates, change_date)
     if series is None or start_index >= len(trade_dates):
         return result
     t_close = series.close_on_or_before(trade_dates[start_index])
     if not t_close:
         return result
+    if series.latest_date is not None:
+        # 按个股最新一根日线算到第几个交易日，停牌时取此前最近收盘
+        days = min(bisect_right(trade_dates, series.latest_date) - 1 - start_index, TO_DATE_CAP_DAYS)
+        if days > 0:
+            result["return_to_date"] = round(series.close_on_or_before(trade_dates[start_index + days]) / t_close - 1, 6)
+            result["to_date_days"] = days
     for horizon in HORIZONS:
         if start_index + horizon >= len(trade_dates):
             continue
@@ -127,6 +139,7 @@ def _change_detail(change, reason_type: str, action: str, returns: dict, series,
         "effect_5d": returns["return_5d"] * sign if returns["return_5d"] is not None else None,
         "effect_20d": effect_20d,
         "effect_60d": returns["return_60d"] * sign if returns["return_60d"] is not None else None,
+        "effect_to_date": returns["return_to_date"] * sign if returns["return_to_date"] is not None else None,
         "impact_20d": round(amount * effect_20d, 2) if amount is not None and effect_20d is not None else None,
         "verdict": _verdict(action, returns["return_20d"]),
         "advice_item_id": change.advice_item_id,

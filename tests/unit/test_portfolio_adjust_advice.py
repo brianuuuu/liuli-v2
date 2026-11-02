@@ -453,6 +453,9 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     assert reduce_row["impact_20d"] == reduce_change["impact_20d"]
     assert reduce_change["verdict"] == "correct" and add_change["verdict"] == "wrong"
     assert reduce_change["reason_type"] == "ai_advice" and reduce_change["action"] == "reduce"
+    # 至今：日线到 T+21，T+1 的减持过了 20 个交易日、T 日的增持过了 21 个，按方向折算
+    assert reduce_change["to_date_days"] == 20 and reduce_change["effect_to_date"] == reduce_change["effect_20d"]
+    assert add_change["to_date_days"] == 21 and add_change["effect_to_date"] < add_change["effect_20d"] < 0
 
     # 记价格之前的老记录：复盘时按调仓日收盘现算估价，不回写数据库
     legacy = PortfolioPositionChange(
@@ -465,6 +468,28 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     legacy_change = legacy_row["changes"][0]
     assert legacy_change["price"] == 40.0 and legacy_change["price_source"] == "estimated"
     assert legacy_change["amount"] == 200 * 40.0 and legacy.price is None
+
+
+def test_position_change_to_date_return_caps_at_60_trading_days():
+    from types import SimpleNamespace
+
+    from invest_assistant.modules.portfolio.position_change_review import _returns
+
+    days = trading_days(T, 70)
+
+    def series(count: int):
+        return adjust_advice._StockSeries([SimpleNamespace(trade_date=day, close=10.0 + index) for index, day in enumerate(days[:count])])
+
+    # 满 60 个交易日后固定为 T+60，后面再涨也不变
+    full = _returns(T, days, series(70))
+    assert full["to_date_days"] == 60 and full["return_to_date"] == full["return_60d"] == round(70 / 10 - 1, 6)
+    # 没满 60 日按最新收盘算
+    partial = _returns(T, days, series(13))
+    assert partial["to_date_days"] == 12 and partial["return_to_date"] == round(22 / 10 - 1, 6)
+    assert partial["return_20d"] is None
+    # 调仓当天还没有下一根日线：没有至今收益
+    same_day = _returns(T, days, series(1))
+    assert same_day["return_to_date"] is None and same_day["to_date_days"] is None
 
 
 def test_recent_advice_items_status_and_trade_portfolio():
