@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from invest_assistant.bootstrap.database import Base
@@ -15,6 +15,7 @@ from invest_assistant.modules.stock_analysis.models import (
     StockPoolItem,
     StockScoreSnapshot,
     StockTrackRelation,
+    StockTrendSnapshot,
     StockValuationSnapshot,
 )
 from invest_assistant.modules.stock_analysis.service import get_stock_detail, get_stock_material_detail
@@ -137,6 +138,56 @@ def test_stock_detail_aggregates_current_stock_research_data():
     assert detail["materials"][0]["material_title"] == "美的集团海外业务增长"
     assert detail["summary"]["material_count"] == 1
     assert detail["summary"]["high_importance_material_count"] == 1
+
+
+def test_stock_detail_reads_only_the_last_snapshot_of_each_research_day():
+    """同一天重复导入的快照都留在库里，详情和曲线只读当天最后插入的一条。"""
+    db = make_session()
+    stock = Stock(stock_code="002594", stock_name="比亚迪", symbol="002594.SZ", exchange="SZ")
+    db.add(stock)
+    db.flush()
+    same_day = date(2026, 11, 3)
+    db.add_all(
+        [
+            StockScoreSnapshot(stock_id=stock.id, report_time=date(2026, 9, 15), total_score=7.2, investment_level="B"),
+            StockScoreSnapshot(stock_id=stock.id, report_time=same_day, total_score=7.9, investment_level="B"),
+            StockScoreSnapshot(stock_id=stock.id, report_time=same_day, total_score=7.96, investment_level="B"),
+            StockValuationSnapshot(
+                stock_id=stock.id,
+                analysis_date=same_day,
+                expected_market_value_3y=10000,
+                current_market_value=8000,
+            ),
+            StockValuationSnapshot(
+                stock_id=stock.id,
+                analysis_date=same_day,
+                expected_market_value_3y=10800,
+                current_market_value=8000,
+            ),
+            StockTrendSnapshot(stock_id=stock.id, research_date=date(2026, 10, 24), trend_level="T2"),
+            StockTrendSnapshot(stock_id=stock.id, research_date=same_day, trend_level="T4"),
+            StockTrendSnapshot(stock_id=stock.id, research_date=same_day, trend_level="T3"),
+        ]
+    )
+    db.commit()
+
+    detail = get_stock_detail(db, stock.id)
+
+    assert [(item["report_time"], item["total_score"]) for item in detail["score_history"]] == [
+        (date(2026, 9, 15), 7.2),
+        (same_day, 7.96),
+    ]
+    assert detail["latest_score"]["total_score"] == 7.96
+    assert [item["expected_market_value_3y"] for item in detail["valuation_history"]] == [10800]
+    assert detail["latest_valuation"]["expected_market_value_3y"] == 10800
+    assert [(item["research_date"], item["trend_level"]) for item in detail["trend_history"]] == [
+        (date(2026, 10, 24), "T2"),
+        (same_day, "T3"),
+    ]
+    assert detail["latest_trend"]["trend_level"] == "T3"
+    assert db.scalar(select(func.count()).select_from(StockScoreSnapshot)) == 3
+    assert db.scalar(select(func.count()).select_from(StockValuationSnapshot)) == 2
+    assert db.scalar(select(func.count()).select_from(StockTrendSnapshot)) == 3
 
 
 def test_stock_detail_materials_resolve_company_disclosure_metadata():

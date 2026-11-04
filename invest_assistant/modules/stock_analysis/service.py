@@ -613,35 +613,68 @@ def get_dashboard(db: Session, selected_stock_id: int | None = None) -> dict:
     }
 
 
+def _last_inserted_per_research_day(rows, day_of, group_of=None):
+    """同一对象、同一研究日只留最后插入的一条。
+
+    修正后的报告会以同一天再导入一次，库里的旧快照保留。
+    曲线和详情读取不把同一天画成多个点。调用方须已按研究日、id 升序，
+    这样同日内后出现的行就是后插入的。没有研究日的行无法归天，原样保留。
+    """
+    kept = []
+    index_by_key = {}
+    for row in rows:
+        day = day_of(row)
+        if day is None:
+            kept.append(row)
+            continue
+        key = (group_of(row) if group_of else None, day)
+        slot = index_by_key.get(key)
+        if slot is None:
+            index_by_key[key] = len(kept)
+            kept.append(row)
+        else:
+            kept[slot] = row
+    return kept
+
+
 def get_stock_detail(db: Session, stock_id: int) -> dict | None:
     stock = db.get(Stock, stock_id)
     if stock is None:
         return None
 
     pool_item = db.scalar(select(StockPoolItem).where(StockPoolItem.stock_id == stock_id))
-    score_history = list(
-        db.scalars(
-            select(StockScoreSnapshot)
-            .where(StockScoreSnapshot.stock_id == stock_id)
-            .order_by(StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
-        )
-    )
-    valuation_history = list(
-        db.scalars(
-            select(StockValuationSnapshot)
-            .where(StockValuationSnapshot.stock_id == stock_id)
-            .order_by(
-                StockValuationSnapshot.analysis_date.asc().nullsfirst(),
-                StockValuationSnapshot.id.asc(),
+    score_history = _last_inserted_per_research_day(
+        list(
+            db.scalars(
+                select(StockScoreSnapshot)
+                .where(StockScoreSnapshot.stock_id == stock_id)
+                .order_by(StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
             )
-        )
+        ),
+        lambda item: item.report_time,
     )
-    trend_history = list(
-        db.scalars(
-            select(StockTrendSnapshot)
-            .where(StockTrendSnapshot.stock_id == stock_id)
-            .order_by(StockTrendSnapshot.research_date.asc(), StockTrendSnapshot.id.asc())
-        )
+    valuation_history = _last_inserted_per_research_day(
+        list(
+            db.scalars(
+                select(StockValuationSnapshot)
+                .where(StockValuationSnapshot.stock_id == stock_id)
+                .order_by(
+                    StockValuationSnapshot.analysis_date.asc().nullsfirst(),
+                    StockValuationSnapshot.id.asc(),
+                )
+            )
+        ),
+        lambda item: item.analysis_date,
+    )
+    trend_history = _last_inserted_per_research_day(
+        list(
+            db.scalars(
+                select(StockTrendSnapshot)
+                .where(StockTrendSnapshot.stock_id == stock_id)
+                .order_by(StockTrendSnapshot.research_date.asc(), StockTrendSnapshot.id.asc())
+            )
+        ),
+        lambda item: item.research_date,
     )
     materials = list_stock_materials(db, stock_id)
     disclosures = [_disclosure_dict(item) for item in _stock_disclosures(db, stock_id, materials)]
@@ -1084,12 +1117,16 @@ def _score_point(score: StockScoreSnapshot | None) -> dict | None:
 def _score_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stock]) -> list[dict]:
     if not stock_ids:
         return []
-    rows = list(
-        db.scalars(
-            select(StockScoreSnapshot)
-            .where(StockScoreSnapshot.stock_id.in_(stock_ids))
-            .order_by(StockScoreSnapshot.stock_id.asc(), StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
-        )
+    rows = _last_inserted_per_research_day(
+        list(
+            db.scalars(
+                select(StockScoreSnapshot)
+                .where(StockScoreSnapshot.stock_id.in_(stock_ids))
+                .order_by(StockScoreSnapshot.stock_id.asc(), StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
+            )
+        ),
+        lambda item: item.report_time,
+        lambda item: item.stock_id,
     )
     points_by_stock: dict[int, list[dict]] = defaultdict(list)
     for row in rows:
@@ -1285,12 +1322,16 @@ def _latest_valuations(db: Session, stock_ids: list[int], stock_by_id: dict[int,
 def _valuation_trends(db: Session, stock_ids: list[int], stock_by_id: dict[int, Stock]) -> list[dict]:
     if not stock_ids:
         return []
-    rows = list(
-        db.scalars(
-            select(StockValuationSnapshot)
-            .where(StockValuationSnapshot.stock_id.in_(stock_ids), StockValuationSnapshot.analysis_date.is_not(None))
-            .order_by(StockValuationSnapshot.stock_id.asc(), StockValuationSnapshot.analysis_date.asc(), StockValuationSnapshot.id.asc())
-        )
+    rows = _last_inserted_per_research_day(
+        list(
+            db.scalars(
+                select(StockValuationSnapshot)
+                .where(StockValuationSnapshot.stock_id.in_(stock_ids), StockValuationSnapshot.analysis_date.is_not(None))
+                .order_by(StockValuationSnapshot.stock_id.asc(), StockValuationSnapshot.analysis_date.asc(), StockValuationSnapshot.id.asc())
+            )
+        ),
+        lambda item: item.analysis_date,
+        lambda item: item.stock_id,
     )
     points_by_stock: dict[int, list[dict]] = defaultdict(list)
     for row in rows:
