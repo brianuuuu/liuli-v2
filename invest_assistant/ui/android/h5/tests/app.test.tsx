@@ -978,7 +978,7 @@ describe("mobile H5 app", () => {
     // 只显示图标，不再是蓝色的「编辑」两个字
     expect(editGroups).toHaveTextContent("");
     expect(editGroups.querySelector("svg")).not.toBeNull();
-    // 一屏摆五个页签：全部、未分组加三个自定义分组
+    // 一屏摆五个页签：全部加四个自定义分组
     expect(document.querySelector(".secondary-navigation__track--fixed-count")).toHaveStyle({ "--secondary-navigation-visible-count": "5" });
     expect(screen.queryByText("编辑", { selector: ".note-toolbar *" })).not.toBeInTheDocument();
   });
@@ -1026,8 +1026,8 @@ describe("mobile H5 app", () => {
 
     await waitFor(() => expect(reorderBodies).toEqual([{ ordered_ids: [2, 1] }]));
     const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
-    // 全部和未分组固定在最前，不参与排序；自定义分组按新顺序跟在后面
-    expect(tabs).toEqual(["全部", "未分组", "原则", "复盘"]);
+    // 「全部」固定在最前，不参与排序；自定义分组按新顺序跟在后面
+    expect(tabs).toEqual(["全部", "原则", "复盘"]);
   });
 
   it("edits a note group name inline and updates the note tabs", async () => {
@@ -1120,7 +1120,7 @@ describe("mobile H5 app", () => {
     expect(await screen.findByText("分组排序保存失败，请重试")).toBeInTheDocument();
     await waitFor(() => {
       const tabs = screen.getAllByRole("tab").map((item) => item.textContent);
-      expect(tabs).toEqual(["全部", "未分组", "复盘", "原则"]);
+      expect(tabs).toEqual(["全部", "复盘", "原则"]);
     });
   });
 

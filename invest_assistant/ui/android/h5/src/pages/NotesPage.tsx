@@ -15,15 +15,12 @@ import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
 import { formatDateTime } from "../utils/format";
 import { lastNoteGroup, notesReturn, rememberNoteGroup } from "./notesViewState";
 
-/** 未分组页签的 key。用字符串而不是数字，避免和分组 id 撞上。 */
-export const UNGROUPED_KEY = "ungrouped";
-
-/** 全部和未分组两个页签都不对应真实分组 id，新建笔记时都落到未分组。 */
-function isInboxKey(key: string) {
-  return key === "all" || key === UNGROUPED_KEY;
+/** 「全部」页签不对应真实分组 id，新建笔记时落到未分组。 */
+function isAllKey(key: string) {
+  return key === "all";
 }
 
-/** 标签栏一屏摆五个：全部、未分组，加三个自定义分组；再多的横向滑动查看。 */
+/** 标签栏一屏摆五个：全部加四个自定义分组；再多的横向滑动查看。 */
 const NOTE_TABS_PER_SCREEN = 5;
 
 export function NotesPage() {
@@ -39,18 +36,17 @@ export function NotesPage() {
   const navigationMotion = useRef<PagerMotionSink | null>(null);
   const groups = useQuery({ queryKey: ["note-groups"], queryFn: mobileApi.noteGroups });
   const availableTags = useQuery({ queryKey: ["tags"], queryFn: mobileApi.tags });
-  // 全部和未分组固定在最前，一个是兜底视图、一个是收件箱，都不是分组，不参与分组排序。
+  // 「全部」固定在最前，不参与分组排序；未分组笔记只在「全部」里出现，不再单独占页签。
   const groupItems = useMemo(() => [
     { key: "all", label: "全部" },
-    { key: UNGROUPED_KEY, label: "未分组" },
     ...(groups.data ?? []).filter((item) => item.status === "active").map((item) => ({ key: String(item.id), label: item.name }))
   ], [groups.data]);
-  // 记住的分组可能已被归档或删除：分组列表拉到后对不上就退回全部，否则分页器找不到页签会整屏空白。
+  // 记住的分组可能已被归档或删除（含历史上的未分组页签）：对不上就退回全部，否则分页器找不到页签会整屏空白。
   useEffect(() => {
     if (groups.data && !groupItems.some((item) => item.key === groupId)) setGroupId("all");
   }, [groupItems, groupId, groups.data]);
   const create = useMutation({
-    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: isInboxKey(groupId) ? null : Number(groupId), tag_ids: tagIds }),
+    mutationFn: () => mobileApi.createNote({ content: content.trim(), group_id: isAllKey(groupId) ? null : Number(groupId), tag_ids: tagIds }),
     onSuccess: async () => { setContent(""); setTagIds([]); setComposer(false); await client.invalidateQueries({ queryKey: ["notes"] }); }
   });
   useEffect(() => {
@@ -87,8 +83,7 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
       limit: 30,
       offset: 0,
       status: "active",
-      group_id: isInboxKey(groupId) ? undefined : Number(groupId),
-      ungrouped: groupId === UNGROUPED_KEY ? true : undefined
+      group_id: isAllKey(groupId) ? undefined : Number(groupId)
     })
   });
   useRestoreListPosition(listRef, !notes.isLoading, notesReturn, groupId);
@@ -110,8 +105,8 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
     <PullToRefresh ariaLabel="笔记下拉刷新" onRefresh={refresh}>
       {notes.isLoading ? <LoadingState /> : notes.isError ? <ErrorState onRetry={() => void notes.refetch()} /> : !notes.data?.items?.length ? (
         <EmptyState
-          title={groupId === UNGROUPED_KEY ? "收件箱是空的" : "这个分组还没有笔记"}
-          detail={groupId === UNGROUPED_KEY ? "没有待归档的笔记" : "记录一条现在的想法"}
+          title={isAllKey(groupId) ? "还没有笔记" : "这个分组还没有笔记"}
+          detail="记录一条现在的想法"
         />
       ) : (
         <div className="note-list" ref={listRef}>
