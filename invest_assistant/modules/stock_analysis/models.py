@@ -167,7 +167,8 @@ class StockTrendSnapshot(Base):
     market_recognition: Mapped[str | None] = mapped_column(Text, nullable=True)
     capital_recognition: Mapped[str | None] = mapped_column(Text, nullable=True)
     stock_stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    mainline_cycle: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # 主线周期可包含阶段判断与验证条件，按完整描述保存。
+    mainline_cycle: Mapped[str | None] = mapped_column(Text, nullable=True)
     remaining_upside: Mapped[str | None] = mapped_column(Text, nullable=True)
     trend_duration: Mapped[str | None] = mapped_column(Text, nullable=True)
     suggested_group: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -192,9 +193,9 @@ class StockCompareGroup(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-# 早期按 VARCHAR(50) 建的表，PostgreSQL 会因为超长直接拒绝整条趋势快照，
+# 早期按短 VARCHAR 建的描述字段，PostgreSQL 会因为超长直接拒绝整条趋势快照，
 # SQLite 不校验长度所以本地试不出来。加宽到 TEXT 不丢数据，已经是 TEXT 的库跳过。
-TREND_TEXT_WIDENED_COLUMNS = ("market_recognition", "capital_recognition")
+TREND_TEXT_WIDENED_COLUMNS = ("market_recognition", "capital_recognition", "mainline_cycle")
 
 
 def ensure_stock_analysis_schema(engine: Engine) -> None:

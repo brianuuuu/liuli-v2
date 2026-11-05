@@ -1541,6 +1541,8 @@ id, stock_id, company, company_code, report_period, report_release_date, current
 id, stock_id, research_date, market_data_date, researcher_code, track_id, main_track, trend_level, track_short, track_mid, track_long, company_position, market_recognition, capital_recognition, stock_stage, mainline_cycle, remaining_upside, trend_duration, suggested_group, priority_rank, core_logic, primary_risk, next_verification, data_gaps, report_id, created_at
 ```
 
+`mainline_cycle`（主线周期）使用 `TEXT` 保存完整阶段判断与验证条件，导入时不限制为 20 字，也不截断描述。
+
 #### `stock_compare_group`：标的对比组
 
 ```text
