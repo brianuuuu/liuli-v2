@@ -133,7 +133,6 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
       )
   },
   { title: "金额", dataIndex: "amount", width: 92, align: "right", render: (value?: number | null) => formatAmount(value) },
-  { title: "5日", dataIndex: "effect_5d", width: 76, align: "right", render: formatReturn },
   {
     // 同一列里各行算的天数不同，没满 60 日的行标出已过交易日数，才能互相比
     title: <Tooltip title="调仓金额 × 至今效果，单位元；增持看赚亏，减持看避开或错过的金额。按最新收盘计算，当天收盘后可显示 0 日，满 60 个交易日后固定；只作过程参考，不参与对错">至今</Tooltip>,
@@ -152,6 +151,7 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
       );
     }
   },
+  { title: "5日", dataIndex: "effect_5d", width: 76, align: "right", render: formatReturn },
   {
     title: "20日",
     dataIndex: "effect_20d",
@@ -200,8 +200,8 @@ export function PositionChangeTable({ data, loading }: { data: PositionChangeRev
               合计 <Typography.Text type="secondary">· {changes.length}笔</Typography.Text>
             </Table.Summary.Cell>
             <Table.Summary.Cell index={6} align="right">{formatTotal(totals.amount)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={7} />
-            <Table.Summary.Cell index={8} align="right">{formatTotal(totals.toDateAmount, true)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={7} align="right">{formatTotal(totals.toDateAmount, true)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={8} />
             <Table.Summary.Cell index={9} />
             <Table.Summary.Cell index={10} align="right">{formatTotal(totals.impact20d, true)}</Table.Summary.Cell>
             <Table.Summary.Cell index={11} colSpan={2} />

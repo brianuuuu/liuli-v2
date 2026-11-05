@@ -1280,7 +1280,8 @@ body {
 }
 
 .position-change-summary-missing {
-  display: block;
+  display: inline;
+  margin-left: 6px;
   color: var(--ll-muted);
   font-size: 12px;
   font-weight: 400;
