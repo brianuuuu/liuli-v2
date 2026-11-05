@@ -6,6 +6,8 @@ import type {
   PositionChangeReviewRow
 } from "../../types/api";
 import { reasonTypeLabels } from "./positionChangeLabels";
+import { positionChangeToDateAmount, summarizePositionChangeAmounts } from "./positionChangeReviewAmounts";
+import type { AmountTotal } from "./positionChangeReviewAmounts";
 
 export const initialPositionChangeReview: PositionChangeReviewData = { rules: "", rows: [] };
 
@@ -38,6 +40,17 @@ function formatAmount(value?: number | null, signed = false) {
   return <span style={signed ? { color: pnlColor(value) } : undefined}>{sign}{text}</span>;
 }
 
+function formatTotal(total: AmountTotal, signed = false) {
+  return (
+    <Tooltip title={total.missing ? `仅汇总有数据的记录，${total.missing} 笔缺少数据，未按 0 计入` : undefined}>
+      <span>
+        {formatAmount(total.value, signed)}
+        {total.missing > 0 ? <small className="position-change-summary-missing">缺{total.missing}笔</small> : null}
+      </span>
+    </Tooltip>
+  );
+}
+
 export function sourceWinRate(rows: PositionChangeReviewRow[], reasonType: string) {
   const matched = rows.filter((row) => row.reason_type === reasonType);
   const samples = matched.reduce((sum, row) => sum + row.samples, 0);
@@ -48,9 +61,11 @@ export function sourceWinRate(rows: PositionChangeReviewRow[], reasonType: strin
 export function positionChangeHint(rules: string) {
   return (
     <>
-      效果按方向折算：增持看涨幅，减持看跌幅，正数表示判断有利。
+      每笔以自身成交价独立评估，后续买卖不改变此前记录。增持看买入后的涨幅，减持看卖出后的跌幅，正数表示判断有利。
       <br />
-      调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；20 日影响 = 调仓金额 × 折算后的 20 日收益，是相对"不做这笔调仓"的估算，不是已实现盈亏。
+      调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；至今金额、20 日影响分别为调仓金额 × 对应期限按方向折算后的收益，是相对"不做这笔调仓"的估算，不是已实现盈亏。
+      <br />
+      按调仓发生日期筛选，每笔仍评估到最新收盘。表底合计当前组合和日期范围内的全部记录，跨分页汇总；缺少数据的记录不按 0 计入，并标注缺失笔数。
       {rules ? <><br />评估口径：{rules}</> : null}
     </>
   );
@@ -121,18 +136,21 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
   { title: "5日", dataIndex: "effect_5d", width: 76, align: "right", render: formatReturn },
   {
     // 同一列里各行算的天数不同，没满 60 日的行标出已过交易日数，才能互相比
-    title: <Tooltip title="未满 60 个交易日按最新收盘计算，满 60 日后固定为 60 日收益；只作过程参考，不参与对错">至今</Tooltip>,
+    title: <Tooltip title="调仓金额 × 至今效果，单位元；增持看赚亏，减持看避开或错过的金额。按最新收盘计算，当天收盘后可显示 0 日，满 60 个交易日后固定；只作过程参考，不参与对错">至今</Tooltip>,
     dataIndex: "effect_to_date",
-    width: 112,
+    width: 144,
     align: "right",
-    render: (value: number | null | undefined, row) => (
-      <>
-        {formatReturn(value)}
-        {value != null && row.to_date_days != null && row.to_date_days < TO_DATE_CAP_DAYS ? (
-          <Typography.Text type="secondary"> · {row.to_date_days}日</Typography.Text>
-        ) : null}
-      </>
-    )
+    render: (_: number | null | undefined, row) => {
+      const amount = positionChangeToDateAmount(row);
+      return (
+        <>
+          {formatAmount(amount, true)}
+          {amount != null && row.to_date_days != null && row.to_date_days < TO_DATE_CAP_DAYS ? (
+            <Typography.Text type="secondary"> · {row.to_date_days}日</Typography.Text>
+          ) : null}
+        </>
+      );
+    }
   },
   {
     title: "20日",
@@ -165,6 +183,7 @@ export function PositionChangeTable({ data, loading }: { data: PositionChangeRev
   const changes = data.rows
     .flatMap((row) => row.changes)
     .sort((a, b) => b.change_date.localeCompare(a.change_date) || b.id - a.id);
+  const totals = summarizePositionChangeAmounts(changes);
   return (
     <Table
       rowKey="id"
@@ -174,6 +193,21 @@ export function PositionChangeTable({ data, loading }: { data: PositionChangeRev
       dataSource={changes}
       pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
       locale={{ emptyText: "暂无调仓记录" }}
+      summary={() => changes.length ? (
+        <Table.Summary>
+          <Table.Summary.Row className="position-change-summary">
+            <Table.Summary.Cell index={0} colSpan={6}>
+              合计 <Typography.Text type="secondary">· {changes.length}笔</Typography.Text>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={6} align="right">{formatTotal(totals.amount)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={7} />
+            <Table.Summary.Cell index={8} align="right">{formatTotal(totals.toDateAmount, true)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={9} />
+            <Table.Summary.Cell index={10} align="right">{formatTotal(totals.impact20d, true)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={11} colSpan={2} />
+          </Table.Summary.Row>
+        </Table.Summary>
+      ) : null}
     />
   );
 }

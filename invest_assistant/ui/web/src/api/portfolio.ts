@@ -119,9 +119,12 @@ export async function listAdjustAdviceCandidates(stockId: number, changeDate?: s
   return response.data;
 }
 
-export async function getPositionChangeReview(portfolioId?: number | null): Promise<PositionChangeReview> {
+export async function getPositionChangeReview(
+  portfolioId?: number | null,
+  range?: { start_date: string; end_date: string }
+): Promise<PositionChangeReview> {
   const response = await apiClient.get<PositionChangeReview>("/api/portfolios/position-change-review", {
-    params: portfolioId ? { portfolio_id: portfolioId } : undefined
+    params: { ...(portfolioId ? { portfolio_id: portfolioId } : {}), ...range }
   });
   return response.data;
 }

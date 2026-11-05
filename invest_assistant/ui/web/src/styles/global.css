@@ -1202,6 +1202,14 @@ body {
   margin-left: auto;
 }
 
+.position-change-date-filter {
+  width: 244px;
+}
+
+.position-change-review-error {
+  margin: 8px 12px;
+}
+
 /* 顶栏只有一张表时用标题代替切换按钮 */
 .tabbed-table-title {
   padding: 0 6px;
@@ -1262,6 +1270,20 @@ body {
   margin-left: 6px;
   color: var(--ll-muted);
   font-size: 12px;
+}
+
+.tabbed-table-panel .position-change-summary > td {
+  border-top: 1px solid var(--ll-border);
+  background: var(--ll-panel-subtle);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.position-change-summary-missing {
+  display: block;
+  color: var(--ll-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 /* 估算的成交价：次要色，悬浮说明；不用下划线，估算多时一列虚线太抢眼 */

@@ -49,7 +49,7 @@ def fetch_a_stock_daily_bar_rows(
     *,
     start_date: str,
     end_date: str,
-    adj: str = "qfq",
+    adj: str | None = "qfq",
     ma: list[int] | None = None,
 ) -> list[dict]:
     token = get_tushare_token()

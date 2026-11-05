@@ -114,11 +114,16 @@ def list_recent_adjust_advice(portfolio_id: int | None = None, limit: int = 5, d
 
 
 @router.get("/position-change-review")
-def review_position_changes(portfolio_id: int | None = None, start_date: date | None = None, db: Session = Depends(get_db)) -> dict:
+def review_position_changes(
+    portfolio_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
     try:
-        return position_change_review.review_position_changes(db, portfolio_id=portfolio_id, start_date=start_date)
+        return position_change_review.review_position_changes(db, portfolio_id=portfolio_id, start_date=start_date, end_date=end_date)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="portfolio not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioRead)

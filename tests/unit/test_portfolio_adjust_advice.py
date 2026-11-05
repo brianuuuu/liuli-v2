@@ -394,6 +394,10 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     days = trading_days(T, 70)
     # 关联调仓在 T+1，要多一天日线才算得出它的 20 日收益
     seed_bars(db, days[:22])
+    # 复盘只读换算所需的实际收盘；不依赖线上行情查询。
+    monkeypatch.setattr(position_change_review, "_load_trade_closes", lambda *args: {
+        (1, day): 40.0 - 0.1 * index for index, day in enumerate(days[:22])
+    })
     reduce_item = db.scalar(select(PortfolioAdjustAdviceItem).where(PortfolioAdjustAdviceItem.action == "reduce"))
 
     candidates = adjust_advice.list_advice_candidates(db, stock_id=1, change_date=days[1], portfolio_id=1)
@@ -481,15 +485,15 @@ def test_position_change_to_date_return_caps_at_60_trading_days():
         return adjust_advice._StockSeries([SimpleNamespace(trade_date=day, close=10.0 + index) for index, day in enumerate(days[:count])])
 
     # 满 60 个交易日后固定为 T+60，后面再涨也不变
-    full = _returns(T, days, series(70))
+    full = _returns(T, days, series(70), price=10, raw_close=10)
     assert full["to_date_days"] == 60 and full["return_to_date"] == full["return_60d"] == round(70 / 10 - 1, 6)
     # 没满 60 日按最新收盘算
-    partial = _returns(T, days, series(13))
+    partial = _returns(T, days, series(13), price=10, raw_close=10)
     assert partial["to_date_days"] == 12 and partial["return_to_date"] == round(22 / 10 - 1, 6)
     assert partial["return_20d"] is None
-    # 调仓当天还没有下一根日线：没有至今收益
-    same_day = _returns(T, days, series(1))
-    assert same_day["return_to_date"] is None and same_day["to_date_days"] is None
+    # 调仓当天收盘即可显示 0 日效果；不再等待下一根日线。
+    same_day = _returns(T, days, series(1), price=8, raw_close=10)
+    assert same_day["return_to_date"] == 0.25 and same_day["to_date_days"] == 0
 
 
 def test_recent_advice_items_status_and_trade_portfolio():

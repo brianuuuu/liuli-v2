@@ -1159,7 +1159,7 @@ export type PositionChangeReviewRow = {
   changes: PositionChangeReviewDetail[];
 };
 
-/** 调仓来源复盘的单笔明细；effect_* 已按方向折算，正数表示判断有利 */
+/** 每笔以自身成交价独立评估（先统一复权尺度）；effect_* 已按方向折算，正数表示判断有利 */
 export type PositionChangeReviewDetail = {
   id: number;
   reason_type: PositionChangeReasonType | "unlabeled";
@@ -1177,7 +1177,7 @@ export type PositionChangeReviewDetail = {
   effect_5d?: number | null;
   effect_20d?: number | null;
   effect_60d?: number | null;
-  /** 至今收益：没满 60 个交易日按最新收盘算，满了固定为 60 日；to_date_days 为已过交易日数 */
+  /** 至今效果比率：Web 乘 amount 显示至今金额；满 60 日固定，to_date_days 可为 0，换算依据缺失时为空 */
   effect_to_date?: number | null;
   to_date_days?: number | null;
   impact_20d?: number | null;
