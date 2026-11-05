@@ -876,6 +876,7 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .detail-actions button { min-height: 44px; flex: 1; border-radius: 9px; }
 .detail-actions button:not(.primary-button) { background: var(--panel); }
 .handled-state { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.reports-page .detail-content { padding-bottom: 72px; }
 .report-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .report-list > button { min-width: 0; width: 100%; padding: 14px; border-radius: 10px; background: var(--panel); text-align: left; }
 .report-list span, .report-list time { color: var(--muted); font-size: 11px; }

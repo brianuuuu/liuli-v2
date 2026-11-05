@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArrowLeft, Check, ExternalLink, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { GroupPicker } from "../components/GroupPicker";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { TagPicker } from "../components/TagPicker";
-import { ErrorState, LoadingState, SectionCard } from "../components/Ui";
+import { EmptyState, ErrorState, LoadingState, SectionCard } from "../components/Ui";
 import { nativeBridge, requestAppBack } from "../native/bridge";
 import { formatDateTime, formatModule, plainMarkdownText } from "../utils/format";
 
@@ -157,10 +158,46 @@ export function AlertDetailPage() {
   return <DetailFrame title="预警详情"><div className="page-stack"><SectionCard><span className={`level-badge level-badge--${query.data.event_level}`}>{query.data.event_level}</span><h2>{query.data.title}</h2><p className="detail-message">{query.data.message}</p><time>{formatDateTime(query.data.event_time)}</time></SectionCard><div className="detail-actions">{query.data.status === "unread" ? <button onClick={() => read.mutate()}>标记已读</button> : null}{query.data.status !== "handled" ? <button className="primary-button" onClick={() => handle.mutate()}><Check size={17} />标记已处理</button> : <span className="handled-state"><Check size={17} />已处理</span>}</div></div></DetailFrame>;
 }
 
+const REPORT_KINDS = [
+  { value: "all", label: "全部" },
+  { value: "market", label: "市场" },
+  { value: "track", label: "赛道" },
+  { value: "stock", label: "标的" }
+] as const;
+
 export function ReportsPage() {
   const navigate = useNavigate();
-  const query = useQuery({ queryKey: ["reports"], queryFn: () => mobileApi.reports(0, 50) });
-  return <DetailFrame title="报告中心">{query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : <div className="report-list">{query.data?.items.map((report) => <button key={report.id} onClick={() => navigate(`/reports/${report.id}`)}><span>{formatModule(report.source_module)}</span><strong>{report.title}</strong><p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time></button>)}</div>}</DetailFrame>;
+  const [kind, setKind] = useState<(typeof REPORT_KINDS)[number]["value"]>("all");
+  const query = useQuery({
+    queryKey: ["reports", kind],
+    queryFn: ({ signal }) => mobileApi.reports(0, 50, kind === "all" ? undefined : kind, signal)
+  });
+  const label = REPORT_KINDS.find((item) => item.value === kind)?.label;
+  return (
+    <DetailFrame title="报告中心" className="reports-page">
+      {query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : query.data?.items.length ? (
+        <div className="report-list">
+          {query.data.items.map((report) => (
+            <button type="button" key={report.id} onClick={() => navigate(`/reports/${report.id}`)}>
+              <span>{formatModule(report.source_module)}</span><strong>{report.title}</strong>
+              <p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time>
+            </button>
+          ))}
+        </div>
+      ) : <EmptyState title={kind === "all" ? "暂无报告" : `暂无${label}报告`} />}
+      {createPortal(
+        <div className="float-bar" data-swipe-ignore="true">
+          <div className="float-bar__group" role="group" aria-label="报告类型">
+            {REPORT_KINDS.map((item) => (
+              <button type="button" key={item.value} className={kind === item.value ? "is-active" : ""} aria-pressed={kind === item.value} onClick={() => setKind(item.value)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>, document.body
+      )}
+    </DetailFrame>
+  );
 }
 
 export function ReportReaderPage() {

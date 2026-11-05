@@ -87,6 +87,7 @@ def _filter_reports_by_kind(stmt, report_kind: str | None):
     if report_kind == "market":
         return stmt.where(
             or_(
+                Report.source_module == "market_radar",
                 Report.target_type == "market",
                 Report.target_type == "market_daily",
                 func.lower(Report.report_type).contains("market"),
@@ -98,6 +99,7 @@ def _filter_reports_by_kind(stmt, report_kind: str | None):
     if report_kind == "track":
         return stmt.where(
             or_(
+                Report.source_module == "track_discovery",
                 Report.target_type == "track",
                 func.lower(Report.report_type).contains("track"),
                 func.lower(Report.title).contains("track"),
@@ -107,6 +109,7 @@ def _filter_reports_by_kind(stmt, report_kind: str | None):
     if report_kind == "stock":
         return stmt.where(
             or_(
+                Report.source_module == "stock_analysis",
                 Report.target_type == "stock",
                 func.lower(Report.report_type).contains("stock"),
                 func.lower(Report.title).contains("stock"),

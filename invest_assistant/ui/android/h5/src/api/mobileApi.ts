@@ -169,8 +169,8 @@ export const mobileApi = {
     apiClient.post<{ message?: string }>(`/api/knowledge/research-feedback/${id}/import`),
   deletePendingReport: (id: number) =>
     apiClient.delete<PendingReport>(`/api/knowledge/research-feedback/${id}`),
-  reports: (offset = 0, limit = 30) =>
-    apiClient.get<PageDto<Report>>("/api/reports", { offset, limit }),
+  reports: (offset = 0, limit = 30, reportKind?: "market" | "track" | "stock", signal?: AbortSignal) =>
+    apiClient.get<PageDto<Report>>("/api/reports", { offset, limit, report_kind: reportKind }, signal),
   reportDetail: (id: number) => apiClient.get<Report>(`/api/reports/${id}`),
   async reportContent(id: number) {
     const token = window.localStorage.getItem(tokenStorageKey);

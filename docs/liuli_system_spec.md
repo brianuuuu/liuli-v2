@@ -430,6 +430,8 @@ report 表管"报告索引"，var/reports/{source_module}/YYYY-MM/ 管"报告文
 报告不设一级菜单，入口嵌在工作台、列表卡片、详情页和 Android 报告页。
 ```
 
+Android 报告中心使用底部固定悬浮分段器切换“全部／市场／赛道／标的”，默认全部；复用 App 的 `float-bar` 样式，列表底部预留空间。列表通过 `/api/reports?report_kind=market|track|stock` 在分页前筛选，全部省略该参数；分类识别对应的 `source_module`（market_radar / track_discovery / stock_analysis），同时兼容原有 target_type、report_type 和标题匹配条件。空列表显示对应类型的空状态，加载失败可重试或切换类型。
+
 ### 9.7 basic/disclosure_library
 
 公告财报库：巨潮元数据入库、原文下载归档、PDF 解析为 text/Markdown、关联 `stock_id`、解析状态。
