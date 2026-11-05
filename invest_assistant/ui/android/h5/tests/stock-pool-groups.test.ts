@@ -50,9 +50,9 @@ describe("标的 tab 视图切换", () => {
 });
 
 describe("标的池状态分组", () => {
-  it("分组去掉归档，徽章文案仍认得归档", () => {
+  it("分组按重点跟踪、候选、观察排列，徽章文案仍认得归档", () => {
     expect(DEFAULT_POOL_STATUS).toBe("focused");
-    expect(POOL_STATUS_OPTIONS.map((item) => item.label)).toEqual(["全部", "重点跟踪", "观察", "候选"]);
+    expect(POOL_STATUS_OPTIONS.map((item) => item.label)).toEqual(["全部", "重点跟踪", "候选", "观察"]);
     expect(poolStatusLabel("focused")).toBe("重点跟踪");
     expect(poolStatusLabel("archived")).toBe("归档");
     expect(poolStatusLabel(null)).toBe("未知");

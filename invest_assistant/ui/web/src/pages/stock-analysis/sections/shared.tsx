@@ -3,10 +3,11 @@ import { Tag } from "antd";
 /** 归档 = 软删除，等同回收站，不进任何默认列表。 */
 export const ARCHIVED_STATUS = "archived";
 
+/** 按研究优先级排列：重点跟踪 > 候选 > 观察；归档置于末尾。 */
 export const poolStatusOptions = [
   { value: "focused", label: "重点跟踪" },
-  { value: "watching", label: "观察" },
   { value: "candidate", label: "候选" },
+  { value: "watching", label: "观察" },
   { value: ARCHIVED_STATUS, label: "归档" }
 ];
 

@@ -17,12 +17,12 @@ const ARCHIVED_POOL_STATUS = "archived";
 /** 默认落在重点跟踪，这是日常最常看的一组。 */
 export const DEFAULT_POOL_STATUS: PoolStatusKey = "focused";
 
-/** 分组筛选项。归档在 App 上不再单独成组，回收站只在 Web 端看。 */
+/** 按研究优先级排列：重点跟踪 > 候选 > 观察。归档回收站只在 Web 端看。 */
 export const POOL_STATUS_OPTIONS: { value: PoolStatusKey; label: string }[] = [
   { value: "all", label: "全部" },
   { value: "focused", label: "重点跟踪" },
-  { value: "watching", label: "观察" },
-  { value: "candidate", label: "候选" }
+  { value: "candidate", label: "候选" },
+  { value: "watching", label: "观察" }
 ];
 
 /** 状态徽章的文案口径与 Web 标的池一致，比筛选项多一个归档：详情页仍可能打开已归档的标的。 */

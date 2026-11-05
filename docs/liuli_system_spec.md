@@ -626,12 +626,22 @@ key_contradiction、segments_json、scenarios_json、next_verification、risk_fa
 ### 12.2 标的池 stock_pool
 
 ```text
-status：candidate / watching / focused / archived；
+status：focused / candidate / watching / archived；
 source：manual / ai / market_radar / track_discovery；
 加入标的池：ensure tag(name=stock.stock_name) → 写 stock_tag_relation；
 AI 不直接创建 stock，只能推荐已有 A 股进入标的池；
 日线同步、公告拉取、个股新闻抓取均以标的池为范围。
 ```
+
+标的分组表达研究优先级，固定为 **重点跟踪（focused）第一 > 候选（candidate）第二 > 观察（watching）第三**：
+
+| 研究优先级 | 分组 | 含义 |
+|---|---|---|
+| 1 | 重点跟踪 focused | 优先投入研究精力，持续跟进核心逻辑与验证节点 |
+| 2 | 候选 candidate | 优先于观察组补充研究，等待关键证据确认是否进入重点跟踪 |
+| 3 | 观察 watching | 保留低频跟踪，等待出现值得重新研究的变化 |
+
+Web 标的池、标的对比的分组筛选及标的池编辑的分组下拉统一按上述顺序展示；“全部”置前，“归档”置后。App「看板 → 标的 → 标的池」分组筛选同样按“全部 → 重点跟踪 → 候选 → 观察”展示，默认重点跟踪。归档作为回收站，不参与研究优先级排名。分组内标的排序沿用各页面现有规则；评级与趋势等级变化不自动调整分组，研究报告的 suggested_group 仍只作建议。
 
 **财报待研究提醒**：非归档标的出了新一期定期报告，而估值、评分、趋势三项研究没有全部跟上时，标的卡片挂一个红点（Web 标的池在名称后，悬停提示报告期和缺的项；Android 看板标的卡片右上角）。Web 标的池工具栏有"待研究财报"筛选。实时计算，不落库：
 
