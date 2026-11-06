@@ -72,7 +72,7 @@ assert.match(tradeReview, /tabbed-table-toolbar/);
 assert.match(tradeReview, /toolbar-filter-button active/);
 assert.doesNotMatch(tradeReview, /<Segmented/);
 assert.match(tradeReview, /调仓来源/);
-assert.match(tradeReview, /信号表现/);
+assert.match(tradeReview, /调仓建议复盘/);
 assert.match(tradeReview, /风险警示/);
 assert.doesNotMatch(tradeReview, /trade-review-grid/);
 assert.match(positionChange, /flatMap\(\(row\) => row\.changes\)/);

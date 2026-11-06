@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { DataPanel } from "../../components/common/DataPanel";
 import { HintTitle } from "./HintTitle";
 import { SampleCount } from "./SampleCount";
+import { AdviceStatsReview } from "./AdviceStatsReview";
 import type { AdjustAdviceItem, AdjustAdviceReport, AdjustAdviceReviews, AdjustAdviceWinRateRow } from "../../types/api";
 
 export const initialAdviceReviews: AdjustAdviceReviews = {
@@ -56,32 +57,6 @@ const riskLabels: Record<string, { label: string; color?: string }> = {
 
 const executionLabels: Record<string, string> = { executed: "已执行", partial: "部分执行", not_executed: "未执行" };
 const triggerLabels: Record<string, string> = { touched: "触及", not_touched: "未触及" };
-
-const signalLabels: Record<string, string> = {
-  below_value_center: "中枢下方",
-  above_value_center: "中枢上方",
-  value_rank_mismatch: "排序错配",
-  concentration_risk: "集中度",
-  cash_rebalance: "现金再平衡",
-  value_impairment_risk: "价值受损",
-  pullback_support: "回落承接",
-  overextension: "上涨透支",
-  sentiment_extreme: "舆情极端",
-  unknown: "未标注"
-};
-
-const riskCodeLabels: Record<string, string> = {
-  kline_breakdown: "K线破位",
-  value_trend_down: "年线向下",
-  relative_weakness: "相对走弱",
-  volatility_spike: "波动放大",
-  negative_sentiment: "负面舆情",
-  fundamental_deterioration: "基本面恶化",
-  regulatory_legal: "监管诉讼",
-  shareholder_action: "股东行为",
-  event_window: "事件窗口",
-  unknown: "未标注"
-};
 
 /** 没有样本时返回 null，由展示层写"待积累"，不和真实的 0% 混在一起 */
 function ratio(numerator: number, denominator: number) {
@@ -313,15 +288,6 @@ const buildReportColumns = (showQuiet: boolean, onShowQuietChange: (value: boole
   }
 ];
 
-const winRateColumns: ColumnsType<AdjustAdviceWinRateRow> = [
-  { title: "方向", dataIndex: "action", width: 64, align: "center", render: (value: string) => labelTag(actionLabels, value) },
-  { title: "主信号", dataIndex: "signal_code", render: (value: string) => signalLabels[value] || value },
-  { title: "样本", dataIndex: "samples", width: 56, align: "right", render: (value: number) => <SampleCount value={value} /> },
-  { title: "对/错/平", key: "split", width: 82, align: "center", render: (_, row) => `${row.correct}/${row.wrong}/${row.neutral}` },
-  { title: "胜率", key: "win_rate", width: 64, align: "right", render: (_, row) => `${(row.win_rate * 100).toFixed(1)}%` },
-  { title: "平均效果", dataIndex: "avg_effect_20d", width: 80, align: "right", render: formatReturn }
-];
-
 /** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。放在数据面板里，表格样式与调仓来源表一致 */
 export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews; loading: boolean }) {
   const [showQuiet, setShowQuiet] = useState(false);
@@ -357,43 +323,13 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
   );
 }
 
-/** 还没有评估结果时的空态：说清为什么空、什么时候会有 */
-function pendingText(data: AdjustAdviceReviews, what: string) {
-  return data.summary.pending_count
-    ? `暂无已评估的${what}；${data.summary.pending_count} 条建议等待满 20 个交易日后评估`
-    : `暂无已评估的${what}`;
+export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，连续同方向未执行只算一次。页签数字为全部历史已评估样本数；待评估记录可能重复跟踪。评估任务工作日19:15运行。";
+export const riskStatsHint = "警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为全部历史已评估警示条数，不等于股票数。";
+
+export function SignalStatsTable({ data, loading }: { data: AdjustAdviceReviews; loading?: boolean }) {
+  return <AdviceStatsReview data={data} kind="signal" loading={loading} />;
 }
 
-export const signalStatsHint = "按方向 + 主信号统计 20 日胜率；只统计价格触及区间的建议，连续多日同方向未执行只算一次。评估任务工作日 19:15 运行。";
-export const riskStatsHint = "warning 及以上的警示，20 日跑输沪深300 超过 3% 计为命中。";
-
-export function SignalStatsTable({ data }: { data: AdjustAdviceReviews }) {
-  return (
-    <Table
-      rowKey={(row) => `${row.action}-${row.signal_code}`}
-      size="small"
-      columns={winRateColumns}
-      dataSource={data.signal_stats.by_signal}
-      pagination={false}
-      locale={{ emptyText: pendingText(data, "调仓建议") }}
-    />
-  );
-}
-
-export function RiskStatsTable({ data }: { data: AdjustAdviceReviews }) {
-  return (
-    <Table
-      rowKey="risk_code"
-      size="small"
-      columns={[
-        { title: "风险代码", dataIndex: "risk_code", render: (value: string) => riskCodeLabels[value] || value },
-        { title: "样本", dataIndex: "samples", width: 72, align: "right", render: (value: number) => <SampleCount value={value} /> },
-        { title: "命中", dataIndex: "hits", width: 72, align: "right" },
-        { title: "命中率", dataIndex: "hit_rate", width: 88, align: "right", render: (value: number) => `${(value * 100).toFixed(1)}%` }
-      ]}
-      dataSource={data.risk_stats}
-      pagination={false}
-      locale={{ emptyText: pendingText(data, "风险警示") }}
-    />
-  );
+export function RiskStatsTable({ data, loading }: { data: AdjustAdviceReviews; loading?: boolean }) {
+  return <AdviceStatsReview data={data} kind="risk" loading={loading} />;
 }

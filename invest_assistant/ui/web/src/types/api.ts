@@ -1310,7 +1310,7 @@ export type AdjustAdviceItem = {
 
 export type AdjustAdviceReport = {
   id: number;
-  portfolio_id: number;
+  portfolio_id: number | null;
   report_id?: number | null;
   researcher_code?: string | null;
   data_as_of_date: string;

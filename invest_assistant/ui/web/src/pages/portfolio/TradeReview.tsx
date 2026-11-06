@@ -25,6 +25,7 @@ import { buildPositionChangeReviewRange, positionChangeReviewRangeParams } from 
 type StatsView = "changes" | "signals" | "risks" | "market";
 
 const initialChangeReviewSnapshot = { scopeKey: "", review: initialPositionChangeReview };
+const initialAdviceSnapshot = { scopeKey: "", review: initialAdviceReviews };
 
 type TradeReviewProps = {
   portfolioId: number | null;
@@ -60,22 +61,24 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
   );
   // 新范围加载或失败时隐藏旧结果，不能把旧合计显示在新日期下。
   const changeReviewData = changes.data.scopeKey === changeReviewKey ? changes.data.review : initialPositionChangeReview;
-  const advice = useAsyncData<AdjustAdviceReviews>(
-    useCallback(() => getAdjustAdviceReviews(portfolioId, 30), [portfolioId]),
-    initialAdviceReviews
+  const adviceScopeKey = String(portfolioId ?? "all");
+  const advice = useAsyncData<{ scopeKey: string; review: AdjustAdviceReviews }>(
+    useCallback(async () => ({ scopeKey: adviceScopeKey, review: await getAdjustAdviceReviews(portfolioId, 200) }), [portfolioId, adviceScopeKey]),
+    initialAdviceSnapshot
   );
+  const adviceData = advice.data.scopeKey === adviceScopeKey && !advice.error ? advice.data.review : initialAdviceReviews;
   const aiRate = sourceWinRate(changeReviewData.rows, "ai_advice");
   const personalRate = sourceWinRate(changeReviewData.rows, "personal");
-  const kpis = adviceKpis(advice.data);
+  const kpis = adviceKpis(adviceData);
   const [statsView, setStatsView] = useState<StatsView>("changes");
   // 分段上的数字：调仓来源为调仓笔数，另两段为已评估样本数，切换前就知道有没有数据
   const changeCount = changeReviewData.rows.reduce((sum, row) => sum + row.change_count, 0);
-  const signalSamples = advice.data.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
+  const signalSamples = adviceData.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
   const statsViews: { value: StatsView; label: string; count: number }[] = [
     { value: "changes", label: "调仓来源", count: changeCount },
-    { value: "signals", label: "信号表现", count: signalSamples },
-    { value: "risks", label: "风险警示", count: kpis.risk.samples },
-    { value: "market", label: "大盘判断", count: advice.data.market_review.rows.length }
+    { value: "signals", label: "调仓建议复盘", count: signalSamples },
+    { value: "risks", label: "风险警示复盘", count: kpis.risk.samples },
+    { value: "market", label: "大盘判断", count: adviceData.market_review.rows.length }
   ];
   const statsHint = statsView === "changes" ? positionChangeHint(changeReviewData.rules) : statsView === "signals" ? signalStatsHint : statsView === "risks" ? riskStatsHint : marketReviewHint;
 
@@ -153,11 +156,13 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
           />
         ) : null}
         {statsView === "changes" ? <PositionChangeTable key={changeReviewKey} data={changeReviewData} loading={changes.loading} /> : null}
-        {statsView === "signals" ? <SignalStatsTable data={advice.data} /> : null}
-        {statsView === "risks" ? <RiskStatsTable data={advice.data} /> : null}
-        {statsView === "market" ? <MarketReviewTable data={advice.data} /> : null}
+        {advice.error && statsView !== "changes" ? <Alert type="error" showIcon title="建议复盘加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
+        {statsView === "signals" ? <SignalStatsTable key={adviceScopeKey} data={adviceData} loading={advice.loading} /> : null}
+        {statsView === "risks" ? <RiskStatsTable key={adviceScopeKey} data={adviceData} loading={advice.loading} /> : null}
+        {statsView === "market" ? <MarketReviewTable data={adviceData} /> : null}
       </section>
-      <AdviceReportList data={advice.data} loading={advice.loading} />
+      {advice.error && statsView === "changes" ? <Alert type="error" showIcon title="微操报告加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
+      <AdviceReportList key={adviceScopeKey} data={adviceData} loading={advice.loading} />
     </div>
   );
 }
