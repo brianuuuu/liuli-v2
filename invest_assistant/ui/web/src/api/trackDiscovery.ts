@@ -43,12 +43,6 @@ export type TrackTrendSnapshotPayload = Partial<
 > & {
   research_date: string;
   headline_cycle: TrackTrendSnapshot["headline_cycle"];
-  market_heat_score: number;
-  growth_speed_score: number;
-  concentration_score: number;
-  cycle_resilience_score: number;
-  current_market_size_score: number;
-  future_market_size_score: number;
 };
 
 export type TrackTagStockBindingPayload = {

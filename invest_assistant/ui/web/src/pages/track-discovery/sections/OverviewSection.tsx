@@ -4,7 +4,7 @@ import {
   StarOutlined,
   TrophyOutlined
 } from "@ant-design/icons";
-import { Space, Table, Tag } from "antd";
+import { Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -20,6 +20,8 @@ import type {
   TrackHeatRanking
 } from "../../../types/api";
 import { DirectionTag, formatTime, industryPhaseLabel, marketPhaseLabel, StatusTag, TrackGradeTags } from "./shared";
+import { CycleJudgmentCell, ScoreSource, VerificationDate } from "../TrackResearchCells";
+import { TRACK_CYCLES } from "../trackTrendPresentation";
 
 const confidenceLabel: Record<string, string> = {
   low: "低",
@@ -113,9 +115,13 @@ export function OverviewSection() {
 
   const rankingColumns: ColumnsType<TrackHeatRanking> = [
     { title: "排名", dataIndex: "rank", width: 54 },
-    { title: "赛道", dataIndex: "track_name", width: 300, ellipsis: true },
+    { title: "赛道", dataIndex: "track_name", width: 180, ellipsis: true },
     { title: "状态", dataIndex: "status", width: 76, render: (value) => <StatusTag status={value} /> },
-    { title: "信息流", dataIndex: "current_heat", width: 68, render: (value) => Number(value || 0).toFixed(0) },
+    { title: "7日资讯", dataIndex: "current_heat", width: 78, render: (value) => Number(value || 0).toFixed(0) },
+    ...TRACK_CYCLES.map(({ cycle, label, window }) => ({
+      title: <Tooltip title={window}>{label}</Tooltip>, key: cycle, width: 116,
+      render: (_: unknown, record: TrackHeatRanking) => <CycleJudgmentCell view={record.cycle_views?.[cycle]} />
+    })),
     { title: "材料", dataIndex: "today_material_count", width: 56, render: countText },
     { title: "确认", dataIndex: "confirmed_material_count", width: 56, render: countText },
     { title: "已处理", dataIndex: "processed_material_count", width: 64, render: countText },
@@ -124,11 +130,16 @@ export function OverviewSection() {
     { title: "7日", dataIndex: "rank_change_7d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     { title: "30日", dataIndex: "rank_change_30d", width: 70, render: (value) => <span className={`track-change ${rankChangeClass(value)}`}>{rankChangeText(value)}</span> },
     {
-      title: "评级",
+      title: "六维评级 / 关注",
       key: "grade",
-      width: 126,
-      render: (_, record) => <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
+      width: 174,
+      render: (_, record) => <>
+        <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
+        <ScoreSource source={record.score_source} latestSnapshotId={record.snapshot_id} />
+      </>
     },
+    { title: "最新研究", dataIndex: "research_date", width: 110, render: (value) => value || "-" },
+    { title: "验证日期", key: "verification", width: 116, render: (_, record) => <VerificationDate date={record.next_verification_date} note={record.next_verification} /> },
     { title: "产业阶段", dataIndex: "industry_phase", width: 80, render: (value) => <Tag>{industryPhaseLabel(value)}</Tag> },
     { title: "市场阶段", dataIndex: "market_phase", width: 80, render: (value) => <Tag>{marketPhaseLabel(value)}</Tag> }
   ];
@@ -163,6 +174,7 @@ export function OverviewSection() {
             loading={dashboard.loading}
             dataSource={dashboard.data.heat_rankings.slice(0, 10)}
             columns={rankingColumns}
+            scroll={{ x: 1780 }}
             pagination={false}
             rowClassName={(record) => (record.track_id === selectedTrackId ? "selected-dashboard-row" : "")}
             onRow={(record) => ({ onClick: () => setSelectedTrackId(record.track_id) })}

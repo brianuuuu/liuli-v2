@@ -3225,6 +3225,18 @@ body {
   margin-inline-end: 0;
 }
 
+.track-research-cell,
+.track-verification-date { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; white-space: nowrap; }
+.track-research-cell .ant-tag,
+.track-verification-date .ant-tag { margin-inline-end: 0; }
+.track-research-cell small,
+.track-verification-date small,
+.track-score-source { color: var(--ll-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.track-score-source { display: block; margin-top: 3px; }
+.track-cycle-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.track-cycle-label { margin-bottom: 8px; font-weight: 600; }
+.track-cycle-label small { color: var(--ll-muted); font-size: 12px; font-weight: 400; }
+
 /* 六维评分：左边雷达看形状，右边条形读具体分数，两个一起才读得出"均衡还是单项突出" */
 .track-score-profile {
   display: grid;

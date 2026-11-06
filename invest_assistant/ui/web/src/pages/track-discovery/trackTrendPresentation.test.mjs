@@ -23,9 +23,13 @@ const {
   buildScoreRadarOption,
   buildScoreTimelineOption,
   buildSnapshotSummary,
+  buildCycleCells,
+  scoreSourceText,
+  verificationStatus,
   hasResearchContent,
   orderScenarios,
   parseDataSources,
+  snapshotCycleViews,
   splitSegments
 } = await import(pathToFileURL(compiledPath).href);
 
@@ -59,6 +63,63 @@ const palette = { text: "#333", grid: "#eee" };
   assert.equal(buildScoreCells(null).every((item) => item.value === null), true);
   // 0 分是真实分数，不能被当成缺值
   assert.equal(buildScoreCells(snapshot({ market_heat_score: 0 }))[0].value, 0);
+  assert.equal(buildScoreCells(snapshot({ market_heat_score: NaN }))[0].value, null);
+}
+
+// 三周期各用自己的来源；未覆盖不复制主导周期，明确待验证不回退为旧方向。
+{
+  const cells = buildCycleCells({
+    short: { direction: "uncertain", judgment: "等待交付", confidence: "low", snapshot_id: 22, report_id: 102, research_date: "2026-11-06" },
+    long: { direction: "positive", judgment: "需求持续", confidence: "high", snapshot_id: 9, report_id: 90, research_date: "2026-10-03" }
+  });
+  assert.deepEqual(cells.map((cell) => cell.cycle), ["short", "mid", "long"]);
+  assert.equal(cells[0].view.direction, "uncertain");
+  assert.equal(cells[0].view.research_date, "2026-11-06");
+  assert.equal(cells[1].view, null);
+  assert.equal(cells[2].view.research_date, "2026-10-03");
+  assert.equal(buildCycleCells(null).every((cell) => cell.view === null), true);
+}
+
+// 新定性报告不能让旧评分看起来刚更新，同日修订也以快照身份区分。
+{
+  const source = { snapshot_id: 9, report_id: 90, research_date: "2026-10-03" };
+  assert.equal(scoreSourceText(null, 22), "暂无评分");
+  assert.equal(scoreSourceText(source, 22), "历史评分 2026-10-03");
+  assert.equal(scoreSourceText(source, 9), "2026-10-03");
+}
+
+// 验证提醒只使用传入日期，不继承其他报告；按北京时间跨日。
+{
+  const now = new Date("2026-11-05T16:30:00Z");
+  assert.equal(verificationStatus(null, now), null);
+  assert.equal(verificationStatus("2026-11-05", now), "overdue");
+  assert.equal(verificationStatus("2026-11-06", now), "due");
+  assert.equal(verificationStatus("2026-11-07", now), "upcoming");
+  assert.equal(verificationStatus("invalid", now), null);
+}
+
+// 最新报告正文只显示本次覆盖周期，来源来自该报告身份，不接受 JSON 冒充来源。
+{
+  const raw = snapshot({ id: 22, report_id: 102, research_date: "2026-11-06", overall_score: null,
+    cycle_views_json: JSON.stringify({ short: { direction: "uncertain", judgment: "等待交付", confidence: "low", research_date: "2099-01-01" } }) });
+  const views = snapshotCycleViews(raw);
+  assert.equal(views.short.research_date, "2026-11-06");
+  assert.equal(views.short.snapshot_id, 22);
+  assert.equal(views.long, undefined);
+  assert.deepEqual(snapshotCycleViews({ cycle_views_json: "bad-json" }), {});
+  assert.equal(hasResearchContent({ id: 22, research_date: "2026-11-06", cycle_views_json: raw.cycle_views_json }), true);
+}
+
+// 未打分的报告留在时间线上形成真实缺口，不能连线越过或补成 0。
+{
+  const option = buildScoreTimelineOption([
+    { id: 3, research_date: "2026-11-06", overall_score: 7, market_heat_score: 6 },
+    { id: 2, research_date: "2026-11-06", overall_score: null, market_heat_score: null },
+    { id: 1, research_date: "2026-10-03", overall_score: 6, market_heat_score: 5 }
+  ], "light", palette);
+  assert.deepEqual(option.series[0].data, [6, null, 7]);
+  assert.deepEqual(option.series[1].data, [5, null, 6]);
+  assert.equal(option.series.every((series) => series.connectNulls === false), true);
 }
 
 // 六项分析固定六格，缺值也占位

@@ -248,6 +248,25 @@ export type Hotword = {
 };
 
 export type TrackCycle = 'short' | 'mid' | 'long';
+export type TrackResearchSource = {
+  snapshot_id: number;
+  report_id?: number | null;
+  research_date: string;
+};
+export type TrackCycleJudgment = {
+  direction: 'positive' | 'neutral' | 'negative' | 'uncertain';
+  judgment: string;
+  confidence: 'high' | 'medium' | 'low';
+};
+export type TrackCycleView = TrackCycleJudgment & TrackResearchSource;
+export type TrackCycleViews = Partial<Record<TrackCycle, TrackCycleView>>;
+export type TrackCurrentResearch = {
+  cycle_views?: TrackCycleViews;
+  score_source?: TrackResearchSource | null;
+  research_date?: string | null;
+  next_verification?: string | null;
+  next_verification_date?: string | null;
+};
 /** 综合评级，S 最高。由六维评分的平均分分档，后端算好下发。 */
 export type TrackGrade = 'S' | 'A' | 'B' | 'C' | 'D';
 /** 资金热度档位，T0 最热。只由 market_heat_score 决定，与评级各自独立。 */
@@ -255,7 +274,7 @@ export type TrackHeatTier = 'T0' | 'T1' | 'T2' | 'T3' | 'T4';
 export type TrackIndustryPhase = 'intro' | 'expansion' | 'mature' | 'contraction';
 export type TrackMarketPhase = 'latent' | 'start' | 'ferment' | 'accelerate' | 'climax' | 'divergence' | 'recede';
 
-export type Track = {
+export type Track = TrackCurrentResearch & {
   id: number;
   name: string;
   description?: string | null;
@@ -319,7 +338,7 @@ export type TrackMaterial = {
 };
 
 /** 赛道对比的一行：未研究的赛道快照字段全为 null，前端显示"待研究"。 */
-export type TrackComparisonItem = {
+export type TrackComparisonItem = TrackCurrentResearch & {
   track_id: number;
   name: string;
   status: string;
@@ -356,16 +375,17 @@ export type TrackTrendSnapshot = {
   core_judgment?: string | null;
   // 六维评分，0—10，一律"分高=更有利"：cycle_resilience 10 表示弱周期能穿越周期，
   // concentration 10 表示格局收敛龙头有定价权，读反了平均分就没有意义。
-  market_heat_score: number;
-  growth_speed_score: number;
-  concentration_score: number;
-  cycle_resilience_score: number;
-  current_market_size_score: number;
-  future_market_size_score: number;
+  market_heat_score: number | null;
+  growth_speed_score: number | null;
+  concentration_score: number | null;
+  cycle_resilience_score: number | null;
+  current_market_size_score: number | null;
+  future_market_size_score: number | null;
   // 派生三项，后端算好写库，前端只读不算。
-  overall_score: number;
-  track_grade: TrackGrade;
-  heat_tier: TrackHeatTier;
+  overall_score: number | null;
+  track_grade: TrackGrade | null;
+  heat_tier: TrackHeatTier | null;
+  cycle_views_json?: string | null;
   demand_space?: string | null;
   supply_competition?: string | null;
   profit_cashflow?: string | null;
@@ -378,6 +398,7 @@ export type TrackTrendSnapshot = {
   market_phase?: TrackMarketPhase | null;
   scenarios_json?: string | null;
   next_verification?: string | null;
+  next_verification_date?: string | null;
   risk_falsification?: string | null;
   change_vs_last?: string | null;
   data_gaps?: string | null;
@@ -472,13 +493,17 @@ export type TrackTrendSnapshotBrief = Pick<
   | 'overall_score'
   | 'track_grade'
   | 'heat_tier'
+  | 'cycle_views_json'
+  | 'next_verification'
+  | 'next_verification_date'
 >;
 
-export type TrackDetail = {
+export type TrackDetail = TrackCurrentResearch & {
   track: Track;
   summary: TrackDetailSummary;
   heat_trends: TrackDetailHeatTrend[];
   latest_snapshot?: TrackTrendSnapshot | null;
+  score_snapshot?: TrackTrendSnapshotBrief | null;
   trend_snapshots: TrackTrendSnapshotBrief[];
   materials: TrackMaterial[];
   stocks: TrackDetailStockRelation[];
@@ -498,7 +523,7 @@ export type TrackDashboardSummary = {
   } | null;
 };
 
-export type TrackHeatRanking = {
+export type TrackHeatRanking = TrackCurrentResearch & {
   rank: number;
   track_id: number;
   track_name: string;
@@ -517,9 +542,10 @@ export type TrackHeatRanking = {
   track_grade?: TrackGrade | null;
   heat_tier?: TrackHeatTier | null;
   overall_score?: number | null;
+  snapshot_id?: number | null;
 };
 
-export type TrackDashboardFocusTrack = {
+export type TrackDashboardFocusTrack = TrackCurrentResearch & {
   track_id: number;
   name: string;
   current_view?: string | null;
@@ -533,13 +559,14 @@ export type TrackDashboardFocusTrack = {
   bound_stock_count: number;
   recent_material_count: number;
   current_heat: number;
+  snapshot_id?: number | null;
 };
 
 export type TrackDashboardMaterial = TrackMaterial & {
   track_name: string;
 };
 
-export type TrackDashboardAnalysisSummary = {
+export type TrackDashboardAnalysisSummary = TrackCurrentResearch & {
   track_id: number;
   track_name: string;
   research_date?: string | null;
@@ -554,6 +581,7 @@ export type TrackDashboardAnalysisSummary = {
   key_contradiction?: string | null;
   next_verification?: string | null;
   risk_falsification?: string | null;
+  snapshot_id?: number | null;
 };
 
 export type TrackDashboard = {

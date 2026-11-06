@@ -24,7 +24,7 @@ import {
   TRACK_MARKET_PHASE_LABELS,
   TRACK_SCORE_MAX
 } from "./trackLibraryGroups";
-import type { TrackDetail, TrackTrendSnapshotBrief } from "../types/api";
+import type { TrackCycle, TrackDetail, TrackTrendSnapshotBrief } from "../types/api";
 import { formatNumber } from "../utils/format";
 
 type TrackDetailSection = "overview" | "snapshots" | "stocks" | "notes" | "materials";
@@ -39,12 +39,11 @@ const TRACK_DETAIL_SECTIONS: { value: TrackDetailSection; label: string }[] = [
 
 /**
  * 赛道卡的两个角标，和赛道库列表同一套样式。
- * 评级为空表示这条赛道还没有研究结论，显示"待研究"而不是 D 级——没研究过和研究后
- * 评了低分是两回事。
+ * 定性报告可以没有评分，缺值显示未评分，不当作低评级。
  */
 function TrackBadges({ grade, tier }: { grade?: string | null; tier?: string | null }) {
   if (!grade) {
-    return <span className="track-badges"><i className="track-badge track-badge--empty">待研究</i></span>;
+    return <span className="track-badges"><i className="track-badge track-badge--empty">未评分</i></span>;
   }
   return (
     <span className="track-badges">
@@ -95,21 +94,23 @@ export function TrackDetailPage() {
 /** 档案头：赛道名、评级与热度档位两个角标、阶段和三项关键计数。 */
 function TrackProfile({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
+  const score = detail.score_snapshot === undefined ? latest : detail.score_snapshot;
   const track = detailTrack(detail);
   return (
     <section className="track-profile">
       <div className="track-profile__head">
         <div>
           <h2>{track.name || "未命名赛道"}</h2>
-          {latest ? <p>{latest.research_date}{latest.researcher_code ? ` · ${latest.researcher_code}` : ""}</p> : <p>尚无研究结论</p>}
+          {latest ? <p>研究 {latest.research_date}</p> : <p>尚无研究结论</p>}
+          {score && latest && score.id !== latest.id ? <p>历史评分 {score.research_date}</p> : null}
         </div>
-        <TrackBadges grade={latest?.track_grade} tier={latest?.heat_tier} />
+        <TrackBadges grade={score?.track_grade} tier={score?.heat_tier} />
       </div>
       <div className="track-profile__phases">
         <span>产业 {trackLabel(TRACK_INDUSTRY_PHASE_LABELS, latest?.industry_phase || track.industry_phase)}</span>
         <span>市场 {trackLabel(TRACK_MARKET_PHASE_LABELS, latest?.market_phase || track.market_phase)}</span>
         <span>主导 {trackLabel(TRACK_CYCLE_LABELS, latest?.headline_cycle)}</span>
-        <span>综合 {latest ? latest.overall_score.toFixed(1) : "—"}</span>
+        <span>综合 {score?.overall_score == null ? "—" : score.overall_score.toFixed(1)}</span>
       </div>
       <div className="track-profile__metrics">
         <div><span>关联标的</span><strong>{activeStockCount(detail)}</strong></div>
@@ -139,16 +140,54 @@ function HeatMetric({ detail }: { detail: TrackDetail }) {
   );
 }
 
+const CYCLE_WINDOWS: { key: TrackCycle; label: string; window: string }[] = [
+  { key: "short", label: "短期", window: "≤3个月" },
+  { key: "mid", label: "中期", window: ">3–12个月" },
+  { key: "long", label: "长期", window: ">12–36个月" },
+];
+const CYCLE_DIRECTIONS = { positive: "偏强", neutral: "中性", negative: "偏弱", uncertain: "待验证" };
+const CYCLE_CONFIDENCE = { high: "高", medium: "中", low: "低" };
+
+function CycleJudgments({ views }: { views: NonNullable<TrackDetail["cycle_views"]> }) {
+  return <div className="track-cycle-brief" role="group" aria-label="三周期判断">
+    {CYCLE_WINDOWS.map(({ key, label, window }) => {
+      const view = views[key];
+      const title = <span>{label}<small>{window}</small></span>;
+      if (!view) return <div className="track-cycle-summary track-cycle-empty" key={key}>{title}<span>未覆盖</span></div>;
+      return <details className="track-cycle-row" key={key}>
+        <summary className="track-cycle-summary">
+          {title}
+          <strong data-direction={view.direction}>{CYCLE_DIRECTIONS[view.direction]}</strong>
+          <time dateTime={view.research_date}>{view.research_date}</time>
+        </summary>
+        <p>{view.judgment}</p>
+        <p className="track-cycle-confidence">置信度：{CYCLE_CONFIDENCE[view.confidence]}</p>
+      </details>;
+    })}
+  </div>;
+}
+
+function VerificationDate({ date }: { date?: string | null }) {
+  if (!date) return null;
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+  const status = date < today ? "已到期" : date === today ? "今日验证" : "待验证";
+  return <p className="track-verification-date" data-overdue={date < today || undefined}>{date} · {status}</p>;
+}
+
 function OverviewSection({ detail }: { detail: TrackDetail }) {
   const latest = detail.latest_snapshot;
+  const score = detail.score_snapshot === undefined ? latest : detail.score_snapshot;
   const track = detailTrack(detail);
-  const scores = buildDetailScoreRows(latest);
+  const scores = buildDetailScoreRows(score);
+  const coreJudgment = latest ? latest.core_judgment : track.current_view;
+  const hasCycles = CYCLE_WINDOWS.some(({ key }) => detail.cycle_views?.[key]);
   const segments = parseTrackSegments(latest?.segments_json);
   const benefiting = segments.filter((item) => item.stance === "benefiting");
   return (
     <>
       <SectionCard title="核心判断">
-        <p className="track-paragraph">{latest?.core_judgment || track.current_view || "尚无核心判断"}</p>
+        {coreJudgment || !hasCycles ? <p className="track-paragraph">{coreJudgment || "尚无核心判断"}</p> : null}
+        {hasCycles ? <CycleJudgments views={detail.cycle_views!} /> : null}
         {latest?.key_contradiction ? (
           <>
             <h4 className="track-subhead">主要矛盾</h4>
@@ -164,18 +203,18 @@ function OverviewSection({ detail }: { detail: TrackDetail }) {
             <div className="track-score-row" key={row.key}>
               <span className="track-score-label">{row.label}</span>
               <span className="track-score-bar">
-                <i style={{ width: `${((row.value ?? 0) / TRACK_SCORE_MAX) * 100}%` }} />
+                {row.value !== null ? <i style={{ width: `${(row.value / TRACK_SCORE_MAX) * 100}%` }} /> : null}
               </span>
               <strong>{row.value === null ? "—" : row.value.toFixed(1)}</strong>
             </div>
           ))}
-          {latest ? (
+          {score?.overall_score != null ? (
             <div className="track-score-row track-score-row--total">
               <span className="track-score-label">综合分</span>
               <span className="track-score-bar">
-                <i style={{ width: `${(latest.overall_score / TRACK_SCORE_MAX) * 100}%` }} />
+                <i style={{ width: `${(score.overall_score / TRACK_SCORE_MAX) * 100}%` }} />
               </span>
-              <strong>{latest.overall_score.toFixed(2)}</strong>
+              <strong>{score.overall_score.toFixed(2)}</strong>
             </div>
           ) : null}
         </div>
@@ -197,12 +236,13 @@ function OverviewSection({ detail }: { detail: TrackDetail }) {
         </SectionCard>
       ) : null}
 
-      {latest?.next_verification || latest?.risk_falsification ? (
+      {latest?.next_verification || latest?.next_verification_date || latest?.risk_falsification ? (
         <SectionCard title="验证与风险">
-          {latest?.next_verification ? (
+          {latest?.next_verification || latest?.next_verification_date ? (
             <>
               <h4 className="track-subhead">下一验证节点</h4>
-              <p className="track-paragraph">{latest.next_verification}</p>
+              <VerificationDate date={latest.next_verification_date} />
+              {latest.next_verification ? <p className="track-paragraph">{latest.next_verification}</p> : null}
             </>
           ) : null}
           {latest?.risk_falsification ? (
@@ -246,7 +286,7 @@ function SnapshotRow({ snapshot }: { snapshot: TrackTrendSnapshotBrief }) {
       </div>
       {snapshot.core_judgment ? <p>{snapshot.core_judgment}</p> : null}
       <div className="track-snapshot-row__foot">
-        <span>综合 {snapshot.overall_score.toFixed(2)}</span>
+        <span>综合 {snapshot.overall_score == null ? "—" : snapshot.overall_score.toFixed(2)}</span>
         <span>主导 {trackLabel(TRACK_CYCLE_LABELS, snapshot.headline_cycle)}</span>
         {snapshot.researcher_code ? <span>{snapshot.researcher_code}</span> : null}
       </div>

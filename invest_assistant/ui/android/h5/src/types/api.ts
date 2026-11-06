@@ -143,6 +143,14 @@ export type TrackDashboard = {
   }>;
 };
 export type TrackCycle = "short" | "mid" | "long";
+export type TrackCycleView = {
+  direction: "positive" | "neutral" | "negative" | "uncertain";
+  judgment: string;
+  confidence: "high" | "medium" | "low";
+  research_date: string;
+  snapshot_id: number;
+  report_id?: number | null;
+};
 /** 综合评级，S 最高，由六维评分的平均分分档。阈值在后端，前端只读不算。 */
 export type TrackGrade = "S" | "A" | "B" | "C" | "D";
 /** 资金热度档位，T0 最热，只由 market_heat_score 决定，与评级各自独立。 */
@@ -158,16 +166,16 @@ export type TrackTrendSnapshot = {
   core_judgment?: string | null;
   // 六维评分，0—10，一律"分高=更有利"：周期韧性 10 是弱周期能穿越周期，
   // 行业集中度 10 是格局收敛龙头有定价权，读反了平均分就没有意义。
-  market_heat_score: number;
-  growth_speed_score: number;
-  concentration_score: number;
-  cycle_resilience_score: number;
-  current_market_size_score: number;
-  future_market_size_score: number;
+  market_heat_score: number | null;
+  growth_speed_score: number | null;
+  concentration_score: number | null;
+  cycle_resilience_score: number | null;
+  current_market_size_score: number | null;
+  future_market_size_score: number | null;
   // 派生三项，后端算好写库。
-  overall_score: number;
-  track_grade: TrackGrade;
-  heat_tier: TrackHeatTier;
+  overall_score: number | null;
+  track_grade: TrackGrade | null;
+  heat_tier: TrackHeatTier | null;
   demand_space?: string | null;
   supply_competition?: string | null;
   profit_cashflow?: string | null;
@@ -180,6 +188,7 @@ export type TrackTrendSnapshot = {
   market_phase?: string | null;
   scenarios_json?: string | null;
   next_verification?: string | null;
+  next_verification_date?: string | null;
   risk_falsification?: string | null;
   change_vs_last?: string | null;
   data_gaps?: string | null;
@@ -241,6 +250,8 @@ export type TrackDetail = {
     last_updated_at?: string | null;
   };
   latest_snapshot?: TrackTrendSnapshot | null;
+  cycle_views?: Partial<Record<TrackCycle, TrackCycleView>>;
+  score_snapshot?: TrackTrendSnapshotBrief | null;
   trend_snapshots: TrackTrendSnapshotBrief[];
   materials: TrackMaterial[];
   // 笔记经标签归属到赛道：笔记打的标签绑定在这条赛道上就算。

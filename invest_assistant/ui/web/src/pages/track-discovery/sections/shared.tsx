@@ -1,4 +1,4 @@
-import { Tag } from "antd";
+import { Tag, Tooltip } from "antd";
 import type {
   TrackCandidate,
   TrackCycle,
@@ -86,14 +86,16 @@ export function TrackGradeTags({
   tier?: string | null;
   score?: number | null;
 }) {
-  if (!grade) return <Tag color="default">待研究</Tag>;
+  if (!grade) return <Tag color="default">暂无评分</Tag>;
   return (
     <span className="track-grade-tags">
-      <Tag color={gradeTagColor(grade)}>
-        {grade}
-        {typeof score === "number" ? ` ${score.toFixed(1)}` : ""}
-      </Tag>
-      {tier ? <Tag color={heatTierTagColor(tier)}>{tier}</Tag> : null}
+      <Tooltip title="六维综合评级与均分">
+        <Tag color={gradeTagColor(grade)}>
+          {grade}
+          {typeof score === "number" && Number.isFinite(score) ? ` ${score.toFixed(1)}` : ""}
+        </Tag>
+      </Tooltip>
+      {tier ? <Tooltip title="研究员对市场关注的分档，T0 最高；不是资讯热度"><Tag color={heatTierTagColor(tier)}>关注 {tier}</Tag></Tooltip> : null}
     </span>
   );
 }

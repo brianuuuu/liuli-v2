@@ -582,7 +582,14 @@ pending → confirmed / ignored；可由 track_discovery.review_track_events_dee
 
 一份"赛道趋势研究"报告的一个赛道 = 一条快照，由研究回流导入写入，纯追加，同日允许多份，经 `report_id` 回溯原文。
 
-六维量化评分（0—10，必填，一律"分高 = 更有利"）：
+快照只存本次研究，不复制历史结论。`cycle_views_json`（TEXT，可空）保存独立周期判断：
+
+```text
+short = ≤3个月，mid = >3—12个月，long = >12—36个月；省略表示未更新，uncertain 表示本次待验证。
+每项仅含 direction（positive/neutral/negative/uncertain）、judgment（非空）、confidence（high/medium/low）。
+```
+
+六维量化评分（0—10，可整组省略或全为 NULL，一律"分高 = 更有利"）：
 
 | 列 | 展示名 | 含义 |
 |---|---|---|
@@ -598,12 +605,17 @@ pending → confirmed / ignored；可由 track_discovery.review_track_events_dee
   overall_score = 六项等权平均；track_grade = S/A/B/C/D（按 overall_score 分档）；
   heat_tier = T0—T4（只由 market_heat_score 决定，T0 最热）。
 阈值只在 track_discovery/scoring.py 一份；改阈值需重算历史快照。
-缺任一维或越界分数整条拒绝，不夹到边界。
-评级与热度档位并排展示、不合成一个角标；研究优先级由评级推导（S/A 优先研究、B 持续跟踪、C/D 降低关注），不单独存。
+六维全有或全无，三个派生字段同步可空；不补0、D或T4。部分评分、非有限数或越界值拒绝。
+无评分时须有非空 core_judgment 或周期判断；旧完整评分报告保持兼容。
+评级与热度档位并排展示、不合成一个角标；评级提供产业研究优先级参考（S/A 优先研究、B 持续跟踪、C/D 降低关注），不单独存优先级，不替代各周期机会判断。
 其余内容：headline_cycle（short/mid/long）、core_judgment、六项分析（需求空间、供给竞争、盈利现金、政策催化、市场资金、定价预期差）、
-key_contradiction、segments_json、scenarios_json、next_verification、risk_falsification、change_vs_last、data_gaps、data_sources_json。
+key_contradiction、segments_json、scenarios_json、next_verification、next_verification_date、risk_falsification、change_vs_last、data_gaps、data_sources_json。
+next_verification_date（DATE，可空）是最新报告的验证日期；NULL表示未安排提醒，不继承旧日期，仅作页面到期提示。
+复盘复用 change_vs_last，记录新证据、验证/证伪与判断调整。
 代表公司只作报告留存；可检索的标的绑定只走 stock_track_relation。
 ```
+
+当前判断按 `(research_date, id)` 分别取各周期及完整评分的最新来源，不受历史列表条数限制。`cycle_views` 各项与 `score_source` 返回原始 `snapshot_id / report_id / research_date`，不允许报告自行填写来源。`latest_snapshot` 保持原文，`score_snapshot` 单列评分来源；局部更新不刷新其他判断日期，缺失不补造。
 
 ### 11.5 赛道热度
 
@@ -906,6 +918,7 @@ company_code 必须匹配已有 stock.stock_code，系统不自动创建标的�
 估值必填：company … researcher_code 等 17 个字段（VALUATION_IMPORT_FIELDS），valuation_assumptions 选填；
 趋势元素必填只有标的身份、research_date、trend_level；硬校验：trend_level ∈ T0—T5、
   suggested_group ∈ focused/candidate/watching/archived、research_date 与标题日期一致；
+赛道趋势必填赛道身份、research_date、headline_cycle；cycle_views 映射 cycle_views_json，其余契约见 11.4；
 数组类导入逐条写入、部分成功：有一条成功即置 parsed，全部失败才算失败；
 快照表无唯一键，一键导入不重跑已 parsed 的回流，重导由人工单条触发。
 "待导入"判定（pending_import=true）：状态为收到、类型可导入、未导入、且正文末尾能解析出形状正确的 JSON；
@@ -963,7 +976,7 @@ react-markdown + remark-gfm（报告阅读）
 
 标的分析"标的对比"页：评分 / 估值 / 趋势三张表，按池状态和赛道筛选（赛道按钮隐藏 0 个标的的赛道、按数量排序、放不下换行）；评分表六维分数只标两头（≥ 9.0 蓝色加粗为长项、≤ 7.0 橙色为短板），研究员显示中文名，可勾选 2–4 只叠加对比六维雷达，行内"详情"弹窗合并雷达图与核心逻辑、主要风险。趋势表列趋势等级（默认 T0 在前）、日线位置、公司地位（两者按报告枚举顺序排序）、主线赛道、建议分组（与标的池当前分组不同时标橙，只是建议不改状态）、Top 5，剩余空间、趋势持续、核心逻辑、下一步验证、主要风险、数据缺口在"详情"弹窗里看。
 
-赛道发现"赛道对比"页：数据来自 `/tracks/compare`，每个未归档赛道一行带最新快照；按状态筛选，综合分、评级、热度档位分三列（不用赛道卡的合并角标），默认按综合分降序，六维（展示名同 11.4）可逐列排序，只标两头（≥ 8 蓝色加粗为长项、≤ 4 橙色为短板，赛道分数整体低于标的，阈值单独定）；另列产业 / 市场阶段、主导周期、7 日资讯热度、研究日期（超过 30 天标灰）；未研究的赛道显示"待研究"、排序时沉底、不可勾选。勾选 2–4 个已研究赛道打开对比弹窗：六维叠加雷达、分数表，核心判断 / 主要矛盾 / 下一步验证 / 风险与证伪逐项并排；长文字不进表格。
+赛道发现"赛道对比"页：数据来自 `/tracks/compare`，每个未归档赛道一行带当前判断；按状态筛选，综合分、评级、热度档位分三列，默认综合分降序，六维可逐列排序，只标两头（≥8蓝色加粗、≤4橙色）；另列产业 / 市场阶段、主导周期、7日资讯热度、三周期判断及各自来源日期、验证日期到期提示（口径见11.4）。未评分排序沉底、不可勾选，图表缺分留空。勾选2–4个有评分赛道打开对比弹窗：六维雷达、分数表及核心判断 / 主要矛盾 / 下一步验证 / 风险与证伪并排；长文字按需展开。
 
 组合管理各页签顶部是同一种组合切换条（工具栏按钮平铺"所有组合"和各实盘组合，右侧放本页操作），不用下拉框。"收益分析"页看组合整体收益：组合 / 周期（当月、当年、有效记录以来）筛选，组合收益率、沪深300、超额收益、最大回撤、有效记录，收益率曲线（2/3）与盈亏方格日历（1/3，当月按星期、当年按月、全部按年）同行；只在切到该页时请求 `/review-performance`（含基准行情）。"调仓复盘"页看调仓决策效果：整页按组合筛选，调仓来源表及实际调仓指标再按调仓日期筛选（默认近一个月，工具栏提供近一星期 / 近一个月 / 近三个月快捷项及手选范围），AI 建议统计保留独立范围，与收益分析周期无关。指标分"实际调仓"（AI 建议 / 个人判断 20 日胜率）与"AI 建议"（增持 / 减持胜率、执行率、警示命中率、待评估）两组（组名在左侧，每个指标三行：名称、数值、样本数），无样本显示 NA → 调仓来源 / 信号表现 / 风险警示合为一个数据面板，工具栏按钮切换（与标的池同款，按钮带调仓笔数或已评估样本数）→ 微操报告明细；评估口径收进卡片标题的说明图标，样本不足 10 条在样本数旁标记，不整行置灰；全页统一用"增持 / 减持"。
 
@@ -1491,11 +1504,13 @@ id, track_id, material_type, material_id, direction, importance_level, status, n
 
 唯一：(track_id, material_type, material_id)；material_type 只有 source_item。
 
-#### `track_trend_snapshot`：赛道趋势研究快照（六维评分 + 派生评级）
+#### `track_trend_snapshot`：赛道趋势研究快照（三周期判断 + 可选六维评分）
 
 ```text
-id, track_id, research_date, researcher_code, report_id, market_heat_score, growth_speed_score, concentration_score, cycle_resilience_score, current_market_size_score, future_market_size_score, overall_score, track_grade, heat_tier, headline_cycle, core_judgment, demand_space, supply_competition, profit_cashflow, policy_catalyst, market_capital, pricing_expectation_gap, key_contradiction, segments_json, industry_phase, market_phase, scenarios_json, next_verification, risk_falsification, change_vs_last, data_gaps, data_sources_json, created_at
+id, track_id, research_date, researcher_code, report_id, market_heat_score, growth_speed_score, concentration_score, cycle_resilience_score, current_market_size_score, future_market_size_score, overall_score, track_grade, heat_tier, headline_cycle, core_judgment, cycle_views_json, demand_space, supply_competition, profit_cashflow, policy_catalyst, market_capital, pricing_expectation_gap, key_contradiction, segments_json, industry_phase, market_phase, scenarios_json, next_verification, next_verification_date, risk_falsification, change_vs_last, data_gaps, data_sources_json, created_at
 ```
+
+`cycle_views_json TEXT NULL`、`next_verification_date DATE NULL`；六维与三个派生评分列共九列允许 NULL，规则见11.4。
 
 #### `track_status_history`：赛道状态与阶段变化历史
 

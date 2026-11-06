@@ -745,6 +745,26 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 
 .track-subhead { margin: 12px 0 0; color: var(--muted); font-size: 12px; font-weight: 620; }
 .track-paragraph { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
+.track-cycle-brief { margin-top: 6px; }
+.track-cycle-row, .track-cycle-empty { border-bottom: 1px solid var(--border); }
+.track-cycle-brief > :last-child { border-bottom: 0; }
+.track-cycle-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 12px; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0; font-size: 12px; list-style: none; }
+summary.track-cycle-summary { cursor: pointer; }
+summary.track-cycle-summary::-webkit-details-marker { display: none; }
+summary.track-cycle-summary::after { content: "+"; color: var(--muted); text-align: center; }
+.track-cycle-row[open] > summary::after { content: "−"; }
+.track-cycle-summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.track-cycle-summary > span:first-child { display: grid; gap: 2px; }
+.track-cycle-summary small, .track-cycle-summary time, .track-cycle-empty { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.track-cycle-summary strong { font-weight: 620; }
+.track-cycle-summary strong[data-direction="positive"] { color: #ef4444; }
+.track-cycle-summary strong[data-direction="negative"] { color: #16a34a; }
+.track-cycle-summary strong[data-direction="uncertain"] { color: var(--muted); }
+.track-cycle-row > p { margin: 0 0 8px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.track-cycle-row > .track-cycle-confidence, .track-verification-date { color: var(--muted); font-size: 11px; }
+.track-verification-date { margin: 6px 0; font-variant-numeric: tabular-nums; }
+.track-verification-date[data-overdue] { color: #b45309; }
+:root[data-theme="dark"] .track-verification-date[data-overdue] { color: #f59e0b; }
 .track-segment-row + .track-segment-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .track-segment-row strong { font-size: 13px; }
 .track-segment-row p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }

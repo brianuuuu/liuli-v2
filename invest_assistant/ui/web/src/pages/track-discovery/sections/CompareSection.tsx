@@ -13,6 +13,8 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { TrackComparisonItem } from "../../../types/api";
 import { cycleLabel, gradeTagColor, heatTierTagColor, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions } from "./shared";
+import { CycleJudgmentCell, ScoreSource, VerificationDate } from "../TrackResearchCells";
+import { buildScoreCells, TRACK_CYCLES } from "../trackTrendPresentation";
 
 // 叠加雷达最多放几条：再多线条就缠在一起看不清；配色与标的对比同一套
 const MAX_COMPARE = 4;
@@ -20,7 +22,7 @@ const COMPARE_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706"];
 
 // 展示名与 spec 11.4 一致
 const SCORE_DIMENSIONS: { key: keyof TrackComparisonItem; label: string }[] = [
-  { key: "market_heat_score", label: "资金热度" },
+  { key: "market_heat_score", label: "市场关注" },
   { key: "growth_speed_score", label: "发展速度" },
   { key: "concentration_score", label: "行业集中度" },
   { key: "cycle_resilience_score", label: "周期韧性" },
@@ -118,7 +120,7 @@ export function CompareSection() {
       series: [
         {
           type: "radar",
-          data: records.map((record) => ({ value: SCORE_DIMENSIONS.map((item) => Number(record[item.key] ?? 0)), name: record.name })),
+          data: records.map((record) => ({ value: buildScoreCells(record).map((item) => item.value), name: record.name })),
           areaStyle: { opacity: 0.08 }
         }
       ]
@@ -134,16 +136,22 @@ export function CompareSection() {
       render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.track_id}`}>{value}</Link>
     },
     { title: "状态", dataIndex: "status", width: 80, render: (value) => <StatusTag status={value} /> },
+    ...TRACK_CYCLES.map(({ cycle, label, window }) => ({
+      title: <Tooltip title={window}>{label}</Tooltip>, key: cycle, width: 116,
+      render: (_: unknown, record: TrackComparisonItem) => <CycleJudgmentCell view={record.cycle_views?.[cycle]} />
+    })),
     // 综合分、评级、热度档位分三列：赛道卡上的合并角标适合卡片，在对比表里分不清各自含义，排序也只按综合分
     {
       title: "综合分",
       dataIndex: "overall_score",
-      width: 84,
+      width: 136,
       align: "right",
       sorter: scoreSorter("overall_score"),
       defaultSortOrder: "descend",
-      render: (value: number | null) =>
-        value == null ? <Tag>待研究</Tag> : <span className="stock-compare-score-value strong">{formatScore(value)}</span>
+      render: (value: number | null, record) => value == null ? <Tag>暂无评分</Tag> : <>
+        <span className="stock-compare-score-value strong">{formatScore(value)}</span>
+        <ScoreSource source={record.score_source} latestSnapshotId={record.snapshot_id} />
+      </>
     },
     {
       title: <Tooltip title="按综合分分档：S/A 优先研究、B 持续跟踪、C/D 降低关注">评级</Tooltip>,
@@ -153,7 +161,7 @@ export function CompareSection() {
       render: (value?: string | null) => (value ? <Tag color={gradeTagColor(value)}>{value}</Tag> : "-")
     },
     {
-      title: <Tooltip title="只由资金热度决定，T0 最热">热度档位</Tooltip>,
+      title: <Tooltip title="研究员对市场关注的分档，T0 最高；不是实时资金流或资讯热度">关注档位</Tooltip>,
       dataIndex: "heat_tier",
       width: 84,
       align: "center",
@@ -176,7 +184,7 @@ export function CompareSection() {
     },
     { title: "主导周期", dataIndex: "headline_cycle", width: 80, render: (value) => cycleLabel(value) },
     {
-      title: <Tooltip title="赛道绑定标签的 7 日资讯热度合计，与研究员打的资金热度不是一回事">资讯热度</Tooltip>,
+      title: <Tooltip title="赛道绑定标签的 7 日资讯热度合计，与研究员的市场关注评分不同">资讯热度</Tooltip>,
       dataIndex: "current_heat",
       width: 106,
       align: "right",
@@ -184,9 +192,9 @@ export function CompareSection() {
       render: (value: number) => (value ? value.toFixed(1) : <Typography.Text type="secondary">0</Typography.Text>)
     },
     {
-      title: "研究日期",
+      title: "最新研究",
       dataIndex: "research_date",
-      width: 104,
+      width: 120,
       sorter: (a, b) => String(a.research_date || "").localeCompare(String(b.research_date || "")),
       render: (value?: string | null) =>
         !value ? (
@@ -198,6 +206,10 @@ export function CompareSection() {
         ) : (
           value
         )
+    },
+    {
+      title: "验证日期", key: "verification", width: 116,
+      render: (_, record) => <VerificationDate date={record.next_verification_date} note={record.next_verification} />
     }
   ];
 
@@ -239,11 +251,11 @@ export function CompareSection() {
           onChange: setSelectedKeys,
           // 未研究的没有分数不能比；满 MAX_COMPARE 个后其余行不可勾
           getCheckboxProps: (record) => ({
-            disabled: !record.snapshot_id || (selectedKeys.length >= MAX_COMPARE && !selectedKeys.includes(record.track_id))
+            disabled: !record.score_source || buildScoreCells(record).some((cell) => cell.value === null) || (selectedKeys.length >= MAX_COMPARE && !selectedKeys.includes(record.track_id))
           })
         }}
         pagination={{ defaultPageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-        scroll={{ x: 1560 }}
+        scroll={{ x: 2090 }}
         locale={{ emptyText: <EmptyAction description="暂无赛道，先在赛道库新建赛道" /> }}
       />
       <Modal
@@ -265,7 +277,9 @@ export function CompareSection() {
               title: "赛道",
               dataIndex: "name",
               render: (value, _record, index) => (
-                <span><i className="stock-compare-legend-dot" style={{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }} />{value}</span>
+                <span><i className="stock-compare-legend-dot" style={{ background: COMPARE_COLORS[index % COMPARE_COLORS.length] }} />{value}
+                  <ScoreSource source={_record.score_source} latestSnapshotId={_record.snapshot_id} />
+                </span>
               )
             },
             { title: "综合", dataIndex: "overall_score", width: 64, align: "right", render: (value) => <span className="stock-compare-score-value strong">{formatScore(value)}</span> },

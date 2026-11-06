@@ -99,18 +99,19 @@ TREND_TEXT_FIELDS = [
     "data_gaps",
 ]
 # 赛道趋势报告的最终 JSON 同样是数组，一份报告可覆盖多条赛道，元素字段与
-# track_trend_snapshot 一一对应。必填只有赛道身份（track_id 或 track_name）加下面三项。
-TRACK_TREND_REQUIRED_FIELDS = ["research_date", "headline_cycle", *TRACK_SCORE_FIELDS]
+# track_trend_snapshot 一一对应。评分可以整组省略；缺少评分时须有本次实际判断。
+TRACK_TREND_REQUIRED_FIELDS = ["research_date", "headline_cycle"]
 TRACK_TREND_COLUMN_LIMITS = {
     column.name: column.type.length
     for column in TrackTrendSnapshot.__table__.columns
     if isinstance(column.type, String) and column.type.length
 }
-# 报告里写成数组/对象的三项，落库前序列化成 TEXT：SQLite 和 PG 要跑同一套代码，不用 JSONB。
+# 报告里写成数组/对象的字段，落库前序列化成 TEXT：SQLite 和 PG 要跑同一套代码，不用 JSONB。
 TRACK_TREND_JSON_FIELDS = {
     "segments": "segments_json",
     "scenarios": "scenarios_json",
     "data_sources": "data_sources_json",
+    "cycle_views": "cycle_views_json",
 }
 TRACK_TREND_ENUM_FIELDS = {
     "headline_cycle": TRACK_CYCLES,
@@ -1414,8 +1415,12 @@ def _normalize_track_trend_import_payload(payload: dict, feedback: KnowledgeRese
         "researcher_code": _normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
         "report_id": feedback.report_id,
     }
+    present_scores = [field for field in TRACK_SCORE_FIELDS if payload.get(field) is not None]
+    if present_scores and len(present_scores) != len(TRACK_SCORE_FIELDS):
+        missing_scores = [field for field in TRACK_SCORE_FIELDS if payload.get(field) is None]
+        raise ValueError(f"赛道六维评分必须全部提供或全部省略/null，缺少评分字段: {', '.join(missing_scores)}")
     for field in TRACK_SCORE_FIELDS:
-        normalized[field] = _track_trend_import_score(payload.get(field), field)
+        normalized[field] = _track_trend_import_score(payload[field], field) if present_scores else None
     for field, allowed in TRACK_TREND_ENUM_FIELDS.items():
         value = str(payload.get(field) or "").strip().lower()
         if not value:
@@ -1431,10 +1436,16 @@ def _normalize_track_trend_import_payload(payload: dict, feedback: KnowledgeRese
         normalized[field] = _normalize_optional_text(str(payload.get(field) or ""))
     for source_field, column in TRACK_TREND_JSON_FIELDS.items():
         value = payload.get(source_field)
+        if source_field == "cycle_views" and value is not None and not isinstance(value, dict):
+            raise ValueError("cycle_views 必须是包含 short/mid/long 周期判断的对象")
         if value is None or value == [] or value == {}:
             normalized[column] = None
             continue
         normalized[column] = _json_text(value)
+    verification_date = payload.get("next_verification_date")
+    normalized["next_verification_date"] = (
+        _import_date_field(verification_date, "next_verification_date") if verification_date is not None else None
+    )
     _assert_track_trend_field_lengths(normalized)
     return normalized
 
@@ -1445,6 +1456,8 @@ def _track_trend_import_score(value: Any, field: str) -> float:
     超范围直接报错而不是夹到边界：分数越界说明研究员用的是别的量纲，静默夹到 10 会把
     这条误差原样写进评级和角标，人却看不出来。
     """
+    if isinstance(value, bool):
+        raise ValueError(f"{field} 必须是数字，不能是布尔值")
     try:
         score = float(value)
     except (TypeError, ValueError):

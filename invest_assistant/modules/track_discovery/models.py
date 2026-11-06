@@ -55,8 +55,8 @@ class TrackTrendSnapshot(Base):
     所有判断描述一律 Text，只有枚举码用 String——stock_trend_snapshot 就是因为把判断
     描述按 VARCHAR(50) 建，PostgreSQL 直接拒收整条快照，才回头加宽的。
 
-    结论层是六维量化评分：六个 0—10 分 + 派生的综合分、评级、热度档位。口径和阈值在
-    scoring.py，派生列由 service 在写入时算好，不接受调用方传值。
+    本次实际周期判断和评分分别保存。六个 0—10 分全有或全无，定性研究不复制历史分数。
+    派生综合分、评级、热度档位的口径在 scoring.py，不接受调用方传值。
     """
 
     __tablename__ = "track_trend_snapshot"
@@ -70,22 +70,24 @@ class TrackTrendSnapshot(Base):
 
     # 六维评分，全部 0—10 且一律"分高=更有利"：周期韧性 10=弱周期穿越周期，
     # 行业集中度 10=格局收敛龙头有定价权。读反了平均分就没有意义，见 scoring.py。
-    market_heat_score: Mapped[float] = mapped_column(Float, nullable=False)
-    growth_speed_score: Mapped[float] = mapped_column(Float, nullable=False)
-    concentration_score: Mapped[float] = mapped_column(Float, nullable=False)
-    cycle_resilience_score: Mapped[float] = mapped_column(Float, nullable=False)
-    current_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
-    future_market_size_score: Mapped[float] = mapped_column(Float, nullable=False)
+    market_heat_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    growth_speed_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    concentration_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cycle_resilience_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_market_size_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    future_market_size_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # 派生列：六项平均、综合分评级、资金热度档位。冗余存一份是为了看板按评级筛选排序
     # 走 SQL，不用把全部快照捞进内存再算。写入路径统一由 scoring.derive_track_scores 生成。
-    overall_score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
-    track_grade: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
-    heat_tier: Mapped[str] = mapped_column(String(4), nullable=False, index=True)
+    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    track_grade: Mapped[str | None] = mapped_column(String(2), nullable=True, index=True)
+    heat_tier: Mapped[str | None] = mapped_column(String(4), nullable=True, index=True)
 
     # 卡片副标题：本次判断的主导周期。强度已由评级承接，这里只说"结论站在哪个时间尺度"。
     headline_cycle: Mapped[str] = mapped_column(String(16), nullable=False)
     core_judgment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 只存本报告实际更新的 short/mid/long；日期和原报告来源沿用本行。
+    cycle_views_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 六项核心分析，固定框架，Web 按六宫格渲染。
     demand_space: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -105,6 +107,7 @@ class TrackTrendSnapshot(Base):
     # [{name: base|bull|bear, key_variable, trigger, path, window}]
     scenarios_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     next_verification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_verification_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     risk_falsification: Mapped[str | None] = mapped_column(Text, nullable=True)
     change_vs_last: Mapped[str | None] = mapped_column(Text, nullable=True)

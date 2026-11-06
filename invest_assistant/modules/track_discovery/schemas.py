@@ -1,9 +1,11 @@
+import json
 from datetime import date, datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 from invest_assistant.modules.knowledge_base.schemas import KnowledgeNoteRead
-from invest_assistant.modules.track_discovery.scoring import SCORE_MAX, SCORE_MIN
+from invest_assistant.modules.track_discovery.scoring import SCORE_MAX, SCORE_MIN, TRACK_SCORE_FIELDS
 
 
 # 笔记与材料并列，经标签归属到赛道，不作为材料引用。
@@ -23,6 +25,37 @@ def _validate_choice(value: str | None, allowed: set[str], field: str) -> str | 
     if value is not None and value not in allowed:
         raise ValueError(f"{field} must be one of: {', '.join(sorted(allowed))}")
     return value
+
+
+TrackCycle = Literal["short", "mid", "long"]
+
+
+class TrackCycleView(BaseModel):
+    direction: Literal["positive", "neutral", "negative", "uncertain"]
+    judgment: str = Field(min_length=1)
+    confidence: Literal["high", "medium", "low"]
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class TrackResearchSource(BaseModel):
+    snapshot_id: int
+    report_id: int | None = None
+    research_date: date
+
+
+class TrackCycleViewRead(TrackCycleView, TrackResearchSource):
+    """当前周期判断及其真实来源；来源字段不接受研究报告传入。"""
+
+
+_CYCLE_VIEWS_ADAPTER = TypeAdapter(dict[TrackCycle, TrackCycleView])
+
+
+def parse_cycle_views_json(value: str | None) -> dict[str, dict[str, str]]:
+    if value is None:
+        return {}
+    views = _CYCLE_VIEWS_ADAPTER.validate_python(json.loads(value))
+    return {cycle: view.model_dump() for cycle, view in views.items()}
 
 
 class TrackCreate(BaseModel):
@@ -78,12 +111,17 @@ class TrackUpdate(BaseModel):
 class TrackRead(TrackCreate):
     id: int
     latest_snapshot_id: int | None = None
-    # 最新快照的两个角标 + 排序用的综合分，随列表一起下发，赛道卡不用再逐条查快照。
-    # 未研究的赛道三项都是 null，不要在这里补 0 分或 D 级。
+    # 最新实际评分来源的角标和综合分；最新报告可以只更新定性判断。
+    # 从未评分的赛道三项都是 null，不要在这里补 0 分或 D 级。
     track_grade: str | None = None
     heat_tier: str | None = None
     overall_score: float | None = None
     headline_cycle: str | None = None
+    research_date: date | None = None
+    next_verification: str | None = None
+    next_verification_date: date | None = None
+    cycle_views: dict[TrackCycle, TrackCycleViewRead] = Field(default_factory=dict)
+    score_source: TrackResearchSource | None = None
     tag: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -205,9 +243,8 @@ class TrackStatusHistoryRead(BaseModel):
 class TrackTrendSnapshotCreate(BaseModel):
     """一份赛道趋势研究报告的结论。
 
-    必填是身份两项加六个评分：评分缺一项就算不出综合分、评级和热度档位，赛道卡的两个
-    角标会空着，这条快照在看板上等于不存在，所以不按"缺字段也先入库"处理。其余长文本
-    照旧可空，报告原文经 report_id 可回溯。
+    六个评分全有或全无；定性研究必须提供实际周期判断或核心判断，不复制历史评分。
+    周期省略表示本次未研究，uncertain 表示本次明确待验证，不能回退到旧方向。
 
     综合分、评级、热度档位是服务端派生的，不在这里接收：允许传值就会出现分数和评级对不上
     的快照，而这两者对不上时没人知道该信哪个。
@@ -215,15 +252,16 @@ class TrackTrendSnapshotCreate(BaseModel):
 
     research_date: date
     headline_cycle: str
-    market_heat_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
-    growth_speed_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
-    concentration_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
-    cycle_resilience_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
-    current_market_size_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
-    future_market_size_score: float = Field(ge=SCORE_MIN, le=SCORE_MAX)
+    market_heat_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
+    growth_speed_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
+    concentration_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
+    cycle_resilience_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
+    current_market_size_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
+    future_market_size_score: float | None = Field(default=None, ge=SCORE_MIN, le=SCORE_MAX, allow_inf_nan=False)
     researcher_code: str | None = None
     report_id: int | None = None
     core_judgment: str | None = None
+    cycle_views_json: str | None = None
 
     demand_space: str | None = None
     supply_competition: str | None = None
@@ -239,11 +277,34 @@ class TrackTrendSnapshotCreate(BaseModel):
     market_phase: str | None = None
     scenarios_json: str | None = None
     next_verification: str | None = None
+    next_verification_date: date | None = None
 
     risk_falsification: str | None = None
     change_vs_last: str | None = None
     data_gaps: str | None = None
     data_sources_json: str | None = None
+
+    @field_validator(*TRACK_SCORE_FIELDS, mode="before")
+    @classmethod
+    def reject_boolean_scores(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("scores must be numbers, not booleans")
+        return value
+
+    @field_validator("cycle_views_json")
+    @classmethod
+    def validate_cycle_views_json(cls, value: str | None) -> str | None:
+        views = parse_cycle_views_json(value)
+        return json.dumps(views, ensure_ascii=False) if views else None
+
+    @model_validator(mode="after")
+    def validate_research_content(self):
+        provided = [getattr(self, field) is not None for field in TRACK_SCORE_FIELDS]
+        if any(provided) and not all(provided):
+            raise ValueError("six track scores must be supplied together or all omitted")
+        if not any(provided) and not self.cycle_views_json and not (self.core_judgment or "").strip():
+            raise ValueError("unscored research requires cycle_views_json or core_judgment")
+        return self
 
     @field_validator("headline_cycle")
     @classmethod
@@ -265,9 +326,9 @@ class TrackTrendSnapshotRead(TrackTrendSnapshotCreate):
     id: int
     track_id: int
     # 派生三项只读不写，写入端由 scoring 算好，见 TrackTrendSnapshotCreate 的说明。
-    overall_score: float
-    track_grade: str
-    heat_tier: str
+    overall_score: float | None = None
+    track_grade: str | None = None
+    heat_tier: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -287,17 +348,19 @@ class TrackTrendSnapshotBrief(BaseModel):
     report_id: int | None = None
     headline_cycle: str
     core_judgment: str | None = None
+    cycle_views_json: str | None = None
+    next_verification_date: date | None = None
 
-    market_heat_score: float
-    growth_speed_score: float
-    concentration_score: float
-    cycle_resilience_score: float
-    current_market_size_score: float
-    future_market_size_score: float
+    market_heat_score: float | None = None
+    growth_speed_score: float | None = None
+    concentration_score: float | None = None
+    cycle_resilience_score: float | None = None
+    current_market_size_score: float | None = None
+    future_market_size_score: float | None = None
 
-    overall_score: float
-    track_grade: str
-    heat_tier: str
+    overall_score: float | None = None
+    track_grade: str | None = None
+    heat_tier: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -349,6 +412,9 @@ class TrackDetailRead(BaseModel):
     summary: TrackDetailSummary
     heat_trends: list[TrackDetailHeatTrend] = Field(default_factory=list)
     latest_snapshot: TrackTrendSnapshotRead | None = None
+    cycle_views: dict[TrackCycle, TrackCycleViewRead] = Field(default_factory=dict)
+    score_source: TrackResearchSource | None = None
+    score_snapshot: TrackTrendSnapshotBrief | None = None
     trend_snapshots: list[TrackTrendSnapshotBrief] = Field(default_factory=list)
     materials: list[TrackMaterialRead] = Field(default_factory=list)
     stocks: list[TrackDetailStockRelation] = Field(default_factory=list)

@@ -8,7 +8,7 @@ assert.match(page, /listTrackComparison/);
 assert.doesNotMatch(page, /listTrackTrendSnapshots/);
 assert.doesNotMatch(page, /选择赛道查看快照/);
 // 列名用 spec 11.4 的展示名
-assert.match(page, /资金热度/);
+assert.match(page, /市场关注/);
 assert.match(page, /行业集中度/);
 // 分数只标两头，阈值按赛道分布定
 assert.match(page, /STRONG_SCORE = 8/);
@@ -21,4 +21,4 @@ assert.match(page, /待研究/);
 // 综合分、评级、热度档位分三列，不用赛道卡的合并角标
 assert.doesNotMatch(page, /TrackGradeTags/);
 assert.match(page, /title: "综合分"/);
-assert.match(page, /热度档位/);
+assert.match(page, /关注档位/);

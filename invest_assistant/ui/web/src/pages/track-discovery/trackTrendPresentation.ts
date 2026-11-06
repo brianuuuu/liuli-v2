@@ -1,6 +1,9 @@
 import type { EChartsOption } from "echarts";
 import type {
   TrackDataSource,
+  TrackCycle,
+  TrackCycleViews,
+  TrackResearchSource,
   TrackScenario,
   TrackSegment,
   TrackTrendSnapshot
@@ -16,7 +19,7 @@ import type {
 
 /** 六维评分的展示顺序和中文名。顺序固定，雷达图和明细表共用，换位置只改这里。 */
 export const TRACK_SCORE_DIMENSIONS = [
-  { key: "market_heat_score", label: "资金热度", hint: "资金与叙事当前的关注程度，不是资讯条数那个资讯热度" },
+  { key: "market_heat_score", label: "市场关注", hint: "研究员对资金与叙事关注程度的评分，不是实时资金流，也不是资讯条数" },
   { key: "growth_speed_score", label: "发展速度", hint: "产业与需求的扩张斜率" },
   { key: "concentration_score", label: "行业集中度", hint: "10 分为格局收敛、龙头有定价权" },
   { key: "cycle_resilience_score", label: "周期韧性", hint: "10 分为弱周期、能穿越周期" },
@@ -31,11 +34,51 @@ export const SCORE_MAX = 10;
 export type ScoreCell = { key: TrackScoreKey; label: string; hint: string; value: number | null };
 
 /** 六维分数取值，缺值给 null 由调用方显示占位，不补 0——0 分和没打分是两回事。 */
-export function buildScoreCells(snapshot?: Partial<TrackTrendSnapshot> | null): ScoreCell[] {
+export function buildScoreCells(snapshot?: Partial<Pick<TrackTrendSnapshot, TrackScoreKey>> | null): ScoreCell[] {
   return TRACK_SCORE_DIMENSIONS.map((item) => {
     const value = snapshot?.[item.key];
-    return { key: item.key, label: item.label, hint: item.hint, value: typeof value === "number" ? value : null };
+    return { key: item.key, label: item.label, hint: item.hint, value: typeof value === "number" && Number.isFinite(value) ? value : null };
   });
+}
+
+export const TRACK_CYCLES: { cycle: TrackCycle; label: string; window: string }[] = [
+  { cycle: "short", label: "短期", window: "≤3个月" },
+  { cycle: "mid", label: "中期", window: ">3–12个月" },
+  { cycle: "long", label: "长期", window: ">12–36个月" }
+];
+
+/** 来源完全由接口提供；未覆盖周期不从主导周期或其他报告推测。 */
+export function buildCycleCells(views?: TrackCycleViews | null) {
+  return TRACK_CYCLES.map((item) => ({ ...item, view: views?.[item.cycle] ?? null }));
+}
+
+export function snapshotCycleViews(snapshot?: Partial<TrackTrendSnapshot> | null): TrackCycleViews {
+  if (!snapshot?.cycle_views_json || !snapshot.id || !snapshot.research_date) return {};
+  try {
+    const raw = JSON.parse(snapshot.cycle_views_json);
+    const result: TrackCycleViews = {};
+    for (const { cycle } of TRACK_CYCLES) {
+      const view = raw?.[cycle];
+      if (!view || !["positive", "neutral", "negative", "uncertain"].includes(view.direction)
+        || !["high", "medium", "low"].includes(view.confidence) || typeof view.judgment !== "string" || !view.judgment.trim()) continue;
+      result[cycle] = {
+        direction: view.direction, judgment: view.judgment, confidence: view.confidence,
+        snapshot_id: snapshot.id, report_id: snapshot.report_id ?? null, research_date: snapshot.research_date
+      };
+    }
+    return result;
+  } catch { return {}; }
+}
+
+export function scoreSourceText(source?: TrackResearchSource | null, latestSnapshotId?: number | null) {
+  if (!source) return "暂无评分";
+  return `${latestSnapshotId && source.snapshot_id !== latestSnapshotId ? "历史评分 " : ""}${source.research_date}`;
+}
+
+export function verificationStatus(date?: string | null, now = new Date()): "overdue" | "due" | "upcoming" | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return date < today ? "overdue" : date === today ? "due" : "upcoming";
 }
 
 /** JSON 列存的是报告原文，解析失败不能让整页白屏，降级成空数组由调用方显示占位。 */
@@ -107,6 +150,7 @@ export function buildSnapshotSummary(snapshot?: Partial<TrackTrendSnapshot> | nu
     coreJudgment: snapshot.core_judgment || null,
     keyContradiction: snapshot.key_contradiction || null,
     nextVerification: snapshot.next_verification || null,
+    nextVerificationDate: snapshot.next_verification_date || null,
     riskFalsification: snapshot.risk_falsification || null,
     changeVsLast: snapshot.change_vs_last || null,
     dataGaps: snapshot.data_gaps || null
@@ -116,11 +160,17 @@ export function buildSnapshotSummary(snapshot?: Partial<TrackTrendSnapshot> | nu
 /** 有没有实质研究内容，用来决定是显示正文还是显示"尚无研究结论"。 */
 export function hasResearchContent(snapshot?: Partial<TrackTrendSnapshot> | null): boolean {
   if (!snapshot) return false;
-  // 打了分就算有结论：长文本可以缺，六维评分不能缺，快照存在就一定有分数。
+  // 定性报告可不打分；评分和正文都不能靠其他报告补入。
   if (typeof snapshot.overall_score === "number") return true;
   const cells = buildAnalysisCells(snapshot);
   if (cells.some((item) => item.value)) return true;
   if (snapshot.core_judgment || snapshot.key_contradiction) return true;
+  if (snapshot.cycle_views_json) {
+    try {
+      const views = JSON.parse(snapshot.cycle_views_json);
+      if (TRACK_CYCLES.some(({ cycle }) => typeof views?.[cycle]?.judgment === "string" && views[cycle].judgment.trim())) return true;
+    } catch { /* 旧数据解析失败时仍可展示其他正文。 */ }
+  }
   return splitSegments(snapshot.segments_json).benefiting.length > 0;
 }
 
@@ -168,11 +218,11 @@ export function buildScoreRadarOption(
   };
 }
 
-type ScoreRow = Pick<TrackTrendSnapshot, "research_date" | "overall_score" | "market_heat_score">;
+type ScoreRow = Pick<TrackTrendSnapshot, "research_date" | "overall_score" | "market_heat_score"> & { id?: number };
 
 /**
- * 综合分与资金热度随时间的走势。两条线分开看才有意义：综合分抬升而热度不动，是还没被
- * 市场定价；热度冲高而综合分不动，是纯情绪。纵轴固定 0—10，同一天多份快照全部保留。
+ * 原始报告评分随研究日期的变化，不代表收益。定性报告留下空缺，不连接或补入旧评分。
+ * 纵轴固定 0—10，同一天多份快照按 ID 顺序保留。
  */
 export function buildScoreTimelineOption(
   rows: ScoreRow[],
@@ -181,7 +231,7 @@ export function buildScoreTimelineOption(
 ): EChartsOption {
   const ordered = [...rows]
     .filter((item) => item.research_date)
-    .sort((a, b) => String(a.research_date).localeCompare(String(b.research_date)));
+    .sort((a, b) => String(a.research_date).localeCompare(String(b.research_date)) || (a.id ?? 0) - (b.id ?? 0));
   return {
     tooltip: { trigger: "axis", axisPointer: { type: "line" } },
     legend: { textStyle: { color: palette.text } },
@@ -205,22 +255,22 @@ export function buildScoreTimelineOption(
       {
         name: "综合分",
         type: "line",
-        smooth: true,
-        connectNulls: true,
+        smooth: false,
+        connectNulls: false,
         symbolSize: 8,
         lineStyle: { width: 2, color: SCORE_ACCENT },
         itemStyle: { color: SCORE_ACCENT },
-        data: ordered.map((item) => item.overall_score ?? null)
+        data: ordered.map((item) => typeof item.overall_score === "number" && Number.isFinite(item.overall_score) ? item.overall_score : null)
       },
       {
-        name: "资金热度",
+        name: "市场关注",
         type: "line",
-        smooth: true,
-        connectNulls: true,
+        smooth: false,
+        connectNulls: false,
         symbolSize: 8,
         lineStyle: { width: 2, color: HEAT_ACCENT },
         itemStyle: { color: HEAT_ACCENT },
-        data: ordered.map((item) => item.market_heat_score ?? null)
+        data: ordered.map((item) => typeof item.market_heat_score === "number" && Number.isFinite(item.market_heat_score) ? item.market_heat_score : null)
       }
     ],
     darkMode: mode === "dark"

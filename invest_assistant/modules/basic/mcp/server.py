@@ -69,6 +69,8 @@ MCP_TOOL_DESCRIPTIONS = {
     ),
     "track_discovery.get_track_detail": (
         "按已知 track_id 获取赛道详情。默认只返回赛道基础信息、汇总、最新快照、相关标的、用户笔记和标签；"
+        "同时提供 cycle_views 三周期判断及各自来源、score_source 和 score_snapshot 评分来源；"
+        "latest_snapshot 是最新报告原始结论，未评分时为空分数，不代表历史评分失效或刚被复核。"
         "用户笔记是用户本人的重大判断，分量高于材料，分析时优先参考。"
         "需要研究材料、历史快照或热度趋势时用 sections 显式指定（materials/snapshots/stocks/notes/tags/heat），"
         "列表字段按 list_limit 截断并给出 {字段}_total。仅在已知 track_id 时调用，不要猜测 ID。"

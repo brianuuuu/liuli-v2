@@ -42,6 +42,7 @@ import {
   hasResearchContent,
   orderScenarios,
   parseDataSources,
+  snapshotCycleViews,
   splitSegments,
   SCORE_MAX,
   TRACK_SCORE_DIMENSIONS
@@ -60,6 +61,7 @@ import {
   thesisStatusOptions,
   TrackGradeTags
 } from "./sections/shared";
+import { CycleJudgments, ScoreSource, VerificationDate } from "./TrackResearchCells";
 
 const materialTypeLabels: Record<string, string> = {
   source_item: "信息流"
@@ -250,7 +252,12 @@ export function TrackDetailPage() {
 
   async function submitSnapshot() {
     const values = await snapshotForm.validateFields();
-    await createTrackTrendSnapshot(trackId, values);
+    const scoreCount = TRACK_SCORE_DIMENSIONS.filter(({ key }) => values[key] != null).length;
+    if (scoreCount !== 0 && scoreCount !== TRACK_SCORE_DIMENSIONS.length) {
+      message.error("六项评分请全部填写或全部留空");
+      return;
+    }
+    await createTrackTrendSnapshot(trackId, { ...values, next_verification_date: values.next_verification_date || null });
     message.success("趋势快照已新增");
     snapshotForm.resetFields();
     setSnapshotOpen(false);
@@ -377,8 +384,7 @@ export function TrackDetailPage() {
             <Form.Item name="industry_phase" label="产业阶段"><Select allowClear options={industryPhaseOptions} /></Form.Item>
             <Form.Item name="market_phase" label="市场阶段"><Select allowClear options={marketPhaseOptions} /></Form.Item>
           </div>
-          {/* 六维评分必填：缺一项就算不出综合分和评级，这条快照在看板上等于不存在。
-              评级和热度档位由后端派生，表单里不出现。 */}
+          <Typography.Paragraph type="secondary">六项评分可全部留空；需要评分时请完整填写。</Typography.Paragraph>
           <div className="track-detail-form-grid compact">
             {TRACK_SCORE_DIMENSIONS.map((item) => (
               <Form.Item
@@ -386,7 +392,6 @@ export function TrackDetailPage() {
                 name={item.key}
                 label={item.label}
                 tooltip={item.hint}
-                rules={[{ required: true, message: `请填写${item.label}` }]}
               >
                 <InputNumber min={0} max={SCORE_MAX} step={0.5} style={{ width: "100%" }} />
               </Form.Item>
@@ -396,6 +401,7 @@ export function TrackDetailPage() {
           <Form.Item name="key_contradiction" label="主要矛盾"><Input.TextArea rows={2} /></Form.Item>
           <div className="track-detail-form-grid compact">
             <Form.Item name="next_verification" label="下一验证节点"><Input.TextArea rows={2} /></Form.Item>
+            <Form.Item name="next_verification_date" label="验证日期"><input className="ant-input" type="date" /></Form.Item>
             <Form.Item name="risk_falsification" label="风险与证伪条件"><Input.TextArea rows={2} /></Form.Item>
             <Form.Item name="data_gaps" label="数据缺口"><Input.TextArea rows={2} /></Form.Item>
           </div>
@@ -446,13 +452,16 @@ function TrackIdentityPanel({ data }: { data: TrackDetail }) {
         <div className="track-detail-metrics">
           <Metric label="状态" value={<StatusTag status={data.track.status} />} />
           <Metric
-            label="评级"
+            label="六维评级 / 关注"
             value={
+              <>
               <TrackGradeTags
-                grade={data.latest_snapshot?.track_grade}
-                tier={data.latest_snapshot?.heat_tier}
-                score={data.latest_snapshot?.overall_score}
+                grade={data.score_snapshot?.track_grade}
+                tier={data.score_snapshot?.heat_tier}
+                score={data.score_snapshot?.overall_score}
               />
+              <ScoreSource source={data.score_source} latestSnapshotId={data.latest_snapshot?.id} />
+              </>
             }
           />
           <Metric label="产业阶段" value={industryPhaseLabel(data.track.industry_phase)} />
@@ -466,7 +475,7 @@ function TrackIdentityPanel({ data }: { data: TrackDetail }) {
           </div>
           <Metric label="绑定标的" value={String(data.summary.bound_stock_count)} />
           <Metric label="材料" value={String(data.summary.material_count)} />
-          <Metric label="更新" value={formatTime(data.summary.last_updated_at).slice(5, 16)} />
+          <Metric label="最新研究" value={data.latest_snapshot?.research_date || "-"} />
         </div>
       </div>
     </WorkbenchCard>
@@ -510,7 +519,7 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
         <div className="track-detail-overview-main">
           <div>
             <div className="track-detail-subtitle">核心判断</div>
-            <Typography.Paragraph>{summary?.coreJudgment || data.track.current_view || "暂无核心判断"}</Typography.Paragraph>
+            <Typography.Paragraph>{(latest ? summary?.coreJudgment : data.track.current_view) || "暂无核心判断"}</Typography.Paragraph>
             <div className="track-detail-subtitle">主要矛盾</div>
             <Typography.Paragraph>{summary?.keyContradiction || "暂无主要矛盾"}</Typography.Paragraph>
             <div className="track-detail-subtitle">赛道说明</div>
@@ -519,15 +528,20 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
           <div className="detail-list track-detail-keyfacts">
             <div className="detail-row"><span>最新研究</span><span>{summary?.researchDate || "-"}</span></div>
             <div className="detail-row"><span>研究员</span><span>{summary?.researcherCode || "-"}</span></div>
-            <div className="detail-row"><span>综合分</span><span>{typeof summary?.overallScore === "number" ? `${summary.overallScore.toFixed(2)} · ${summary.trackGrade || "-"}` : "-"}</span></div>
+            <div className="detail-row"><span>综合分</span><span>{typeof data.score_snapshot?.overall_score === "number" ? `${data.score_snapshot.overall_score.toFixed(2)} · ${data.score_snapshot.track_grade || "-"}` : "暂无评分"}<ScoreSource source={data.score_source} latestSnapshotId={latest?.id} /></span></div>
             <div className="detail-row"><span>主导周期</span><span>{cycleLabel(summary?.headlineCycle)}</span></div>
             <div className="detail-row"><span>下一验证节点</span><span>{summary?.nextVerification || "-"}</span></div>
+            {summary?.nextVerificationDate ? <div className="detail-row"><span>验证日期</span><VerificationDate date={summary.nextVerificationDate} note={summary.nextVerification} /></div> : null}
             <div className="detail-row"><span>待研判材料</span><span>{data.summary.pending_material_count}</span></div>
           </div>
         </div>
         <div className="track-detail-panel-section">
-          <div className="track-detail-subtitle">六维评分</div>
-          <ScoreProfile snapshot={latest} />
+          <div className="track-detail-subtitle">当前三周期判断</div>
+          <CycleJudgments views={data.cycle_views} />
+        </div>
+        <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">六维评分 <ScoreSource source={data.score_source} latestSnapshotId={latest?.id} /></div>
+          <ScoreProfile snapshot={data.score_snapshot} />
         </div>
         <div className="track-detail-panel-section">
           <div className="track-detail-subtitle">最近重要材料</div>
@@ -542,10 +556,10 @@ function OverviewTab({ data, onEdit, onStatus }: { data: TrackDetail; onEdit: ()
  * 六维评分：左边雷达看形状，右边条形看具体分数。两个一起给是因为雷达读不出 7.5 和 8
  * 的差别，而只有数字又看不出这条赛道是"全面均衡"还是"单项突出"。
  */
-function ScoreProfile({ snapshot }: { snapshot?: TrackTrendSnapshot | null }) {
+function ScoreProfile({ snapshot }: { snapshot?: TrackTrendSnapshotBrief | null }) {
   const { resolvedMode } = useLiuliTheme();
   const cells = buildScoreCells(snapshot);
-  if (!snapshot) return <EmptyAction description="尚无研究结论" />;
+  if (!snapshot || snapshot.overall_score == null || cells.some((cell) => cell.value === null)) return <EmptyAction description="暂无六维评分" />;
   return (
     <div className="track-score-profile">
       <InlineChart
@@ -560,7 +574,7 @@ function ScoreProfile({ snapshot }: { snapshot?: TrackTrendSnapshot | null }) {
           <div className="track-score-row" key={cell.key}>
             <span className="track-score-label" title={cell.hint}>{cell.label}</span>
             <span className="track-score-bar">
-              <i style={{ width: `${((cell.value ?? 0) / SCORE_MAX) * 100}%` }} />
+              {cell.value != null ? <i style={{ width: `${(cell.value / SCORE_MAX) * 100}%` }} /> : null}
             </span>
             <strong>{cell.value === null ? "-" : cell.value.toFixed(1)}</strong>
           </div>
@@ -585,6 +599,7 @@ function ResearchTab({ data }: { data: TrackDetail }) {
   const { benefiting, pressured } = splitSegments(latest?.segments_json);
   const scenarios = orderScenarios(latest?.scenarios_json);
   const sources = parseDataSources(latest?.data_sources_json);
+  const reportCycles = snapshotCycleViews(latest);
   if (!hasResearchContent(latest)) {
     return (
       <WorkbenchCard>
@@ -602,6 +617,11 @@ function ResearchTab({ data }: { data: TrackDetail }) {
             {summary?.researcherCode ? ` · ${summary.researcherCode}` : ""}
           </Typography.Text>
         </div>
+
+        {Object.keys(reportCycles).length ? <div className="track-detail-panel-section">
+          <div className="track-detail-subtitle">本次周期判断</div>
+          <CycleJudgments views={reportCycles} />
+        </div> : null}
 
         <div className="track-detail-panel-section">
           <div className="track-detail-subtitle">六项核心分析</div>
@@ -650,6 +670,7 @@ function ResearchTab({ data }: { data: TrackDetail }) {
           ) : <EmptyAction description="暂无情景推演" />}
           <div className="detail-list track-detail-keyfacts">
             <div className="detail-row"><span>下一验证节点</span><span>{summary?.nextVerification || "-"}</span></div>
+            {summary?.nextVerificationDate ? <div className="detail-row"><span>验证日期</span><VerificationDate date={summary.nextVerificationDate} note={summary.nextVerification} /></div> : null}
           </div>
         </div>
 
@@ -834,7 +855,7 @@ function SnapshotsTab({ data, onAdd }: { data: TrackDetail; onAdd: () => void })
       render: (_, record) => <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
     },
     { title: "主导周期", dataIndex: "headline_cycle", width: 86, render: (value) => cycleLabel(value) },
-    { title: "热度", dataIndex: "market_heat_score", width: 72, render: scoreText },
+    { title: "市场关注", dataIndex: "market_heat_score", width: 86, render: scoreText },
     { title: "速度", dataIndex: "growth_speed_score", width: 72, render: scoreText },
     { title: "集中度", dataIndex: "concentration_score", width: 78, render: scoreText },
     { title: "周期韧性", dataIndex: "cycle_resilience_score", width: 86, render: scoreText },

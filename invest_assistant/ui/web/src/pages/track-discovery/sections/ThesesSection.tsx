@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from "antd";
+import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tooltip, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -7,7 +7,9 @@ import { EmptyAction } from "../../../components/common/EmptyAction";
 import { DataPanel } from "../../../components/common/DataPanel";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { Track } from "../../../types/api";
-import { ARCHIVED_STATUS, confidenceOptions, formatTime, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions } from "./shared";
+import { ARCHIVED_STATUS, confidenceOptions, formatTime, industryPhaseLabel, marketPhaseLabel, StatusTag, thesisStatusOptions, TrackGradeTags } from "./shared";
+import { CycleJudgmentCell, ScoreSource, VerificationDate } from "../TrackResearchCells";
+import { TRACK_CYCLES } from "../trackTrendPresentation";
 
 type TrackFormValues = {
   name: string;
@@ -115,12 +117,20 @@ export function TracksSection() {
   const columns: ColumnsType<Track> = [
     { title: "赛道", dataIndex: "name", render: (value, record) => <Link className="track-name-link" to={`/track-discovery/tracks/${record.id}`}>{value}</Link> },
     { title: "状态", dataIndex: "status", width: 110, render: (value) => <StatusTag status={value} /> },
+    ...TRACK_CYCLES.map(({ cycle, label, window }) => ({
+      title: <Tooltip title={window}>{label}</Tooltip>, key: cycle, width: 116,
+      render: (_: unknown, record: Track) => <CycleJudgmentCell view={record.cycle_views?.[cycle]} />
+    })),
+    { title: "六维评级 / 关注", key: "score", width: 174, render: (_, record) => <>
+      <TrackGradeTags grade={record.track_grade} tier={record.heat_tier} score={record.overall_score} />
+      <ScoreSource source={record.score_source} latestSnapshotId={record.latest_snapshot_id} />
+    </> },
     { title: "产业阶段", dataIndex: "industry_phase", width: 100, render: (value) => industryPhaseLabel(value) },
     { title: "市场阶段", dataIndex: "market_phase", width: 100, render: (value) => marketPhaseLabel(value) },
     { title: "置信", dataIndex: "confidence_level", width: 90, render: (value) => value || "-" },
     { title: "当前判断", dataIndex: "current_view", ellipsis: true, render: (value) => value || "-" },
-    { title: "Tag ID", dataIndex: ["tag", "id"], width: 90, render: (value) => value || "-" },
-    { title: "更新", dataIndex: "updated_at", width: 160, render: formatTime },
+    { title: "最新研究", dataIndex: "research_date", width: 110, render: (value) => value || "-" },
+    { title: "验证日期", key: "verification", width: 116, render: (_, record) => <VerificationDate date={record.next_verification_date} note={record.next_verification} /> },
     {
       title: "操作",
       width: 230,
@@ -170,6 +180,7 @@ export function TracksSection() {
           loading={tracks.loading}
           dataSource={rows}
           columns={columns}
+          scroll={{ x: 1580 }}
           pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           locale={{ emptyText: <EmptyAction description="暂无已跟踪赛道" /> }}
         />
