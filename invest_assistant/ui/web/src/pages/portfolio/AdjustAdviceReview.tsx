@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { DataPanel } from "../../components/common/DataPanel";
 import { HintTitle } from "./HintTitle";
 import { SampleCount } from "./SampleCount";
-import { AdviceStatsReview } from "./AdviceStatsReview";
 import type { AdjustAdviceItem, AdjustAdviceReport, AdjustAdviceReviews, AdjustAdviceWinRateRow } from "../../types/api";
 
 export const initialAdviceReviews: AdjustAdviceReviews = {
@@ -323,13 +322,5 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
   );
 }
 
-export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，连续同方向未执行只算一次。页签数字为全部历史已评估样本数；待评估记录可能重复跟踪。评估任务工作日19:15运行。";
-export const riskStatsHint = "警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为全部历史已评估警示条数，不等于股票数。";
-
-export function SignalStatsTable({ data, loading }: { data: AdjustAdviceReviews; loading?: boolean }) {
-  return <AdviceStatsReview data={data} kind="signal" loading={loading} />;
-}
-
-export function RiskStatsTable({ data, loading }: { data: AdjustAdviceReviews; loading?: boolean }) {
-  return <AdviceStatsReview data={data} kind="risk" loading={loading} />;
-}
+export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，连续同方向未执行只算一次。方向效果以适用日收盘为基准，不是账户实际盈亏，也不代表降低集中度等整体风控效果。触价不代表报告中的完整条件满足或实际成交。页签数字为全部历史已评估样本数；展开记录含待评估、未触价和重复跟踪，条数不等于样本数。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或工作日19:15评估任务更新。";
+export const riskStatsHint = "按报告标注的主要风险归类，警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为全部历史已评估警示条数，不等于股票数；每条警示独立评估，可能包含同一股票的连续跟踪。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或评估任务更新。后续风险级别变化不改变旧警示的事后评估。";

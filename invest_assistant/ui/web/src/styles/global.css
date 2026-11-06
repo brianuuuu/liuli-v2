@@ -1148,47 +1148,31 @@ body {
   background: var(--ll-panel-subtle);
 }
 
-.advice-review-caption {
-  padding: 10px 14px;
-  color: var(--ll-muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.advice-review-scope,
-.advice-review-thin,
-.advice-review-pending small,
-.advice-review-followup small {
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.advice-review-scope,
-.advice-review-thin { color: var(--ll-warn); }
 .advice-review-muted { color: var(--ll-muted); }
 
 .advice-review-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .advice-review-stack small { font-size: 12px; }
 .advice-review-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
 .advice-review-stocks { display: flex; flex-wrap: wrap; gap: 5px 14px; }
+.advice-review-stocks > span { white-space: nowrap; }
 .advice-review-stocks small { margin-left: 5px; color: var(--ll-muted); font-size: 12px; }
 .advice-review-reason { min-width: 0; line-height: 1.7; }
 .advice-review-reason p { margin: 5px 0; overflow-wrap: anywhere; }
 .advice-review-reason summary { color: var(--ll-accent); cursor: pointer; }
 .advice-review-followup { margin-top: 8px; }
-.advice-review-followup small,
 .advice-review-pending,
 .advice-review-returns { color: var(--ll-muted); font-size: 12px; line-height: 1.7; }
-.advice-review-records { padding: 0 10px 10px; }
+.advice-review-records { padding: 10px; }
+.advice-review-direction .ant-tag { margin-inline-end: 0; }
+.advice-review-number { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.advice-review-result { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
+.advice-review-result > span { white-space: nowrap; }
 .trade-review .advice-review-summary-table .ant-table-expanded-row > td { background: var(--ll-panel-subtle); }
 .advice-review-detail-table .ant-table-cell { vertical-align: top; }
-.advice-review-summary-table > .ant-spin-nested-loading > .ant-spin-container > .ant-table .ant-table-cell { overflow-wrap: anywhere; }
-
-@media (max-width: 1100px) {
-  .advice-stats-review { overflow-x: auto; }
-  .advice-review-summary-table { min-width: 980px; }
-}
+.advice-stats-review { overflow-x: auto; }
+.advice-stats-review.is-signal .advice-review-summary-table { min-width: 1080px; }
+.advice-stats-review.is-risk .advice-review-summary-table { min-width: 920px; }
+.advice-review-summary-table > .ant-spin-nested-loading > .ant-spin-container > .ant-table > .ant-table-container > .ant-table-content > table > .ant-table-thead > tr > th { white-space: nowrap; }
 
 .advice-stock {
   white-space: nowrap;

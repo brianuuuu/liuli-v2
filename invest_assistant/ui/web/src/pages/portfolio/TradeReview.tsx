@@ -8,14 +8,13 @@ import type { AdjustAdviceReviews, PositionChangeReview as PositionChangeReviewD
 import {
   AdviceReportList,
   MarketReviewTable,
-  RiskStatsTable,
-  SignalStatsTable,
   adviceKpis,
   initialAdviceReviews,
   marketReviewHint,
   riskStatsHint,
   signalStatsHint
 } from "./AdjustAdviceReview";
+import { AdviceStatsReview } from "./AdviceStatsReview";
 import { HintTitle } from "./HintTitle";
 import { PortfolioScopeBar } from "./PortfolioScopeBar";
 import { PositionChangeTable, initialPositionChangeReview, positionChangeHint, sourceWinRate } from "./PositionChangeReview";
@@ -76,11 +75,14 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
   const signalSamples = adviceData.signal_stats.by_signal.reduce((sum, row) => sum + row.samples, 0);
   const statsViews: { value: StatsView; label: string; count: number }[] = [
     { value: "changes", label: "调仓来源", count: changeCount },
-    { value: "signals", label: "调仓建议复盘", count: signalSamples },
-    { value: "risks", label: "风险警示复盘", count: kpis.risk.samples },
-    { value: "market", label: "大盘判断", count: adviceData.market_review.rows.length }
+    { value: "signals", label: "AI建议", count: signalSamples },
+    { value: "risks", label: "AI警示", count: kpis.risk.samples },
+    { value: "market", label: "AI大盘判断", count: adviceData.market_review.rows.length }
   ];
-  const statsHint = statsView === "changes" ? positionChangeHint(changeReviewData.rules) : statsView === "signals" ? signalStatsHint : statsView === "risks" ? riskStatsHint : marketReviewHint;
+  const coverageHint = adviceData.reports.length < adviceData.summary.report_count
+    ? `统计涵盖全部 ${adviceData.summary.report_count} 份报告；股票、待评估记录与明细仅覆盖最近 ${adviceData.reports.length} 份。`
+    : "";
+  const statsHint = statsView === "changes" ? positionChangeHint(changeReviewData.rules) : statsView === "signals" ? signalStatsHint + coverageHint : statsView === "risks" ? riskStatsHint + coverageHint : marketReviewHint;
 
   return (
     <div className="portfolio-dashboard trade-review">
@@ -157,8 +159,9 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
         ) : null}
         {statsView === "changes" ? <PositionChangeTable key={changeReviewKey} data={changeReviewData} loading={changes.loading} /> : null}
         {advice.error && statsView !== "changes" ? <Alert type="error" showIcon title="建议复盘加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
-        {statsView === "signals" ? <SignalStatsTable key={adviceScopeKey} data={adviceData} loading={advice.loading} /> : null}
-        {statsView === "risks" ? <RiskStatsTable key={adviceScopeKey} data={adviceData} loading={advice.loading} /> : null}
+        {statsView === "signals" || statsView === "risks" ? (
+          <AdviceStatsReview key={`${adviceScopeKey}:${statsView}`} kind={statsView === "signals" ? "signal" : "risk"} data={adviceData} loading={advice.loading} />
+        ) : null}
         {statsView === "market" ? <MarketReviewTable data={adviceData} /> : null}
       </section>
       {advice.error && statsView === "changes" ? <Alert type="error" showIcon title="微操报告加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
