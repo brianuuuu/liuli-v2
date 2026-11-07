@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.50**（2026-11-07；本次为执行文档更新）
+> 当前版本：**1.0.50**（2026-11-07；评分报告连续性）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -12,7 +12,7 @@
 - 版本迭代记录：`docs/CHANGELOG.md`
 - MVP 阶段（v7–v48）的完整演进与决策过程：`docs/archive/liuli_system_spec_mvp.md`（已冻结，只作历史追溯）
 - 配套专题文档：`docs/liuli_mcp_design.md`、`docs/liuli_mcp_tools.md`（对外 MCP）、`docs/liuli_android_app_spec.md`（Android）
-- 待实施执行文档：[标的评分报告连续性](superpowers/plans/2026-11-07-stock-rating-continuity.md)；三字段存储与跨期验证方案已审核，现行表结构与接口尚未变更。
+- [标的评分报告连续性](superpowers/plans/2026-11-07-stock-rating-continuity.md)：实现来源关联、固定比较及跨期验证，生产迁移和云端技能启用按执行文档验收。
 
 ## 0. 版本与维护规则
 
@@ -690,7 +690,16 @@ stock_material：与 track_material 平行，来源为 source_item（信息流�
 | `stock_valuation_snapshot` | 标的估值报告 | 财务表现、趋势参考、指引核对、利润/FCF/收入模型、三年合理市值；导入时按当前市值重算 `expectation_gap_rate` 落库。读取最新估值时（标的池、看板、标的详情、估值对比）用前复权日线把估值日市值按涨跌幅折到最新收盘，`current_market_value` 和 `expectation_gap_rate` 返回实时值；估值历史保留快照原值；估值日之前没有日线时退回快照原值 |
 | `stock_trend_snapshot` | 趋势研究 | trend_level T0—T5（T0 最强）、六维（赛道三周期、公司地位、市场认可、资金认可、位置、周期）、建议分组 |
 
-评分当前保存独立研究快照，尚无来源报告关联、固定比较基准或结构化连续性说明。待实施范围见[标的评分报告连续性执行文档](superpowers/plans/2026-11-07-stock-rating-continuity.md)，当前字段清单仍以第 22 节的 `stock_score_snapshot` 为准。
+评分连续性规则：
+
+- Skill 复用报告库检索与全文读取，复盘同标的、同研究员最近三个研究日期的评分报告，同日修订取最新有效版，必要时追溯。
+- `continuity` 只保存 `previous_report_id`、变动原因、历史验证和后续事项，不重复分数或分差；历史事项引用使用 `(report_id, check_id)`。
+- 未完成事项由 Skill 在报告中保留原引用及条件，后端不汇总全历史、不强制补齐未读取事项，也不要求新增 MCP 工具或权限。
+- `report_id` 由真实回流来源赋值并唯一去重；比较报告已入库时固定 `previous_snapshot_id`，未入库时保留报告链接、不给出自动分差，不事后换绑。
+- 后端只核对本次引用的来源、归属、日期、事项 ID 和必要字段；六维与总分必须是完整、有限的 0–10 数值，历史报告中可用分数或等级的变化须有原因，不依赖是否已导入评分。
+- 旧格式仍可导入，新格式不能为 null 或缺少必填字段；快照追加与回流状态在同一事务提交，并发重复导入返回原结果。
+- Web/H5 保留趋势图，在原明细展开全部同日版本、变动说明、历史验证和报告入口，缺失来源明确显示。
+- `stock_analysis.score_import_mode` 支持 `active/paused/legacy_only`；回退保留新格式拒绝检查，具体契约与上线顺序见[执行文档](superpowers/plans/2026-11-07-stock-rating-continuity.md)。
 
 ```text
 stock_valuation_snapshot.valuation_assumptions_json 是估值导入唯一的选填字段：
@@ -1176,7 +1185,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 | GET | `/stocks/{stock_id}` | 标的主页 |
 | GET | `/stocks/{stock_id}/detail` | 详情聚合 |
 | GET | `/stocks/{stock_id}/daily-bars` | 日线 / K 线 |
-| GET / POST | `/stocks/{stock_id}/scores` | 评分快照 |
+| GET / POST | `/stocks/{stock_id}/scores` | 全部评分快照，返回连续性、分差及来源状态 |
 | DELETE | `/scores/{score_id}` | 删除评分 |
 | GET / POST | `/stocks/{stock_id}/trends` | 趋势快照 |
 | DELETE | `/trends/{trend_id}` | 删除趋势快照 |
@@ -1532,8 +1541,12 @@ id, stock_id, status, source, reason, created_at, updated_at
 #### `stock_score_snapshot`：标的评级快照
 
 ```text
-id, stock_id, report_time, researcher_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk, created_at
+id, stock_id, report_time, researcher_code, business_moat_score, management_score, governance_score, strategy_score, certainty_score, growth_score, total_score, investment_level, core_logic, primary_risk, report_id, previous_snapshot_id, continuity_json, created_at
 ```
+
+- 新增 `report_id INTEGER NULL`、`previous_snapshot_id INTEGER NULL`、`continuity_json TEXT NULL`，逻辑关联，不设级联删除。
+- 唯一索引 `uq_stock_score_snapshot_report_id(report_id)` 允许多个 NULL，保留同日多版本。
+- PostgreSQL 迁移：`tools/migrations/2026-11-07_stock_score_continuity.sql`；SQLite 启动时增量补列建索引，不重建表。
 
 #### `stock_daily_bar`：标的日线（前复权）与均线
 

@@ -299,7 +299,7 @@
 | `data.pool` | object \| null | 始终 | 标的池条目，无则为 `null` |
 | `data.summary` | object | 始终 | 含 `track_count`、`material_count`、`high_importance_material_count`、`note_count`、`last_updated_at` |
 | `data.latest_score` | object \| null | `sections` 含 `score` | 不裁剪 |
-| `data.score_history` | object[] | `sections` 含 `score_history` | 取最近 `history_limit` 条，原序为时间升序 |
+| `data.score_history` | object[] | `sections` 含 `score_history` | 每日代表点，取最近 `history_limit` 条、时间升序 |
 | `data.latest_valuation` | object \| null | `sections` 含 `valuation` | 不裁剪 |
 | `data.valuation_history` | object[] | `sections` 含 `valuation_history` | 取最近 `history_limit` 条，原序为时间升序 |
 | `data.materials` | object[] | `sections` 含 `materials` | 取最新 `history_limit` 条 |
