@@ -27,7 +27,7 @@ Use the single `knowledge_base.get_researcher_profile` response as both metadata
 
 ## Local stock context
 
-After loading the researcher, resolve the exact security through `stock_analysis.list_pool(q, limit)`. Use the returned `stock_id` rather than the pool row `id`. `get_stock_profile(stock_id, sections, history_limit)` supports `score/valuation/materials/disclosures/tracks/notes/tags`; request relevant sections explicitly (for example `materials/disclosures/score`). Default data is not the complete material archive. `score` and `valuation` return only `latest_score` and `latest_valuation`; neither default nor explicit sections provide `score_history` or `valuation_history`. Do not increase `history_limit` to retrieve those histories or treat their absence as an error. For returned material/disclosure and other list sections, inspect available `*_total` and `truncated`, and adjust `history_limit` only for relevant list coverage; do not invent pagination arguments. Prior ratings and valuations require date checks and must not substitute for fresh evidence. When a track comparison matters, use verified `track_ids` with `get_track_detail(track_id, sections, list_limit)`; materials and history likewise require explicit sections.
+After loading the researcher, resolve the exact security through `stock_analysis.list_pool(q, limit)` and use `stock_id`, not the pool row `id`. `get_stock_profile` accepts explicit `score/score_history/valuation/valuation_history/materials/disclosures/tracks/notes/tags` sections. `score` and `valuation` return latest snapshots; history sections are limited and score trends merge same-day versions. Inspect `*_total` and `truncated`, but do not use that trend as a complete continuity ledger. Use [score-continuity.md](score-continuity.md) to review the latest three rating periods and carry unresolved checks forward. When a track comparison matters, use verified `track_ids` with `get_track_detail(track_id, sections, list_limit)`.
 
 For historical research, search `report_library.list_reports(q=company name or report-title keyword, limit, offset)`, then call `read_report_content` with the actual returned report ID. Check report type, research date, cutoff, and body before comparing conclusions. Historical reports are research documents, not proof of imported score/valuation snapshots or a complete snapshot history; report gaps explicitly.
 
@@ -178,6 +178,8 @@ Use the profile method's schema when present. If it has no strict schema, use:
 ```
 
 Use `null` for missing numeric values. Never fabricate unavailable data.
+
+Append `continuity` using [score-continuity.md](score-continuity.md), including its `previous_report_id` and three arrays; the example above only defines existing research fields. Missing scores prevent score import even when report archival succeeds.
 
 The trailing JSON is the source for later score import. For `标的评级报告`, keep these import fields at the top level and populate them when evidence permits: `company_code`, all six `*_score` fields, `total_score`, `investment_level`, `core_logic`, and `primary_risk`.
 

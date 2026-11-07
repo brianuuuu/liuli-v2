@@ -234,7 +234,13 @@ display_name: 标的分析师
   "certainty": true,
   "core_logic": "",
   "primary_risk": "",
-  "researcher_code": ""
+  "researcher_code": "",
+  "continuity": {
+    "previous_report_id": null,
+    "change_reasons": [],
+    "previous_checks": [],
+    "next_checks": []
+  }
 }
 ```
 
@@ -244,6 +250,15 @@ display_name: 标的分析师
 - company_name：公司名称缩写。
 - latest_report_period：格式如 2022-Q3。
 - researcher_code：研究员编码，如analyst_001。
+
+连续性扩展（1.0.50）：
+
+- 使用现有报告检索和全文读取工具复盘同标的、同研究员最近三个研究日期的评分报告，同日修订取最新有效版，不足三期按实际数量分析。
+- 在 `continuity.previous_report_id` 引用最近一期报告 ID，无可用历史才填 null；研究日期、研究员和实际读取范围须在正文核对。
+- `change_reasons` 使用 `field/type/reason/evidence`，覆盖变化维度、等级及重大逻辑或风险变化，评分方法保持不变。
+- `previous_checks` 使用 `report_id/check_id/result/reason/evidence`，同一事项以最新有效结论为准，承接待验证或证据不足事项并保留原引用及条件，必要时追溯。
+- `next_checks` 使用 `id/condition`，首次提出 1–3 条，后续新增 0–3 条，旧事项不换 ID 重复创建。
+- 具体契约见技能 `references/score-continuity.md`，未知评分使用 null，保留至少三条本次反证检查及末尾 JSON。
 
 #### 结果输出
 - 使用 Markdown 结构化输出。
