@@ -2,22 +2,27 @@
 
 ## Project Constraints
 
+- Keep this file entirely in English.
 - The long-term system architecture should follow the current technical documentation in `docs/liuli_system_spec.md`.
 - Do not reuse the old project's directory structure, module boundaries, table structure, or architecture design.
 - The `old/` directory is only a functional reference for implementation details such as data fetching, API calls, parsing logic, historical scripts, prompts, and sample data.
 - If old implementation details conflict with the new spec, the new spec wins.
 - Migrated features must be reimplemented under the new system structure instead of copied from old code.
 - Keep module boundaries clear, business logic cohesive, and code paths short.
+- Keep documentation, code comments, and other explanatory text concise and organized; number items where helpful, aim for one sentence per point, and avoid repetitive or excessive explanations.
 - Do not switch branches for the current Liuli rewrite work. Continue development in the current branch unless the user explicitly changes this instruction.
-- Git 提交说明必须采用 Conventional Commits 格式：`<type>(<scope>): <subject>`，例如 `fix(android): 修复横滑空白页手势`；`subject` 以中文为主，仅保留少量必要的英文专业名词。
-- 阿里云线上服务器必须使用项目根目录的标准脚本管理整套服务：启动命令为 `bash start_ubuntu_pg.sh`，停止命令为 `bash stop.sh`。除非用户明确要求，否则不得拆解、替代这些脚本，也不得自行手工启动或停止单个后端、Worker、Web 或 H5 进程。
+- Git commit messages must follow Conventional Commits: `<type>(<scope>): <subject>`; write the subject primarily in Chinese, retaining only necessary English technical terms.
+- Before each commit, review the change for unnecessary code and remove confirmed unused code, duplicate implementations, obsolete branches, and needless abstractions; prefer reuse, keep cleanup within the change's scope, and preserve existing functionality.
+- Manage the entire Alibaba Cloud production service with the project-root scripts: `bash start_ubuntu_pg.sh` to start and `bash stop.sh` to stop; do not split or replace these scripts or manually start or stop individual backend, Worker, Web, or H5 processes unless explicitly requested.
 - Before running any command or test that deletes, drops, resets, recreates, truncates, or otherwise clears database data, confirm with the user first. This includes tests or helpers that call `drop_all`, `create_all` after dropping tables, `reset_db`, migration reset commands, or any command that might point at `var/db/liuli.sqlite3`.
 - CRITICAL DATABASE BACKUP CONSTRAINT: Under all circumstances, BEFORE running any test, script, command, or helper that clears, truncates, deletes, or modifies a database table (including partial deletions like filtering on source_type), the agent MUST first create a backup copy of the database file `var/db/liuli.sqlite3` in `var/db/recovery/`. Failing to perform a backup before any table clear or delete operation is strictly UNACCEPTABLE.
 - Do not run tests that clear any database, even an apparently isolated test database, unless the user has explicitly approved that exact command in the current conversation. Treat function names such as `reset_db`, `drop_all`, `truncate`, `delete_all`, `recreate`, and migration reset helpers as destructive until proven otherwise. Prefer non-destructive tests, static checks, targeted unit tests without database resets, or explain the verification gap instead of silently clearing data.
-- 任何表结构修改（新增、删除或修改表、列、类型、默认值、约束、索引，以及对应的 `tools/migrations/*.sql` 迁移脚本）都必须先把改动方案提交给用户审核，用户明确同意后才能动手；不得在功能开发中顺手修改表结构。
+- Obtain explicit user approval of the proposed schema changes before adding, deleting, or modifying tables, columns, types, defaults, constraints, indexes, or corresponding `tools/migrations/*.sql` scripts; do not make incidental schema changes during feature development.
 
 ## Web And Mobile Constraints
 
+- Do not add unnecessary slogans or explanatory text to Web or App interfaces, including Android H5 / APK; if the interface is unclear without such text, redesign its information structure, controls, and interactions instead of adding more explanation.
+- Every UI change must support user, developer, and AI experience through intuitive interactions, maintainable code, and clear semantics and states; preserve existing functionality and check affected interactions and workflows for regressions.
 - Web and Android must not change their technology stack without explicit user approval.
 - Backend technology choices must strictly follow the current technical documentation in `docs/liuli_system_spec.md`.
 - Web primary navigation is six business modules plus the Console operation panel:
