@@ -2,9 +2,19 @@ from bisect import bisect_right
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 import math
+import json
+import re
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
+
+from invest_assistant.modules.basic.report_library.models import Report
+from invest_assistant.modules.basic.report_library.content import extract_trailing_json_object
+from invest_assistant.modules.basic.report_library.service import resolve_report_path
+from invest_assistant.modules.basic.system_config.service import get_config
+from invest_assistant.modules.stock_analysis.score_continuity import (
+    parse_continuity, score_comparison, validate_score_changes,
+)
 
 from invest_assistant.modules.basic.stock_master.models import Stock
 from invest_assistant.modules.basic.disclosure_library.models import CompanyDisclosure
@@ -643,16 +653,10 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
         return None
 
     pool_item = db.scalar(select(StockPoolItem).where(StockPoolItem.stock_id == stock_id))
-    score_history = _last_inserted_per_research_day(
-        list(
-            db.scalars(
-                select(StockScoreSnapshot)
-                .where(StockScoreSnapshot.stock_id == stock_id)
-                .order_by(StockScoreSnapshot.report_time.asc(), StockScoreSnapshot.id.asc())
-            )
-        ),
-        lambda item: item.report_time,
-    )
+    all_scores = list_scores(db, stock_id)
+    score_history = _last_inserted_per_research_day(list(reversed(all_scores)), lambda item: item.report_time)
+    score_rows = [_score_snapshot_dict(item) for item in score_history[:-1]]
+    score_rows += read_score_rows(db, score_history[-1:])
     valuation_history = _last_inserted_per_research_day(
         list(
             db.scalars(
@@ -700,8 +704,8 @@ def get_stock_detail(db: Session, stock_id: int) -> dict | None:
             "note_count": len(notes),
             "last_updated_at": _max_datetime(last_updated_candidates),
         },
-        "latest_score": _score_snapshot_dict(score_history[-1]) if score_history else None,
-        "score_history": [_score_snapshot_dict(item) for item in score_history],
+        "latest_score": score_rows[-1] if score_rows else None,
+        "score_history": score_rows,
         "latest_valuation": latest_valuation,
         "valuation_history": [_valuation_snapshot_dict(item) for item in valuation_history],
         "latest_trend": _trend_snapshot_dict(trend_history[-1]) if trend_history else None,
@@ -734,6 +738,9 @@ def _score_snapshot_dict(item: StockScoreSnapshot) -> dict:
         "stock_id": item.stock_id,
         "report_time": item.report_time,
         "researcher_code": item.researcher_code,
+        "report_id": item.report_id,
+        "previous_snapshot_id": item.previous_snapshot_id,
+        "continuity": parse_continuity(item.continuity_json),
         "business_moat_score": item.business_moat_score,
         "management_score": item.management_score,
         "governance_score": item.governance_score,
@@ -1410,16 +1417,139 @@ def _sync_stock_track_relations(db: Session, stock_id: int, track_ids: list[int]
             relation.status = "active"
 
 
-def create_score(db: Session, stock_id: int, payload: StockScoreSnapshotCreate) -> StockScoreSnapshot:
-    item = StockScoreSnapshot(stock_id=stock_id, **payload.model_dump())
+def ensure_score_import_enabled(db: Session, payload: dict) -> None:
+    config = get_config(db, "stock_analysis.score_import_mode")
+    mode = (config.config_value or "").strip().strip('"') if config and config.enabled else "active"
+    if mode not in {"active", "legacy_only"}:
+        raise ValueError("评分导入已暂停")
+    if mode == "legacy_only" and {"continuity", "previous_snapshot_id", "previous_report_id"} & payload.keys():
+        raise ValueError("当前导入器仅兼容旧格式，新版报告保留待处理")
+
+
+def create_score(
+    db: Session, stock_id: int, payload: StockScoreSnapshotCreate, *, report_id: int | None = None, commit: bool = True,
+) -> StockScoreSnapshot:
+    data = payload.model_dump(exclude_unset=True)
+    ensure_score_import_enabled(db, data)
+    stock = db.get(Stock, stock_id)
+    if stock is None:
+        raise ValueError("标的不存在")
+    if report_id is not None and db.get(Report, report_id) is None:
+        raise ValueError("来源报告不存在")
+    if report_id is not None:
+        existing = get_score_by_report(db, report_id)
+        if existing is not None:
+            return existing
+    continuity = data.get("continuity")
+    baseline = None
+    if continuity is not None:
+        reference_ids = {item["report_id"] for item in continuity["previous_checks"]}
+        if continuity["previous_report_id"] is not None:
+            reference_ids.add(continuity["previous_report_id"])
+        if report_id in reference_ids:
+            raise ValueError("不能引用本次报告作为历史来源")
+        references = {key: _score_report_reference(db, key) for key in reference_ids}
+        for key, source in references.items():
+            source_code = str(source.get("company_code") or "").strip().upper()
+            if source_code.endswith((".SH", ".SZ", ".BJ")):
+                source_code = source_code.rsplit(".", 1)[0]
+            same_stock = source.get("stock_id") == stock_id if source.get("id") is not None else source_code == stock.stock_code
+            if not same_stock or str(source.get("researcher_code") or "").strip() != payload.researcher_code or source["report_time"] > payload.report_time:
+                raise ValueError(f"报告 {key} 的标的、研究员或研究日期不符")
+        for check in continuity["previous_checks"]:
+            source = references[check["report_id"]]
+            items = (source.get("continuity") or {}).get("next_checks", [])
+            if not any(item["id"] == check["check_id"] for item in items):
+                raise ValueError(f"无效验证引用: {check['report_id']}/{check['check_id']}")
+        baseline = references.get(continuity["previous_report_id"])
+        validate_score_changes(data, baseline)
+    data.pop("continuity", None)
+    item = StockScoreSnapshot(
+        stock_id=stock_id, report_id=report_id,
+        previous_snapshot_id=baseline.get("id") if baseline else None,
+        continuity_json=json.dumps(continuity, ensure_ascii=False) if continuity is not None else None,
+        **data,
+    )
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    if commit:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        db.refresh(item)
+    else:
+        db.flush()
     return item
 
 
 def list_scores(db: Session, stock_id: int) -> list[StockScoreSnapshot]:
     return list(db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.stock_id == stock_id).order_by(StockScoreSnapshot.report_time.desc(), StockScoreSnapshot.id.desc())))
+
+
+def get_score_by_report(db: Session, report_id: int) -> StockScoreSnapshot | None:
+    return db.scalar(select(StockScoreSnapshot).where(StockScoreSnapshot.report_id == report_id))
+
+
+def _score_report_reference(db: Session, report_id: int) -> dict:
+    snapshot = get_score_by_report(db, report_id)
+    if snapshot is not None:
+        return _score_snapshot_dict(snapshot)
+    report = db.get(Report, report_id)
+    match = re.fullmatch(r".+-(\d{4}-\d{2}-\d{2})-标的评级报告", report.title.strip()) if report else None
+    if not match or not resolve_report_path(report).is_file():
+        raise ValueError(f"评分报告不存在或原文不可读: {report_id}")
+    source = extract_trailing_json_object(resolve_report_path(report).read_text(encoding="utf-8"))
+    report_time = date.fromisoformat(match.group(1))
+    if source.get("report_time") is not None and source["report_time"] != report_time.isoformat():
+        raise ValueError(f"报告 {report_id} 的正文日期与标题不符")
+    return {**source, "id": None, "report_id": report_id, "report_time": report_time,
+            "continuity": parse_continuity(source.get("continuity"))}
+
+
+def _available_score_reports(db: Session, ids: set[int]) -> set[int]:
+    if not ids:
+        return set()
+    return {row.id for row in db.scalars(select(Report).where(Report.id.in_(ids))) if resolve_report_path(row).is_file()}
+
+
+def read_score_rows(db: Session, rows: list[StockScoreSnapshot]) -> list[dict]:
+    result = [_score_snapshot_dict(item) for item in rows]
+    by_id = {item["id"]: item for item in result}
+    baseline_ids = {item["previous_snapshot_id"] for item in result} - by_id.keys() - {None}
+    if baseline_ids:
+        for row in db.scalars(select(StockScoreSnapshot).where(StockScoreSnapshot.id.in_(baseline_ids))):
+            by_id[row.id] = _score_snapshot_dict(row)
+    by_report = {item["report_id"]: item for item in by_id.values() if item["report_id"] is not None}
+    report_ids = {item["report_id"] for item in result if item["report_id"] is not None}
+    for item in result:
+        body = item.get("continuity") or {}
+        if body.get("previous_report_id") is not None:
+            report_ids.add(body["previous_report_id"])
+        report_ids.update(check["report_id"] for check in body.get("previous_checks", []))
+    reports = _available_score_reports(db, report_ids)
+    for item in result:
+        baseline = by_id.get(item["previous_snapshot_id"])
+        item["comparison"] = score_comparison(item, baseline)
+        item["comparison"]["report_available"] = item["comparison"]["report_id"] in reports
+        item["report_available"] = item["report_id"] in reports
+        item["check_sources"] = []
+        for check in (item["continuity"] or {}).get("previous_checks", []):
+            source_id = check["report_id"]
+            if source_id not in by_report:
+                try:
+                    by_report[source_id] = _score_report_reference(db, source_id)
+                except (ValueError, OSError):
+                    by_report[source_id] = None
+            source = by_report[source_id]
+            origin = next((entry for entry in (source.get("continuity") or {}).get("next_checks", []) if entry["id"] == check["check_id"]), None) if source else None
+            item["check_sources"].append({
+                "report_id": source_id, "check_id": check["check_id"],
+                "condition": origin["condition"] if origin else None,
+                "source_missing": origin is None,
+                "report_available": source_id in reports,
+            })
+    return result
 
 
 def create_valuation(db: Session, stock_id: int, payload: StockValuationSnapshotCreate) -> StockValuationSnapshot:

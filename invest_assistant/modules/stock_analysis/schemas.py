@@ -1,8 +1,9 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from invest_assistant.modules.knowledge_base.schemas import KnowledgeNoteRead
+from invest_assistant.modules.stock_analysis.score_continuity import NUMERIC_FIELDS, ScoreContinuity, score_number
 
 
 class StockPoolCreate(BaseModel):
@@ -36,25 +37,55 @@ class StockPoolRead(StockPoolCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class StockScoreSnapshotCreate(BaseModel):
+class StockScoreValues(BaseModel):
     report_time: date
     researcher_code: str | None = None
-    business_moat_score: float = 0
-    management_score: float = 0
-    governance_score: float = 0
-    strategy_score: float = 0
-    certainty_score: float = 0
-    growth_score: float = 0
-    total_score: float = 0
+    business_moat_score: float
+    management_score: float
+    governance_score: float
+    strategy_score: float
+    certainty_score: float
+    growth_score: float
+    total_score: float
     investment_level: str | None = None
     core_logic: str | None = None
     primary_risk: str | None = None
 
 
-class StockScoreSnapshotRead(StockScoreSnapshotCreate):
+class StockScoreSnapshotCreate(StockScoreValues):
+    model_config = ConfigDict(extra="forbid")
+    continuity: ScoreContinuity | None = None
+
+    @field_validator(*NUMERIC_FIELDS, mode="before")
+    @classmethod
+    def validate_score(cls, value):
+        return score_number(value)
+
+    @field_validator("researcher_code")
+    @classmethod
+    def normalize_researcher(cls, value):
+        return value.strip() if value is not None else None
+
+    @model_validator(mode="after")
+    def valid_continuity(self):
+        if "continuity" in self.model_fields_set:
+            if self.continuity is None:
+                raise ValueError("continuity 不能为 null")
+            if not self.researcher_code or not self.researcher_code.strip():
+                raise ValueError("新格式须提供 researcher_code")
+        return self
+
+
+class StockScoreSnapshotRead(StockScoreValues):
     id: int
     stock_id: int
     created_at: datetime
+    report_id: int | None = None
+    previous_snapshot_id: int | None = None
+    continuity: ScoreContinuity | None = None
+    comparison: dict | None = None
+    check_sources: list[dict] = Field(default_factory=list)
+    report_available: bool | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -123,12 +123,19 @@ def stock_daily_bars(
 
 @router.get("/stocks/{stock_id}/scores", response_model=list[StockScoreSnapshotRead])
 def list_scores(stock_id: int, db: Session = Depends(get_db)) -> list:
-    return service.list_scores(db, stock_id)
+    try:
+        return service.read_score_rows(db, service.list_scores(db, stock_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/stocks/{stock_id}/scores", response_model=StockScoreSnapshotRead)
 def create_score(stock_id: int, payload: StockScoreSnapshotCreate, db: Session = Depends(get_db)):
-    return service.create_score(db, stock_id, payload)
+    try:
+        item = service.create_score(db, stock_id, payload)
+        return service.read_score_rows(db, [item])[0]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/scores/{score_id}")

@@ -22,11 +22,15 @@ class StockPoolItem(Base):
 
 class StockScoreSnapshot(Base):
     __tablename__ = "stock_score_snapshot"
+    __table_args__ = (Index("uq_stock_score_snapshot_report_id", "report_id", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stock.id"), nullable=False, index=True)
     report_time: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     researcher_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    report_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    previous_snapshot_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    continuity_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     business_moat_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     management_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     governance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
@@ -210,6 +214,12 @@ def ensure_stock_analysis_schema(engine: Engine) -> None:
             valuation_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(stock_valuation_snapshot)")).all()}
             if valuation_columns and "valuation_assumptions_json" not in valuation_columns:
                 conn.execute(text("ALTER TABLE stock_valuation_snapshot ADD COLUMN valuation_assumptions_json TEXT"))
+            score_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(stock_score_snapshot)")).all()}
+            if score_columns:
+                for name, sql_type in (("report_id", "INTEGER"), ("previous_snapshot_id", "INTEGER"), ("continuity_json", "TEXT")):
+                    if name not in score_columns:
+                        conn.execute(text(f"ALTER TABLE stock_score_snapshot ADD COLUMN {name} {sql_type}"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_score_snapshot_report_id ON stock_score_snapshot (report_id)"))
         return
     if engine.dialect.name != "postgresql":
         return

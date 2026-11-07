@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import String, delete, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from invest_assistant.modules.basic.report_library.content import (
+    extract_trailing_json_object as _extract_trailing_json_object,
+    extract_trailing_json_payload as _extract_trailing_json_payload,
+)
 
 from invest_assistant.shared.time_utils import utc_now
 from invest_assistant.modules.basic.report_library import service as report_service
@@ -40,6 +46,7 @@ from invest_assistant.modules.knowledge_base.schemas import (
 from invest_assistant.modules.market_radar.models import Tag
 from invest_assistant.modules.portfolio import adjust_advice as adjust_advice_service
 from invest_assistant.modules.stock_analysis import service as stock_service
+from invest_assistant.modules.stock_analysis.score_continuity import score_number
 from invest_assistant.modules.stock_analysis.models import StockTrendSnapshot
 from invest_assistant.modules.track_discovery import service as track_service
 from invest_assistant.modules.track_discovery.models import Track, TrackTrendSnapshot
@@ -468,7 +475,7 @@ def _researcher_read(item: KnowledgeResearcher) -> KnowledgeResearcherRead:
             "researcher_code": item.researcher_code,
             "display_name": item.display_name,
             "profile_path": item.profile_path,
-            "profile_hash": item.profile_hash,
+            "profile_hash": hashlib.sha256(profile_content.encode("utf-8")).hexdigest() if profile_content else item.profile_hash,
             "profile_content": profile_content,
             "status": item.status,
             "intro": sections["intro"],
@@ -1164,6 +1171,11 @@ def import_research_feedback(db: Session, feedback_id: int) -> dict:
     company_name, report_time, report_type = _parse_feedback_report_title(feedback.title)
     if not feedback.report_id:
         raise ValueError("research feedback report_id is required")
+    if report_type == SCORE_REPORT_TYPE:
+        existing = stock_service.get_score_by_report(db, feedback.report_id)
+        if existing is not None:
+            stock_service.ensure_score_import_enabled(db, {"continuity": True} if existing.continuity_json else {})
+            return _complete_score_feedback(db, feedback, company_name, existing)
     report = report_service.get_report(db, feedback.report_id)
     if report is None:
         raise ValueError("report not found")
@@ -1192,35 +1204,46 @@ def _import_score_feedback(
     report_time: date,
     raw_payload: dict,
 ) -> dict:
+    stock_service.ensure_score_import_enabled(db, raw_payload)
     payload = _normalize_score_import_payload(raw_payload)
     stock = _resolve_score_import_stock(db, payload["company_code"])
-    score = stock_service.create_score(
-        db,
-        stock.id,
-        StockScoreSnapshotCreate(
-            report_time=report_time,
-            researcher_code=_normalize_optional_text(str(payload.get("researcher_code") or feedback.researcher_code or "")),
-            business_moat_score=payload["business_moat_score"],
-            management_score=payload["management_score"],
-            governance_score=payload["governance_score"],
-            strategy_score=payload["strategy_score"],
-            certainty_score=payload["certainty_score"],
-            growth_score=payload["growth_score"],
-            total_score=payload["total_score"],
-            investment_level=payload["investment_level"],
-            core_logic=payload["core_logic"],
-            primary_risk=payload["primary_risk"],
-        ),
-    )
-    feedback.status = "parsed"
-    db.commit()
-    db.refresh(feedback)
-    return {
+    if "report_time" in raw_payload and _import_date_field(raw_payload["report_time"], "report_time") != report_time:
+        raise ValueError("JSON report_time 与报告标题日期不一致")
+    if {"previous_snapshot_id", "previous_report_id"} & raw_payload.keys():
+        raise ValueError("比较来源须使用 continuity.previous_report_id")
+    new_fields = {"continuity": raw_payload["continuity"]} if "continuity" in raw_payload else {}
+    if new_fields and payload.get("researcher_code") != feedback.researcher_code:
+        raise ValueError("新格式 researcher_code 与回流研究员不一致")
+    values = {key: payload[key] for key in SCORE_IMPORT_FIELDS if key != "company_code"}
+    values.update(report_time=report_time, researcher_code=payload.get("researcher_code") or feedback.researcher_code, **new_fields)
+    try:
+        score = stock_service.create_score(
+            db, stock.id, StockScoreSnapshotCreate(**values), report_id=feedback.report_id, commit=False,
+        )
+        return _complete_score_feedback(db, feedback, company_name, score)
+    except IntegrityError as exc:
+        db.rollback()
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        duplicate = constraint == "uq_stock_score_snapshot_report_id" or "UNIQUE constraint failed: stock_score_snapshot.report_id" in str(exc.orig)
+        existing = stock_service.get_score_by_report(db, feedback.report_id) if duplicate else None
+        if existing is None:
+            raise
+        return _complete_score_feedback(db, feedback, company_name, existing)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _complete_score_feedback(db: Session, feedback: KnowledgeResearchFeedback, company_name: str, score) -> dict:
+    result = {
         "target": "stock_score_snapshot",
         "message": "评分导入成功",
         "company_name": company_name,
-        "score": stock_service._score_snapshot_dict(score),
+        "score": stock_service.read_score_rows(db, [score])[0],
     }
+    feedback.status = "parsed"
+    db.commit()
+    return result
 
 
 def _import_valuation_feedback(
@@ -1572,47 +1595,6 @@ def _parse_feedback_report_title(title: str) -> tuple[str, date, str]:
     return subject.strip(), parsed_date, report_type.strip()
 
 
-def _extract_trailing_json_payload(markdown: str) -> dict | list:
-    """取报告末尾的最终 JSON。单份报告是对象，组合报告是同构对象组成的数组。"""
-    content = str(markdown or "").strip()
-    if not content:
-        raise ValueError("报告内容为空")
-    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```\s*$", content, re.IGNORECASE)
-    candidates = []
-    if fenced_match:
-        candidates.append(fenced_match.group(1).strip())
-    candidates.append(content)
-    decoder = json.JSONDecoder()
-    for candidate in candidates:
-        text = str(candidate or "").strip()
-        if not text:
-            continue
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, (dict, list)):
-                return parsed
-        except Exception:
-            pass
-        for index in range(len(text) - 1, -1, -1):
-            if text[index] not in "{[":
-                continue
-            fragment = text[index:].strip()
-            try:
-                parsed, end = decoder.raw_decode(fragment)
-            except Exception:
-                continue
-            if isinstance(parsed, (dict, list)) and not fragment[end:].strip():
-                return parsed
-    raise ValueError("未在报告末尾解析到 JSON")
-
-
-def _extract_trailing_json_object(markdown: str) -> dict:
-    payload = _extract_trailing_json_payload(markdown)
-    if not isinstance(payload, dict):
-        raise ValueError("报告末尾的 JSON 必须是对象")
-    return payload
-
-
 def _extract_trailing_json_array(markdown: str) -> list:
     payload = _extract_trailing_json_payload(markdown)
     if not isinstance(payload, list):
@@ -1784,15 +1766,10 @@ def _json_text(value: Any) -> str:
 
 
 def _score_import_float(value: Any, field: str) -> float:
-    if isinstance(value, bool):
-        raise ValueError(f"{field} 必须是 0-10 数值")
     try:
-        number = float(value)
-    except Exception as exc:
+        return round(score_number(value), 4)
+    except ValueError as exc:
         raise ValueError(f"{field} 必须是 0-10 数值") from exc
-    if number < 0 or number > 10:
-        raise ValueError(f"{field} 必须是 0-10 数值")
-    return round(number, 4)
 
 
 def _resolve_score_import_stock(db: Session, company_code: str) -> Stock:
