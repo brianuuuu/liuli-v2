@@ -1,3 +1,5 @@
+import type { ScoreContinuityFields } from "../../../../shared/scoreContinuity";
+
 export type PageDto<T> = {
   items: T[];
   total: number;
@@ -325,7 +327,7 @@ export type StockMaterialDetail = MaterialDetailBase & {
   report_period?: string | null;
 };
 
-export type StockScoreSnapshot = {
+export type StockScoreSnapshot = ScoreContinuityFields & {
   id: number;
   report_time: string;
   researcher_code?: string | null;

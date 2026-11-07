@@ -1,4 +1,5 @@
 import type { KnowledgeNote } from "../api/knowledge";
+import type { ScoreContinuityFields } from "../../../shared/scoreContinuity";
 
 export type TokenResponse = {
   access_token: string;
@@ -616,7 +617,7 @@ export type StockEarningsFollowUp = {
   missing: ("valuation" | "score" | "trend")[];
 };
 
-export type StockScoreSnapshot = {
+export type StockScoreSnapshot = ScoreContinuityFields & {
   id: number;
   stock_id: number;
   report_time: string;

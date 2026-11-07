@@ -1,0 +1,9 @@
+.score-continuity { display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }
+.score-continuity h4, .score-continuity p { margin: 0; }
+.score-continuity__links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.score-continuity__item { display: grid; gap: 5px; padding-block: 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.score-continuity__muted { opacity: .65; font-size: 12px; }
+.score-continuity summary, .score-history-entry > summary { cursor: pointer; padding-block: 8px; }
+.score-history-entry { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.score-history-entry > summary { line-height: 1.7; }
+.score-continuity details ul { padding-inline-start: 20px; margin-block: 6px; }

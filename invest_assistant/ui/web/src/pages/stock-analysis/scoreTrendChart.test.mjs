@@ -63,7 +63,7 @@ test("score trend shares the valuation chart palette", () => {
   assert.equal(dark.yAxis.axisLabel.color, "#aab2bf");
   assert.equal(dark.xAxis.axisLine.lineStyle.color, "#2b333e");
   assert.equal(dark.xAxis.axisTick.show, false);
-  assert.equal(dark.series[0].itemStyle.color, "#60a5fa");
+  assert.equal(dark.series[0].itemStyle.color, "#4493f8");
 
   const light = buildScoreTrendBarOption(rows, DEFAULT_SCORE_TREND_METRIC, "light");
   assert.equal(light.yAxis.splitLine.lineStyle.color, "#e5eaf1");

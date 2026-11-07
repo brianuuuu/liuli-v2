@@ -14,6 +14,7 @@ import {
   disableStockTrackRelation,
   getStockDailyBars,
   getStockDetail,
+  listStockScores,
   listStockPool,
   updateStockMaterial
 } from "../../api/stockAnalysis";
@@ -40,6 +41,8 @@ import {
 } from "./scoreTrendChart";
 import type { ScoreTrendMetric } from "./scoreTrendChart";
 import { buildLatestRatingOverview, buildLatestRatingRadarOption } from "./stockRatingOverview";
+import { ScoreContinuityDetails } from "./ScoreContinuityDetails";
+import { scoreDelta } from "../../../../shared/scoreContinuity";
 import {
   DEFAULT_MATERIAL_VIEW_MODE,
   MATERIAL_VIEW_MODES,
@@ -204,7 +207,7 @@ export function StockDetailPage() {
                 {
                   key: "scores",
                   label: "评分",
-                  children: <ScoresTab data={data} />
+                  children: <ScoresTab key={data.stock.id} data={data} />
                 },
                 { key: "valuation", label: "估值", children: <ValuationTab data={data} /> },
                 { key: "trend", label: "趋势", children: <TrendTab data={data} /> },
@@ -695,11 +698,12 @@ function InlineChart({ option, height = 240 }: { option: EChartsOption; height?:
 function ScoresTab({ data }: { data: StockDetail }) {
   const { resolvedMode } = useLiuliTheme();
   const [trendMetric, setTrendMetric] = useState<ScoreTrendMetric>(DEFAULT_SCORE_TREND_METRIC);
+  const scores = useAsyncData(useCallback(() => listStockScores(data.stock.id), [data.stock.id, data.score_history]), [...data.score_history].reverse());
   const scoreColumns: ColumnsType<StockScoreSnapshot> = [
     { title: "报告时间", dataIndex: "report_time", width: 110 },
     { title: "研究员", dataIndex: "researcher_code", width: 110, render: (value) => value || "-" },
     { title: "等级", dataIndex: "investment_level", width: 70, render: (value) => value || "-" },
-    { title: "总分", dataIndex: "total_score", width: 80, render: (value) => numberText(value) },
+    { title: "总分", dataIndex: "total_score", width: 110, render: (value, row) => <Space size={6}>{numberText(value)}{row.comparison?.total_delta != null ? <Typography.Text type="secondary">{scoreDelta(row.comparison.total_delta)}</Typography.Text> : null}</Space> },
     { title: "壁垒", dataIndex: "business_moat_score", width: 80, render: (value) => numberText(value) },
     { title: "管理", dataIndex: "management_score", width: 80, render: (value) => numberText(value) },
     { title: "治理", dataIndex: "governance_score", width: 80, render: (value) => numberText(value) },
@@ -723,7 +727,9 @@ function ScoresTab({ data }: { data: StockDetail }) {
             />
           </div>
           {data.score_history.length ? <InlineChart option={buildScoreTrendBarOption(data.score_history, trendMetric, resolvedMode)} /> : <EmptyAction description="暂无评分趋势" />}
-          <Table rowKey="id" size="small" dataSource={data.score_history} columns={scoreColumns} pagination={{ defaultPageSize: 8 }} />
+          {scores.error ? <Button size="small" onClick={() => void scores.refresh()}>评分读取失败，重试</Button> : null}
+          <Table rowKey="id" size="small" loading={scores.loading} dataSource={scores.data} columns={scoreColumns} pagination={{ defaultPageSize: 8 }}
+            expandable={{ rowExpandable: (row) => row.comparison != null, expandedRowRender: (row) => <ScoreContinuityDetails score={row} />, defaultExpandedRowKeys: data.latest_score?.continuity ? [data.latest_score.id] : [] }} />
         </div>
       </div>
     </WorkbenchCard>

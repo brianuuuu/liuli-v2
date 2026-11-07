@@ -24,6 +24,7 @@ import type {
   SourceItem,
   StockDashboard,
   StockDetail,
+  StockScoreSnapshot,
   StockMaterial,
   StockMaterialDetail,
   StockOption,
@@ -81,6 +82,7 @@ export const mobileApi = {
   // 状态分组和计数在端上完成；标的池超过 50 条时需要后端补分页。
   // status 只在回收站视图传 archived：不传时后端本来就不返归档。
   stockDetail: (stockId: number) => apiClient.get<StockDetail>(`/api/stock-analysis/stocks/${stockId}/detail`),
+  stockScores: (stockId: number) => apiClient.get<StockScoreSnapshot[]>(`/api/stock-analysis/stocks/${stockId}/scores`),
   stockPool: (limit = 50) =>
     apiClient.get<StockPoolItem[]>("/api/stock-analysis/pool", { limit }),
   stockMaterials: (offset = 0, limit = 10) =>

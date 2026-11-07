@@ -64,6 +64,6 @@ test("buildLatestRatingRadarOption uses a ten-point scale and the profile values
   assert.equal(option.radar.axisName.color, "#aab2bf");
   assert.equal(option.radar.splitLine.lineStyle.color, "#2b333e");
   assert.equal(option.radar.axisLine.lineStyle.color, "#2b333e");
-  assert.equal(option.series[0].lineStyle.color, "#60a5fa");
-  assert.equal(option.series[0].itemStyle.color, "#60a5fa");
+  assert.equal(option.series[0].lineStyle.color, "#4493f8");
+  assert.equal(option.series[0].itemStyle.color, "#4493f8");
 });

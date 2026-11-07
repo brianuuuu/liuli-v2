@@ -5,6 +5,8 @@ import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { EmptyState, ErrorState, ListRow, LoadingState, SectionCard } from "../components/Ui";
 import { MaterialCard, materialDetailPath } from "../components/MaterialCard";
+import { ScoreContinuityDetails } from "./ScoreContinuityDetails";
+import { scoreDelta } from "../../../../shared/scoreContinuity";
 import { poolStatusLabel, poolStatusTone } from "./stockPoolGroups";
 import {
   DEFAULT_STOCK_DETAIL_SECTION,
@@ -171,6 +173,7 @@ function OverviewSection({ detail, onOpenSection }: { detail: StockDetail; onOpe
 function RatingSection({ detail }: { detail: StockDetail }) {
   const rows = scoreTrendRows(detail.score_history);
   const score = detail.latest_score;
+  const history = useQuery({ queryKey: ["stock-scores", detail.stock.id, detail.score_history.map((item) => item.id).join(",")], queryFn: () => mobileApi.stockScores(detail.stock.id), refetchOnMount: "always" });
   return (
     <>
       <SectionCard title="最新评级">
@@ -182,6 +185,7 @@ function RatingSection({ detail }: { detail: StockDetail }) {
             {score.core_logic ? <div className="stock-detail-copy"><span>核心逻辑</span><p>{score.core_logic}</p></div> : null}
             {score.primary_risk ? <div className="stock-detail-copy is-risk"><span>主要风险</span><p>{score.primary_risk}</p></div> : null}
             <footer className="stock-detail-meta">{score.researcher_code || "未标注研究员"} · {score.report_time}</footer>
+            <ScoreContinuityDetails score={score} />
           </>
         ) : <EmptyState title="暂无评级" detail="等待研究员写入评分" />}
       </SectionCard>
@@ -196,13 +200,12 @@ function RatingSection({ detail }: { detail: StockDetail }) {
         ) : <EmptyState title="暂无评分趋势" />}
       </SectionCard>
       <SectionCard title="历史评分">
-        {detail.score_history.length ? detail.score_history.map((item) => (
-          <ListRow
-            key={item.id}
-            title={`${item.report_time} · ${item.investment_level || "-"}`}
-            meta={`壁垒 ${formatNumber(item.business_moat_score, 1)} · 管理 ${formatNumber(item.management_score, 1)} · 成长 ${formatNumber(item.growth_score, 1)}`}
-            trailing={<strong className="stock-detail-score-value">{formatNumber(item.total_score, 2)}</strong>}
-          />
+        {history.isLoading ? <LoadingState /> : history.isError ? <ErrorState message="评分记录加载失败" onRetry={() => void history.refetch()} /> : history.data?.length ? history.data.map((item) => (
+          <details className="score-history-entry" key={item.id} data-snapshot-id={item.id}>
+            <summary>{item.report_time} · {item.investment_level || "-"} · {formatNumber(item.total_score, 2)}{item.comparison?.total_delta != null ? `（${scoreDelta(item.comparison.total_delta)}）` : ""}<br /><span className="score-continuity__muted">{item.researcher_code || "未标注研究员"} · 版本 {item.id}</span></summary>
+            <p className="stock-detail-meta">壁垒 {formatNumber(item.business_moat_score, 1)} · 管理 {formatNumber(item.management_score, 1)} · 治理 {formatNumber(item.governance_score, 1)} · 战略 {formatNumber(item.strategy_score, 1)} · 确定性 {formatNumber(item.certainty_score, 1)} · 成长 {formatNumber(item.growth_score, 1)}</p>
+            <ScoreContinuityDetails score={item} />
+          </details>
         )) : <EmptyState title="暂无历史评分" />}
       </SectionCard>
     </>
