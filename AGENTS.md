@@ -9,7 +9,7 @@
 - If old implementation details conflict with the new spec, the new spec wins.
 - Migrated features must be reimplemented under the new system structure instead of copied from old code.
 - Keep module boundaries clear, business logic cohesive, and code paths short.
-- Keep documentation, code comments, and other explanatory text concise and organized; number items where helpful, aim for one sentence per point, and avoid repetitive or excessive explanations.
+- Keep documentation, code comments, and other explanatory text concise and organized; aim for one sentence per point, and avoid repetitive or excessive explanations.
 - Do not switch branches for the current Liuli rewrite work. Continue development in the current branch unless the user explicitly changes this instruction.
 - Git commit messages must follow Conventional Commits: `<type>(<scope>): <subject>`; write the subject primarily in Chinese, retaining only necessary English technical terms.
 - Before each commit, review the change for unnecessary code and remove confirmed unused code, duplicate implementations, obsolete branches, and needless abstractions; prefer reuse, keep cleanup within the change's scope, and preserve existing functionality.
