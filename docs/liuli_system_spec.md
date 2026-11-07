@@ -1,7 +1,7 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.49**（2026-11-05）
+> 当前版本：**1.0.50**（2026-11-07；本次为执行文档更新）
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -12,6 +12,7 @@
 - 版本迭代记录：`docs/CHANGELOG.md`
 - MVP 阶段（v7–v48）的完整演进与决策过程：`docs/archive/liuli_system_spec_mvp.md`（已冻结，只作历史追溯）
 - 配套专题文档：`docs/liuli_mcp_design.md`、`docs/liuli_mcp_tools.md`（对外 MCP）、`docs/liuli_android_app_spec.md`（Android）
+- 待实施执行文档：[标的评分报告连续性](superpowers/plans/2026-11-07-stock-rating-continuity.md)；三字段存储与跨期验证方案已审核，现行表结构与接口尚未变更。
 
 ## 0. 版本与维护规则
 
@@ -688,6 +689,8 @@ stock_material：与 track_material 平行，来源为 source_item（信息流�
 | `stock_score_snapshot` | 标的评级报告 | 护城河、管理层、治理、战略、确定性、成长六项分 + total_score + investment_level |
 | `stock_valuation_snapshot` | 标的估值报告 | 财务表现、趋势参考、指引核对、利润/FCF/收入模型、三年合理市值；导入时按当前市值重算 `expectation_gap_rate` 落库。读取最新估值时（标的池、看板、标的详情、估值对比）用前复权日线把估值日市值按涨跌幅折到最新收盘，`current_market_value` 和 `expectation_gap_rate` 返回实时值；估值历史保留快照原值；估值日之前没有日线时退回快照原值 |
 | `stock_trend_snapshot` | 趋势研究 | trend_level T0—T5（T0 最强）、六维（赛道三周期、公司地位、市场认可、资金认可、位置、周期）、建议分组 |
+
+评分当前保存独立研究快照，尚无来源报告关联、固定比较基准或结构化连续性说明。待实施范围见[标的评分报告连续性执行文档](superpowers/plans/2026-11-07-stock-rating-continuity.md)，当前字段清单仍以第 22 节的 `stock_score_snapshot` 为准。
 
 ```text
 stock_valuation_snapshot.valuation_assumptions_json 是估值导入唯一的选填字段：
