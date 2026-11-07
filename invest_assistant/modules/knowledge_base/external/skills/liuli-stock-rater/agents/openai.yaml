@@ -1,16 +1,15 @@
 interface:
-  display_name: "琉璃标的评级师"
-  short_description: "用琉璃标的评级师为A股公司生成研究评级"
-  default_prompt: "Use $liuli-stock-rater to rate 600519.SH with the 标的评级师 workflow."
-
-dependencies:
-  tools:
-    - type: "mcp"
-      value: "liuli"
-      description: "Fetch liuli researcher profile, local announcements/news, and optional report uploads."
-    - type: "mcp"
-      value: "tushareMcp"
-      description: "Fetch A-share structured financial, valuation, and market data."
-
+  display_name: 琉璃标的评分员
+  short_description: 以11步流程完成A股标的评分，加入数据校验、同业比较和反证检查
+  default_prompt: Use $liuli-stock-rater to rate one A-share company through its 11-step
+    workflow, including light data validation, peer comparison and disconfirmation
+    checks, and upload the completed research report.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
 policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
   allow_implicit_invocation: true
