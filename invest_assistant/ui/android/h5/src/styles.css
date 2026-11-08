@@ -688,19 +688,20 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 /* 状态分档与排序共一行：左边分档可横向滚动，右边排序定宽不被挤压。 */
 .track-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .track-filter-bar .pill-segments { flex: 1 1 auto; min-width: 0; margin-bottom: 0; }
-.track-sort-group { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding-left: 8px; border-left: 1px solid var(--border); color: var(--subtle); }
-.track-sort-group button { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.track-sort-group button.is-active { background: var(--blue-soft); color: var(--blue); font-weight: 650; }
+.track-sort-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 5px 0 5px 8px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 /* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
-.track-list { display: grid; gap: 8px; }
-.track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); text-align: left; transition: background .15s ease; }
+.track-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.track-list-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); text-align: left; transition: background .15s ease; }
 html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft); }
 .track-list-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .track-list-row__head strong { overflow: hidden; font-size: 15px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
 .track-list-row__judgment { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.track-list-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--subtle); font-size: 11px; }
-.track-list-row__meta em { margin-left: auto; font-style: normal; font-variant-numeric: tabular-nums; }
+.track-list-row__meta { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--subtle); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.track-list-row__meta em { color: var(--muted); font-style: normal; }
+.track-list-row__meta em[data-direction="positive"] { color: var(--blue); }
+.track-list-row__meta em[data-direction="negative"] { color: #b45309; }
+:root[data-theme="dark"] .track-list-row__meta em[data-direction="negative"] { color: #f59e0b; }
 
 /* 赛道卡的两个角标：左评级右热度档位，越强越暖。两个角标并排，颜色只表达强弱。
    S/T0 红、A/T1 橙、B/T2 蓝、C D T3 T4 灰，与 Web 端同一套语义。 */

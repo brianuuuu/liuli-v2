@@ -2493,10 +2493,11 @@ describe("mobile H5 app", () => {
     await waitFor(() => expect(screen.queryByText("需要处理的笔记")).not.toBeInTheDocument());
   });
 
-  it("赛道库可在评分与热度之间切换排序，点条目进赛道详情", async () => {
+  it("赛道库单按钮循环五种排序，保留筛选和返回状态，点条目进详情", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/dashboard";
     vi.stubGlobal("IntersectionObserver", DashboardObserverFake);
+    const cycle = (direction: string) => ({ direction, judgment: "周期判断", confidence: "medium", research_date: "2026-11-08", snapshot_id: 1 });
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       // 赛道详情必须走 /detail：不带的那个路由只返回扁平 TrackRead，
@@ -2522,21 +2523,15 @@ describe("mobile H5 app", () => {
           stocks: [], tags: []
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
-      // 赛道列表：故意把评级低的放前面，验证端上会按评级重排
+      // 综合分与资金热度、周期方向背离，验证每种排序使用自己的维度。
       if (url.includes("/api/track-discovery/tracks?")) {
         return new Response(JSON.stringify([
-          { id: 9, name: "固态电池", status: "active", current_view: "尚在验证", track_grade: "C", heat_tier: "T3", overall_score: 5.4 },
-          { id: 7, name: "AI算力", status: "active", current_view: "算力需求从训练转向推理", track_grade: "S", heat_tier: "T1", overall_score: 8.08 }
+          { id: 9, name: "固态电池", status: "active", current_view: "尚在验证", track_grade: "C", heat_tier: "T0", overall_score: 5.4,
+            cycle_views: { short: cycle("positive"), mid: cycle("neutral"), long: cycle("positive") } },
+          { id: 7, name: "AI算力", status: "active", current_view: "算力需求从训练转向推理", track_grade: "S", heat_tier: "T1", overall_score: 8.08,
+            industry_phase: "expansion", market_phase: "recede", cycle_views: { short: cycle("negative"), mid: cycle("positive"), long: cycle("neutral") } },
+          { id: 11, name: "待研究赛道", status: "candidate" }
         ]), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      if (url.includes("/api/track-discovery/dashboard")) {
-        return new Response(JSON.stringify({
-          heat_rankings: [
-            // 固态电池评级低但更热：两种排法的顺序因此是相反的
-            { rank: 1, track_id: 9, track_name: "固态电池", current_heat: 120, today_material_count: 0 },
-            { rank: 2, track_id: 7, track_name: "AI算力", current_heat: 89, today_material_count: 0 }
-          ]
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       if (url.includes("/api/console/workbench-today")) {
         return new Response(JSON.stringify({ market_indices: { items: [] } }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -2558,8 +2553,11 @@ describe("mobile H5 app", () => {
     // 归档等同软删除，移动端不做回收站，分档里不该出现
     expect(screen.queryByRole("button", { name: /归档/ })).not.toBeInTheDocument();
     expect(screen.getByText("固态电池")).toBeInTheDocument();
-    // 热度来自看板聚合，挂到对应赛道上
-    expect(screen.getByText("热度 89")).toBeInTheDocument();
+    const card = screen.getByText("AI算力").closest(".track-list-row")!;
+    expect(card.querySelector(".track-list-row__meta")).toHaveTextContent("扩张·退潮8.1分短·偏弱中·偏强长·中性");
+    expect(card).not.toHaveTextContent("热度");
+    expect(screen.getByText("待研究赛道").closest(".track-list-row")).toHaveTextContent("—·——分短·—中·—长·—");
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/track-discovery/dashboard"))).toBe(false);
     // 两个角标：评级在左、热度档位在右，列表接口直接带下来，不用等详情
     expect(screen.getByText("S")).toBeInTheDocument();
     expect(screen.getByText("T1")).toBeInTheDocument();
@@ -2568,13 +2566,27 @@ describe("mobile H5 app", () => {
     const rankOf = (name: string) => trackOrder().findIndex((text) => text.includes(name));
     expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池"));
 
-    // 切到资讯热度：固态电池评级更低但更热，顺序必须反过来
-    fireEvent.click(screen.getByRole("button", { name: "热度" }));
-    await waitFor(() => expect(rankOf("固态电池")).toBeLessThan(rankOf("AI算力")));
-
-    // 切回综合评分，顺序回到按评级排
-    fireEvent.click(screen.getByRole("button", { name: "评分" }));
-    await waitFor(() => expect(rankOf("AI算力")).toBeLessThan(rankOf("固态电池")));
+    for (const [label, first, second] of [
+      ["热度", "固态电池", "AI算力"],
+      ["短期", "固态电池", "AI算力"],
+      ["中期", "AI算力", "固态电池"],
+      ["长期", "固态电池", "AI算力"],
+      ["评分", "AI算力", "固态电池"]
+    ]) {
+      expect(screen.getAllByRole("button", { name: /^赛道排序：/ })).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: /^赛道排序：/ }));
+      expect(screen.getByRole("button", { name: `赛道排序：${label}` })).toBeInTheDocument();
+      expect(rankOf(first)).toBeLessThan(rankOf(second));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "赛道排序：评分" }));
+    fireEvent.click(screen.getByRole("button", { name: "赛道排序：热度" }));
+    fireEvent.click(screen.getByRole("button", { name: /候选/ }));
+    expect(screen.queryByText("AI算力")).not.toBeInTheDocument();
+    expect(screen.getByText("待研究赛道")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^全部/ }));
+    fireEvent.click(screen.getByRole("button", { name: "赛道材料" }));
+    fireEvent.click(screen.getByRole("button", { name: "赛道库" }));
+    expect(screen.getByRole("button", { name: "赛道排序：短期" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("AI算力"));
     await waitFor(() => expect(window.location.hash).toBe("#/tracks/7"));
@@ -2605,6 +2617,9 @@ describe("mobile H5 app", () => {
       expect.stringContaining("/api/track-discovery/tracks/7/detail"),
       expect.anything()
     );
+    window.location.hash = "#/dashboard";
+    expect(await screen.findByRole("button", { name: "赛道排序：短期" })).toBeInTheDocument();
+    expect(rankOf("固态电池")).toBeLessThan(rankOf("AI算力"));
   });
 
   it("材料详情展示全文和原文入口，实体名可点回赛道", async () => {

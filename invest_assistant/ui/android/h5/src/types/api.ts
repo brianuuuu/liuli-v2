@@ -123,27 +123,6 @@ export type WorkbenchToday = {
     since?: string | null;
   };
 };
-export type TrackDashboard = {
-  summary?: {
-    warming_tracks_count?: number;
-    focus_tracks_count?: number;
-    pending_materials_count?: number;
-    top_heat_track?: { name: string; heat_score: number } | null;
-  };
-  heat_rankings?: Array<{
-    rank: number;
-    track_id: number;
-    track_name: string;
-    current_heat: number;
-    today_material_count: number;
-  }>;
-  latest_materials?: Array<{
-    id: number;
-    track_name?: string;
-    material_title?: string;
-    material_time?: string;
-  }>;
-};
 export type TrackCycle = "short" | "mid" | "long";
 export type TrackCycleView = {
   direction: "positive" | "neutral" | "negative" | "uncertain";
@@ -207,11 +186,12 @@ export type TrackListItem = {
   market_phase?: string | null;
   confidence_level?: string | null;
   latest_snapshot_id?: number | null;
-  // 列表接口直接带最新快照的两个角标和综合分，赛道库不用为每张卡再查一次快照。
+  // 列表接口分别返回最新有效评分和各周期判断，无需逐卡查询快照。
   track_grade?: TrackGrade | null;
   heat_tier?: TrackHeatTier | null;
   overall_score?: number | null;
   headline_cycle?: TrackCycle | null;
+  cycle_views?: Partial<Record<TrackCycle, TrackCycleView>>;
 };
 
 /**

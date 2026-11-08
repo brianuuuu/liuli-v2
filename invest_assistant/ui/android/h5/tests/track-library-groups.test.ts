@@ -6,14 +6,14 @@ import {
   filterTracksByStatus,
   parseTrackSegments,
   sortTracks,
-  sortTracksByGrade,
-  sortTracksByHeat,
+  nextTrackSort,
+  trackSortLabel,
   trackLabel,
   trackStatusCounts,
   TRACK_INDUSTRY_PHASE_LABELS,
   type TrackRowView
 } from "../src/pages/trackLibraryGroups";
-import type { TrackListItem, TrackTrendSnapshot } from "../src/types/api";
+import type { TrackCycleView, TrackListItem, TrackTrendSnapshot } from "../src/types/api";
 
 function track(overrides: Partial<TrackListItem> = {}): TrackListItem {
   return { id: 1, name: "AI算力", status: "active", ...overrides };
@@ -46,58 +46,43 @@ function row(overrides: Partial<TrackRowView> = {}): TrackRowView {
     grade: null,
     heatTier: null,
     overallScore: null,
-    headlineCycle: null,
+    cycleViews: {},
     coreJudgment: "尚无研究结论",
     industryPhase: null,
     marketPhase: null,
-    heat: null,
     researched: false,
     ...overrides
   };
 }
 
+function cycle(direction: TrackCycleView["direction"], snapshot_id = 1): TrackCycleView {
+  return { direction, judgment: "周期判断", confidence: "medium", research_date: "2026-11-08", snapshot_id };
+}
+
 describe("buildTrackRow", () => {
-  it("快照的核心判断优先于 track 上回填的当前判断", () => {
-    const view = buildTrackRow(track({ current_view: "回填的旧判断" }), snapshot({ core_judgment: "快照的新判断" }), {});
-    expect(view.coreJudgment).toBe("快照的新判断");
-    expect(view.researched).toBe(true);
+  it("使用列表聚合的评分、阶段和各自来源不同的周期判断", () => {
+    const view = buildTrackRow(track({
+      track_grade: "A", heat_tier: "T2", overall_score: 7.2,
+      current_view: "需求扩张", industry_phase: "expansion", market_phase: "recede",
+      cycle_views: { short: cycle("negative", 3), long: cycle("positive", 1) }
+    }));
+    expect(view).toMatchObject({
+      grade: "A", heatTier: "T2", overallScore: 7.2, researched: true,
+      coreJudgment: "需求扩张", industryPhase: "expansion", marketPhase: "recede",
+      cycleViews: { short: { direction: "negative", snapshot_id: 3 }, long: { direction: "positive", snapshot_id: 1 } }
+    });
+    expect(view.cycleViews.mid).toBeUndefined();
   });
 
-  it("没有快照时退回 track 的当前判断", () => {
-    const view = buildTrackRow(track({ current_view: "人工写的判断" }), undefined, {});
-    expect(view.coreJudgment).toBe("人工写的判断");
+  it("没有评分仍保留定性判断，缺失值不补成零分或中性", () => {
+    const view = buildTrackRow(track({ current_view: "待商业化验证", cycle_views: { mid: cycle("uncertain") } }));
     expect(view.researched).toBe(false);
     expect(view.grade).toBeNull();
-  });
-
-  it("列表项自带的评级也算研究过：赛道库列表不会带完整快照", () => {
-    const view = buildTrackRow(track({ track_grade: "A", heat_tier: "T2", overall_score: 7.2 }), undefined, {});
-    expect(view.grade).toBe("A");
-    expect(view.heatTier).toBe("T2");
-    expect(view.overallScore).toBe(7.2);
-    expect(view.researched).toBe(true);
-  });
-
-  it("两边都有时以快照为准", () => {
-    const view = buildTrackRow(track({ track_grade: "C", overall_score: 5.1 }), snapshot(), {});
-    expect(view.grade).toBe("S");
-    expect(view.overallScore).toBe(8.08);
-  });
-
-  it("两者都没有时给占位，不返回空串", () => {
-    expect(buildTrackRow(track(), undefined, {}).coreJudgment).toBe("尚无研究结论");
-  });
-
-  it("阶段取快照优先、track 兜底", () => {
-    const view = buildTrackRow(track({ market_phase: "latent" }), snapshot({ market_phase: "accelerate" }), {});
-    expect(view.marketPhase).toBe("accelerate");
-    const fallback = buildTrackRow(track({ market_phase: "latent" }), snapshot({ market_phase: null }), {});
-    expect(fallback.marketPhase).toBe("latent");
-  });
-
-  it("热度按 track_id 查表，缺失是 null 不是 0", () => {
-    expect(buildTrackRow(track({ id: 7 }), undefined, { 7: 89 }).heat).toBe(89);
-    expect(buildTrackRow(track({ id: 7 }), undefined, {}).heat).toBeNull();
+    expect(view.overallScore).toBeNull();
+    expect(view.coreJudgment).toBe("待商业化验证");
+    expect(view.cycleViews.mid?.direction).toBe("uncertain");
+    expect(buildTrackRow(track()).cycleViews).toEqual({});
+    expect(buildTrackRow(track()).coreJudgment).toBe("尚无研究结论");
   });
 });
 
@@ -123,99 +108,52 @@ describe("filterTracksByStatus", () => {
   });
 });
 
-describe("sortTracksByGrade", () => {
-  it("评级高的排最前，未研究的排最后", () => {
-    const sorted = sortTracksByGrade([
-      row({ id: 1, grade: null }),
-      row({ id: 2, grade: "C" }),
-      row({ id: 3, grade: "S" }),
-      row({ id: 4, grade: "A" })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([3, 4, 2, 1]);
-  });
-
-  it("同评级内按综合分排", () => {
-    const sorted = sortTracksByGrade([
-      row({ id: 1, grade: "A", overallScore: 7.1 }),
-      row({ id: 2, grade: "A", overallScore: 7.9 }),
-      row({ id: 3, grade: "A", overallScore: 7.4 })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
-  });
-
-  it("综合分也相同时按热度，热度缺失排在有热度之后", () => {
-    const sorted = sortTracksByGrade([
-      row({ id: 1, grade: "S", overallScore: 8.2, heat: null }),
-      row({ id: 2, grade: "S", overallScore: 8.2, heat: 40 })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
-  });
-
-  it("全都相同时按名称兜底，同一批赛道无论来的顺序如何，结果都一样", () => {
-    // 只断言确定性，不断言具体字母序：localeCompare 的排序依赖 Node 的 ICU 数据，
-    // 写死顺序会让这条用例在不同环境下飘。稳定才是名称兜底的目的。
-    const names = ["机器人", "AI算力", "固态电池"];
-    const forward = sortTracksByGrade(names.map((name, index) => row({ id: index + 1, name })));
-    const reversed = sortTracksByGrade([...names].reverse().map((name, index) => row({ id: index + 1, name })));
-    expect(forward.map((item) => item.name)).toEqual(reversed.map((item) => item.name));
-    expect(new Set(forward.map((item) => item.name))).toEqual(new Set(names));
-  });
-
-  it("不改动入参数组", () => {
-    const input = [row({ id: 1, grade: "B" }), row({ id: 2, grade: "S" })];
-    sortTracksByGrade(input);
-    expect(input.map((item) => item.id)).toEqual([1, 2]);
-  });
-});
-
-describe("sortTracksByHeat", () => {
-  it("热度高的排最前", () => {
-    const sorted = sortTracksByHeat([
-      row({ id: 1, heat: 12 }),
-      row({ id: 2, heat: 89 }),
-      row({ id: 3, heat: 45 })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
-  });
-
-  it("热度缺失排在有热度的之后，包括热度为 0 的", () => {
-    // 看板热度是单独一条查询，失败或未统计时是缺值，不能当成"没人关注"
-    const sorted = sortTracksByHeat([row({ id: 1, heat: null }), row({ id: 2, heat: 0 })]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
-  });
-
-  it("热度相同时按综合分，再按名称兜底", () => {
-    const sorted = sortTracksByHeat([
-      row({ id: 1, heat: 30, overallScore: 6.1 }),
-      row({ id: 2, heat: 30, overallScore: 8.3 })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
-  });
-
-  it("按热度排时不看评级：C 级的热赛道要能排到 S 级前面", () => {
-    const sorted = sortTracksByHeat([
-      row({ id: 1, grade: "S", overallScore: 8.4, heat: 3 }),
-      row({ id: 2, grade: "C", overallScore: 5.2, heat: 91 })
-    ]);
-    expect(sorted.map((item) => item.id)).toEqual([2, 1]);
-  });
-
-  it("不改动入参数组", () => {
-    const input = [row({ id: 1, heat: 1 }), row({ id: 2, heat: 99 })];
-    sortTracksByHeat(input);
-    expect(input.map((item) => item.id)).toEqual([1, 2]);
-  });
-});
-
 describe("sortTracks", () => {
-  it("按键分派到两种排法，默认走综合评分", () => {
+  it("评分按综合分降序，缺分排最后且保留零分", () => {
+    const rows = [row({ id: 1 }), row({ id: 2, overallScore: 0 }), row({ id: 3, overallScore: 8.3 }), row({ id: 4, overallScore: 7.5 })];
+    expect(sortTracks(rows, "score").map((item) => item.id)).toEqual([3, 4, 2, 1]);
+    expect(rows.map((item) => item.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("资金热度按 T0 到 T4 排，同档按综合分，缺档最后", () => {
     const rows = [
-      row({ id: 1, grade: "S", overallScore: 8.4, heat: 3 }),
-      row({ id: 2, grade: "C", overallScore: 5.2, heat: 91 })
+      row({ id: 1, heatTier: "T4", overallScore: 9 }),
+      row({ id: 2, heatTier: "T1", overallScore: 6 }),
+      row({ id: 3, heatTier: "T0", overallScore: 5 }),
+      row({ id: 4, heatTier: "T1", overallScore: 7 }),
+      row({ id: 5, heatTier: null, overallScore: 10 }),
+      row({ id: 6, heatTier: "T3" }),
+      row({ id: 7, heatTier: "T2" })
     ];
-    expect(sortTracks(rows, "grade").map((item) => item.id)).toEqual([1, 2]);
-    expect(sortTracks(rows, "heat").map((item) => item.id)).toEqual([2, 1]);
-    expect(sortTracks(rows, "grade")).toEqual(sortTracksByGrade(rows));
+    expect(sortTracks(rows, "heat").map((item) => item.id)).toEqual([3, 4, 2, 7, 6, 1, 5]);
+    expect(rows[0].id).toBe(1);
+  });
+
+  it.each(["short", "mid", "long"] as const)("%s 按方向强弱排，同方向按综合分，待验证和缺失沉底", (key) => {
+    const rows = [
+      row({ id: 1, overallScore: 10 }),
+      row({ id: 2, overallScore: 9, cycleViews: { [key]: cycle("uncertain") } }),
+      row({ id: 3, overallScore: 8, cycleViews: { [key]: cycle("negative") } }),
+      row({ id: 4, overallScore: 7, cycleViews: { [key]: cycle("neutral") } }),
+      row({ id: 5, overallScore: 6, cycleViews: { [key]: cycle("positive") } }),
+      row({ id: 6, overallScore: 7, cycleViews: { [key]: cycle("positive") } }),
+      row({ id: 7, cycleViews: { [key]: cycle("positive") } })
+    ];
+    expect(sortTracks(rows, key).map((item) => item.id)).toEqual([6, 5, 7, 4, 3, 2, 1]);
+    expect(rows[0].id).toBe(1);
+  });
+
+  it.each(["score", "heat", "short", "mid", "long"] as const)("%s 同分按名称稳定排序", (key) => {
+    const rows = ["机器人", "AI算力", "固态电池"].map((name) => row({ name }));
+    expect(sortTracks(rows, key).map((item) => item.name)).toEqual(sortTracks([...rows].reverse(), key).map((item) => item.name));
+  });
+});
+
+describe("nextTrackSort", () => {
+  it("单按钮按评分、热度、短期、中期、长期循环", () => {
+    const keys = ["score", "heat", "short", "mid", "long"] as const;
+    expect(keys.map(nextTrackSort)).toEqual(["heat", "short", "mid", "long", "score"]);
+    expect(keys.map(trackSortLabel)).toEqual(["评分", "热度", "短期", "中期", "长期"]);
   });
 });
 

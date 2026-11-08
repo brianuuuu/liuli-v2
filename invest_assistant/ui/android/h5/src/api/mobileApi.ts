@@ -31,7 +31,6 @@ import type {
   StockPoolItem,
   Tag,
   TagHeat,
-  TrackDashboard,
   TrackDetail,
   TrackListItem,
   TrackMaterial,
@@ -64,7 +63,6 @@ export const mobileApi = {
   marketRankings: (type: MarketRankingType = "all", window: MarketRankingWindow = "7d") =>
     apiClient.get<TagHeat[]>("/api/market-radar/rankings", { type, window }),
   workbenchToday: () => apiClient.get<WorkbenchToday>("/api/console/workbench-today"),
-  trackDashboard: () => apiClient.get<TrackDashboard>("/api/track-discovery/dashboard"),
   stockDashboard: () => apiClient.get<StockDashboard>("/api/stock-analysis/dashboard"),
   // 必须带 /detail：不带的那个路由只返回扁平的 TrackRead，没有 summary/stocks/materials
   // 移动端只显示资讯热度那一个数字和环比，不画热度曲线，明确要求后端别回 90 天序列

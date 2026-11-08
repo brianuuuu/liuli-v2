@@ -39,17 +39,18 @@ import {
 } from "./stockPoolGroups";
 import {
   TRACK_CYCLE_LABELS,
+  TRACK_CYCLE_DIRECTIONS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
-  TRACK_SORT_OPTIONS,
   TRACK_STATUS_OPTIONS,
   TRACK_TAB_VIEWS,
   buildTrackRow,
   filterTracksByStatus,
+  nextTrackSort,
   sortTracks,
   trackLabel,
   trackStatusCounts,
-  type TrackHeatLookup,
+  trackSortLabel,
   type TrackSortKey,
   type TrackStatusKey,
   type TrackTabView
@@ -385,16 +386,7 @@ function TrackLibraryView() {
     queryFn: () => mobileApi.trackList(50),
     staleTime: 300_000
   });
-  // 热度来自看板聚合，取不到不影响列表主体，所以单独一条查询、失败不阻塞
-  const heatQuery = useQuery({
-    queryKey: ["track-dashboard-heat"],
-    queryFn: () => mobileApi.trackDashboard(),
-    staleTime: 300_000
-  });
-  const heat: TrackHeatLookup = Object.fromEntries(
-    (heatQuery.data?.heat_rankings ?? []).map((item) => [item.track_id, item.current_heat])
-  );
-  const rows = (listQuery.data ?? []).map((track) => buildTrackRow(track, undefined, heat));
+  const rows = (listQuery.data ?? []).map(buildTrackRow);
   const counts = trackStatusCounts(rows);
   const visible = sortTracks(filterTracksByStatus(rows, status), sort);
   return (
@@ -414,21 +406,20 @@ function TrackLibraryView() {
             </button>
           ))}
         </div>
-        <div className="track-sort-group" role="group" aria-label="赛道排序">
-          {/* 图标代替"排序"两个字，同一行里省出的宽度留给状态分档 */}
+        <button
+          type="button"
+          className="track-sort-toggle"
+          aria-label={`赛道排序：${trackSortLabel(sort)}`}
+          title={`按${sort === "heat" ? "资金热度" : trackSortLabel(sort)}排序，点击切换${trackSortLabel(nextTrackSort(sort))}`}
+          onClick={() => {
+            const next = nextTrackSort(sort);
+            rememberTrackSort(next);
+            setSort(next);
+          }}
+        >
           <ArrowUpDown size={13} aria-hidden="true" />
-          {TRACK_SORT_OPTIONS.map((option) => (
-            <button
-              type="button"
-              key={option.value}
-              className={sort === option.value ? "is-active" : ""}
-              aria-pressed={sort === option.value}
-              onClick={() => { rememberTrackSort(option.value); setSort(option.value); }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+          {trackSortLabel(sort)}
+        </button>
       </div>
       {listQuery.isLoading ? <LoadingState /> : listQuery.isError ? (
         <ErrorState message="赛道库加载失败" onRetry={() => void listQuery.refetch()} />
@@ -451,11 +442,15 @@ function TrackLibraryView() {
               </div>
               <p className="track-list-row__judgment">{row.coreJudgment}</p>
               <div className="track-list-row__meta">
-                <span>{trackLabel(TRACK_INDUSTRY_PHASE_LABELS, row.industryPhase)}</span>
-                <span>{trackLabel(TRACK_MARKET_PHASE_LABELS, row.marketPhase)}</span>
-                <span>{row.overallScore === null ? "综合分 —" : `综合分 ${row.overallScore.toFixed(1)}`}</span>
-                <span>{trackLabel(TRACK_CYCLE_LABELS, row.headlineCycle)}</span>
-                <em>{row.heat === null ? "热度 —" : `热度 ${Math.round(row.heat)}`}</em>
+                <span>{trackLabel(TRACK_INDUSTRY_PHASE_LABELS, row.industryPhase)}·{trackLabel(TRACK_MARKET_PHASE_LABELS, row.marketPhase)}</span>
+                <span>{row.overallScore === null ? "—分" : `${row.overallScore.toFixed(1)}分`}</span>
+                {(["short", "mid", "long"] as const).map((cycle) => {
+                  const direction = row.cycleViews[cycle]?.direction;
+                  const label = direction ? TRACK_CYCLE_DIRECTIONS[direction] ?? "—" : "—";
+                  return <span key={cycle} aria-label={`${TRACK_CYCLE_LABELS[cycle]}${label}`}>
+                    {TRACK_CYCLE_LABELS[cycle][0]}·<em data-direction={direction}>{label}</em>
+                  </span>;
+                })}
               </div>
             </button>
           ))}

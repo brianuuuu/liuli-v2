@@ -20,6 +20,7 @@ import {
   parseTrackSegments,
   trackLabel,
   TRACK_CYCLE_LABELS,
+  TRACK_CYCLE_DIRECTIONS,
   TRACK_INDUSTRY_PHASE_LABELS,
   TRACK_MARKET_PHASE_LABELS,
   TRACK_SCORE_MAX
@@ -145,7 +146,6 @@ const CYCLE_WINDOWS: { key: TrackCycle; label: string; window: string }[] = [
   { key: "mid", label: "中期", window: ">3–12个月" },
   { key: "long", label: "长期", window: ">12–36个月" },
 ];
-const CYCLE_DIRECTIONS = { positive: "偏强", neutral: "中性", negative: "偏弱", uncertain: "待验证" };
 const CYCLE_CONFIDENCE = { high: "高", medium: "中", low: "低" };
 
 function CycleJudgments({ views }: { views: NonNullable<TrackDetail["cycle_views"]> }) {
@@ -157,7 +157,7 @@ function CycleJudgments({ views }: { views: NonNullable<TrackDetail["cycle_views
       return <details className="track-cycle-row" key={key}>
         <summary className="track-cycle-summary">
           {title}
-          <strong data-direction={view.direction}>{CYCLE_DIRECTIONS[view.direction]}</strong>
+          <strong data-direction={view.direction}>{TRACK_CYCLE_DIRECTIONS[view.direction]}</strong>
           <time dateTime={view.research_date}>{view.research_date}</time>
         </summary>
         <p>{view.judgment}</p>
