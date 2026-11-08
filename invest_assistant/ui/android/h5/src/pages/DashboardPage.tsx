@@ -390,7 +390,7 @@ function TrackLibraryView() {
   const counts = trackStatusCounts(rows);
   const visible = sortTracks(filterTracksByStatus(rows, status), sort);
   return (
-    <SectionCard className="dashboard-flat-section">
+    <SectionCard className="dashboard-flat-section track-library-section">
       {/* 状态分档和排序共一行：赛道只有三档状态，两组并排还有余量，省掉一整行高度。 */}
       <div className="track-filter-bar" data-swipe-ignore="true">
         <div className="pill-segments pill-segments--compact" role="group" aria-label="赛道状态分组">
