@@ -403,16 +403,34 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 
 .note-toolbar { display: flex; height: 32px; align-items: center; justify-content: flex-end; margin: -4px 0 4px; }
 .note-list { display: grid; min-width: 0; max-width: 100%; gap: 0; background: transparent; }
+.notes-page .note-list { padding-bottom: 48px; }
 .note-card { min-width: 0; max-width: 100%; overflow: hidden; padding: 12px 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .note-card + .note-card { border-top: 1px solid var(--border); }
-.note-card header { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-.note-card-meta { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.note-card-group { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.note-card p { min-width: 0; max-width: 100%; margin: 6px 0 0; font-size: var(--content-font-size); font-weight: 500; line-height: 1.62; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
-.note-card footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.note-card footer span, .tag-row span { max-width: 100%; padding: 2px 6px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
-.note-card footer .note-card-tag { padding-inline: 0; background: transparent; }
-.floating-button { position: fixed; z-index: 15; right: 22px; bottom: 22px; display: grid; width: 52px; height: 52px; place-items: center; border-radius: 16px; background: var(--blue); color: #fff; box-shadow: 0 8px 22px rgba(37, 99, 235, .28); }
+.note-card p { min-width: 0; max-width: 100%; margin: 0; font-size: var(--content-font-size); font-weight: 500; line-height: 1.62; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
+.note-card-meta { display: flex; min-width: 0; align-items: center; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.note-card-meta > time { flex: none; color: var(--subtle); white-space: nowrap; }
+.note-card-group, .note-card-tags {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-card-group { max-width: 30%; color: #626b78; font-weight: 500; }
+:root[data-theme="dark"] .note-card-group { color: var(--muted); }
+.note-card-source { flex: none; padding: 1px 6px; border-radius: 5px; background: var(--panel-soft); color: var(--subtle); font-size: 11px; }
+.note-card-tags { color: var(--blue); }
+.note-card-meta > svg { flex: none; margin-inline-start: auto; }
+.tag-row span { max-width: 100%; padding: 2px 6px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
+.floating-button { position: fixed; z-index: 15; right: 22px; bottom: 22px; display: grid; width: 52px; height: 52px; padding: 0; place-items: center; border-radius: 16px; color: #fff; }
+.floating-button__surface {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--blue);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .12);
+}
 .sheet-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .48); }
 .composer-backdrop { bottom: auto; overflow: hidden; }
 .composer-sheet { display: grid; width: 100%; min-width: 0; max-width: 100%; max-height: 100%; overflow-y: auto; gap: 12px; padding: 18px 16px max(20px, env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--panel); overscroll-behavior: contain; }
@@ -870,9 +888,6 @@ summary.track-cycle-summary::after { content: "+"; color: var(--muted); text-ali
 .note-secondary-actions { display: grid; gap: 4px; padding-top: 4px; }
 .note-archive-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; background: var(--panel); color: var(--text); }
 .note-delete-link { display: inline-flex; justify-self: center; align-items: center; gap: 4px; padding: 8px 12px; color: var(--muted); font-size: 13px; }
-/* 待办里的待归档笔记：卡片沿用笔记页那一套，笔记在两个页面长得一样，不用切换阅读模式。
-   这里只多一个来源标记，整卡点开去编辑页改分组和标签。 */
-.note-card-source { flex: 0 0 auto; padding: 1px 6px; border-radius: 5px; background: var(--panel-soft); color: var(--subtle); font-size: 11px; }
 /* 分组单选：和 TagPicker 同一套视觉语言，替掉原来的原生 select。
    分组通常只有几个，平铺出来一眼看全，比拉起系统滚轮快。 */
 .group-picker { display: grid; min-width: 0; gap: 6px; }

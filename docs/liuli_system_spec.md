@@ -890,6 +890,8 @@ MCP knowledge_base.create_note：只收 content，单行、≤ 80 字，同一 c
 Android 待办"笔记"只收 note_type=mcp 的未分组笔记，点开进笔记编辑页归组和打标签。
 ```
 
+Android 笔记、待办和标的与赛道详情共用正文优先的笔记卡片。
+
 笔记与材料是并列的两类信息，分量不同：
 
 | | 笔记 knowledge_note | 材料 track_material / stock_material |

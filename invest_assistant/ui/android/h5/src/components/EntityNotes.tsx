@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import type { KnowledgeNote } from "../types/api";
-import { formatDateTime } from "../utils/format";
+import { NoteCard } from "./NoteCard";
 import { EmptyState, SectionCard } from "./Ui";
 
 /**
@@ -16,16 +16,12 @@ export function EntityNotesSection({ notes, emptyDetail }: { notes: KnowledgeNot
     <SectionCard title="我的笔记">
       <div className="note-list entity-note-list">
         {notes.map((note) => (
-          <article className="note-card" key={note.id} onClick={() => navigate(`/notes/${note.id}`)}>
-            <header>
-              <div className="note-card-meta">
-                <time>{formatDateTime(note.created_at ?? note.updated_at)}</time>
-                {note.group ? <span className="note-card-group">{note.group.name}</span> : null}
-              </div>
-            </header>
-            <p>{note.content}</p>
-            {note.tags?.length ? <footer>{note.tags.map((tag) => <span className="note-card-tag" key={tag.id}>#{tag.name}</span>)}</footer> : null}
-          </article>
+          <NoteCard
+            key={note.id}
+            note={note}
+            timestamp={note.created_at ?? note.updated_at}
+            onOpen={(id) => navigate(`/notes/${id}`)}
+          />
         ))}
       </div>
     </SectionCard>

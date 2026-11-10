@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpDown, Plus } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,7 @@ import { MobilePageFrame } from "../components/MobilePageFrame";
 import type { PagerMotionSink } from "../components/pagerMotion";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
-import { EmptyState, ErrorState, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
+import { EmptyState, ErrorState, FloatingAddButton, ListRow, LoadingState, Metric, SectionCard } from "../components/Ui";
 import {
   DEFAULT_POOL_STATUS,
   DEFAULT_STOCK_TAB_VIEW,
@@ -773,14 +773,10 @@ function PortfolioDashboard({ active }: { active: boolean }) {
           ) : <EmptyState title={advice.isLoading ? "加载中" : "近 10 天暂无调仓建议"} />}
         </SectionCard>
         {active ? createPortal(
-          <button
-            type="button"
-            className="floating-button"
-            aria-label="记一笔调仓"
+          <FloatingAddButton
+            label="记一笔调仓"
             onClick={() => navigate(portfolioId ? `/portfolio/trade/new?portfolio_id=${portfolioId}` : "/portfolio/trade/new")}
-          >
-            <Plus />
-          </button>,
+          />,
           document.body
         ) : null}
         <SectionCard title="组合选择">

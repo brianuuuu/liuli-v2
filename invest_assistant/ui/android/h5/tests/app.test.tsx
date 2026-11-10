@@ -1124,7 +1124,7 @@ describe("mobile H5 app", () => {
     });
   });
 
-  it("orders note metadata as date, group, body, and tags", async () => {
+  it("places the note body above a single time, group, and tags row", async () => {
     window.localStorage.setItem(tokenStorageKey, "token");
     window.location.hash = "#/notes";
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
@@ -1141,7 +1141,7 @@ describe("mobile H5 app", () => {
                   status: "active",
                   updated_at: "2026-07-25T09:30:00",
                   group: { id: 3, name: "投资复盘", sort_order: 0, status: "active" },
-                  tags: [{ id: 5, name: "半导体" }]
+                  tags: [{ id: 5, name: "半导体" }, { id: 6, name: "产业链" }]
                 },
                 {
                   id: 10,
@@ -1162,23 +1162,17 @@ describe("mobile H5 app", () => {
 
     renderApp();
 
-    const group = await screen.findByText("投资复盘", { selector: ".note-card-group" });
-    const body = screen.getByText("关注产业链变化");
-    const tag = screen.getByText("#半导体");
-    const card = group.closest(".note-card");
-    const date = card?.querySelector("time");
-    expect(date).not.toBeNull();
-    if (!date) throw new Error("Expected note date metadata");
-    expect(date.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(group.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(body.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(group.closest("header")).toBe(card?.querySelector("header"));
-    expect(tag.closest("footer")).toBe(card?.querySelector("footer"));
+    const body = await screen.findByText("关注产业链变化");
+    const meta = body.nextElementSibling;
+    expect(meta).toHaveClass("note-card-meta");
+    expect(meta?.firstElementChild).toHaveAttribute("datetime", "2026-07-25T09:30:00");
+    expect(meta?.children[1]).toHaveTextContent("投资复盘");
+    expect(meta?.children[2]).toHaveTextContent("#半导体 #产业链");
+    expect(meta?.nextElementSibling).toBeNull();
 
-    const ungroupedBody = screen.getByText("无分组随手记");
-    const ungroupedCard = ungroupedBody.closest(".note-card");
-    expect(ungroupedCard?.querySelector(".note-card-group")).toBeNull();
-    expect(ungroupedCard?.querySelector("footer")).toBeNull();
+    const ungroupedMeta = screen.getByText("无分组随手记").nextElementSibling;
+    expect(ungroupedMeta?.querySelector("time")).toBeInTheDocument();
+    expect(ungroupedMeta?.querySelector(".note-card-group, .note-card-tags")).toBeNull();
   });
 
   it("labels stock detail materials as 利好 or 利空 and leaves noise unlabelled", async () => {

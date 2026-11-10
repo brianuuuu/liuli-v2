@@ -58,8 +58,8 @@ describe("待办 · 待归档笔记", () => {
 
     renderPanel();
 
-    expect(await screen.findByText("光伏产能出清比预期慢，别急着抄底")).toBeInTheDocument();
-    expect(screen.getByText("外部写入")).toBeInTheDocument();
+    const body = await screen.findByText("光伏产能出清比预期慢，别急着抄底");
+    expect(screen.getByText("外部写入").parentElement).toBe(body.nextElementSibling);
     // 待办的口径是"外部输入等我处理"：自己随手记的未分组笔记不进这里，
     // 所以 ungrouped 和 note_type 两个条件必须同时带上。
     const listUrl = fetchMock.mock.calls.map((call) => String(call[0])).find((url) => url.includes("/api/knowledge/notes?"));

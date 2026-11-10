@@ -1,4 +1,4 @@
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight, Plus, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function SectionCard({ title, action, children, className = "" }: {
@@ -34,6 +34,14 @@ export function ErrorState({ message = "加载失败", onRetry }: { message?: st
 
 export function LoadingState() {
   return <div className="skeleton-list" aria-label="加载中"><i /><i /><i /></div>;
+}
+
+export function FloatingAddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="floating-button" type="button" aria-label={label} onClick={onClick}>
+      <span className="floating-button__surface" aria-hidden="true"><Plus size={22} /></span>
+    </button>
+  );
 }
 
 export function ListRow({ title, meta, trailing, onClick }: {
