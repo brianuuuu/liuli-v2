@@ -12,7 +12,7 @@ import {
   overviewTrends,
   parseValuationAssumptions,
   priorityRankLabel,
-  scoreDimensions,
+  ratingScoreRows,
   scoreTrendRows,
   suggestedGroupLabel,
   trackNames,
@@ -135,15 +135,31 @@ describe("趋势展示口径", () => {
 });
 
 describe("展示口径", () => {
-  it("六维评分按固定顺序映射为雷达图数据", () => {
-    expect(scoreDimensions(score)).toEqual([
-      { name: "壁垒", value: 8.5 },
-      { name: "管理", value: 7.5 },
-      { name: "治理", value: 8 },
-      { name: "战略", value: 8 },
-      { name: "确定性", value: 8.2 },
-      { name: "成长", value: 6.5 }
+  it("六维评分保持顺序，没有可比评分时只提供本期分数", () => {
+    const { rows, comparisonDate } = ratingScoreRows(score, []);
+    expect(comparisonDate).toBeNull();
+    expect(rows.map(({ label, value, delta }) => [label, value, delta])).toEqual([
+      ["壁垒", 8.5, null],
+      ["管理", 7.5, null],
+      ["治理", 8, null],
+      ["战略", 8, null],
+      ["确定性", 8.2, null],
+      ["成长", 6.5, null]
     ]);
+  });
+
+  it("旧评分使用同研究员的上一研究日最新版本", () => {
+    const current = { ...score, id: 10, researcher_code: "analyst_001" };
+    const previous = { ...current, id: 3, report_time: "2026-08-15", business_moat_score: 8 };
+    const { rows, comparisonDate } = ratingScoreRows(current, [
+      { ...previous, id: 2, business_moat_score: 7 },
+      { ...current, id: 8, business_moat_score: 9 },
+      { ...previous, id: 9, report_time: "2026-08-29", researcher_code: "analyst_002" },
+      previous
+    ]);
+    expect(comparisonDate).toBe("2026-08-15");
+    expect(rows[0]).toMatchObject({ value: 8.5, previous: 8, delta: 0.5 });
+    expect(rows[1]).toMatchObject({ delta: 0 });
   });
 
   it("估值空间沿用涨红跌绿，并给出模型中文名", () => {

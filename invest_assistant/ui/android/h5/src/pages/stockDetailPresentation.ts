@@ -13,17 +13,39 @@ export const STOCK_DETAIL_SECTIONS: { value: StockDetailSection; label: string }
   { value: "materials", label: "材料" }
 ];
 
-export const SCORE_DIMENSIONS: { key: keyof StockScoreSnapshot; label: string }[] = [
+const SCORE_DIMENSIONS = [
   { key: "business_moat_score", label: "壁垒" },
   { key: "management_score", label: "管理" },
   { key: "governance_score", label: "治理" },
   { key: "strategy_score", label: "战略" },
   { key: "certainty_score", label: "确定性" },
   { key: "growth_score", label: "成长" }
-];
+] as const;
 
-export function scoreDimensions(score: StockScoreSnapshot) {
-  return SCORE_DIMENSIONS.map((item) => ({ name: item.label, value: Number(score[item.key] ?? 0) }));
+function ratingValue(value?: number | null) {
+  return typeof value === "number" && value >= 0 && value <= 10 ? value : null;
+}
+
+export function ratingScoreRows(score: StockScoreSnapshot, history: StockScoreSnapshot[]) {
+  const comparison = score.comparison?.status === "recorded" ? score.comparison : null;
+  const currentDate = dateOnly(score.report_time);
+  const legacy = !score.continuity && score.previous_snapshot_id == null && (!score.comparison || score.comparison.status === "legacy");
+  const baseline = legacy && score.researcher_code && currentDate
+    ? history
+      .filter((item) => item.researcher_code === score.researcher_code && item.report_time && dateOnly(item.report_time) < currentDate)
+      .sort((a, b) => dateOnly(b.report_time).localeCompare(dateOnly(a.report_time)) || b.id - a.id)[0]
+    : undefined;
+
+  return {
+    comparisonDate: comparison?.report_time ?? baseline?.report_time ?? null,
+    rows: SCORE_DIMENSIONS.map(({ key, label }) => {
+      const value = ratingValue(score[key]);
+      const dimension = comparison?.dimensions.find((item) => item.field === key);
+      const previous = value === null ? null : ratingValue(dimension?.previous ?? baseline?.[key]);
+      const delta = value === null || previous === null ? null : dimension?.delta ?? value - previous;
+      return { key, label, value, previous, delta };
+    })
+  };
 }
 
 export function formatValuationGap(value?: number | null) {

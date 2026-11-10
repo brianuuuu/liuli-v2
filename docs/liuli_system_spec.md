@@ -705,6 +705,7 @@ stock_material：与 track_material 平行，来源为 source_item（信息流�
 - 后端只核对本次引用的来源、归属、日期、事项 ID 和必要字段；六维与总分必须是完整、有限的 0–10 数值，历史报告中可用分数或等级的变化须有原因，不依赖是否已导入评分。
 - 旧格式仍可导入，新格式不能为 null 或缺少必填字段；快照追加与回流状态在同一事务提交，并发重复导入返回原结果。
 - Web/H5 保留趋势图，在原明细展开全部同日版本、变动说明、历史验证和报告入口，缺失来源明确显示。
+- Android 标的评级横条展示已关联的分差，旧评分可对照同研究员上一研究日的最新历史版本。
 - `stock_analysis.score_import_mode` 支持 `active/paused/legacy_only`；回退保留新格式拒绝检查，具体契约与上线顺序见[执行文档](superpowers/plans/2026-11-07-stock-rating-continuity.md)。
 
 ```text

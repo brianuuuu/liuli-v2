@@ -16,7 +16,7 @@ import {
   overviewChangeTone,
   overviewTrends,
   priorityRankLabel,
-  scoreDimensions,
+  ratingScoreRows,
   scoreTrendRows,
   suggestedGroupLabel,
   trackNames,
@@ -33,10 +33,9 @@ import {
 } from "./stockDetailPresentation";
 import { DetailFrame } from "./DetailPages";
 import { EntityNotesSection } from "../components/EntityNotes";
-import type { StockDetail, StockTrendSnapshot } from "../types/api";
+import type { StockDetail, StockScoreSnapshot, StockTrendSnapshot } from "../types/api";
 import { formatDateTime, formatNumber } from "../utils/format";
 
-const RatingRadar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.RatingRadar })));
 const ScoreTrendBar = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ScoreTrendBar })));
 const ResearchTrendLine = lazy(() => import("../components/StockDetailCharts").then((m) => ({ default: m.ResearchTrendLine })));
 
@@ -170,6 +169,46 @@ function OverviewSection({ detail, onOpenSection }: { detail: StockDetail; onOpe
   );
 }
 
+const ratingChangeFormat = new Intl.NumberFormat("zh-CN", {
+  minimumFractionDigits: 1, maximumFractionDigits: 2, signDisplay: "exceptZero"
+});
+
+function RatingScoreBars({ score, history }: { score: StockScoreSnapshot; history: StockScoreSnapshot[] }) {
+  const { comparisonDate, rows } = ratingScoreRows(score, history);
+  const showChanges = rows.some(({ delta }) => delta !== null);
+  return (
+    <div
+      className={`track-score-list stock-rating-scores${showChanges ? " stock-rating-scores--compared" : ""}`}
+      role="group"
+      aria-label={showChanges && comparisonDate ? `六维评分，较 ${comparisonDate}` : "六维评分"}
+    >
+      {rows.map(({ key, label, value, previous, delta }) => {
+        const current = value ?? 0;
+        const baseline = previous ?? current;
+        const end = Math.max(current, baseline);
+        const common = end === 0 ? 0 : Math.min(current, baseline) / end * 100;
+        const direction = current > baseline ? "up" : current < baseline ? "down" : undefined;
+        return (
+          <div className="track-score-row" key={key}>
+            <span className="track-score-label">{label}</span>
+            <span className="track-score-bar" aria-hidden="true">
+              <span className="stock-rating-range" data-direction={direction} style={{ width: `${end * 10}%` }}>
+                <span className="stock-rating-fill" style={{ width: `${common}%` }} />
+              </span>
+            </span>
+            <strong>{value === null ? "—" : value.toFixed(1)}</strong>
+            {showChanges ? (
+              <span className="stock-rating-delta" data-muted={delta == null || delta === 0 || undefined}>
+                {delta === null ? "—" : ratingChangeFormat.format(delta).replace("-", "−")}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function RatingSection({ detail }: { detail: StockDetail }) {
   const rows = scoreTrendRows(detail.score_history);
   const score = detail.latest_score;
@@ -179,9 +218,7 @@ function RatingSection({ detail }: { detail: StockDetail }) {
       <SectionCard title="最新评级">
         {score ? (
           <>
-            <Suspense fallback={<ChartFallback height={220} />}>
-              <RatingRadar dimensions={scoreDimensions(score)} />
-            </Suspense>
+            <RatingScoreBars score={score} history={history.data ?? []} />
             {score.core_logic ? <div className="stock-detail-copy"><span>核心逻辑</span><p>{score.core_logic}</p></div> : null}
             {score.primary_risk ? <div className="stock-detail-copy is-risk"><span>主要风险</span><p>{score.primary_risk}</p></div> : null}
             <footer className="stock-detail-meta">{score.researcher_code || "未标注研究员"} · {score.report_time}</footer>
