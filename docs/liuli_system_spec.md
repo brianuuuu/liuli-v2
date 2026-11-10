@@ -2,6 +2,7 @@
 
 > 项目名称：`liuli`（琉璃）
 > 当前版本：**1.0.51**（2026-11-08；App 报告中心组合筛选与赛道库排序）
+> 待发布修复：工作日任务调度（2026-11-10）。
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -390,6 +391,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 
 - 各模块 `jobs.py` 暴露 `JOBS: list[JobDefinition]`，`registry.py` 汇总为 `JOB_REGISTRY`。
 - 代码里的 `JobDefinition` 是任务定义源头；`job_config` 是运行时配置状态。同步时新增缺失任务、更新展示信息，不覆盖控制台改过的启停和 Cron。
+- 同步定义时，仅将标的日线、指数日线、微操评估三个任务仍使用的旧默认 Cron 修正为 `mon-fri`；保留启停、执行模式和其他配置，自定义 Cron 不变。
 - 代码里删掉的任务，其 `job_config` 行和运行记录留在库里，但不再调度，也不出现在任务中心列表、工作台异常任务和任务总数中。
 - `job_config` 只存身份、展示信息和 `config_json`（trigger_type、cron_expr、enabled、timeout_seconds、max_retries、params、params_schema）/ `ext_json`（tags、category、ui_order、notes），不把调度参数摊平成列。
 - 手动执行：控制台 → API 写 `job_run_request` → Worker 轮询执行 → 写 `job_run_log`。
@@ -397,12 +399,14 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 
 当前注册任务（Cron 为默认值，北京时间）：
 
+Cron 由 APScheduler 解析，工作日使用 `mon-fri`；数字星期从周一 `0` 开始，`1-5` 表示周二至周六。
+
 | 任务 | 名称 | 触发 | 默认 Cron |
 |---|---|---|---|
 | `stock_master.sync_stock_basic` | 同步股票基础库 | 手动 | — |
 | `stock_analysis.refresh_major_indices_realtime` | 刷新 A 股主要指数实时行情 | 手动 | — |
-| `stock_analysis.sync_daily_bars` | 同步标的日线行情（前复权 + MA） | 定时/手动 | `30 18 * * 1-5` |
-| `stock_analysis.sync_market_index_daily_bars` | 同步沪深300、中证500、创业板指日线（缓存不足约三年时补齐，否则从最后一天增量） | 定时/手动 | `25 18 * * 1-5` |
+| `stock_analysis.sync_daily_bars` | 同步标的日线行情（前复权 + MA） | 定时/手动 | `30 18 * * mon-fri` |
+| `stock_analysis.sync_market_index_daily_bars` | 同步沪深300、中证500、创业板指日线（缓存不足约三年时补齐，否则从最后一天增量） | 定时/手动 | `25 18 * * mon-fri` |
 | `stock_analysis.review_stock_events_deepseek` | AI 审核标的事件 | 手动 | — |
 | `disclosure_library.fetch_stock_announcements` | 按标的池拉取巨潮公告并转写信息流 | 定时/手动 | `30 8 * * *` |
 | `disclosure_library.download_file` | 下载公告财报文件 | 手动 | — |
@@ -418,7 +422,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 | `track_discovery.review_track_events_deepseek` | AI 审核赛道事件 | 手动 | — |
 | `portfolio.refresh_all_realtime_quotes` | 刷新全部组合实时行情 | 手动 | — |
 | `portfolio.capture_daily_value_snapshot` | 保存组合每日市值快照 | 定时/手动 | `0 17 * * *` |
-| `portfolio.evaluate_adjust_advice` | 评估微操建议 | 定时/手动 | `15 19 * * 1-5` |
+| `portfolio.evaluate_adjust_advice` | 评估微操建议 | 定时/手动 | `15 19 * * mon-fri` |
 | `alert_center.evaluate_rules` | 执行预警规则 | 定时/手动 | `*/5 * * * *` |
 
 ### 9.6 basic/report_library

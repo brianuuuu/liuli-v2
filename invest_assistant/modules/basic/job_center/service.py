@@ -9,6 +9,14 @@ from invest_assistant.shared.db_types import dumps_json
 from invest_assistant.shared.pagination import Page, make_page, normalize_limit, normalize_offset
 
 
+# 仅兼容这三个任务的旧默认值，其他自定义 Cron 保持原样。
+LEGACY_WEEKDAY_CRONS = {
+    "stock_analysis.sync_daily_bars": "30 18 * * 1-5",
+    "stock_analysis.sync_market_index_daily_bars": "25 18 * * 1-5",
+    "portfolio.evaluate_adjust_advice": "15 19 * * 1-5",
+}
+
+
 def _schedule_kind_from_cron(cron_expr: str | None) -> str:
     if not cron_expr:
         return "daily"
@@ -103,6 +111,14 @@ def sync_job_definitions(db: Session) -> int:
         config.description = definition.description
         if not config.config_json:
             config.config_json = _normalize_config_json(_default_runtime_config(definition))
+        legacy_cron = LEGACY_WEEKDAY_CRONS.get(definition.job_name)
+        runtime_config = config.config_json
+        if (
+            legacy_cron is not None
+            and runtime_config.get("schedule_kind") == "custom"
+            and runtime_config.get("cron_expr") == legacy_cron
+        ):
+            config.config_json = {**runtime_config, "cron_expr": definition.cron_expr}
         count += 1
     db.commit()
     return count

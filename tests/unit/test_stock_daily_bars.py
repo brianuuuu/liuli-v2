@@ -164,7 +164,7 @@ def test_stock_daily_bars_job_is_registered():
 
     job = JOB_REGISTRY["stock_analysis.sync_daily_bars"]
     assert job.display_name == "同步标的日线行情"
-    assert job.cron_expr == "30 18 * * 1-5"
+    assert job.cron_expr == "30 18 * * mon-fri"
     assert job.params_schema["pool_status"]["default"] == "focused,watching,candidate"
     assert job.params_schema["max_stocks"]["default"] == 200
 

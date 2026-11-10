@@ -273,7 +273,7 @@ JOBS = [
         description="按标的池同步 A 股前复权日线行情，并缓存 K 线和 MA 指标",
         handler=sync_daily_bars_job,
         trigger_type="both",
-        cron_expr="30 18 * * 1-5",
+        cron_expr="30 18 * * mon-fri",
         timeout_seconds=1800,
         max_retries=1,
         params_schema={
@@ -294,7 +294,7 @@ JOBS = [
         handler=sync_market_index_daily_bars_job,
         trigger_type="both",
         # 排在 19:15 微操评估之前，评估数交易日要用沪深300 日线
-        cron_expr="25 18 * * 1-5",
+        cron_expr="25 18 * * mon-fri",
         timeout_seconds=300,
         max_retries=1,
         params_schema={"years": {"type": "number", "label": "补齐年数", "default": 3, "min": 1}},
