@@ -1,7 +1,8 @@
 # liuli 系统规格说明书
 
 > 项目名称：`liuli`（琉璃）
-> 当前版本：**1.0.50**（2026-11-07；评分报告连续性、赛道三周期判断）
+> 当前版本：**1.0.51**（2026-11-08；App 报告中心组合筛选与赛道库排序）
+> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）。
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -390,6 +391,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 
 - 各模块 `jobs.py` 暴露 `JOBS: list[JobDefinition]`，`registry.py` 汇总为 `JOB_REGISTRY`。
 - 代码里的 `JobDefinition` 是任务定义源头；`job_config` 是运行时配置状态。同步时新增缺失任务、更新展示信息，不覆盖控制台改过的启停和 Cron。
+- 同步定义时，仅将标的日线、指数日线、微操评估三个任务仍使用的旧默认 Cron 修正为 `mon-fri`；保留启停、执行模式和其他配置，自定义 Cron 不变。
 - 代码里删掉的任务，其 `job_config` 行和运行记录留在库里，但不再调度，也不出现在任务中心列表、工作台异常任务和任务总数中。
 - `job_config` 只存身份、展示信息和 `config_json`（trigger_type、cron_expr、enabled、timeout_seconds、max_retries、params、params_schema）/ `ext_json`（tags、category、ui_order、notes），不把调度参数摊平成列。
 - 手动执行：控制台 → API 写 `job_run_request` → Worker 轮询执行 → 写 `job_run_log`。
@@ -397,12 +399,14 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 
 当前注册任务（Cron 为默认值，北京时间）：
 
+Cron 由 APScheduler 解析，工作日使用 `mon-fri`；数字星期从周一 `0` 开始，`1-5` 表示周二至周六。
+
 | 任务 | 名称 | 触发 | 默认 Cron |
 |---|---|---|---|
 | `stock_master.sync_stock_basic` | 同步股票基础库 | 手动 | — |
 | `stock_analysis.refresh_major_indices_realtime` | 刷新 A 股主要指数实时行情 | 手动 | — |
-| `stock_analysis.sync_daily_bars` | 同步标的日线行情（前复权 + MA） | 定时/手动 | `30 18 * * 1-5` |
-| `stock_analysis.sync_market_index_daily_bars` | 同步沪深300、中证500、创业板指日线（缓存不足约三年时补齐，否则从最后一天增量） | 定时/手动 | `25 18 * * 1-5` |
+| `stock_analysis.sync_daily_bars` | 同步标的日线行情（前复权 + MA） | 定时/手动 | `30 18 * * mon-fri` |
+| `stock_analysis.sync_market_index_daily_bars` | 同步沪深300、中证500、创业板指日线（缓存不足约三年时补齐，否则从最后一天增量） | 定时/手动 | `25 18 * * mon-fri` |
 | `stock_analysis.review_stock_events_deepseek` | AI 审核标的事件 | 手动 | — |
 | `disclosure_library.fetch_stock_announcements` | 按标的池拉取巨潮公告并转写信息流 | 定时/手动 | `30 8 * * *` |
 | `disclosure_library.download_file` | 下载公告财报文件 | 手动 | — |
@@ -418,7 +422,7 @@ job_center 管"任务怎么跑"，各业务模块管"任务具体干什么"。
 | `track_discovery.review_track_events_deepseek` | AI 审核赛道事件 | 手动 | — |
 | `portfolio.refresh_all_realtime_quotes` | 刷新全部组合实时行情 | 手动 | — |
 | `portfolio.capture_daily_value_snapshot` | 保存组合每日市值快照 | 定时/手动 | `0 17 * * *` |
-| `portfolio.evaluate_adjust_advice` | 评估微操建议 | 定时/手动 | `15 19 * * 1-5` |
+| `portfolio.evaluate_adjust_advice` | 评估微操建议 | 定时/手动 | `15 19 * * mon-fri` |
 | `alert_center.evaluate_rules` | 执行预警规则 | 定时/手动 | `*/5 * * * *` |
 
 ### 9.6 basic/report_library
@@ -431,7 +435,7 @@ report 表管"报告索引"，var/reports/{source_module}/YYYY-MM/ 管"报告文
 报告不设一级菜单，入口嵌在工作台、列表卡片、详情页和 Android 报告页。
 ```
 
-Android 报告中心使用底部固定悬浮分段器切换“全部／市场／赛道／标的”，默认全部；复用 App 的 `float-bar` 样式，列表底部预留空间。列表通过 `/api/reports?report_kind=market|track|stock` 在分页前筛选，全部省略该参数；分类识别对应的 `source_module`（market_radar / track_discovery / stock_analysis），同时兼容原有 target_type、report_type 和标题匹配条件。空列表显示对应类型的空状态，加载失败可重试或切换类型。
+Android 报告中心使用底部固定悬浮分段器切换“全部／市场／赛道／标的／组合”，默认全部；复用 App 的 `float-bar` 样式，列表底部预留空间。列表通过 `/api/reports?report_kind=market|track|stock|portfolio` 在分页前筛选，全部省略该参数；分类识别对应的 `source_module`（market_radar / track_discovery / stock_analysis / portfolio），兼容 target_type、report_type 和标题匹配条件。空列表显示对应类型的空状态，加载失败可重试或切换类型。
 
 ### 9.7 basic/disclosure_library
 
@@ -618,11 +622,13 @@ next_verification_date（DATE，可空）是最新报告的验证日期；NULL�
 
 当前判断按 `(research_date, id)` 分别取各周期及完整评分的最新来源，不受历史列表条数限制。`cycle_views` 各项与 `score_source` 返回原始 `snapshot_id / report_id / research_date`，不允许报告自行填写来源。`latest_snapshot` 保持原文，`score_snapshot` 单列评分来源；局部更新不刷新其他判断日期，缺失不补造。
 
+App 赛道库与标的池左右外侧留白均为每侧 16px。赛道库保留评级与资金热度档位，卡片底行合并产业/市场阶段、综合分及短/中/长期判断；排序用一个按钮循环切换评分、热度、短期、中期、长期。评分按综合分降序；热度按 `heat_tier` 从 T0 到 T4；各周期按偏强、中性、偏弱、待验证排序，缺失最后，同档或同方向按综合分、名称排序。
+
 ### 11.5 赛道热度
 
 ```text
 赛道资讯热度 = track_tag_relation + tag_heat_snapshot 聚合，不单独落表；
-对外露出窗口统一为 7d（常量 TRACK_HEAT_WINDOW），详情、看板排行、赛道库排序共用；
+资讯热度窗口统一为 7d（常量 TRACK_HEAT_WINDOW），用于详情和看板资讯热度排行；App 赛道库排序使用资金热度档位，不读取资讯热度；
 详情 summary 带 heat_change：相对一天前同窗口的变化量。
 ```
 
@@ -699,6 +705,7 @@ stock_material：与 track_material 平行，来源为 source_item（信息流�
 - 后端只核对本次引用的来源、归属、日期、事项 ID 和必要字段；六维与总分必须是完整、有限的 0–10 数值，历史报告中可用分数或等级的变化须有原因，不依赖是否已导入评分。
 - 旧格式仍可导入，新格式不能为 null 或缺少必填字段；快照追加与回流状态在同一事务提交，并发重复导入返回原结果。
 - Web/H5 保留趋势图，在原明细展开全部同日版本、变动说明、历史验证和报告入口，缺失来源明确显示。
+- Android 标的评级横条展示已关联的分差，旧评分可对照同研究员上一研究日的最新历史版本。
 - `stock_analysis.score_import_mode` 支持 `active/paused/legacy_only`；回退保留新格式拒绝检查，具体契约与上线顺序见[执行文档](superpowers/plans/2026-11-07-stock-rating-continuity.md)。
 
 ```text
@@ -887,6 +894,8 @@ MCP knowledge_base.create_note：只收 content，单行、≤ 80 字，同一 c
   平台侧写死 group_id=NULL、note_type=mcp、related_module=<client 名>、status=active；不提供更新和删除。
 Android 待办"笔记"只收 note_type=mcp 的未分组笔记，点开进笔记编辑页归组和打标签。
 ```
+
+Android 笔记、待办和标的与赛道详情共用正文优先的笔记卡片。
 
 笔记与材料是并列的两类信息，分量不同：
 
@@ -1129,7 +1138,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET / POST | `/api/reports` | 列表（分页，`report_kind` = market / track / stock）/ 新增索引 |
+| GET / POST | `/api/reports` | 列表（分页，`report_kind` = market / track / stock / portfolio）/ 新增索引 |
 | GET / PUT / DELETE | `/api/reports/{id}` | 详情 / 更新 / 删除（可选删文件） |
 | GET | `/api/reports/{id}/content` | 读取正文 |
 | GET | `/api/reports/{id}/download` | 下载文件 |

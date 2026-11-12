@@ -1,8 +1,8 @@
-import type { TrackDetail, TrackListItem, TrackTrendSnapshot, TrackTrendSnapshotBrief } from "../types/api";
+import type { TrackCycle, TrackCycleView, TrackDetail, TrackListItem, TrackTrendSnapshot, TrackTrendSnapshotBrief } from "../types/api";
 
 /**
  * 赛道库的分组、排序与文案。
- * 上部按 track.status 分组（默认"全部"），组内按综合评级排序。
+ * 按状态分组，单按钮循环切换评分、资金热度与三周期判断排序。
  *
  * 评级和热度档位的阈值只在后端 scoring.py 一份，这里一律读接口下发的 track_grade /
  * heat_tier，不在前端按分数重算。
@@ -33,23 +33,34 @@ export const TRACK_STATUS_OPTIONS: { value: TrackStatusKey; label: string }[] = 
   { value: "candidate", label: "候选" }
 ];
 
-/** S 排最前，没有研究结论的排最后。数字越小越靠前。 */
-const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2, C: 3, D: 4 };
-const GRADE_UNRESEARCHED = 5;
+const HEAT_TIER_ORDER: Record<string, number> = { T0: 0, T1: 1, T2: 2, T3: 3, T4: 4 };
+const DIRECTION_ORDER: Record<TrackCycleView["direction"], number> = { positive: 0, neutral: 1, negative: 2, uncertain: 3 };
 
-export type TrackSortKey = "grade" | "heat";
+export type TrackSortKey = "score" | "heat" | TrackCycle;
 
-// 两种排法：评级看"值不值得配研究精力"，资讯热度看"最近外面在不在说它"。
-// 两者经常背离，所以要能分别排，而不是只给一个综合序。
-// 排序键沿用短标签"热度"：这一行还挤着状态分档，四个字排不下，全称在详情页给。
-export const TRACK_SORT_OPTIONS: { value: TrackSortKey; label: string }[] = [
-  { value: "grade", label: "评分" },
-  { value: "heat", label: "热度" }
+const TRACK_SORT_OPTIONS: { value: TrackSortKey; label: string }[] = [
+  { value: "score", label: "评分" },
+  { value: "heat", label: "热度" },
+  { value: "short", label: "短期" },
+  { value: "mid", label: "中期" },
+  { value: "long", label: "长期" }
 ];
 
-export const DEFAULT_TRACK_SORT: TrackSortKey = "grade";
+export const DEFAULT_TRACK_SORT: TrackSortKey = "score";
+
+export function nextTrackSort(key: TrackSortKey): TrackSortKey {
+  const index = TRACK_SORT_OPTIONS.findIndex((option) => option.value === key);
+  return TRACK_SORT_OPTIONS[(index + 1) % TRACK_SORT_OPTIONS.length].value;
+}
+
+export function trackSortLabel(key: TrackSortKey): string {
+  return TRACK_SORT_OPTIONS.find((option) => option.value === key)!.label;
+}
 
 export const TRACK_CYCLE_LABELS: Record<string, string> = { short: "短期", mid: "中期", long: "长期" };
+export const TRACK_CYCLE_DIRECTIONS: Record<TrackCycleView["direction"], string> = {
+  positive: "偏强", neutral: "中性", negative: "偏弱", uncertain: "待验证"
+};
 
 /** 六维评分的展示顺序和中文名，详情页按这个顺序渲染，换位置只改这里。 */
 export const TRACK_SCORE_DIMENSIONS = [
@@ -89,44 +100,32 @@ export type TrackRowView = {
   id: number;
   name: string;
   status: string;
-  /** 卡片左角标：综合评级。没有研究结论时为 null，卡片显示"待研究"。 */
+  /** 综合评级与资金热度档位并排显示在卡片右上角。 */
   grade?: string | null;
   /** 卡片右角标：资金热度档位，T0 最热。 */
   heatTier?: string | null;
   overallScore: number | null;
-  headlineCycle?: string | null;
+  cycleViews: Partial<Record<TrackCycle, TrackCycleView>>;
   coreJudgment: string;
   industryPhase?: string | null;
   marketPhase?: string | null;
-  heat: number | null;
   researched: boolean;
 };
 
-export type TrackHeatLookup = Record<number, number>;
-
-/**
- * 列表接口已经带上了最新快照的评级、热度档位和综合分，snapshot 只在详情页那种
- * 手里已经有完整快照的场景传入；两边都有时以快照为准。
- */
-export function buildTrackRow(
-  track: TrackListItem,
-  snapshot: TrackTrendSnapshot | undefined,
-  heat: TrackHeatLookup
-): TrackRowView {
-  const grade = snapshot?.track_grade ?? track.track_grade ?? null;
+/** 列表接口分别聚合最新有效评分和各周期判断，直接使用，避免被单份快照覆盖。 */
+export function buildTrackRow(track: TrackListItem): TrackRowView {
+  const grade = track.track_grade ?? null;
   return {
     id: track.id,
     name: track.name || "未命名赛道",
     status: track.status,
     grade,
-    heatTier: snapshot?.heat_tier ?? track.heat_tier ?? null,
-    overallScore: snapshot?.overall_score ?? track.overall_score ?? null,
-    headlineCycle: snapshot?.headline_cycle ?? track.headline_cycle ?? null,
-    // 快照的核心判断优先，退回 track 上回填的当前判断，都没有才显示占位
-    coreJudgment: snapshot?.core_judgment || track.current_view || "尚无研究结论",
-    industryPhase: snapshot?.industry_phase || track.industry_phase || null,
-    marketPhase: snapshot?.market_phase || track.market_phase || null,
-    heat: heat[track.id] ?? null,
+    heatTier: track.heat_tier ?? null,
+    overallScore: track.overall_score ?? null,
+    cycleViews: track.cycle_views ?? {},
+    coreJudgment: track.current_view || "尚无研究结论",
+    industryPhase: track.industry_phase || null,
+    marketPhase: track.market_phase || null,
     researched: Boolean(grade)
   };
 }
@@ -144,40 +143,24 @@ function byName(a: TrackRowView, b: TrackRowView) {
   return a.name.localeCompare(b.name, "zh-Hans-CN");
 }
 
-/**
- * 按综合评分排：评级 → 综合分 → 热度 → 名称。
- * 综合分已经能完整定序，先按评级分档是为了和卡片角标看到的顺序一致。
- */
-export function sortTracksByGrade(rows: TrackRowView[]): TrackRowView[] {
-  return [...rows].sort((a, b) => {
-    const grade =
-      (GRADE_ORDER[a.grade || ""] ?? GRADE_UNRESEARCHED) - (GRADE_ORDER[b.grade || ""] ?? GRADE_UNRESEARCHED);
-    if (grade) return grade;
-    const score = (b.overallScore ?? -1) - (a.overallScore ?? -1);
-    if (score) return score;
-    const heat = (b.heat ?? -1) - (a.heat ?? -1);
-    if (heat) return heat;
-    return byName(a, b);
-  });
+function byScore(a: TrackRowView, b: TrackRowView) {
+  return (b.overallScore ?? -1) - (a.overallScore ?? -1) || byName(a, b);
 }
 
-/**
- * 按资讯热度排：热度 → 综合分 → 名称。
- * 热度取不到的排在有热度的之后，和"热度 0"区分开——看板热度是单独一条查询，
- * 失败或未统计时是缺值，不能当成"没人关注"顶到最后一名之前。
- */
-export function sortTracksByHeat(rows: TrackRowView[]): TrackRowView[] {
-  return [...rows].sort((a, b) => {
-    const heat = (b.heat ?? -1) - (a.heat ?? -1);
-    if (heat) return heat;
-    const score = (b.overallScore ?? -1) - (a.overallScore ?? -1);
-    if (score) return score;
-    return byName(a, b);
-  });
+function directionOrder(row: TrackRowView, cycle: TrackCycle) {
+  const direction = row.cycleViews[cycle]?.direction;
+  return direction ? DIRECTION_ORDER[direction] ?? 4 : 4;
 }
 
+/** 缺值排最后；同资金档位或同周期方向按综合分、名称稳定排序。 */
 export function sortTracks(rows: TrackRowView[], key: TrackSortKey): TrackRowView[] {
-  return key === "heat" ? sortTracksByHeat(rows) : sortTracksByGrade(rows);
+  return [...rows].sort((a, b) => {
+    if (key === "heat") {
+      return (HEAT_TIER_ORDER[a.heatTier ?? ""] ?? 5) - (HEAT_TIER_ORDER[b.heatTier ?? ""] ?? 5) || byScore(a, b);
+    }
+    if (key !== "score") return directionOrder(a, key) - directionOrder(b, key) || byScore(a, b);
+    return byScore(a, b);
+  });
 }
 
 /** 各分档的条数，显示在分组按钮上。归档不计入任何一档。 */

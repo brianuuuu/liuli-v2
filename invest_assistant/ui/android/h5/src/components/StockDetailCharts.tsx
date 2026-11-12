@@ -1,5 +1,5 @@
 import * as echarts from "echarts/core";
-import { BarChart, LineChart, RadarChart } from "echarts/charts";
+import { BarChart, LineChart } from "echarts/charts";
 import { GridComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
@@ -9,7 +9,7 @@ import {
   stockChartPalette
 } from "./stockCharts";
 
-echarts.use([BarChart, LineChart, RadarChart, GridComponent, CanvasRenderer]);
+echarts.use([BarChart, LineChart, GridComponent, CanvasRenderer]);
 
 /**
  * 标的详情的图表都是纯展示：系列设 silent 不吃触摸，手指从图上起手也能横滑切子页签。
@@ -32,33 +32,6 @@ function useEchart(option: unknown, height: number) {
     };
   }, [signature]);
   return <div className="stock-detail-chart" style={{ height }} ref={ref} />;
-}
-
-export function RatingRadar({ dimensions }: { dimensions: { name: string; value: number }[] }) {
-  const palette = stockChartPalette();
-  return useEchart({
-    animationDuration: 260,
-    radar: {
-      center: ["50%", "54%"],
-      radius: "66%",
-      splitNumber: 4,
-      indicator: dimensions.map((item) => ({ name: item.name, max: 10 })),
-      axisName: { color: palette.text, fontSize: 11 },
-      axisLine: { lineStyle: { color: palette.grid } },
-      splitLine: { lineStyle: { color: palette.grid } },
-      splitArea: { areaStyle: { color: palette.splitArea } }
-    },
-    series: [{
-      type: "radar",
-      silent: true,
-      symbol: "circle",
-      symbolSize: 4,
-      lineStyle: { width: 2, color: palette.accent },
-      itemStyle: { color: palette.accent },
-      areaStyle: { color: palette.accent, opacity: 0.2 },
-      data: [{ value: dimensions.map((item) => item.value) }]
-    }]
-  }, 220);
 }
 
 export function ScoreTrendBar({ labels, values }: { labels: string[]; values: number[] }) {

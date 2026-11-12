@@ -403,16 +403,34 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 
 .note-toolbar { display: flex; height: 32px; align-items: center; justify-content: flex-end; margin: -4px 0 4px; }
 .note-list { display: grid; min-width: 0; max-width: 100%; gap: 0; background: transparent; }
+.notes-page .note-list { padding-bottom: 48px; }
 .note-card { min-width: 0; max-width: 100%; overflow: hidden; padding: 12px 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .note-card + .note-card { border-top: 1px solid var(--border); }
-.note-card header { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-.note-card-meta { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.note-card-group { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.note-card p { min-width: 0; max-width: 100%; margin: 6px 0 0; font-size: var(--content-font-size); font-weight: 500; line-height: 1.62; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
-.note-card footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.note-card footer span, .tag-row span { max-width: 100%; padding: 2px 6px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
-.note-card footer .note-card-tag { padding-inline: 0; background: transparent; }
-.floating-button { position: fixed; z-index: 15; right: 22px; bottom: 22px; display: grid; width: 52px; height: 52px; place-items: center; border-radius: 16px; background: var(--blue); color: #fff; box-shadow: 0 8px 22px rgba(37, 99, 235, .28); }
+.note-card p { min-width: 0; max-width: 100%; margin: 0; font-size: var(--content-font-size); font-weight: 500; line-height: 1.62; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
+.note-card-meta { display: flex; min-width: 0; align-items: center; gap: 8px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.note-card-meta > time { flex: none; color: var(--subtle); white-space: nowrap; }
+.note-card-group, .note-card-tags {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-card-group { max-width: 30%; color: #626b78; font-weight: 500; }
+:root[data-theme="dark"] .note-card-group { color: var(--muted); }
+.note-card-source { flex: none; padding: 1px 6px; border-radius: 5px; background: var(--panel-soft); color: var(--subtle); font-size: 11px; }
+.note-card-tags { color: var(--blue); }
+.note-card-meta > svg { flex: none; margin-inline-start: auto; }
+.tag-row span { max-width: 100%; padding: 2px 6px; border-radius: 5px; background: var(--blue-soft); color: var(--blue); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
+.floating-button { position: fixed; z-index: 15; right: 22px; bottom: 22px; display: grid; width: 52px; height: 52px; padding: 0; place-items: center; border-radius: 16px; color: #fff; }
+.floating-button__surface {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--blue);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .12);
+}
 .sheet-backdrop { position: fixed; z-index: 100; inset: 0; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .48); }
 .composer-backdrop { bottom: auto; overflow: hidden; }
 .composer-sheet { display: grid; width: 100%; min-width: 0; max-width: 100%; max-height: 100%; overflow-y: auto; gap: 12px; padding: 18px 16px max(20px, env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--panel); overscroll-behavior: contain; }
@@ -607,9 +625,9 @@ html:not(.pager-dragging) button.recent-trade:disabled:active { background: none
 .profile-avatar { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); }
 .profile-row strong, .profile-row span { display: block; }
 .profile-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
-/* 三列密排卡片之间只有 8px，两侧再留满 27px 就显得被往中间挤；标的池单独把看板内缩收到 4px，
-   连同上方分组条一起外扩，左右总留白落在 16px。 */
-.dashboard-flat-section.stock-pool-section { padding: 0 4px; }
+/* 标的池和赛道库连同分组条共用 4px 内缩，叠加页框后左右各留白 16px。 */
+.dashboard-flat-section.stock-pool-section,
+.dashboard-flat-section.track-library-section { padding: 0 4px; }
 .pool-card-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* 不画描边：白底压在页面灰底上已经是一层分隔，再加一圈近似色的线只会让密排的卡片发脏。
    边框留成透明的 1px 占位，按压态和后面的翻页格改边框时布局不会跳。
@@ -689,19 +707,20 @@ html:not(.pager-dragging) .pool-card--pager:active { border-color: var(--blue); 
 /* 状态分档与排序共一行：左边分档可横向滚动，右边排序定宽不被挤压。 */
 .track-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .track-filter-bar .pill-segments { flex: 1 1 auto; min-width: 0; margin-bottom: 0; }
-.track-sort-group { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding-left: 8px; border-left: 1px solid var(--border); color: var(--subtle); }
-.track-sort-group button { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.track-sort-group button.is-active { background: var(--blue-soft); color: var(--blue); font-weight: 650; }
+.track-sort-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 5px 0 5px 8px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 /* 赛道库列表：赛道只有十几条，密度不是矛盾，一行带出核心判断比卡片角标信息量大 */
-.track-list { display: grid; gap: 8px; }
-.track-list-row { display: grid; gap: 6px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); text-align: left; transition: background .15s ease; }
+.track-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.track-list-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); text-align: left; transition: background .15s ease; }
 html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft); }
 .track-list-row__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .track-list-row__head strong { overflow: hidden; font-size: 15px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }
 .track-list-row__judgment { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.track-list-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--subtle); font-size: 11px; }
-.track-list-row__meta em { margin-left: auto; font-style: normal; font-variant-numeric: tabular-nums; }
+.track-list-row__meta { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--subtle); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.track-list-row__meta em { color: var(--muted); font-style: normal; }
+.track-list-row__meta em[data-direction="positive"] { color: var(--blue); }
+.track-list-row__meta em[data-direction="negative"] { color: #b45309; }
+:root[data-theme="dark"] .track-list-row__meta em[data-direction="negative"] { color: #f59e0b; }
 
 /* 赛道卡的两个角标：左评级右热度档位，越强越暖。两个角标并排，颜色只表达强弱。
    S/T0 红、A/T1 橙、B/T2 蓝、C D T3 T4 灰，与 Web 端同一套语义。 */
@@ -743,6 +762,17 @@ html:not(.pager-dragging) .track-list-row:active { background: var(--blue-soft);
 .track-score-row strong { font-size: 12px; font-weight: 680; font-variant-numeric: tabular-nums; text-align: right; }
 .track-score-row--total { margin-top: 2px; padding-top: 9px; border-top: 1px solid var(--border); }
 .track-score-row--total .track-score-label { color: var(--text); font-weight: 620; }
+
+.stock-rating-scores .track-score-row { grid-template-columns: 44px minmax(0, 1fr) 34px; }
+.stock-rating-scores--compared .track-score-row { grid-template-columns: 44px minmax(0, 1fr) 34px 38px; }
+.stock-rating-range { display: block; height: 100%; overflow: hidden; border-radius: inherit; }
+.stock-rating-fill { display: block; height: 100%; background: var(--blue); }
+.stock-rating-range[data-direction="up"] { background: #1d4ed8; }
+.stock-rating-range[data-direction="down"] { box-shadow: inset 0 0 0 1px #86a7d8; }
+:root[data-theme="dark"] .stock-rating-range[data-direction="up"] { background: #3b82f6; }
+:root[data-theme="dark"] .stock-rating-range[data-direction="down"] { box-shadow: inset 0 0 0 1px #6b8fbd; }
+.stock-rating-delta { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.stock-rating-delta[data-muted] { color: var(--subtle); }
 
 .track-subhead { margin: 12px 0 0; color: var(--muted); font-size: 12px; font-weight: 620; }
 .track-paragraph { margin: 4px 0 0; font-size: var(--content-font-size); line-height: 1.62; }
@@ -870,9 +900,6 @@ summary.track-cycle-summary::after { content: "+"; color: var(--muted); text-ali
 .note-secondary-actions { display: grid; gap: 4px; padding-top: 4px; }
 .note-archive-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; background: var(--panel); color: var(--text); }
 .note-delete-link { display: inline-flex; justify-self: center; align-items: center; gap: 4px; padding: 8px 12px; color: var(--muted); font-size: 13px; }
-/* 待办里的待归档笔记：卡片沿用笔记页那一套，笔记在两个页面长得一样，不用切换阅读模式。
-   这里只多一个来源标记，整卡点开去编辑页改分组和标签。 */
-.note-card-source { flex: 0 0 auto; padding: 1px 6px; border-radius: 5px; background: var(--panel-soft); color: var(--subtle); font-size: 11px; }
 /* 分组单选：和 TagPicker 同一套视觉语言，替掉原来的原生 select。
    分组通常只有几个，平铺出来一眼看全，比拉起系统滚轮快。 */
 .group-picker { display: grid; min-width: 0; gap: 6px; }

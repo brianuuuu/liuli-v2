@@ -162,7 +162,8 @@ const REPORT_KINDS = [
   { value: "all", label: "全部" },
   { value: "market", label: "市场" },
   { value: "track", label: "赛道" },
-  { value: "stock", label: "标的" }
+  { value: "stock", label: "标的" },
+  { value: "portfolio", label: "组合" }
 ] as const;
 
 export function ReportsPage() {

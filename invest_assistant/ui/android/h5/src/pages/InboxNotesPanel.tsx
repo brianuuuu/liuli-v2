@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { MoreHorizontal } from "lucide-react";
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
+import { NoteCard } from "../components/NoteCard";
 import { useRestoreListPosition } from "../components/listReturn";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
-import { formatDateTime } from "../utils/format";
 import { rememberTaskTab, tasksReturn } from "./tasksViewState";
 
 /**
@@ -45,21 +44,7 @@ export function InboxNotesPanel() {
         ) : rows.length ? (
           <div className="note-list">
             {rows.map((note) => (
-              <article
-                className="note-card"
-                data-return-id={note.id}
-                key={note.id}
-                onClick={() => openNote(note.id)}
-              >
-                <header>
-                  <div className="note-card-meta">
-                    <time>{formatDateTime(note.updated_at ?? note.created_at)}</time>
-                    <span className="note-card-source">外部写入</span>
-                  </div>
-                  <MoreHorizontal size={20} />
-                </header>
-                <p>{note.content}</p>
-              </article>
+              <NoteCard key={note.id} note={note} onOpen={openNote} sourceLabel="外部写入" />
             ))}
           </div>
         ) : <EmptyState title="没有待归档的笔记" detail="外部写入的笔记会先落在这里，点开分好组就不再出现" />}

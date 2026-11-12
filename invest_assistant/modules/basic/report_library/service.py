@@ -116,6 +116,16 @@ def _filter_reports_by_kind(stmt, report_kind: str | None):
                 func.lower(Report.title).contains("标的"),
             )
         )
+    if report_kind == "portfolio":
+        return stmt.where(
+            or_(
+                Report.source_module == "portfolio",
+                Report.target_type == "portfolio",
+                func.lower(Report.report_type).contains("portfolio"),
+                Report.report_type == "微操报告",
+                Report.title.endswith("-微操报告"),
+            )
+        )
     return stmt
 
 

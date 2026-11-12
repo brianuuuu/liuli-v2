@@ -1,18 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, PenLine, Plus, X } from "lucide-react";
+import { PenLine, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { mobileApi } from "../api/mobileApi";
 import { HorizontalTabPager, type HorizontalTabPagerHandle } from "../components/HorizontalTabPager";
 import { MobilePageFrame } from "../components/MobilePageFrame";
+import { NoteCard } from "../components/NoteCard";
 import type { PagerMotionSink } from "../components/pagerMotion";
 import { useRestoreListPosition } from "../components/listReturn";
 import { PullToRefresh } from "../components/PullToRefresh";
 import { ReorderableNoteGroups } from "../components/ReorderableNoteGroups";
 import { SecondaryNavigation } from "../components/SecondaryNavigation";
 import { TagPicker } from "../components/TagPicker";
-import { EmptyState, ErrorState, LoadingState } from "../components/Ui";
-import { formatDateTime } from "../utils/format";
+import { EmptyState, ErrorState, FloatingAddButton, LoadingState } from "../components/Ui";
 import { lastNoteGroup, notesReturn, rememberNoteGroup } from "./notesViewState";
 
 /** 「全部」页签不对应真实分组 id，新建笔记时落到未分组。 */
@@ -64,9 +64,9 @@ export function NotesPage() {
   }, [composer]);
 
   return (
-    <MobilePageFrame navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} visibleCount={NOTE_TABS_PER_SCREEN} endAction={{ label: "编辑分组", icon: <PenLine size={16} />, onClick: () => setManageGroups(true) }} />}>
+    <MobilePageFrame className="notes-page" navigation={<SecondaryNavigation ref={navigationMotion} items={groupItems} activeKey={groupId} onChange={(key) => pager.current?.requestChange(key)} visibleCount={NOTE_TABS_PER_SCREEN} endAction={{ label: "编辑分组", icon: <PenLine size={16} />, onClick: () => setManageGroups(true) }} />}>
       <HorizontalTabPager ref={pager} items={groupItems} activeKey={groupId} onChange={setGroupId} motionSink={navigationMotion} renderPage={(key) => <NotesGroupContent groupId={key} />} />
-      <button className="floating-button" type="button" aria-label="新增笔记" onClick={() => setComposer(true)}><Plus /></button>
+      <FloatingAddButton label="新增笔记" onClick={() => setComposer(true)} />
       {composer ? <div className="sheet-backdrop composer-backdrop" style={composerViewport ? { height: `${composerViewport.height}px`, top: `${composerViewport.offsetTop}px` } : undefined}><section className="composer-sheet" data-swipe-ignore="true"><header><strong>现在的想法是…</strong><button type="button" onClick={() => setComposer(false)}><X /></button></header><textarea wrap="soft" autoFocus value={content} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }} onChange={(event) => setContent(event.target.value)} placeholder="写下一条短笔记" /><TagPicker tags={availableTags.data ?? []} value={tagIds} onChange={setTagIds} /><button type="button" className="primary-button" disabled={!content.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "保存中…" : "保存"}</button></section></div> : null}
       {manageGroups ? <GroupManager groups={groups.data ?? []} onClose={() => setManageGroups(false)} /> : null}
     </MobilePageFrame>
@@ -110,19 +110,7 @@ function NotesGroupContent({ groupId }: { groupId: string }) {
         />
       ) : (
         <div className="note-list" ref={listRef}>
-          {notes.data.items.map((note) => (
-            <article className="note-card" key={note.id} data-return-id={note.id} onClick={() => openNote(note.id)}>
-              <header>
-                <div className="note-card-meta">
-                  <time>{formatDateTime(note.updated_at ?? note.created_at)}</time>
-                  {note.group ? <span className="note-card-group">{note.group.name}</span> : null}
-                </div>
-                <MoreHorizontal size={20} />
-              </header>
-              <p>{note.content}</p>
-              {note.tags?.length ? <footer>{note.tags.map((tag) => <span className="note-card-tag" key={tag.id}>#{tag.name}</span>)}</footer> : null}
-            </article>
-          ))}
+          {notes.data.items.map((note) => <NoteCard key={note.id} note={note} onOpen={openNote} />)}
         </div>
       )}
     </PullToRefresh>

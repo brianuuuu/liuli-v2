@@ -7,7 +7,8 @@ describe("mobile card elevation", () => {
     const lightTheme = styles.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
 
     expect(lightTheme).toMatch(/--shadow:\s*none;/);
-    expect(styles).toMatch(/\.floating-button\s*\{[^}]*box-shadow:\s*(?!none)[^;}]+;/s);
+    expect(styles).toMatch(/\.floating-button\s*\{[^}]*width:\s*52px;[^}]*height:\s*52px;/s);
+    expect(styles).toMatch(/\.floating-button__surface\s*\{[^}]*width:\s*48px;[^}]*height:\s*48px;[^}]*box-shadow:\s*(?!none)[^;}]+;/s);
   });
 
   it("renders notes as a continuous divided list on the page background", () => {
@@ -17,9 +18,8 @@ describe("mobile card elevation", () => {
     expect(styles).toMatch(/\.note-card\s*\{[^}]*padding:\s*12px 14px;[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
     expect(styles).toMatch(/\.note-card \+ \.note-card\s*\{[^}]*border-top:\s*1px solid var\(--border\);/s);
     expect(styles).toMatch(/\.note-card-meta\s*\{[^}]*display:\s*flex;[^}]*gap:\s*8px;/s);
-    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*6px 0 0;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.62;/s);
-    expect(styles).toMatch(/\.note-card footer\s*\{[^}]*margin-top:\s*8px;/s);
-    expect(styles).toMatch(/\.note-card footer \.note-card-tag\s*\{[^}]*background:\s*transparent;/s);
+    expect(styles).toMatch(/\.note-card p\s*\{[^}]*margin:\s*0;[^}]*font-weight:\s*500;[^}]*line-height:\s*1\.62;/s);
+    expect(styles).toMatch(/\.note-card-group,\s*\.note-card-tags\s*\{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   });
 
   it("renders the market, track, and stock dashboard content directly on the page background", () => {

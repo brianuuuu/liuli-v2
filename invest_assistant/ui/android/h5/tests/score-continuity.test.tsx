@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScoreContinuityDetails } from "../src/pages/ScoreContinuityDetails";
 import { StockDetailPage } from "../src/pages/StockDetailPage";
+import { ratingScoreRows } from "../src/pages/stockDetailPresentation";
 import type { StockScoreSnapshot } from "../src/types/api";
 import { continuityStatus, scoreDelta } from "../../../shared/scoreContinuity";
 
@@ -15,7 +16,7 @@ vi.mock("echarts/core", () => ({
 afterEach(() => vi.restoreAllMocks());
 
 const score = {
-  id: 3, stock_id: 1, report_time: "2026-11-07", investment_level: "A", total_score: 8.5,
+  id: 3, stock_id: 1, report_time: "2026-11-07", researcher_code: "analyst_001", investment_level: "A", total_score: 8.5,
   business_moat_score: 8, management_score: 8, governance_score: 8, strategy_score: 8, certainty_score: 8, growth_score: 8,
   report_id: 12, report_available: true, previous_snapshot_id: 1,
   continuity: {
@@ -27,7 +28,11 @@ const score = {
   comparison: {
     status: "recorded", baseline_id: 1, report_time: "2026-10-01", report_id: 10, report_available: false,
     previous_level: "A", total_delta: 0.1, method_changed: false,
-    dimensions: [{ field: "certainty_score", previous: 7.5, current: 8, delta: 0.5 }],
+    dimensions: [
+      { field: "certainty_score", previous: 7.5, current: 8, delta: 0.5 },
+      { field: "growth_score", previous: 8.7, current: 8, delta: -0.7 },
+      { field: "strategy_score", previous: 8, current: 8, delta: 0 }
+    ],
   },
   check_sources: [{ report_id: 10, check_id: "cash", condition: "年报现金转化是否改善", source_missing: false, report_available: false }],
 } as StockScoreSnapshot;
@@ -55,6 +60,12 @@ describe("score continuity", () => {
     expect(scoreDelta(-0.12)).toBe("-0.12");
   });
 
+  it("keeps a missing linked baseline from being replaced by a nearby historical score", () => {
+    const history = [{ ...score, id: 2, report_time: "2026-10-15", growth_score: 9 }];
+    const missing = { ...score, comparison: { ...score.comparison!, status: "baseline_missing" as const } };
+    expect(ratingScoreRows(missing, history).rows.every(({ delta }) => delta === null)).toBe(true);
+  });
+
   it("keeps same-day versions independently expandable alongside the existing trend", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 390, 844));
     const first = { ...score, id: 1, report_time: "2026-10-01", continuity: null, comparison: null };
@@ -73,6 +84,12 @@ describe("score continuity", () => {
     </QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: "评级" }));
     expect(await screen.findByRole("heading", { name: "评分趋势" })).toBeVisible();
+    const scores = screen.getByRole("group", { name: "六维评分，较 2026-10-01" });
+    expect(within(scores).getByText("+0.5")).toBeVisible();
+    expect(within(scores).getByText("−0.7")).toBeVisible();
+    expect(within(scores).getByText("0.0")).toHaveAttribute("data-muted");
+    expect(scores.querySelector('[data-direction="up"]')).toHaveStyle({ width: "80%" });
+    expect(scores.querySelector('[data-direction="down"]')).toHaveStyle({ width: "87%" });
     const version = screen.getByText(/版本 2/).closest("details")!;
     expect(version).not.toHaveAttribute("open");
     fireEvent.click(version.querySelector("summary")!);
