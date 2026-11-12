@@ -22,6 +22,7 @@ export const reasonTypeColors: Record<string, string | undefined> = {
 };
 
 export const adviceActionLabels: Record<string, string> = { add: "增持", reduce: "减持" };
+export const adviceExecutionLabels: Record<string, string> = { executed: "已采纳", partial: "部分采纳", not_executed: "未关联" };
 
 /** 关联建议下拉的一项：已被别的调仓关联时写出那笔调仓，否则给价格区间 */
 export function adviceCandidateLabel(item: AdjustAdviceCandidate, linked = Boolean(item.linked_change)) {

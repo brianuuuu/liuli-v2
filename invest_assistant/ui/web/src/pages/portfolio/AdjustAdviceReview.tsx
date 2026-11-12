@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { DataPanel } from "../../components/common/DataPanel";
 import { HintTitle } from "./HintTitle";
 import { SampleCount } from "./SampleCount";
+import { adviceExecutionLabels } from "./positionChangeLabels";
 import type { AdjustAdviceItem, AdjustAdviceReport, AdjustAdviceReviews, AdjustAdviceWinRateRow } from "../../types/api";
 
 export const initialAdviceReviews: AdjustAdviceReviews = {
@@ -54,7 +55,6 @@ const riskLabels: Record<string, { label: string; color?: string }> = {
   severe: { label: "严重", color: "red" }
 };
 
-const executionLabels: Record<string, string> = { executed: "已采纳", partial: "部分采纳", not_executed: "未关联" };
 const triggerLabels: Record<string, string> = { touched: "触及", not_touched: "未触及" };
 
 /** 没有样本时返回 null，由展示层写"待积累"，不和真实的 0% 混在一起 */
@@ -108,8 +108,11 @@ function formatRatio(value?: number | null) {
   return value === null || value === undefined ? "-" : `${Math.round(value * 100)}%`;
 }
 
+export const signalStatsHint = "只计触价且已评估的建议：从适用日收盘起20个交易日，增持后涨超1%或减持后跌超1%为有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；同组合、同研究员连续同向未采纳建议只计一次。方向收益不等于账户盈亏，触价不等于成交。";
+export const riskStatsHint = "警示和严重风险逐条评估，20个交易日后跑输沪深300超过3个百分点为命中；观察级别不计入。后续风险级别变化不改变旧警示的评估结果。";
+
 export const marketReviewHint =
-  "研究员按沪深300 的中枢位置、年线方向和系统性风险给出目标股票仓位区间与整体方向；净增持后沪深300 20 日涨超 1%、净减持后跌超 1% 为对，同组合、同研究员连续多份同一方向只算第一份（灰色行未计入）。";
+  "净增持后沪深300 20日涨超1%、净减持后跌超1%为对。同组合、同研究员连续同向判断只计首份，灰色行不计入。";
 
 /** 大盘判断：逐份报告列出状态、区间、方向与沪深300 之后的表现，表头下方按状态 × 方向汇总胜率 */
 export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
@@ -122,7 +125,7 @@ export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
         rowClassName={(row) => (row.counted || !row.position_direction || row.position_direction === "hold" ? "" : "market-review-uncounted")}
         dataSource={rows}
         pagination={{ defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
-        locale={{ emptyText: "暂无大盘判断；新格式的微操报告导入后显示" }}
+        locale={{ emptyText: "暂无大盘判断" }}
         scroll={{ x: 980 }}
         columns={[
           { title: "适用交易日", dataIndex: "target_trade_date", width: 108 },
@@ -173,8 +176,7 @@ const EVAL_COLUMNS = 6;
 const evalLead = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? EVAL_COLUMNS : 1 });
 const evalRest = (row: AdjustAdviceItem) => ({ colSpan: notEvaluated(row) ? 0 : 1 });
 
-// 口径说明挂在"对错"表头上：标题栏去掉后，它就近解释对错怎么判
-const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
+const itemColumns: ColumnsType<AdjustAdviceItem> = [
   {
     title: "标的",
     key: "stock",
@@ -204,17 +206,17 @@ const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
     onCell: evalLead,
     render: (value: string | null | undefined, row) =>
       notEvaluated(row) ? (
-        <span className="advice-eval-pending">{row.action === "add" || row.action === "reduce" ? "待评估 · T+20 判定对错" : "维持、等待不评估"}</span>
+        <span className="advice-eval-pending">{row.action === "add" || row.action === "reduce" ? "待评估" : "不评估"}</span>
       ) : (
         (value && triggerLabels[value]) || "-"
       )
   },
-  { title: "明确采纳", dataIndex: "execution_status", width: 86, align: "center", onCell: evalRest, render: (value?: string | null) => (value && executionLabels[value]) || "-" },
+  { title: "明确采纳", dataIndex: "execution_status", width: 86, align: "center", onCell: evalRest, render: (value?: string | null) => (value && adviceExecutionLabels[value]) || "-" },
   { title: "5日", dataIndex: "return_5d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "20日", dataIndex: "return_20d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "60日", dataIndex: "return_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   {
-    title: rules ? <HintTitle title="对错" hint={`评估口径：${rules}`} /> : "对错",
+    title: <HintTitle title="对错" hint={signalStatsHint} />,
     dataIndex: "verdict",
     width: 72,
     align: "center",
@@ -293,7 +295,6 @@ const buildReportColumns = (showQuiet: boolean, onShowQuietChange: (value: boole
 /** 微操报告：逐期明细，展开看每只持仓的建议与事后评估。放在数据面板里，表格样式与调仓来源表一致 */
 export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews; loading: boolean }) {
   const [showQuiet, setShowQuiet] = useState(false);
-  const itemColumns = useMemo(() => buildItemColumns(data.rules), [data.rules]);
   const reportColumns = useMemo(() => buildReportColumns(showQuiet, setShowQuiet), [showQuiet]);
   return (
     <DataPanel>
@@ -305,7 +306,7 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
         columns={reportColumns}
         dataSource={data.reports}
         pagination={{ defaultPageSize: 10, showSizeChanger: false }}
-        locale={{ emptyText: "暂无微操报告；研究回流导入「微操报告」后显示" }}
+        locale={{ emptyText: "暂无微操报告" }}
         expandable={{
           expandedRowRender: (report) => (
             <Table
@@ -324,6 +325,3 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
     </DataPanel>
   );
 }
-
-export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，同组合、同研究员连续同方向未采纳只算一次。方向效果以适用日收盘为基准，不是账户实际盈亏，也不代表降低集中度等整体风控效果。触价不代表报告中的完整条件满足或实际成交。页签数字为当前筛选范围内已评估样本数；展开记录含待评估、未触价和重复跟踪，条数不等于样本数。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或工作日19:15评估任务更新。";
-export const riskStatsHint = "按报告标注的主要风险归类，警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为当前筛选范围内已评估警示条数，不等于股票数；每条警示独立评估，可能包含同一股票的连续跟踪。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或评估任务更新。后续风险级别变化不改变旧警示的事后评估。";

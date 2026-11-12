@@ -532,7 +532,7 @@ def list_adjust_advice_reviews(
     }
 
 
-def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids: set[int], names: dict | None = None) -> dict:
+def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids: set[int], names: dict[str, str]) -> dict:
     """大盘与整体仓位判断的事后表现：每份报告按沪深300 自 T 起的收益评估方向，查询时现算、不落列。
 
     advices 按 T 正序；rows 只给最近几份（倒序），stats 用当前筛选范围内全部报告。
@@ -559,7 +559,7 @@ def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids
             "advice_id": advice.id,
             "portfolio_id": advice.portfolio_id,
             "researcher_code": advice.researcher_code,
-            "researcher_name": (names or {}).get(advice.researcher_code, advice.researcher_code),
+            "researcher_name": names.get(advice.researcher_code, advice.researcher_code),
             "target_trade_date": advice.target_trade_date,
             "market_regime": advice.market_regime,
             "market_risk": advice.market_risk,
@@ -620,13 +620,13 @@ def advice_dict(db: Session, advice: PortfolioAdjustAdvice) -> dict:
     return _advice_dict(advice, rows, researcher_names(db), linked_executions(db, [item.id for item, _ in rows]))
 
 
-def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjustAdviceItem, Stock]], names: dict | None = None, executions: dict | None = None) -> dict:
+def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjustAdviceItem, Stock]], names: dict[str, str], executions: dict[int, float]) -> dict:
     return {
         "id": advice.id,
         "portfolio_id": advice.portfolio_id,
         "report_id": advice.report_id,
         "researcher_code": advice.researcher_code,
-        "researcher_name": (names or {}).get(advice.researcher_code, advice.researcher_code),
+        "researcher_name": names.get(advice.researcher_code, advice.researcher_code),
         "data_as_of_date": advice.data_as_of_date,
         "target_trade_date": advice.target_trade_date,
         "has_opportunity": advice.has_opportunity,
@@ -644,11 +644,10 @@ def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjust
     }
 
 
-def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock, executions: dict | None = None) -> dict:
+def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock, executions: dict[int, float]) -> dict:
     detail = _loads(item.detail_json)
     risk_alert = detail.get("risk_alert") if isinstance(detail.get("risk_alert"), dict) else {}
-    status, quantity = (_execution_values(item, executions.get(item.id, 0)) if executions is not None
-                        else (item.execution_status, item.executed_quantity))
+    status, quantity = _execution_values(item, executions.get(item.id, 0))
     return {
         "id": item.id,
         "stock_id": item.stock_id,
@@ -702,7 +701,7 @@ def _summary(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, execut
     }
 
 
-def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict | None = None) -> dict:
+def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict[int, float]) -> dict:
     by_signal: dict[tuple[str, str], list[PortfolioAdjustAdviceItem]] = defaultdict(list)
     by_category: dict[tuple[str, str], list[PortfolioAdjustAdviceItem]] = defaultdict(list)
     for item in _episode_samples(advices, items_by_advice, executions):
@@ -715,7 +714,7 @@ def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, e
     }
 
 
-def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict | None = None) -> list[PortfolioAdjustAdviceItem]:
+def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict[int, float]) -> list[PortfolioAdjustAdviceItem]:
     """连续多份报告对同一标的给出同方向、且一直未执行的建议，视为同一次判断，取其中第一条触及区间的计入。"""
     samples: list[PortfolioAdjustAdviceItem] = []
     open_episodes: dict[tuple, dict] = {}
@@ -733,7 +732,7 @@ def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict
             continues = (
                 last is not None
                 and last.action == item.action
-                and (_execution_values(last, executions.get(last.id, 0))[0] if executions is not None else last.execution_status) not in {"executed", "partial"}
+                and _execution_values(last, executions.get(last.id, 0))[0] not in {"executed", "partial"}
                 and key in open_episodes
             )
             if not continues:

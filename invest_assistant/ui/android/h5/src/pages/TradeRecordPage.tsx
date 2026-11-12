@@ -400,8 +400,7 @@ export function TradeRecordPage() {
                   {researcherOptions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
                 </select>
               ) : null}
-              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (<>
-                {matchingCandidates.every((item) => item.linked_change) ? <small className="trade-hint">这些建议都已关联过调仓，可不关联</small> : null}
+              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
                 <div className="trade-options">
                   {matchingCandidates.map((item: AdjustAdviceCandidate) => (
                     <button
@@ -416,7 +415,7 @@ export function TradeRecordPage() {
                     </button>
                   ))}
                 </div>
-              </>) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
+              ) : <small className="trade-hint">近10天暂无{adviceAction === "add" ? "增持" : "减持"}建议</small>}
             </div>
           ) : null}
           <label className="trade-row">

@@ -8,6 +8,7 @@ import type { AdjustAdviceReviews } from "../../types/api";
 import { buildAdviceReviewGroups, directionEffect, riskExcess } from "./adviceReviewPresentation";
 import type { ReviewGroup, ReviewKind, ReviewRecord } from "./adviceReviewPresentation";
 import { SampleCount } from "./SampleCount";
+import { adviceExecutionLabels } from "./positionChangeLabels";
 
 const signalLabels: Record<string, string> = {
   below_value_center: "价格低于价值中枢", above_value_center: "价格高于价值中枢",
@@ -27,8 +28,8 @@ const riskLabels: Record<string, string> = {
 const levelLabels: Record<string, string> = { none: "无警示", watch: "观察", warning: "警示", severe: "严重" };
 const actionLabels: Record<string, string> = { add: "增持", reduce: "减持", hold: "维持", wait: "等待" };
 const inclusionLabels: Record<ReviewRecord["inclusion"], string> = {
-  counted: "计入统计", repeat: "连续重复建议，不重复计入", not_touched: "未触及参考价，不计入胜率",
-  pending: "待评估", unknown: "历史明细不完整，样本归属以汇总为准"
+  counted: "计入统计", repeat: "连续重复，不计入", not_touched: "未触价，不计入",
+  pending: "待评估", unknown: "明细不完整，以汇总为准"
 };
 const pct = (value: number) => `${value > 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
 const number = (value: number) => value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
@@ -115,7 +116,7 @@ function ReviewRecords({ group, kind, onOpenReport }: {
       title: kind === "signal" ? "触价与明确采纳" : "警示后20日表现", key: "progress", width: 210,
       render: (_, { item }: ReviewRecord) => kind === "signal" ? <div className="advice-review-stack">
         <span>价格：{item.trigger_status === "touched" ? "已触及参考价" : item.trigger_status === "not_touched" ? "未触及参考价" : "待核验"}</span>
-        <span>采纳：{({ executed: "已采纳", partial: "部分采纳", not_executed: "未关联" } as Record<string, string>)[item.execution_status || ""] || "待核验"}
+        <span>采纳：{adviceExecutionLabels[item.execution_status || ""] || "待核验"}
           {item.executed_quantity != null ? ` · ${number(item.executed_quantity)}股` : ""}</span>
       </div> : <div className="advice-review-stack">
         <span>个股 <ReturnValue value={item.return_20d} /></span>
@@ -138,7 +139,7 @@ function ReviewRecords({ group, kind, onOpenReport }: {
     <div className="advice-review-records">
       <Table<ReviewRecord> className="advice-review-detail-table" rowKey="key" size="small" columns={columns} dataSource={group.records}
         pagination={{ defaultPageSize: 5, showSizeChanger: false, hideOnSinglePage: true }}
-        locale={{ emptyText: "返回的报告中没有该分类明细；上方仍显示当前筛选范围统计。" }} />
+        locale={{ emptyText: "暂无该分类明细" }} />
     </div>
   );
 }
@@ -179,7 +180,7 @@ export function AdviceStatsReview({ data, kind, loading = false }: { data: Adjus
   return (
     <div className={`advice-stats-review is-${kind}`}>
       <Table<ReviewGroup> rowKey="key" className="advice-review-summary-table" tableLayout="fixed" size="small" columns={columns} dataSource={groups} loading={loading}
-        pagination={false} locale={{ emptyText: kind === "signal" ? "暂无调仓建议；新建议导入后即可查看，满20个交易日后评估。" : "暂无警示或严重风险记录；观察级别不计入命中率。" }}
+        pagination={false} locale={{ emptyText: kind === "signal" ? "暂无调仓建议" : "暂无风险警示" }}
         expandable={{
           expandedRowRender: (group) => <ReviewRecords group={group} kind={kind} onOpenReport={setOpenedReport} />,
           columnWidth: 36

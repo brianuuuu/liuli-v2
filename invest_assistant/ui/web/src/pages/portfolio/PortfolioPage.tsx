@@ -1064,25 +1064,16 @@ export function PortfolioPage() {
             </Form.Item>
           )}
           <Form.Item name="change_reason_type" label="理由来源">
-            <Select allowClear placeholder="选填，用于复盘对比 AI 建议和个人判断" options={reasonTypeOptions} />
+            <Select allowClear placeholder="选填" options={reasonTypeOptions} />
           </Form.Item>
           {watchedReasonType === "ai_advice" ? (
-            <Form.Item
-              name="change_advice_item_id"
-              label="关联微操建议"
-              extra={
-                !directionalCandidates.length
-                  ? "近 10 天没有这只标的同方向的增持、减持建议，可不关联"
-                  : directionalCandidates.every((item) => item.linked_change)
-                    ? "这些建议都已关联过调仓，可不关联"
-                    : "关联后，这笔调仓直接算作该建议已执行；一条建议只能关联一次"
-              }
-            >
+            <Form.Item name="change_advice_item_id" label="关联微操建议">
               <Select
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                placeholder="选填，可搜索研究员"
+                placeholder="选填"
+                notFoundContent="暂无匹配建议"
                 onChange={selectAdviceCandidate}
                 options={directionalCandidates.map((item) => ({
                   value: item.id,
@@ -1093,7 +1084,7 @@ export function PortfolioPage() {
             </Form.Item>
           ) : null}
           <Form.Item name="change_note" label="调仓理由">
-            <Input.TextArea rows={3} placeholder="选填，会记进调仓记录" />
+            <Input.TextArea rows={3} placeholder="选填" />
           </Form.Item>
         </Form>
       </Modal>

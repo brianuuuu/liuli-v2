@@ -78,9 +78,9 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
     { value: "market", label: "AI大盘判断", count: adviceData.market_review.rows.length }
   ];
   const coverageHint = adviceData.reports.length < adviceData.summary.report_count
-    ? `统计涵盖筛选范围内全部 ${adviceData.summary.report_count} 份报告；股票、待评估记录与明细仅覆盖最近 ${adviceData.reports.length} 份。`
+    ? `统计含 ${adviceData.summary.report_count} 份报告，明细仅展示最近 ${adviceData.reports.length} 份。`
     : "";
-  const statsHint = statsView === "changes" ? positionChangeHint(changeReviewData.rules) : statsView === "signals" ? signalStatsHint + coverageHint : statsView === "risks" ? riskStatsHint + coverageHint : marketReviewHint;
+  const statsHint = statsView === "changes" ? positionChangeHint : statsView === "signals" ? signalStatsHint + coverageHint : statsView === "risks" ? riskStatsHint + coverageHint : marketReviewHint;
 
   return (
     <div className="portfolio-dashboard trade-review">
@@ -111,7 +111,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
           </Space>
         )}
       />
-      {snapshot.error ? <Alert type="error" showIcon title="复盘加载失败，请重试" action={<Button size="small" onClick={() => void snapshot.refresh()} loading={snapshot.loading}>重试</Button>} /> : null}
+      {snapshot.error ? <Alert type="error" showIcon title="复盘加载失败" action={<Button size="small" onClick={() => void snapshot.refresh()} loading={snapshot.loading}>重试</Button>} /> : null}
       <div className="review-kpi-strip">
         <section className="review-kpi-group review-kpi-group--changes">
           {/* 组名放左侧竖列，每个指标只剩名称、数值、样本三行 */}

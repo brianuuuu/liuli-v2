@@ -474,8 +474,7 @@ def _position_change_dict(
     portfolio: Portfolio,
     advice_by_item: dict[int, dict] | None = None,
 ) -> dict:
-    if advice_by_item is None:
-        advice_by_item = {}
+    advice = (advice_by_item or {}).get(change.advice_item_id, {})
     return {
         "id": change.id,
         "portfolio_id": change.portfolio_id,
@@ -491,10 +490,10 @@ def _position_change_dict(
         "price_source": change.price_source,
         "reason_type": change.reason_type,
         "advice_item_id": change.advice_item_id,
-        "advice_target_trade_date": advice_by_item.get(change.advice_item_id, {}).get("target_trade_date"),
-        "advice_action": advice_by_item.get(change.advice_item_id, {}).get("action"),
-        "researcher_code": advice_by_item.get(change.advice_item_id, {}).get("researcher_code"),
-        "researcher_name": advice_by_item.get(change.advice_item_id, {}).get("researcher_name"),
+        "advice_target_trade_date": advice.get("target_trade_date"),
+        "advice_action": advice.get("action"),
+        "researcher_code": advice.get("researcher_code"),
+        "researcher_name": advice.get("researcher_name"),
         "note": change.note,
         "created_at": change.created_at,
     }

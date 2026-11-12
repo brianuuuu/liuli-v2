@@ -58,18 +58,7 @@ export function sourceWinRate(rows: PositionChangeReviewRow[], reasonType: strin
   return { samples, rate: samples ? `${((correct / samples) * 100).toFixed(1)}%` : null };
 }
 
-export function positionChangeHint(rules: string) {
-  return (
-    <>
-      每笔以自身成交价独立评估，后续买卖不改变此前记录。增持看买入后的涨幅，减持看卖出后的跌幅，正数表示判断有利。
-      <br />
-      调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；至今金额、20 日影响分别为调仓金额 × 对应期限按方向折算后的收益，是相对"不做这笔调仓"的估算，不是已实现盈亏。
-      <br />
-      按调仓发生日期筛选，每笔仍评估到最新收盘。表底合计当前组合、研究员和日期范围内的全部记录，跨分页汇总；缺少数据的记录不按 0 计入，并标注缺失笔数。
-      {rules ? <><br />评估口径：{rules}</> : null}
-    </>
-  );
-}
+export const positionChangeHint = "每笔按自身成交价独立评估：增持看涨幅，减持看跌幅。调仓金额=股数变化绝对值×调仓价；至今金额、20日影响=调仓金额×对应方向收益，不是已实现盈亏。表底汇总筛选范围内全部记录，跨分页累计。";
 
 // 至今收益算到满 60 个交易日为止，与后端 TO_DATE_CAP_DAYS 一致
 const TO_DATE_CAP_DAYS = 60;
