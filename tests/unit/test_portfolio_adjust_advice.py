@@ -9,7 +9,7 @@ from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.alert_center.models import AlertEvent
 from invest_assistant.modules.basic.report_library import service as report_service
 from invest_assistant.modules.basic.stock_master.models import Stock
-from invest_assistant.modules.knowledge_base.models import KnowledgeResearchFeedback
+from invest_assistant.modules.knowledge_base.models import KnowledgeResearchFeedback, KnowledgeResearcher
 from invest_assistant.modules.knowledge_base.schemas import KnowledgeResearchFeedbackCreate
 from invest_assistant.modules.knowledge_base.service import (
     create_research_feedback,
@@ -130,6 +130,8 @@ def advice_payload(**overrides) -> dict:
 
 
 def seed(db) -> None:
+    for code, name in (("portfolio_001", "组合微操大师"), ("portfolio_002", "组合趋势进攻师")):
+        db.add(KnowledgeResearcher(researcher_code=code, display_name=name, profile_path=f"external/researchers/{code}/profile.md"))
     db.add(Portfolio(name="实盘组合"))
     db.add(Stock(stock_code="601021", stock_name="春秋航空", symbol="601021.SH", exchange="SH"))
     db.add(Stock(stock_code="600036", stock_name="招商银行", symbol="600036.SH", exchange="SH"))
@@ -272,7 +274,7 @@ def test_evaluate_fills_execution_returns_and_verdicts(tmp_path, monkeypatch):
     assert result == {"processed_count": 2, "updated_count": 2}
     reduce_item, wait_item = db.scalars(select(PortfolioAdjustAdviceItem).order_by(PortfolioAdjustAdviceItem.id)).all()
     assert reduce_item.trigger_status == "touched"
-    assert reduce_item.execution_status == "executed" and reduce_item.executed_quantity == 600
+    assert reduce_item.execution_status == "not_executed" and reduce_item.executed_quantity == 0
     assert reduce_item.base_price == 40.0
     assert reduce_item.return_5d == pytest.approx(39.5 / 40 - 1)
     assert reduce_item.return_20d == pytest.approx(38.0 / 40 - 1)
@@ -349,8 +351,74 @@ def test_reviews_reject_unknown_portfolio():
         adjust_advice.list_adjust_advice_reviews(db, portfolio_id=99)
 
 
+def test_profiles_are_independent_and_only_linked_trades_are_adopted(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+    for code in ("portfolio_001", "portfolio_002"):
+        payload = advice_payload(researcher_code=code, market_view={"market_regime": "range"}, position_plan={"direction": "reduce"})
+        feedback = create_feedback(db, "实盘组合-2026-10-09-微操报告", as_markdown(payload), researcher_code=code)
+        import_research_feedback(db, feedback.id)
+    seed_bars(db, trading_days(T, 22))
+    adjust_advice.evaluate_adjust_advice(db)
+    reports = list(db.scalars(select(PortfolioAdjustAdvice).order_by(PortfolioAdjustAdvice.id)))
+    items = list(db.scalars(select(PortfolioAdjustAdviceItem).where(PortfolioAdjustAdviceItem.action == "reduce").order_by(PortfolioAdjustAdviceItem.id)))
+    assert len(reports) == 2 and all(row.status == "active" for row in reports)
+    db.add(PortfolioPositionChange(portfolio_id=1, stock_id=1, quantity_before=3600, quantity_after=3000,
+        quantity_delta=-600, change_date=T, reason_type="ai_advice", advice_item_id=items[0].id))
+    # 老缓存曾按同日同向误判执行，查询必须忽略它，又不能在只读请求里回写。
+    items[1].execution_status = "executed"
+    items[1].executed_quantity = 600
+    db.commit()
+    review = adjust_advice.list_adjust_advice_reviews(db, limit=1)
+    assert review["summary"]["report_count"] == 2 and len(review["reports"]) == 1
+    assert review["summary"]["executed_count"] == 1
+    assert review["signal_stats"]["by_signal"][0]["samples"] == 2
+    assert review["market_review"]["stats"][0]["samples"] == 2
+    assert review["reports"][0]["researcher_name"] == "组合趋势进攻师"
+    assert review["reports"][0]["items"][0]["execution_status"] == "not_executed"
+    assert items[1].execution_status == "executed" and not db.dirty
+    scoped = adjust_advice.list_adjust_advice_reviews(db, researcher_code="portfolio_001", start_date=T, end_date=T)
+    assert scoped["summary"]["report_count"] == 1 and scoped["summary"]["executed_count"] == 1
+    assert scoped["signal_stats"]["by_signal"][0]["samples"] == 1
+    assert adjust_advice.list_adjust_advice_reviews(db, start_date=T + timedelta(days=1))["summary"]["report_count"] == 0
+    assert adjust_advice.list_adjust_advice_reviews(db, aggregate_only=True)["reports"] == []
+    with pytest.raises(ValueError, match="aggregate_only"):
+        adjust_advice.list_adjust_advice_reviews(db, portfolio_id=1, aggregate_only=True)
+    with pytest.raises(ValueError, match="开始日期"):
+        adjust_advice.list_adjust_advice_reviews(db, start_date=T + timedelta(days=1), end_date=T)
+    candidates = adjust_advice.list_advice_candidates(db, 1, T, researcher_code="portfolio_002")
+    assert len(candidates) == 1 and candidates[0]["researcher_name"] == "组合趋势进攻师"
+    from invest_assistant.modules.portfolio import service as portfolio_service
+    assert portfolio_service.list_position_changes(db, researcher_code="portfolio_002") == []
+    assert portfolio_service.list_position_changes(db, researcher_code="portfolio_001")[0]["researcher_code"] == "portfolio_001"
+
+
+@pytest.mark.parametrize("payload_code,metadata_code,message", [
+    ("portfolio_002", "portfolio_001", "不一致"),
+    (None, None, "必须提供"),
+    ("missing", None, "研究员不存在"),
+])
+def test_import_rejects_ambiguous_identity(payload_code, metadata_code, message):
+    db = make_session()
+    seed(db)
+    with pytest.raises(ValueError, match=message):
+        adjust_advice.import_advice(db, advice_payload(researcher_code=payload_code), feedback_id=1, report_id=None, researcher_code=metadata_code)
+    assert db.scalar(select(func.count()).select_from(PortfolioAdjustAdvice)) == 0
+
+
+def test_upload_rejects_identity_conflict_before_creating_report(tmp_path, monkeypatch):
+    from invest_assistant.modules.knowledge_base.service import upload_research_feedback
+    monkeypatch.chdir(tmp_path)
+    db = make_session()
+    seed(db)
+    with pytest.raises(ValueError, match="不一致"):
+        upload_research_feedback(db, title="实盘组合-2026-10-09-微操报告", markdown=advice_markdown(researcher_code="portfolio_002"), researcher_code="portfolio_001")
+    assert not (tmp_path / "var/reports").exists()
+
+
 def test_report_without_portfolio_id_covers_all_portfolios(tmp_path, monkeypatch):
-    """研究员按所有账户的合计持仓出报告：不写 portfolio_id，执行匹配跨组合找调仓。"""
+    """研究员按所有账户的合计持仓出报告：不写 portfolio_id，不把其他组合未关联的调仓算作采纳。"""
     monkeypatch.chdir(tmp_path)
     db = make_session()
     seed(db)
@@ -368,7 +436,7 @@ def test_report_without_portfolio_id_covers_all_portfolios(tmp_path, monkeypatch
     advice = db.scalar(select(PortfolioAdjustAdvice))
     assert advice.portfolio_id is None
     reduce_item = db.scalar(select(PortfolioAdjustAdviceItem).order_by(PortfolioAdjustAdviceItem.id).limit(1))
-    assert reduce_item.execution_status == "partial" and reduce_item.executed_quantity == 300
+    assert reduce_item.execution_status == "not_executed" and reduce_item.executed_quantity == 0
     assert len(adjust_advice.list_adjust_advice_reviews(db)["reports"]) == 1
     # 指定单个组合时不含全部组合口径的报告
     assert adjust_advice.list_adjust_advice_reviews(db, portfolio_id=1)["reports"] == []
@@ -457,6 +525,11 @@ def test_linked_position_change_drives_execution_and_review(tmp_path, monkeypatc
     assert reduce_row["impact_20d"] == reduce_change["impact_20d"]
     assert reduce_change["verdict"] == "correct" and add_change["verdict"] == "wrong"
     assert reduce_change["reason_type"] == "ai_advice" and reduce_change["action"] == "reduce"
+    scoped = position_change_review.review_position_changes(db, portfolio_id=1, researcher_code="portfolio_001", start_date=days[1], end_date=days[1])
+    assert len(scoped["rows"]) == 1
+    assert scoped["rows"][0]["amount"] == 600 * 40.2
+    assert scoped["rows"][0]["changes"][0]["researcher_name"] == "组合微操大师"
+    assert position_change_review.review_position_changes(db, researcher_code="portfolio_002")["rows"] == []
     # 至今：日线到 T+21，T+1 的减持过了 20 个交易日、T 日的增持过了 21 个，按方向折算
     assert reduce_change["to_date_days"] == 20 and reduce_change["effect_to_date"] == reduce_change["effect_20d"]
     assert add_change["to_date_days"] == 21 and add_change["effect_to_date"] < add_change["effect_20d"] < 0

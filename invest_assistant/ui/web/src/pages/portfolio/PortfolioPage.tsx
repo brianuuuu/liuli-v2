@@ -571,8 +571,8 @@ export function PortfolioPage() {
     {
       title: "来源",
       dataIndex: "reason_type",
-      width: 88,
-      render: (value: string | null | undefined) => (value ? reasonTypeLabels[value] || value : <Tag>未标注</Tag>)
+      width: 150,
+      render: (value: string | null | undefined, row) => row.researcher_name || row.researcher_code || (value ? reasonTypeLabels[value] || value : <Tag>未标注</Tag>)
     },
     {
       title: "关联建议",
@@ -1080,7 +1080,9 @@ export function PortfolioPage() {
             >
               <Select
                 allowClear
-                placeholder="选填"
+                showSearch
+                optionFilterProp="label"
+                placeholder="选填，可搜索研究员"
                 onChange={selectAdviceCandidate}
                 options={directionalCandidates.map((item) => ({
                   value: item.id,

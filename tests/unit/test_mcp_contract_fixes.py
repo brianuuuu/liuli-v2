@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from pydantic_core import PydanticSerializationError
 
 from invest_assistant.modules.basic.mcp.auth import McpClientConfig
 from invest_assistant.modules.basic.mcp.server import _tool_error
-from invest_assistant.modules.basic.mcp.tools import report_library, stock_analysis
+from invest_assistant.modules.basic.mcp.tools import portfolio, report_library, stock_analysis
 from invest_assistant.modules.basic.report_library.models import Report
 from invest_assistant.shared.pagination import make_page
 
@@ -16,6 +16,36 @@ CLIENT = McpClientConfig(
     token="test-token",
     allowed_tools=["report_library.list_reports", "stock_analysis.get_stock_profile"],
 )
+
+
+def test_portfolio_review_mcp_preserves_filters_and_identity(monkeypatch):
+    arguments = {}
+    def review(_db, **kwargs):
+        arguments.update(kwargs)
+        return {"reports": [{"researcher_code": "portfolio_002", "researcher_name": "组合趋势进攻师"}],
+                "summary": {"report_count": 25}}
+    monkeypatch.setattr(portfolio.adjust_advice_service, "list_adjust_advice_reviews", review)
+    client = McpClientConfig(name="test", enabled=True, token="test", allowed_tools=["portfolio.list_adjust_advice_reviews", "portfolio.list_position_changes"])
+    result = portfolio.list_adjust_advice_reviews(
+        db=object(), client=client, researcher_code="portfolio_002", aggregate_only=True,
+        start_date=date(2026, 10, 1), end_date=date(2026, 11, 12), limit=1,
+    )
+    assert arguments == {"portfolio_id": None, "limit": 1, "researcher_code": "portfolio_002",
+                         "start_date": date(2026, 10, 1), "end_date": date(2026, 11, 12), "aggregate_only": True}
+    assert result["data"]["reports"][0]["researcher_name"] == "组合趋势进攻师"
+    assert result["data"]["summary"]["report_count"] == 25
+
+
+def test_position_change_mcp_preserves_researcher_filter(monkeypatch):
+    arguments = {}
+    def changes(_db, **kwargs):
+        arguments.update(kwargs)
+        return [{"researcher_code": "portfolio_002", "researcher_name": "组合趋势进攻师"}]
+    monkeypatch.setattr(portfolio.portfolio_service, "list_position_changes", changes)
+    client = McpClientConfig(name="test", enabled=True, token="test", allowed_tools=["portfolio.list_adjust_advice_reviews", "portfolio.list_position_changes"])
+    result = portfolio.list_position_changes(db=object(), client=client, researcher_code="portfolio_002")
+    assert arguments["researcher_code"] == "portfolio_002"
+    assert result["items"][0]["researcher_name"] == "组合趋势进攻师"
 
 
 def test_report_list_serializes_orm_items_with_report_schema(monkeypatch):

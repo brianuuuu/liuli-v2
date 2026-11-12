@@ -136,12 +136,16 @@ MCP_TOOL_DESCRIPTIONS = {
         "理由来源（ai_advice/personal/fund_allocation/corporate_action/other）、关联的微操建议和调仓理由；"
         "price_source 为 estimated 的价格是按调仓日收盘价估算的，不是实际成交价；不记费用。"
         "现金变化由现金校准单独维护，不要用调仓记录去推算现金。"
-        "支持 portfolio_id（留空为全部组合）、stock_id、start_date、end_date、limit 过滤，按调仓日期倒序返回。"
+        "支持 portfolio_id（留空为全部组合）、stock_id、researcher_code、start_date、end_date、limit 过滤，按调仓日期倒序返回。"
+        "researcher_code 只筛选明确关联该研究员建议的调仓；返回 researcher_code/researcher_name。"
     ),
     "portfolio.list_adjust_advice_reviews": (
         "读取最近 limit 份微操报告（默认 10）及系统事后评估：每只持仓的建议、是否触及价格区间、执行情况、"
-        "5/20/60 日收益与对错、风险警示是否命中；另附基于全部历史的按方向+主信号、方向+信号大类的胜率，"
-        "以及按风险代码的警示命中率；每份报告带大盘状态、系统风险、目标股票仓位区间与整体方向，market_review 按沪深300 20 日收益评估整体仓位方向。portfolio_id 留空为全部组合。评估由系统按固定口径计算，只读。"
+        "5/20/60 日收益与对错、风险警示是否命中；另附筛选范围内按方向+主信号、方向+信号大类的胜率，"
+        "以及按风险代码的警示命中率；每份报告带研究员编号、名称及大盘判断，market_review 按沪深300 20 日收益评估整体仓位方向。"
+        "支持 researcher_code、start_date/end_date（适用交易日）过滤，统计与报告使用同一范围。"
+        "portfolio_id 留空返回全部报告，指定时仅返回该组合报告；aggregate_only=true 仅取全部组合合计口径，不能同时指定 portfolio_id。"
+        "连续判断按组合和研究员隔离去重；执行/采纳仅计明确关联调仓。limit 只限制明细，不限制统计。只读。"
     ),
     "portfolio.get_overview": (
         "获取组合总览，可查看全部组合或指定 portfolio_id 的现金、持股数量、持仓市值、总资产、当日盈亏和持仓分布。"
@@ -454,6 +458,7 @@ def _register_tools(server: FastMCP) -> None:
         start_date: str | None = None,
         end_date: str | None = None,
         limit: int = 100,
+        researcher_code: str | None = None,
     ) -> dict:
         return _run_tool(
             ctx,
@@ -464,6 +469,7 @@ def _register_tools(server: FastMCP) -> None:
                 "start_date": _parse_optional_date(start_date),
                 "end_date": _parse_optional_date(end_date),
                 "limit": limit,
+                "researcher_code": researcher_code,
             },
             portfolio.list_position_changes,
         )
@@ -472,11 +478,15 @@ def _register_tools(server: FastMCP) -> None:
         name="portfolio.list_adjust_advice_reviews",
         description=MCP_TOOL_DESCRIPTIONS["portfolio.list_adjust_advice_reviews"],
     )
-    def mcp_portfolio_list_adjust_advice_reviews(ctx: Context, portfolio_id: int | None = None, limit: int = 10) -> dict:
+    def mcp_portfolio_list_adjust_advice_reviews(
+        ctx: Context, portfolio_id: int | None = None, limit: int = 10, researcher_code: str | None = None,
+        start_date: str | None = None, end_date: str | None = None, aggregate_only: bool = False,
+    ) -> dict:
         return _run_tool(
             ctx,
             "portfolio.list_adjust_advice_reviews",
-            {"portfolio_id": portfolio_id, "limit": limit},
+            {"portfolio_id": portfolio_id, "limit": limit, "researcher_code": researcher_code,
+             "start_date": _parse_optional_date(start_date), "end_date": _parse_optional_date(end_date), "aggregate_only": aggregate_only},
             portfolio.list_adjust_advice_reviews,
         )
 

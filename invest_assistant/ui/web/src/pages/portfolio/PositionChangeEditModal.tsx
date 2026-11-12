@@ -58,7 +58,7 @@ export function PositionChangeEditModal({ change, portfolioName, onClose, onSave
     options.unshift({
       value: change.advice_item_id,
       disabled: false,
-      label: `${change.advice_target_trade_date ?? ""} ${adviceActionLabels[change.advice_action ?? ""] || ""}（当前关联）`.trim()
+      label: `${change.researcher_name || change.researcher_code || "未标注研究员"} · ${change.advice_target_trade_date ?? ""} ${adviceActionLabels[change.advice_action ?? ""] || ""}（当前关联）`.trim()
     });
   }
   const corporateAction = reasonType === "corporate_action";
@@ -131,7 +131,7 @@ export function PositionChangeEditModal({ change, portfolioName, onClose, onSave
             label="关联微操建议"
             extra={options.length ? "关联后，这笔调仓直接算作该建议已执行；一条建议只能关联一次" : `近 10 天没有这只标的${adviceActionLabels[action]}建议，可不关联`}
           >
-            <Select allowClear placeholder="选填" options={options} />
+            <Select allowClear showSearch optionFilterProp="label" placeholder="选填，可搜索研究员" options={options} />
           </Form.Item>
         ) : null}
         <Form.Item name="note" label="调仓理由">

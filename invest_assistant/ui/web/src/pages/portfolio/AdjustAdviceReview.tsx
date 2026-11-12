@@ -54,7 +54,7 @@ const riskLabels: Record<string, { label: string; color?: string }> = {
   severe: { label: "严重", color: "red" }
 };
 
-const executionLabels: Record<string, string> = { executed: "已执行", partial: "部分执行", not_executed: "未执行" };
+const executionLabels: Record<string, string> = { executed: "已采纳", partial: "部分采纳", not_executed: "未关联" };
 const triggerLabels: Record<string, string> = { touched: "触及", not_touched: "未触及" };
 
 /** 没有样本时返回 null，由展示层写"待积累"，不和真实的 0% 混在一起 */
@@ -109,7 +109,7 @@ function formatRatio(value?: number | null) {
 }
 
 export const marketReviewHint =
-  "研究员按沪深300 的中枢位置、年线方向和系统性风险给出目标股票仓位区间与整体方向；净增持后沪深300 20 日涨超 1%、净减持后跌超 1% 为对，连续多份同一方向只算第一份（灰色行未计入）。";
+  "研究员按沪深300 的中枢位置、年线方向和系统性风险给出目标股票仓位区间与整体方向；净增持后沪深300 20 日涨超 1%、净减持后跌超 1% 为对，同组合、同研究员连续多份同一方向只算第一份（灰色行未计入）。";
 
 /** 大盘判断：逐份报告列出状态、区间、方向与沪深300 之后的表现，表头下方按状态 × 方向汇总胜率 */
 export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
@@ -126,6 +126,7 @@ export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
         scroll={{ x: 980 }}
         columns={[
           { title: "适用交易日", dataIndex: "target_trade_date", width: 108 },
+          { title: "研究员", key: "researcher", width: 150, render: (_, row) => row.researcher_name || row.researcher_code || "未标注" },
           { title: "大盘状态", dataIndex: "market_regime", width: 88, render: (value) => labelTag(regimeLabels, value) },
           { title: "系统风险", dataIndex: "market_risk", width: 88, render: (value) => (value && value !== "none" ? labelTag(riskLabels, value) : "-") },
           { title: "沪深300位置", dataIndex: "value_zone", width: 100, render: (value?: string | null) => (value ? valueZoneLabels[value] || value : "-") },
@@ -162,9 +163,9 @@ export function MarketReviewTable({ data }: { data: AdjustAdviceReviews }) {
   );
 }
 
-/** 还没跑过评估（触及、执行、收益都为空）：评估列合成一格说明，不铺一排横线 */
+/** 尚未评估且未明确采纳：评估列合成一格说明，不铺一排横线 */
 function notEvaluated(item: AdjustAdviceItem) {
-  return item.trigger_status == null && item.execution_status == null && item.return_5d == null && item.verdict == null;
+  return item.trigger_status == null && (item.execution_status == null || item.execution_status === "not_executed") && item.return_5d == null && item.verdict == null;
 }
 
 const EVAL_COLUMNS = 6;
@@ -208,7 +209,7 @@ const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
         (value && triggerLabels[value]) || "-"
       )
   },
-  { title: "执行", dataIndex: "execution_status", width: 76, align: "center", onCell: evalRest, render: (value?: string | null) => (value && executionLabels[value]) || "-" },
+  { title: "明确采纳", dataIndex: "execution_status", width: 86, align: "center", onCell: evalRest, render: (value?: string | null) => (value && executionLabels[value]) || "-" },
   { title: "5日", dataIndex: "return_5d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "20日", dataIndex: "return_20d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
   { title: "60日", dataIndex: "return_60d", width: 76, align: "right", onCell: evalRest, render: formatReturn },
@@ -253,6 +254,8 @@ const buildItemColumns = (rules: string): ColumnsType<AdjustAdviceItem> => [
 // "显示更多"开关放在本表表头最右端（连续性说明列），控制展开明细是否列出维持、等待
 const buildReportColumns = (showQuiet: boolean, onShowQuietChange: (value: boolean) => void): ColumnsType<AdjustAdviceReport> => [
   { title: "适用交易日", dataIndex: "target_trade_date", width: 116 },
+  { title: "研究员", key: "researcher", width: 150, render: (_, row) => row.researcher_name || row.researcher_code || "未标注" },
+  { title: "组合口径", key: "scope", width: 112, render: (_, row) => row.portfolio_id == null ? "全部组合合计" : row.portfolio_name || "组合已删除" },
   { title: "日K截止", dataIndex: "data_as_of_date", width: 116 },
   {
     title: "微操机会",
@@ -322,5 +325,5 @@ export function AdviceReportList({ data, loading }: { data: AdjustAdviceReviews;
   );
 }
 
-export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，连续同方向未执行只算一次。方向效果以适用日收盘为基准，不是账户实际盈亏，也不代表降低集中度等整体风控效果。触价不代表报告中的完整条件满足或实际成交。页签数字为全部历史已评估样本数；展开记录含待评估、未触价和重复跟踪，条数不等于样本数。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或工作日19:15评估任务更新。";
-export const riskStatsHint = "按报告标注的主要风险归类，警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为全部历史已评估警示条数，不等于股票数；每条警示独立评估，可能包含同一股票的连续跟踪。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或评估任务更新。后续风险级别变化不改变旧警示的事后评估。";
+export const signalStatsHint = "按方向和主要理由统计20日结果：增持后涨超1%或减持后跌超1%为方向有利，反向超1%为不利，其余持平。正确率=有利样本/全部样本；只计价格触及的建议，同组合、同研究员连续同方向未采纳只算一次。方向效果以适用日收盘为基准，不是账户实际盈亏，也不代表降低集中度等整体风控效果。触价不代表报告中的完整条件满足或实际成交。页签数字为当前筛选范围内已评估样本数；展开记录含待评估、未触价和重复跟踪，条数不等于样本数。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或工作日19:15评估任务更新。";
+export const riskStatsHint = "按报告标注的主要风险归类，警示和严重级别参与评估；警示后20日跑输沪深300超过3个百分点计为命中，观察级别不计入。页签数字为当前筛选范围内已评估警示条数，不等于股票数；每条警示独立评估，可能包含同一股票的连续跟踪。样本不足10条仅供参考。待评估需满20个交易日并补齐行情；若已满期，等待行情同步或评估任务更新。后续风险级别变化不改变旧警示的事后评估。";

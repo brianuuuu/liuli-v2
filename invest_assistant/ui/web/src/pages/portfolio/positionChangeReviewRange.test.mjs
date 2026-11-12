@@ -62,3 +62,15 @@ test("API 同时传递组合与两个日期，所有组合不传 portfolio_id", 
     ["/api/portfolios/position-change-review", { params: range }]
   ]);
 });
+
+test("建议与实际调仓使用相同的研究员和日期过滤条件", async () => {
+  const calls = [];
+  const api = load("../../api/portfolio.ts", (name) => name === "./client" ? {
+    apiClient: { get: async (...args) => { calls.push(args); return { data: {} }; } }
+  } : require(name));
+  const filters = { researcher_code: "portfolio_002", start_date: "2026-10-05", end_date: "2026-11-05" };
+  await api.getAdjustAdviceReviews(3, 200, filters);
+  await api.getPositionChangeReview(3, filters);
+  assert.deepEqual(calls[0][1].params, { portfolio_id: 3, limit: 200, ...filters });
+  assert.deepEqual(calls[1][1].params, { portfolio_id: 3, ...filters });
+});

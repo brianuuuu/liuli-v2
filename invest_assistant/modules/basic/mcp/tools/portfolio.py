@@ -15,6 +15,7 @@ def list_position_changes(
     start_date: date | None = None,
     end_date: date | None = None,
     limit: int = 100,
+    researcher_code: str | None = None,
 ) -> dict:
     return execute_read_tool(
         db=db,
@@ -26,6 +27,7 @@ def list_position_changes(
             "start_date": start_date,
             "end_date": end_date,
             "limit": limit,
+            "researcher_code": researcher_code,
         },
         handler=portfolio_service.list_position_changes,
     )
@@ -49,11 +51,16 @@ def get_overview(*, db, client: McpClientConfig, portfolio_id: int | None = None
     )
 
 
-def list_adjust_advice_reviews(*, db, client: McpClientConfig, portfolio_id: int | None = None, limit: int = 10) -> dict:
+def list_adjust_advice_reviews(
+    *, db, client: McpClientConfig, portfolio_id: int | None = None, limit: int = 10,
+    researcher_code: str | None = None, start_date: date | None = None, end_date: date | None = None,
+    aggregate_only: bool = False,
+) -> dict:
     return execute_read_tool(
         db=db,
         client=client,
         tool_name="portfolio.list_adjust_advice_reviews",
-        arguments={"portfolio_id": portfolio_id, "limit": limit},
+        arguments={"portfolio_id": portfolio_id, "limit": limit, "researcher_code": researcher_code,
+                   "start_date": start_date, "end_date": end_date, "aggregate_only": aggregate_only},
         handler=adjust_advice_service.list_adjust_advice_reviews,
     )

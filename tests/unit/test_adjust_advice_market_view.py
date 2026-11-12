@@ -14,6 +14,7 @@ import invest_assistant.modules.stock_analysis.models  # noqa: F401
 import invest_assistant.modules.track_discovery.models  # noqa: F401
 from invest_assistant.bootstrap.database import Base
 from invest_assistant.modules.portfolio import adjust_advice
+from invest_assistant.modules.knowledge_base.models import KnowledgeResearcher
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar
 
 T0 = date(2026, 6, 1)
@@ -23,7 +24,10 @@ def make_session():
     """内存库，不碰 var/db 下的任何文件。"""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine)()
+    db = sessionmaker(bind=engine)()
+    db.add(KnowledgeResearcher(researcher_code="portfolio_001", display_name="组合微操大师", profile_path="external/researchers/portfolio_001/profile.md"))
+    db.commit()
+    return db
 
 
 def payload(day: date, direction: str | None, regime: str = "range", **extra) -> dict:

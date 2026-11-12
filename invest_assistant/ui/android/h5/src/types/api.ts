@@ -517,6 +517,8 @@ export type PortfolioDashboardDetail = {
   positions: PortfolioPositionRow[];
 };
 export type PositionChange = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   id: number;
   portfolio_id: number;
   portfolio_name?: string | null;
@@ -535,6 +537,8 @@ export type PositionChange = {
   note?: string | null;
 };
 export type AdjustAdviceCandidate = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   id: number;
   target_trade_date: string;
   action: "add" | "reduce";

@@ -10,7 +10,7 @@ export function PositionChangeDateFilter({ value, onChange }: {
     <DatePicker.RangePicker
       size="small"
       className="position-change-date-filter"
-      aria-label="调仓日期范围"
+      aria-label="复盘日期范围"
       value={value}
       format="YYYY-MM-DD"
       allowClear={false}

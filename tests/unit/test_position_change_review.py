@@ -257,7 +257,7 @@ def test_review_route_forwards_date_range_and_reports_invalid_range(monkeypatch)
 
     monkeypatch.setattr(review, "review_position_changes", load)
     assert router.review_position_changes(portfolio_id=1, start_date=T, end_date=T, db=object()) == {"rows": []}
-    assert calls == [{"portfolio_id": 1, "start_date": T, "end_date": T}]
+    assert calls == [{"portfolio_id": 1, "start_date": T, "end_date": T, "researcher_code": None}]
 
     def invalid(*args, **kwargs):
         raise ValueError("开始日期不能晚于结束日期")

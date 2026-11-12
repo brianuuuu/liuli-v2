@@ -1,5 +1,5 @@
 import { ReloadOutlined } from "@ant-design/icons";
-import { Alert, Button, Space, Tooltip } from "antd";
+import { Alert, Button, Select, Space, Tooltip } from "antd";
 import { useCallback, useState } from "react";
 import { getAdjustAdviceReviews, getPositionChangeReview } from "../../api/portfolio";
 import { CountLabel } from "../../components/common/CountLabel";
@@ -23,8 +23,7 @@ import { buildPositionChangeReviewRange, positionChangeReviewRangeParams } from 
 
 type StatsView = "changes" | "signals" | "risks" | "market";
 
-const initialChangeReviewSnapshot = { scopeKey: "", review: initialPositionChangeReview };
-const initialAdviceSnapshot = { scopeKey: "", review: initialAdviceReviews };
+const initialReviewSnapshot = { scopeKey: "", changes: initialPositionChangeReview, advice: initialAdviceReviews };
 
 type TradeReviewProps = {
   portfolioId: number | null;
@@ -44,28 +43,27 @@ function Kpi({ label, value, note, hint }: { label: string; value: string | numb
 }
 
 /**
- * 调仓复盘：实际调仓按组合、调仓发生日期筛选，AI 建议保留独立统计范围。
+ * 调仓复盘：组合、研究员和日期共同筛选明细及汇总。
  * 指标（实际调仓 / AI 建议两组）→ 统计表（分段切换）→ 微操报告明细，由浅到深。
  */
 export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }: TradeReviewProps) {
   const [dateRange, setDateRange] = useState(() => buildPositionChangeReviewRange());
+  const [researcherCode, setResearcherCode] = useState<string | undefined>();
   const { start_date: startDate, end_date: endDate } = positionChangeReviewRangeParams(dateRange);
-  const changeReviewKey = `${portfolioId ?? "all"}:${startDate}:${endDate}`;
-  const changes = useAsyncData<{ scopeKey: string; review: PositionChangeReviewData }>(
-    useCallback(async () => ({
-      scopeKey: changeReviewKey,
-      review: await getPositionChangeReview(portfolioId, { start_date: startDate, end_date: endDate })
-    }), [portfolioId, startDate, endDate, changeReviewKey]),
-    initialChangeReviewSnapshot
+  const changeReviewKey = `${portfolioId ?? "all"}:${researcherCode ?? "all"}:${startDate}:${endDate}`;
+  const snapshot = useAsyncData<{ scopeKey: string; changes: PositionChangeReviewData; advice: AdjustAdviceReviews }>(
+    useCallback(async () => {
+      const filters = { start_date: startDate, end_date: endDate, researcher_code: researcherCode };
+      const [changes, advice] = await Promise.all([
+        getPositionChangeReview(portfolioId, filters), getAdjustAdviceReviews(portfolioId, 200, filters)
+      ]);
+      return { scopeKey: changeReviewKey, changes, advice };
+    }, [portfolioId, startDate, endDate, researcherCode, changeReviewKey]), initialReviewSnapshot
   );
-  // 新范围加载或失败时隐藏旧结果，不能把旧合计显示在新日期下。
-  const changeReviewData = changes.data.scopeKey === changeReviewKey ? changes.data.review : initialPositionChangeReview;
-  const adviceScopeKey = String(portfolioId ?? "all");
-  const advice = useAsyncData<{ scopeKey: string; review: AdjustAdviceReviews }>(
-    useCallback(async () => ({ scopeKey: adviceScopeKey, review: await getAdjustAdviceReviews(portfolioId, 200) }), [portfolioId, adviceScopeKey]),
-    initialAdviceSnapshot
-  );
-  const adviceData = advice.data.scopeKey === adviceScopeKey && !advice.error ? advice.data.review : initialAdviceReviews;
+  // 两个请求完成后一起发布，切换范围或失败时不显示旧合计。
+  const current = snapshot.data.scopeKey === changeReviewKey && !snapshot.error;
+  const changeReviewData = current ? snapshot.data.changes : initialPositionChangeReview;
+  const adviceData = current ? snapshot.data.advice : initialAdviceReviews;
   const aiRate = sourceWinRate(changeReviewData.rows, "ai_advice");
   const personalRate = sourceWinRate(changeReviewData.rows, "personal");
   const kpis = adviceKpis(adviceData);
@@ -80,7 +78,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
     { value: "market", label: "AI大盘判断", count: adviceData.market_review.rows.length }
   ];
   const coverageHint = adviceData.reports.length < adviceData.summary.report_count
-    ? `统计涵盖全部 ${adviceData.summary.report_count} 份报告；股票、待评估记录与明细仅覆盖最近 ${adviceData.reports.length} 份。`
+    ? `统计涵盖筛选范围内全部 ${adviceData.summary.report_count} 份报告；股票、待评估记录与明细仅覆盖最近 ${adviceData.reports.length} 份。`
     : "";
   const statsHint = statsView === "changes" ? positionChangeHint(changeReviewData.rules) : statsView === "signals" ? signalStatsHint + coverageHint : statsView === "risks" ? riskStatsHint + coverageHint : marketReviewHint;
 
@@ -91,21 +89,29 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
         options={portfolioOptions}
         onChange={onPortfolioChange}
         extra={(
-          <Tooltip title="刷新复盘">
-            <Button
-              size="small"
-              type="text"
-              aria-label="刷新复盘"
-              icon={<ReloadOutlined />}
-              loading={changes.loading || advice.loading}
-              onClick={() => {
-                void changes.refresh();
-                void advice.refresh();
-              }}
+          <Space wrap>
+            <Select
+              size="small" allowClear showSearch optionFilterProp="label" aria-label="研究员筛选"
+              placeholder="全部研究员" value={researcherCode} onChange={setResearcherCode} style={{ minWidth: 180 }}
+              options={(snapshot.data.advice.researcher_options ?? []).map((item) => ({ value: item.researcher_code, label: item.display_name }))}
             />
-          </Tooltip>
+            <PositionChangeDateFilter value={dateRange} onChange={setDateRange} />
+            <Tooltip title="刷新复盘">
+              <Button
+                size="small"
+                type="text"
+                aria-label="刷新复盘"
+                icon={<ReloadOutlined />}
+                loading={snapshot.loading}
+                onClick={() => {
+                  void snapshot.refresh();
+                }}
+              />
+            </Tooltip>
+          </Space>
         )}
       />
+      {snapshot.error ? <Alert type="error" showIcon title="复盘加载失败，请重试" action={<Button size="small" onClick={() => void snapshot.refresh()} loading={snapshot.loading}>重试</Button>} /> : null}
       <div className="review-kpi-strip">
         <section className="review-kpi-group review-kpi-group--changes">
           {/* 组名放左侧竖列，每个指标只剩名称、数值、样本三行 */}
@@ -120,7 +126,7 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
           <div className="review-kpi-row">
             <Kpi label="增持胜率" value={kpis.addRate.rate} note={kpis.addRate.samples} />
             <Kpi label="减持胜率" value={kpis.reduceRate.rate} note={kpis.reduceRate.samples} />
-            <Kpi label="执行率" value={kpis.executed.rate} note={kpis.executed.note} />
+            <Kpi label="明确采纳率" value={kpis.executed.rate} note={kpis.executed.note} hint="已到适用日或已关联的建议中，明确关联实际调仓的比例" />
             <Kpi label="警示命中率" value={kpis.risk.rate} note={kpis.risk.samples} />
             <Kpi label="仓位方向" value={kpis.market.rate} note={kpis.market.samples} hint="整体仓位净增持 / 净减持方向按沪深300 20 日收益判定的胜率" />
             <Kpi label="待评估" value={kpis.pending.count} note={`${kpis.pending.count} / ${kpis.pending.total}`} />
@@ -144,28 +150,16 @@ export function TradeReview({ portfolioId, portfolioOptions, onPortfolioChange }
             ))}
           </Space>
           <Space size={8} className="tabbed-table-actions">
-            {statsView === "changes" ? <PositionChangeDateFilter value={dateRange} onChange={setDateRange} /> : null}
             <HintTitle title={null} hint={statsHint} />
           </Space>
         </div>
-        {statsView === "changes" && changes.error ? (
-          <Alert
-            className="position-change-review-error"
-            type="error"
-            showIcon
-            title="调仓记录加载失败，请重试"
-            action={<Button size="small" onClick={() => void changes.refresh()} loading={changes.loading}>重试</Button>}
-          />
-        ) : null}
-        {statsView === "changes" ? <PositionChangeTable key={changeReviewKey} data={changeReviewData} loading={changes.loading} /> : null}
-        {advice.error && statsView !== "changes" ? <Alert type="error" showIcon title="建议复盘加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
+        {statsView === "changes" ? <PositionChangeTable key={changeReviewKey} data={changeReviewData} loading={snapshot.loading} /> : null}
         {statsView === "signals" || statsView === "risks" ? (
-          <AdviceStatsReview key={`${adviceScopeKey}:${statsView}`} kind={statsView === "signals" ? "signal" : "risk"} data={adviceData} loading={advice.loading} />
+          <AdviceStatsReview key={`${changeReviewKey}:${statsView}`} kind={statsView === "signals" ? "signal" : "risk"} data={adviceData} loading={snapshot.loading} />
         ) : null}
         {statsView === "market" ? <MarketReviewTable data={adviceData} /> : null}
       </section>
-      {advice.error && statsView === "changes" ? <Alert type="error" showIcon title="微操报告加载失败，请重试" action={<Button size="small" onClick={() => void advice.refresh()}>重试</Button>} /> : null}
-      <AdviceReportList key={adviceScopeKey} data={adviceData} loading={advice.loading} />
+      <AdviceReportList key={changeReviewKey} data={adviceData} loading={snapshot.loading} />
     </div>
   );
 }

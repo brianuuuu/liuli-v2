@@ -386,7 +386,7 @@
 | `data.profile_content` | string \| null | Profile 完整内容 |
 | `data.created_at` / `updated_at` | string | 创建与更新时间 |
 
-研究员不存在抛 `[NOT_FOUND]`，`researcher` 为空抛 `[INVALID_ARGUMENT]`。
+研究员不存在抛 `[NOT_FOUND]`，`researcher` 为空抛 `[INVALID_ARGUMENT]`。微操外部任务预先使用 portfolio_001（组合微操大师）或 portfolio_002（组合趋势进攻师），平台不增加枚举工具。
 
 ### 4.10 knowledge_base.upload_research_feedback
 
@@ -496,6 +496,7 @@
 | 参数 | 类型 | 是否必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `portfolio_id` | int \| null | 否 | `null` | 指定组合，留空为全部组合 |
+| `researcher_code` | string \| null | 否 | `null` | 只返回明确关联该研究员建议的调仓 |
 | `stock_id` | int \| null | 否 | `null` | 只看某个标的的调仓 |
 | `start_date` | string \| null | 否 | `null` | `YYYY-MM-DD`，按调仓日期过滤 |
 | `end_date` | string \| null | 否 | `null` | `YYYY-MM-DD` |
@@ -518,6 +519,7 @@
 | `items[].price` | number \| null | 调仓价格；老记录和公司行为为空 |
 | `items[].price_source` | string \| null | `manual` 手填的实际成交价；`estimated` 未填写、按调仓日收盘价估算 |
 | `items[].reason_type` | string \| null | 理由来源：`ai_advice` AI建议、`personal` 个人判断、`fund_allocation` 资金调配、`corporate_action` 公司行为（送转、配股、打新中签）、`other` 其他；老记录为空 |
+| `items[].researcher_code` / `researcher_name` | string \| null | 关联建议所属研究员，未关联保留空值 |
 | `items[].advice_item_id` | int \| null | 关联的微操建议条目 ID，对应 `list_adjust_advice_reviews` 里 `reports[].items[].id` |
 | `items[].advice_target_trade_date` / `advice_action` | string \| null | 关联建议的适用交易日与方向（`add`/`reduce`） |
 | `items[].note` | string \| null | 调仓理由 |
@@ -554,6 +556,9 @@
 | 参数 | 类型 | 是否必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `portfolio_id` | int \| null | 否 | `null` | 留空返回全部报告；指定组合时只返回绑定该组合的报告（不含全部组合口径的报告）；组合不存在抛 `[NOT_FOUND]` |
+| `researcher_code` | string \| null | 否 | `null` | 按研究员编码筛选 |
+| `start_date` / `end_date` | string \| null | 否 | `null` | 按适用交易日包含首尾筛选；开始晚于结束报错 |
+| `aggregate_only` | bool | 否 | `false` | 仅取全部组合合计口径，不能与 portfolio_id 同时指定 |
 | `limit` | int | 否 | `10` | 返回最近几份报告（按适用交易日倒序），统计不受它限制 |
 
 #### 应答内容
@@ -563,18 +568,18 @@
 | 字段路径 | 类型 | 说明 |
 |---|---|---|
 | `data.rules` | string | 评估口径说明 |
-| `data.summary` | object | 全部历史概况：`report_count`、`advice_count`（增持减持条数）、`executed_count`、`tracked_count`（已匹配执行的条数）、`pending_count`（尚无 20 日判定）、`alert_count` |
-| `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note`、`cash_ratio_before`、`cash_ratio_after` |
+| `data.summary` | object | 筛选范围内概况：`report_count`、`advice_count`（增持减持条数）、`executed_count`（明确采纳或部分采纳条数）、`tracked_count`（已到适用日或已关联的增减持条数）、`pending_count`（尚无 20 日判定）、`alert_count` |
+| `data.reports[]` | object[] | 最近的微操报告，含 `id`、`portfolio_id`、`report_id`、`researcher_code`、`researcher_name`、`portfolio_name`、`data_as_of_date`、`target_trade_date`、`has_opportunity`、`continuity_note`、`cash_ratio_before`、`cash_ratio_after` |
 | `data.reports[]` 大盘字段 | — | `market_regime`（uptrend / range / downtrend）、`market_risk`、`target_stock_ratio_low`、`target_stock_ratio_high`、`position_direction`（add / reduce / hold）、`market_view`（报告原样，含中枢、乖离分位、说明）；老报告为 `null` |
 | `data.reports[].items[]` | object[] | 每只持仓的建议：`stock_id`、`stock_code`、`stock_name`、`action`、`rating`、`quantity`、`price_low`、`price_high`、`primary_signal_code`、`value_zone`、`long_trend`、`bias60_pct`、`core_logic`、`history_note`、`risk_level`、`primary_risk_code`、`risk_summary` |
-| `data.reports[].items[]` 评估字段 | — | `trigger_status`（touched / not_touched / n_a）、`execution_status`（executed / partial / not_executed）、`executed_quantity`、`base_price`、`return_5d`、`return_20d`、`return_60d`、`benchmark_return_20d`、`verdict`（correct / wrong / neutral）、`risk_verdict`（hit / miss）；未到期为 `null` |
+| `data.reports[].items[]` 评估字段 | — | `trigger_status`（touched / not_touched / n_a）、`execution_status`（executed / partial / not_executed）、`executed_quantity`、`base_price`、`return_5d`、`return_20d`、`return_60d`、`benchmark_return_20d`、`verdict`（correct / wrong / neutral）、`risk_verdict`（hit / miss）；收益未到期为 `null`；执行字段只表示明确采纳，未关联为 not_executed，查询不回写旧缓存 |
 | `data.signal_stats.by_signal[]` | object[] | 按 `action` + `signal_code` 汇总：`samples`、`correct`、`wrong`、`neutral`、`win_rate`、`avg_effect_20d` |
-| `data.signal_stats.by_category[]` | object[] | 按 `action` + `category`（value / allocation / risk / timing）汇总，字段同上 |
+| `data.signal_stats.by_category[]` | object[] | 按 `action` + `category`（value / allocation / risk / timing / trend / event）汇总，字段同上 |
 | `data.risk_stats[]` | object[] | 按 `risk_code` 汇总 warning 及以上警示：`samples`、`hits`、`hit_rate` |
-| `data.market_review.rows[]` | object[] | 最近报告的大盘判断：上面的大盘字段 + `value_zone`、`stock_ratio_before/after`、沪深300 `index_return_5d/20d/60d`、`verdict`、`counted`（连续同方向只算第一份） |
-| `data.market_review.stats[]` | object[] | 全部历史按 `market_regime` + `direction` 汇总：`samples`、`correct`、`wrong`、`win_rate`、`avg_effect_20d` |
+| `data.market_review.rows[]` | object[] | 最近报告的大盘判断：`researcher_code/researcher_name`、上面的大盘字段 + `value_zone`、`stock_ratio_before/after`、沪深300 `index_return_5d/20d/60d`、`verdict`、`counted`（同组合、研究员连续同方向只算第一份） |
+| `data.market_review.stats[]` | object[] | 筛选范围内按 `market_regime` + `direction` 汇总：`samples`、`correct`、`wrong`、`win_rate`、`avg_effect_20d` |
 
-胜率只统计价格触及区间的增持、减持；连续多份报告对同一标的的同方向未执行建议只算一次。
+胜率只统计价格触及区间的增持、减持；同组合、同研究员连续多份报告对同一标的的同方向未采纳建议只算一次。所有统计在过滤后计算，不受明细 limit 限制；researcher_options 为页面筛选选项，不新增研究员枚举工具。
 
 ## 5 ID 从哪来
 

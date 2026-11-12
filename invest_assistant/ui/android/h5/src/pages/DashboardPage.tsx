@@ -751,7 +751,7 @@ function PortfolioDashboard({ active }: { active: boolean }) {
                   <time>{item.change_date.slice(5)}</time>
                   <strong>{item.stock_name || item.stock_code}{portfolioId === null && item.portfolio_name ? <small>{item.portfolio_name}</small> : null}</strong>
                   <span className={item.quantity_after === 0 ? "" : valueTone(item.quantity_delta)}>{tradeDeltaLabel(item)}</span>
-                  <em>{item.reason_type ? REASON_TYPE_LABELS[item.reason_type] ?? item.reason_type : "—"}</em>
+                  <em>{item.researcher_name || item.researcher_code || (item.reason_type ? REASON_TYPE_LABELS[item.reason_type] ?? item.reason_type : "—")}</em>
                 </div>
               ))}
             </div>
@@ -769,7 +769,7 @@ function PortfolioDashboard({ active }: { active: boolean }) {
                   onClick={() => navigate("/portfolio/trade/new", { state: { advice: item } })}
                 >
                   <time>{item.target_trade_date.slice(5)}</time>
-                  <strong>{item.stock_name || item.stock_code}</strong>
+                  <strong>{item.stock_name || item.stock_code}<small className="recent-trade-researcher">{item.researcher_name || item.researcher_code || "未标注研究员"}</small></strong>
                   <span className={item.action === "add" ? "positive" : "negative"}>{adviceActionLabel(item)}</span>
                   <em className={`advice-status--${item.status}`}>{ADVICE_STATUS_LABELS[item.status]}</em>
                 </button>

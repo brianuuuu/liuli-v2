@@ -25,7 +25,7 @@ export const adviceActionLabels: Record<string, string> = { add: "增持", reduc
 
 /** 关联建议下拉的一项：已被别的调仓关联时写出那笔调仓，否则给价格区间 */
 export function adviceCandidateLabel(item: AdjustAdviceCandidate, linked = Boolean(item.linked_change)) {
-  const head = `${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}`;
+  const head = `${item.researcher_name || item.researcher_code || "未标注研究员"} · ${item.target_trade_date} ${adviceActionLabels[item.action] || item.action}${item.quantity ? ` ${item.quantity}股` : ""}`;
   if (linked && item.linked_change) {
     const delta = item.linked_change.quantity_delta;
     return `${head} · 已关联 ${item.linked_change.change_date.slice(5)} ${delta > 0 ? "+" : "−"}${Math.abs(delta)}股`;

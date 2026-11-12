@@ -431,10 +431,10 @@ def test_update_change_relinks_advice_and_refreshes_execution():
     db.refresh(second)
     assert (second.execution_status, second.executed_quantity) == ("partial", 100)
 
-    # 取消关联但仍在适用交易日：first 按日期推断匹配这笔；改到前一天后不再匹配
+    # 取消关联立即撤销采纳，不因同日同向继续归属给原研究员。
     update_change(db, portfolio, linked["id"], reason_type="personal")
     db.refresh(first)
-    assert (first.execution_status, first.executed_quantity) == ("partial", 200)
+    assert (first.execution_status, first.executed_quantity) == ("not_executed", 0)
     update_change(db, portfolio, linked["id"], change_date=date.today() - timedelta(days=1), reason_type="personal")
     db.refresh(first)
     assert (first.execution_status, first.executed_quantity) == ("not_executed", 0)

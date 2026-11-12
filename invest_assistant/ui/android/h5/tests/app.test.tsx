@@ -2283,6 +2283,10 @@ describe("mobile H5 app", () => {
           ]
         });
       }
+      if (url.includes("/api/portfolios/adjust-advice/candidates")) return json([
+        { id: 101, researcher_code: "portfolio_001", researcher_name: "组合微操大师", target_trade_date: "2026-11-12", action: "add", quantity: 100, linked_change: null },
+        { id: 102, researcher_code: "portfolio_002", researcher_name: "组合趋势进攻师", target_trade_date: "2026-11-12", action: "add", quantity: 200, linked_change: null }
+      ]);
       if (url.includes("/api/portfolios/7/groups")) return json([{ id: 3, name: "卫星仓", target_weight: 0.2 }]);
       if (url.includes("position-changes")) {
         return json([{ id: 5, portfolio_id: 7, portfolio_name: "成长组合", stock_id: 12, stock_name: "贵州茅台", quantity_before: 200, quantity_after: 100, quantity_delta: -100, change_date: "2026-10-08", reason_type: "personal" }]);
@@ -2302,6 +2306,15 @@ describe("mobile H5 app", () => {
     await waitFor(() => expect(setNavigationState).toHaveBeenLastCalledWith("dashboard", false, true));
     fireEvent.click(await screen.findByRole("button", { name: /宁德时代/ }));
     expect(screen.getByText("持有 1,000 股")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "AI 建议" }));
+    const researcherFilter = await screen.findByRole("combobox", { name: "建议研究员筛选" });
+    fireEvent.click(screen.getByRole("button", { name: /组合微操大师/ }));
+    expect(screen.getByRole("button", { name: /组合微操大师/ })).toHaveClass("is-active");
+    fireEvent.change(researcherFilter, { target: { value: "portfolio_002" } });
+    expect(screen.queryByRole("button", { name: /组合微操大师/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /组合趋势进攻师/ })).not.toHaveClass("is-active");
+    fireEvent.change(researcherFilter, { target: { value: "" } });
+    expect(screen.getByRole("button", { name: /组合微操大师/ })).not.toHaveClass("is-active");
     fireEvent.click(screen.getByRole("button", { name: "个人判断" }));
     fireEvent.change(screen.getByPlaceholderText("输入股数"), { target: { value: "500" } });
     expect(screen.getByText("持有 1,000 → 1,500 股")).toBeInTheDocument();

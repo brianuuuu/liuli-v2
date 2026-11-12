@@ -70,11 +70,18 @@ def get_review_performance(
 
 
 @router.get("/adjust-advice")
-def list_adjust_advice_reviews(portfolio_id: int | None = None, limit: int = 30, db: Session = Depends(get_db)) -> dict:
+def list_adjust_advice_reviews(
+    portfolio_id: int | None = None, limit: int = 30, researcher_code: str | None = None,
+    start_date: date | None = None, end_date: date | None = None, aggregate_only: bool = False,
+    db: Session = Depends(get_db),
+) -> dict:
     try:
-        return adjust_advice.list_adjust_advice_reviews(db, portfolio_id=portfolio_id, limit=min(max(limit, 1), 200))
+        return adjust_advice.list_adjust_advice_reviews(db, portfolio_id=portfolio_id, limit=min(max(limit, 1), 200),
+            researcher_code=researcher_code, start_date=start_date, end_date=end_date, aggregate_only=aggregate_only)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="portfolio not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 # 以下四个不带组合 ID 的路由表示「所有组合」，必须注册在 /{portfolio_id} 之前
@@ -103,23 +110,25 @@ def list_adjust_advice_candidates(
     stock_id: int,
     change_date: date | None = None,
     portfolio_id: int | None = None,
+    researcher_code: str | None = None,
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return adjust_advice.list_advice_candidates(db, stock_id, change_date or service._today_shanghai(), portfolio_id)
+    return adjust_advice.list_advice_candidates(db, stock_id, change_date or service._today_shanghai(), portfolio_id, researcher_code)
 
 
 @router.get("/adjust-advice/recent")
-def list_recent_adjust_advice(portfolio_id: int | None = None, limit: int = 5, db: Session = Depends(get_db)) -> list[dict]:
-    return adjust_advice.list_recent_advice_items(db, service._today_shanghai(), portfolio_id, min(max(limit, 1), 50))
+def list_recent_adjust_advice(portfolio_id: int | None = None, limit: int = 5, researcher_code: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
+    return adjust_advice.list_recent_advice_items(db, service._today_shanghai(), portfolio_id, min(max(limit, 1), 50), researcher_code)
 
 
 @router.get("/position-change-review")
 def review_position_changes(
     portfolio_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
+    researcher_code: str | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     try:
-        return position_change_review.review_position_changes(db, portfolio_id=portfolio_id, start_date=start_date, end_date=end_date)
+        return position_change_review.review_position_changes(db, portfolio_id=portfolio_id, start_date=start_date, end_date=end_date, researcher_code=researcher_code)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="portfolio not found") from exc
     except ValueError as exc:

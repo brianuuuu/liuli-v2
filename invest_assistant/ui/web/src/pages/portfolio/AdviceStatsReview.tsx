@@ -14,7 +14,8 @@ const signalLabels: Record<string, string> = {
   value_rank_mismatch: "调整持仓相对排序", concentration_risk: "降低持仓集中度",
   cash_rebalance: "调整现金与股票比例", value_impairment_risk: "应对价值受损风险",
   pullback_support: "回落后获得支撑", overextension: "应对短期上涨透支",
-  sentiment_extreme: "应对极端市场情绪", unknown: "报告未标注主要原因"
+  sentiment_extreme: "应对极端市场情绪", trend_breakout: "趋势突破", relative_strength: "相对强势",
+  trend_failure: "趋势失效", event_catalyst: "事件催化", catalyst_invalidated: "催化落空", unknown: "报告未标注主要原因"
 };
 const riskLabels: Record<string, string> = {
   kline_breakdown: "价格跌破关键支撑", value_trend_down: "年线趋势向下",
@@ -41,7 +42,7 @@ function ReturnValue({ value }: { value?: number | null }) {
 function ReportReader({ record, onClose }: { record: ReviewRecord; onClose: () => void }) {
   const content = useAsyncData(useCallback(() => getReportContent(record.report.report_id!), [record.report.report_id]), "");
   return (
-    <Drawer open onClose={onClose} size={860} title={`${record.report.target_trade_date} · 微操报告`}>
+    <Drawer open onClose={onClose} size={860} title={`${record.report.target_trade_date} · ${record.report.researcher_name || record.report.researcher_code || "未标注研究员"} · 微操报告`}>
       {content.loading ? <Spin /> : content.error ? (
         <Alert type="warning" showIcon title="报告读取失败" action={<Button onClick={() => void content.refresh()}>重试</Button>} />
       ) : <MarkdownViewer content={content.data} />}
@@ -86,6 +87,7 @@ function ReviewRecords({ group, kind, onOpenReport }: {
       render: (_, record) => <div className="advice-review-stack">
         <strong>{record.item.stock_name}</strong><span className="advice-review-muted">{record.item.stock_code}</span>
         <span>{record.report.target_trade_date}</span><small className="advice-review-muted">适用交易日</small>
+        <small>{record.report.researcher_name || record.report.researcher_code || "未标注研究员"}</small>
         {record.report.report_id ? <Button type="link" size="small" onClick={() => onOpenReport(record)}>查看原报告</Button> : <small className="advice-review-muted">未关联原报告</small>}
       </div>
     },
@@ -110,10 +112,10 @@ function ReviewRecords({ group, kind, onOpenReport }: {
       </div>
     },
     {
-      title: kind === "signal" ? "触价与实际执行" : "警示后20日表现", key: "progress", width: 210,
+      title: kind === "signal" ? "触价与明确采纳" : "警示后20日表现", key: "progress", width: 210,
       render: (_, { item }: ReviewRecord) => kind === "signal" ? <div className="advice-review-stack">
         <span>价格：{item.trigger_status === "touched" ? "已触及参考价" : item.trigger_status === "not_touched" ? "未触及参考价" : "待核验"}</span>
-        <span>执行：{({ executed: "已执行", partial: "部分执行", not_executed: "未执行" } as Record<string, string>)[item.execution_status || ""] || "待核验"}
+        <span>采纳：{({ executed: "已采纳", partial: "部分采纳", not_executed: "未关联" } as Record<string, string>)[item.execution_status || ""] || "待核验"}
           {item.executed_quantity != null ? ` · ${number(item.executed_quantity)}股` : ""}</span>
       </div> : <div className="advice-review-stack">
         <span>个股 <ReturnValue value={item.return_20d} /></span>
@@ -136,7 +138,7 @@ function ReviewRecords({ group, kind, onOpenReport }: {
     <div className="advice-review-records">
       <Table<ReviewRecord> className="advice-review-detail-table" rowKey="key" size="small" columns={columns} dataSource={group.records}
         pagination={{ defaultPageSize: 5, showSizeChanger: false, hideOnSinglePage: true }}
-        locale={{ emptyText: "返回的报告中没有该分类明细；上方仍显示全部历史统计。" }} />
+        locale={{ emptyText: "返回的报告中没有该分类明细；上方仍显示当前筛选范围统计。" }} />
     </div>
   );
 }

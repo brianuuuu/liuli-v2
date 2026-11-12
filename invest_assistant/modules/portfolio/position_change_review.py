@@ -29,6 +29,7 @@ from invest_assistant.modules.portfolio.adjust_advice import (
     _load_stock_series,
     _verdict,
     advice_brief_by_item,
+    changes_by_researcher,
 )
 from invest_assistant.modules.portfolio.models import Portfolio, PortfolioPositionChange
 from invest_assistant.modules.stock_analysis.models import MarketIndexDailyBar
@@ -44,6 +45,7 @@ TO_DATE_CAP_DAYS = HORIZONS[-1]
 
 def review_position_changes(
     db: Session, portfolio_id: int | None = None, start_date: date | None = None, end_date: date | None = None,
+    researcher_code: str | None = None,
 ) -> dict:
     if start_date is not None and end_date is not None and start_date > end_date:
         raise ValueError("开始日期不能晚于结束日期")
@@ -56,6 +58,7 @@ def review_position_changes(
         stmt = stmt.where(PortfolioPositionChange.change_date >= start_date)
     if end_date is not None:
         stmt = stmt.where(PortfolioPositionChange.change_date <= end_date)
+    stmt = changes_by_researcher(stmt, researcher_code)
     changes = [change for change in db.scalars(stmt) if change.reason_type != "corporate_action"]
 
     groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -222,6 +225,8 @@ def _change_detail(
         "verdict": _verdict(action, returns["return_20d"]),
         "advice_item_id": change.advice_item_id,
         "advice_target_trade_date": brief["target_trade_date"] if brief else None,
+        "researcher_code": brief.get("researcher_code") if brief else None,
+        "researcher_name": brief.get("researcher_name") if brief else None,
     }
 
 

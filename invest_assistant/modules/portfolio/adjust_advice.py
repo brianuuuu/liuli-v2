@@ -1,14 +1,13 @@
 """微操建议：研究回流「微操报告」的落库、事后评估与复盘统计。
 
-评估口径与 portfolio_001 profile 一致：
+所有微操研究员共用以下评估口径：
 - 以适用交易日 T 为锚，按沪深300 日线数交易日（指数日线即交易日历），T+5 / T+20 / T+60 收盘评估，20 日为主判定。
 - 收益一律在同一份前复权日线里计算：close(T+N) / close(T) - 1。缓存只有前复权价，
   建议里的价格区间是当时的实际价，分红除权后两者无法换算，所以收益基准统一取 T 收盘，
   价格是否触及区间只决定这条建议是否计入胜率。
 - 只评估增持、减持，以及 warning 及以上的风险警示；没有警示的维持、等待不算收益。
-- portfolio_id 为空表示全部实盘组合（研究员通常按所有账户的合计持仓出报告），
-  执行匹配时按标的在所有组合里找 T 日调仓。
-- 调仓记录手动关联了某条建议时，以关联为准（不限日期）；其余按 T 日、同标的、未关联其他建议的调仓推断。
+- portfolio_id 为空表示全部实盘组合的合计持仓。
+- 只有明确关联的调仓计为采纳，不按同日同向推断研究员归属。
 """
 
 import json
@@ -17,11 +16,12 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from invest_assistant.modules.alert_center import service as alert_service
 from invest_assistant.modules.basic.stock_master.models import Stock
+from invest_assistant.modules.knowledge_base.models import KnowledgeResearcher
 from invest_assistant.modules.portfolio.models import (
     Portfolio,
     PortfolioAdjustAdvice,
@@ -44,6 +44,11 @@ SIGNAL_CATEGORIES = {
     "pullback_support": "timing",
     "overextension": "timing",
     "sentiment_extreme": "timing",
+    "trend_breakout": "trend",
+    "relative_strength": "trend",
+    "trend_failure": "risk",
+    "event_catalyst": "event",
+    "catalyst_invalidated": "risk",
 }
 RISK_CODES = {
     "kline_breakdown",
@@ -92,7 +97,7 @@ def import_advice(
     raw_items = payload.get("items")
     if not isinstance(raw_items, list):
         raise ValueError("微操报告缺少字段: items（必须是数组）")
-    code = _optional_text(payload.get("researcher_code")) or _optional_text(researcher_code)
+    code = resolve_researcher_code(db, payload.get("researcher_code"), researcher_code)
     snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
     # 大盘与整体仓位判断是后加的选填项：缺失或取值不合法时退化为空，不让整份报告导入失败
     market_view = payload.get("market_view") if isinstance(payload.get("market_view"), dict) else None
@@ -147,7 +152,7 @@ def import_advice(
         # 但不再每天往待办里塞一条一样的未读预警。不看研究员填的 change，以入库数据为准。
         previous_rank = RISK_LEVEL_RANK.get(previous_levels.get(stock.id, "none"), 0)
         if item.risk_level in ALERT_RISK_LEVELS and RISK_LEVEL_RANK[item.risk_level] > previous_rank:
-            item.alert_event_id = _create_risk_alert(db, stock, raw, item.risk_level, target_trade_date)
+            item.alert_event_id = _create_risk_alert(db, stock, raw, item.risk_level, target_trade_date, code)
     db.flush()
     return advice
 
@@ -211,13 +216,15 @@ def _build_item(db: Session, advice_id: int, raw: dict, index: int) -> tuple[Por
     return item, stock
 
 
-def _create_risk_alert(db: Session, stock: Stock, raw: dict, risk_level: str, target_trade_date: date) -> int:
+def _create_risk_alert(db: Session, stock: Stock, raw: dict, risk_level: str, target_trade_date: date, researcher_code: str) -> int:
     risk_alert = raw.get("risk_alert") if isinstance(raw.get("risk_alert"), dict) else {}
     parts = [f"{RISK_LEVEL_LABELS[risk_level]}：{_optional_text(risk_alert.get('summary')) or '研究员未给出风险说明'}"]
     implication = _optional_text(risk_alert.get("implication"))
     if implication:
         parts.append(f"对仓位的含义：{implication}")
     parts.append(f"适用交易日 {target_trade_date.isoformat()}")
+    name = researcher_names(db).get(researcher_code, researcher_code)
+    parts.append(f"研究员 {name}（{researcher_code}）")
     event = alert_service.create_event(
         db,
         title=f"微操风险{RISK_LEVEL_LABELS[risk_level]}｜{stock.stock_name}（{stock.stock_code}）",
@@ -353,7 +360,7 @@ def _evaluate_item(
 
     changed = False
     if item.trigger_status is None:
-        _fill_trigger_and_execution(db, item, advice, t_day, series.bar_on(t_day), t_close)
+        _fill_trigger_and_execution(db, item, series.bar_on(t_day), t_close)
         changed = True
     for horizon in HORIZONS:
         column = f"return_{horizon}d"
@@ -376,8 +383,6 @@ def _evaluate_item(
 def _fill_trigger_and_execution(
     db: Session,
     item: PortfolioAdjustAdviceItem,
-    advice: PortfolioAdjustAdvice,
-    t_day: date,
     t_bar: StockDailyBar | None,
     t_close: float,
 ) -> None:
@@ -393,29 +398,31 @@ def _fill_trigger_and_execution(
         touched = t_bar.high >= item.price_low
     item.trigger_status = "touched" if touched else "not_touched"
 
-    _fill_execution(db, item, advice, t_day)
+    _fill_execution(db, item)
 
 
-def _fill_execution(db: Session, item: PortfolioAdjustAdviceItem, advice: PortfolioAdjustAdvice, t_day: date) -> None:
-    inferred = (
-        (PortfolioPositionChange.stock_id == item.stock_id)
-        & (PortfolioPositionChange.change_date == t_day)
-        & PortfolioPositionChange.advice_item_id.is_(None)
-    )
-    if advice.portfolio_id is not None:
-        inferred = inferred & (PortfolioPositionChange.portfolio_id == advice.portfolio_id)
-    deltas = db.scalars(
-        select(PortfolioPositionChange.quantity_delta).where((PortfolioPositionChange.advice_item_id == item.id) | inferred)
-    ).all()
+def _execution_values(item: PortfolioAdjustAdviceItem, delta: float) -> tuple[str | None, float]:
+    if item.action not in DIRECTIONAL_ACTIONS:
+        return None, 0
     sign = 1 if item.action == "add" else -1
-    executed = sum(delta * sign for delta in deltas if delta * sign > 0)
-    item.executed_quantity = executed
+    executed = max(0, delta * sign)
     if executed <= 0:
-        item.execution_status = "not_executed"
-    elif item.quantity is None or executed >= item.quantity * 0.999:
-        item.execution_status = "executed"
-    else:
-        item.execution_status = "partial"
+        return "not_executed", 0
+    return ("executed" if item.quantity is None or executed >= item.quantity * 0.999 else "partial"), executed
+
+
+def linked_executions(db: Session, item_ids: list[int]) -> dict[int, float]:
+    if not item_ids:
+        return {}
+    return dict(db.execute(
+        select(PortfolioPositionChange.advice_item_id, func.sum(PortfolioPositionChange.quantity_delta))
+        .where(PortfolioPositionChange.advice_item_id.in_(item_ids))
+        .group_by(PortfolioPositionChange.advice_item_id)
+    ).all())
+
+
+def _fill_execution(db: Session, item: PortfolioAdjustAdviceItem) -> None:
+    item.execution_status, item.executed_quantity = _execution_values(item, linked_executions(db, [item.id]).get(item.id, 0))
 
 
 def _verdict(action: str, return_20d: float | None) -> str | None:
@@ -440,10 +447,54 @@ def _risk_verdict(item: PortfolioAdjustAdviceItem) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, limit: int = 10) -> dict:
-    """最近 N 份微操报告及评估结果，外加基于全部历史的胜率与警示命中率统计。
+def researcher_names(db: Session) -> dict[str, str]:
+    return dict(db.execute(select(KnowledgeResearcher.researcher_code, KnowledgeResearcher.display_name)).all())
+
+
+def changes_by_researcher(stmt, researcher_code: str | None):
+    if not researcher_code:
+        return stmt
+    return stmt.where(PortfolioPositionChange.advice_item_id.in_(
+        select(PortfolioAdjustAdviceItem.id).join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
+        .where(PortfolioAdjustAdvice.researcher_code == researcher_code)
+    ))
+
+
+def resolve_researcher_code(db: Session, payload_code: Any, metadata_code: str | None) -> str:
+    payload_code, metadata_code = _optional_text(payload_code), _optional_text(metadata_code)
+    if payload_code and metadata_code and payload_code != metadata_code:
+        raise ValueError("报告 JSON 与上传信息的 researcher_code 不一致")
+    code = payload_code or metadata_code
+    if not code:
+        raise ValueError("微操报告必须提供 researcher_code")
+    if db.scalar(select(KnowledgeResearcher.id).where(KnowledgeResearcher.researcher_code == code)) is None:
+        raise ValueError(f"研究员不存在: {code}")
+    return code
+
+
+def list_adjust_advice_reviews(
+    db: Session, portfolio_id: int | None = None, limit: int = 10, *, researcher_code: str | None = None,
+    start_date: date | None = None, end_date: date | None = None, aggregate_only: bool = False,
+) -> dict:
+    """最近 N 份微操报告及评估结果，外加筛选范围内的胜率与警示命中率统计。
     portfolio_id 为空返回全部报告；指定时只返回绑定该组合的报告，不含全部组合口径的报告。"""
     stmt = select(PortfolioAdjustAdvice).where(PortfolioAdjustAdvice.status == "active")
+    if start_date and end_date and start_date > end_date:
+        raise ValueError("开始日期不能晚于结束日期")
+    if aggregate_only and portfolio_id is not None:
+        raise ValueError("aggregate_only 不能与 portfolio_id 同时指定")
+    names = researcher_names(db)
+    known_codes = set(db.scalars(select(PortfolioAdjustAdvice.researcher_code).distinct())) - {None, ""}
+    options = [{"researcher_code": code, "display_name": names.get(code, code)}
+               for code in sorted(known_codes | {code for code in names if code.startswith("portfolio_")})]
+    if researcher_code:
+        stmt = stmt.where(PortfolioAdjustAdvice.researcher_code == researcher_code)
+    if aggregate_only:
+        stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None))
+    if start_date:
+        stmt = stmt.where(PortfolioAdjustAdvice.target_trade_date >= start_date)
+    if end_date:
+        stmt = stmt.where(PortfolioAdjustAdvice.target_trade_date <= end_date)
     if portfolio_id is not None:
         if db.get(Portfolio, portfolio_id) is None:
             raise FileNotFoundError(f"portfolio not found: {portfolio_id}")
@@ -459,7 +510,10 @@ def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, lim
         ):
             items_by_advice[item.advice_id].append((item, stock))
     recent = list(reversed(advices))[: max(1, int(limit))]
+    executions = linked_executions(db, [item.id for rows in items_by_advice.values() for item, _ in rows])
+    portfolio_names = dict(db.execute(select(Portfolio.id, Portfolio.name)).all())
     return {
+        "researcher_options": options,
         "rules": (
             "以适用交易日 T 收盘为基准，按交易日数到 T+5/T+20/T+60 收盘计算收益，20 日为主判定。"
             "增持收益 > +1% 或减持后跌超 1% 为 correct，反向超过 1% 为 wrong，其余 neutral。"
@@ -467,19 +521,21 @@ def list_adjust_advice_reviews(db: Session, portfolio_id: int | None = None, lim
             "warning 及以上警示 20 日跑输沪深300 超过 3% 为 hit。"
             "整体仓位方向按沪深300 自 T 起 20 日收益判定：净增持后涨超 1% 或净减持后跌超 1% 为 correct，"
             "连续多份报告同一方向只算第一份。"
+            "连续判断按组合和研究员分别去重；采纳仅依据明确关联的调仓。统计覆盖筛选范围内全部报告，不受 limit 限制。"
         ),
-        "summary": _summary(advices, items_by_advice),
-        "reports": [_advice_dict(advice, items_by_advice[advice.id]) for advice in recent],
-        "signal_stats": _signal_stats(advices, items_by_advice),
+        "summary": _summary(advices, items_by_advice, executions),
+        "reports": [{**_advice_dict(advice, items_by_advice[advice.id], names, executions),
+                     "portfolio_name": portfolio_names.get(advice.portfolio_id)} for advice in recent],
+        "signal_stats": _signal_stats(advices, items_by_advice, executions),
         "risk_stats": _risk_stats(advices, items_by_advice),
-        "market_review": _market_review(db, advices, {advice.id for advice in recent}),
+        "market_review": _market_review(db, advices, {advice.id for advice in recent}, names),
     }
 
 
-def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids: set[int]) -> dict:
+def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids: set[int], names: dict | None = None) -> dict:
     """大盘与整体仓位判断的事后表现：每份报告按沪深300 自 T 起的收益评估方向，查询时现算、不落列。
 
-    advices 按 T 正序；rows 只给最近几份（倒序），stats 用全部历史。
+    advices 按 T 正序；rows 只给最近几份（倒序），stats 用当前筛选范围内全部报告。
     """
     judged = [advice for advice in advices if advice.market_regime or advice.position_direction]
     if not judged:
@@ -494,13 +550,16 @@ def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids
 
     rows: list[dict] = []
     grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    last_direction: dict[int | None, str | None] = {}
+    last_direction: dict[tuple, str | None] = {}
     for advice in judged:
+        scope = (advice.portfolio_id, advice.researcher_code)
         returns = _index_returns(advice.target_trade_date, trade_dates, closes)
         direction = advice.position_direction
         row = {
             "advice_id": advice.id,
             "portfolio_id": advice.portfolio_id,
+            "researcher_code": advice.researcher_code,
+            "researcher_name": (names or {}).get(advice.researcher_code, advice.researcher_code),
             "target_trade_date": advice.target_trade_date,
             "market_regime": advice.market_regime,
             "market_risk": advice.market_risk,
@@ -515,11 +574,11 @@ def _market_review(db: Session, advices: list[PortfolioAdjustAdvice], recent_ids
             # 连续多份报告维持同一方向视为同一次判断，只算第一份，免得一段行情被重复计数
             "counted": False,
         }
-        if direction in DIRECTIONAL_ACTIONS and last_direction.get(advice.portfolio_id) != direction and row["verdict"]:
+        if direction in DIRECTIONAL_ACTIONS and last_direction.get(scope) != direction and row["verdict"]:
             row["counted"] = True
             grouped[(advice.market_regime or "unknown", direction)].append(row)
         if direction:
-            last_direction[advice.portfolio_id] = direction
+            last_direction[scope] = direction
         if advice.id in recent_ids:
             rows.append(row)
     stats = []
@@ -558,15 +617,16 @@ def advice_dict(db: Session, advice: PortfolioAdjustAdvice) -> dict:
         .where(PortfolioAdjustAdviceItem.advice_id == advice.id)
         .order_by(PortfolioAdjustAdviceItem.id.asc())
     ).all()
-    return _advice_dict(advice, [(item, stock) for item, stock in rows])
+    return _advice_dict(advice, rows, researcher_names(db), linked_executions(db, [item.id for item, _ in rows]))
 
 
-def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjustAdviceItem, Stock]]) -> dict:
+def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjustAdviceItem, Stock]], names: dict | None = None, executions: dict | None = None) -> dict:
     return {
         "id": advice.id,
         "portfolio_id": advice.portfolio_id,
         "report_id": advice.report_id,
         "researcher_code": advice.researcher_code,
+        "researcher_name": (names or {}).get(advice.researcher_code, advice.researcher_code),
         "data_as_of_date": advice.data_as_of_date,
         "target_trade_date": advice.target_trade_date,
         "has_opportunity": advice.has_opportunity,
@@ -580,13 +640,15 @@ def _advice_dict(advice: PortfolioAdjustAdvice, rows: list[tuple[PortfolioAdjust
         "cash_ratio_before": advice.cash_ratio_before,
         "cash_ratio_after": advice.cash_ratio_after,
         "market_view": _loads(advice.market_view_json) or None,
-        "items": [_item_dict(item, stock) for item, stock in rows],
+        "items": [_item_dict(item, stock, executions) for item, stock in rows],
     }
 
 
-def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock) -> dict:
+def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock, executions: dict | None = None) -> dict:
     detail = _loads(item.detail_json)
     risk_alert = detail.get("risk_alert") if isinstance(detail.get("risk_alert"), dict) else {}
+    status, quantity = (_execution_values(item, executions.get(item.id, 0)) if executions is not None
+                        else (item.execution_status, item.executed_quantity))
     return {
         "id": item.id,
         "stock_id": item.stock_id,
@@ -607,8 +669,8 @@ def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock) -> dict:
         "primary_risk_code": item.primary_risk_code,
         "risk_summary": risk_alert.get("summary"),
         "trigger_status": item.trigger_status,
-        "execution_status": item.execution_status,
-        "executed_quantity": item.executed_quantity,
+        "execution_status": status,
+        "executed_quantity": quantity,
         "base_price": item.base_price,
         "return_5d": item.return_5d,
         "return_20d": item.return_20d,
@@ -619,29 +681,31 @@ def _item_dict(item: PortfolioAdjustAdviceItem, stock: Stock) -> dict:
     }
 
 
-def _summary(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> dict:
-    """全部历史上的执行与待评估概况；胜率口径见 signal_stats。"""
+def _summary(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict) -> dict:
+    """筛选范围内的明确采纳与待评估概况；胜率口径见 signal_stats。"""
     directional = [
         item for advice in advices for item, _stock in items_by_advice.get(advice.id, []) if item.action in DIRECTIONAL_ACTIONS
     ]
     alerts = [
         item for advice in advices for item, _stock in items_by_advice.get(advice.id, []) if item.risk_level in ALERT_RISK_LEVELS
     ]
-    tracked = [item for item in directional if item.execution_status is not None]
+    today = utc_now().date()
+    tracked = [item for advice in advices for item, _ in items_by_advice.get(advice.id, [])
+               if item.action in DIRECTIONAL_ACTIONS and (advice.target_trade_date <= today or item.id in executions)]
     return {
         "report_count": len(advices),
         "advice_count": len(directional),
-        "executed_count": sum(1 for item in tracked if item.execution_status in {"executed", "partial"}),
+        "executed_count": sum(1 for item in tracked if _execution_values(item, executions.get(item.id, 0))[1] > 0),
         "tracked_count": len(tracked),
         "pending_count": sum(1 for item in directional if item.verdict is None),
         "alert_count": len(alerts),
     }
 
 
-def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> dict:
+def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict | None = None) -> dict:
     by_signal: dict[tuple[str, str], list[PortfolioAdjustAdviceItem]] = defaultdict(list)
     by_category: dict[tuple[str, str], list[PortfolioAdjustAdviceItem]] = defaultdict(list)
-    for item in _episode_samples(advices, items_by_advice):
+    for item in _episode_samples(advices, items_by_advice, executions):
         signal = item.primary_signal_code or "unknown"
         by_signal[(item.action, signal)].append(item)
         by_category[(item.action, SIGNAL_CATEGORIES.get(signal, "unknown"))].append(item)
@@ -651,24 +715,25 @@ def _signal_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -
     }
 
 
-def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> list[PortfolioAdjustAdviceItem]:
+def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict, executions: dict | None = None) -> list[PortfolioAdjustAdviceItem]:
     """连续多份报告对同一标的给出同方向、且一直未执行的建议，视为同一次判断，取其中第一条触及区间的计入。"""
     samples: list[PortfolioAdjustAdviceItem] = []
-    open_episodes: dict[tuple[int, int], dict] = {}
-    previous_by_portfolio: dict[int, dict[int, PortfolioAdjustAdviceItem]] = {}
+    open_episodes: dict[tuple, dict] = {}
+    previous_by_portfolio: dict[tuple, dict[int, PortfolioAdjustAdviceItem]] = {}
     for advice in advices:
-        previous = previous_by_portfolio.get(advice.portfolio_id, {})
+        scope = (advice.portfolio_id, advice.researcher_code)
+        previous = previous_by_portfolio.get(scope, {})
         current: dict[int, PortfolioAdjustAdviceItem] = {}
         for item, _stock in items_by_advice.get(advice.id, []):
             current[item.stock_id] = item
             if item.action not in DIRECTIONAL_ACTIONS:
                 continue
-            key = (advice.portfolio_id, item.stock_id)
+            key = (*scope, item.stock_id)
             last = previous.get(item.stock_id)
             continues = (
                 last is not None
                 and last.action == item.action
-                and last.execution_status not in {"executed", "partial"}
+                and (_execution_values(last, executions.get(last.id, 0))[0] if executions is not None else last.execution_status) not in {"executed", "partial"}
                 and key in open_episodes
             )
             if not continues:
@@ -677,7 +742,7 @@ def _episode_samples(advices: list[PortfolioAdjustAdvice], items_by_advice: dict
             if not episode["counted"] and item.trigger_status == "touched" and item.verdict is not None:
                 samples.append(item)
                 episode["counted"] = True
-        previous_by_portfolio[advice.portfolio_id] = current
+        previous_by_portfolio[scope] = current
     return samples
 
 
@@ -721,7 +786,7 @@ def _risk_stats(advices: list[PortfolioAdjustAdvice], items_by_advice: dict) -> 
 CANDIDATE_LOOKBACK_DAYS = 10
 
 
-def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfolio_id: int | None = None) -> list[dict]:
+def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfolio_id: int | None = None, researcher_code: str | None = None) -> list[dict]:
     """调仓时可关联的微操建议：同标的、近 10 天内适用、增持或减持；组合口径的报告只给对应组合。
 
     已被调仓关联过的条目照样返回、带上 linked_change，前端置灰标"已关联"，排在可选条目之后。"""
@@ -739,7 +804,10 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
     )
     if portfolio_id is not None:
         stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None) | (PortfolioAdjustAdvice.portfolio_id == portfolio_id))
-    rows = db.execute(stmt.limit(10)).all()
+    if researcher_code:
+        stmt = stmt.where(PortfolioAdjustAdvice.researcher_code == researcher_code)
+    rows = db.execute(stmt).all()
+    names = researcher_names(db)
     linked = {
         change.advice_item_id: change
         for change in db.scalars(
@@ -750,6 +818,8 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
         {
             "id": item.id,
             "target_trade_date": advice.target_trade_date,
+            "researcher_code": advice.researcher_code,
+            "researcher_name": names.get(advice.researcher_code, advice.researcher_code),
             "action": item.action,
             "rating": item.rating,
             "quantity": item.quantity,
@@ -771,10 +841,10 @@ def list_advice_candidates(db: Session, stock_id: int, change_date: date, portfo
     return sorted(candidates, key=lambda row: row["linked_change"] is not None)
 
 
-def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None = None, limit: int = 5) -> list[dict]:
+def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None = None, limit: int = 5, researcher_code: str | None = None) -> list[dict]:
     """手机看板"最近建议"：近 10 天的增持、减持条目，带展示状态和记调仓时预填的组合。
 
-    状态：已关联调仓或评估判定已执行为 executed；否则 T 早于今天为 expired（建议只对 T 当天有效），其余 active。
+    状态：明确关联调仓为 executed；否则 T 早于今天为 expired（建议只对 T 当天有效），其余 active。
     全组合口径的报告选定组合时，减持只给该组合持有的标的；记账组合取报告组合、看板选定组合，
     都没有时取唯一持有该标的的组合，仍不确定则留空让用户选。"""
     stmt = (
@@ -790,10 +860,13 @@ def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None 
     )
     if portfolio_id is not None:
         stmt = stmt.where(PortfolioAdjustAdvice.portfolio_id.is_(None) | (PortfolioAdjustAdvice.portfolio_id == portfolio_id))
+    if researcher_code:
+        stmt = stmt.where(PortfolioAdjustAdvice.researcher_code == researcher_code)
     # 近 10 天的条目不多，不在 SQL 里截断：按组合过滤掉减持后再取前 limit 条，避免选定组合时凑不满
     rows = db.execute(stmt).all()
     if not rows:
         return []
+    names = researcher_names(db)
     item_ids = [item.id for item, _advice, _stock in rows]
     linked = set(
         db.scalars(select(PortfolioPositionChange.advice_item_id).where(PortfolioPositionChange.advice_item_id.in_(item_ids)))
@@ -813,7 +886,7 @@ def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None 
         held_in = holders.get(item.stock_id, set())
         if advice.portfolio_id is None and portfolio_id is not None and item.action == "reduce" and portfolio_id not in held_in:
             continue
-        if item.id in linked or item.execution_status in {"executed", "partial"}:
+        if item.id in linked:
             status = "executed"
         elif advice.target_trade_date < today:
             status = "expired"
@@ -824,6 +897,8 @@ def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None 
             {
                 "id": item.id,
                 "target_trade_date": advice.target_trade_date,
+                "researcher_code": advice.researcher_code,
+                "researcher_name": names.get(advice.researcher_code, advice.researcher_code),
                 "portfolio_id": trade_portfolio_id,
                 "stock_id": item.stock_id,
                 "stock_code": stock.stock_code,
@@ -842,12 +917,15 @@ def list_recent_advice_items(db: Session, today: date, portfolio_id: int | None 
     return result
 
 
-def validate_advice_link(db: Session, advice_item_id: int, stock_id: int) -> None:
+def validate_advice_link(db: Session, advice_item_id: int, stock_id: int, portfolio_id: int | None = None) -> None:
     item = db.get(PortfolioAdjustAdviceItem, advice_item_id)
     if item is None:
         raise ValueError("advice item not found")
     if item.stock_id != stock_id:
         raise ValueError("advice item belongs to another stock")
+    advice = db.get(PortfolioAdjustAdvice, item.advice_id)
+    if advice is None or (portfolio_id is not None and advice.portfolio_id not in {None, portfolio_id}):
+        raise ValueError("advice item belongs to another portfolio")
     # 报告里的一个标的只对应一笔调仓，不分批；重复关联会让执行情况和复盘重复计数
     if db.scalar(select(PortfolioPositionChange.id).where(PortfolioPositionChange.advice_item_id == advice_item_id).limit(1)) is not None:
         raise ValueError("advice item already linked")
@@ -863,34 +941,20 @@ def refresh_item_execution(db: Session, advice_item_id: int) -> None:
     item = db.get(PortfolioAdjustAdviceItem, advice_item_id)
     if item is None or item.execution_status is None:
         return
-    advice = db.get(PortfolioAdjustAdvice, item.advice_id)
-    _fill_execution(db, item, advice, advice.target_trade_date)
-
-
-def refresh_stock_execution(db: Session, stock_id: int, item_ids: set[int], trade_dates: set[date]) -> None:
-    """调仓改了关联建议或日期后重算执行情况：原关联、新关联的条目，以及按日期推断可能匹配上的同标的条目。
-    还没评估过的条目留给评估任务。调用方先 flush，查询要看到改后的调仓。"""
-    affected = PortfolioAdjustAdviceItem.id.in_(item_ids) | (
-        (PortfolioAdjustAdviceItem.stock_id == stock_id) & PortfolioAdjustAdvice.target_trade_date.in_(trade_dates)
-    )
-    rows = db.execute(
-        select(PortfolioAdjustAdviceItem, PortfolioAdjustAdvice)
-        .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
-        .where(PortfolioAdjustAdviceItem.execution_status.is_not(None), affected)
-    ).all()
-    for item, advice in rows:
-        _fill_execution(db, item, advice, advice.target_trade_date)
+    _fill_execution(db, item)
 
 
 def advice_brief_by_item(db: Session, item_ids: set[int]) -> dict[int, dict]:
     if not item_ids:
         return {}
     rows = db.execute(
-        select(PortfolioAdjustAdviceItem.id, PortfolioAdjustAdviceItem.action, PortfolioAdjustAdvice.target_trade_date)
+        select(PortfolioAdjustAdviceItem.id, PortfolioAdjustAdviceItem.action, PortfolioAdjustAdvice.target_trade_date, PortfolioAdjustAdvice.researcher_code)
         .join(PortfolioAdjustAdvice, PortfolioAdjustAdvice.id == PortfolioAdjustAdviceItem.advice_id)
         .where(PortfolioAdjustAdviceItem.id.in_(item_ids))
     ).all()
-    return {item_id: {"action": action, "target_trade_date": target} for item_id, action, target in rows}
+    names = researcher_names(db)
+    return {item_id: {"action": action, "target_trade_date": target, "researcher_code": code,
+                      "researcher_name": names.get(code, code)} for item_id, action, target, code in rows}
 
 
 # ---------------------------------------------------------------------------

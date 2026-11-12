@@ -99,6 +99,8 @@ class PortfolioPositionChangeRead(BaseModel):
     advice_item_id: int | None = None
     advice_target_trade_date: date | None = None
     advice_action: str | None = None
+    researcher_code: str | None = None
+    researcher_name: str | None = None
     note: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

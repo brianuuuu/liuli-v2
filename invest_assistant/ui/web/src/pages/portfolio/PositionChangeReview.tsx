@@ -65,7 +65,7 @@ export function positionChangeHint(rules: string) {
       <br />
       调仓金额 = |股数变化| × 调仓价（手填或按调仓日收盘估算）；至今金额、20 日影响分别为调仓金额 × 对应期限按方向折算后的收益，是相对"不做这笔调仓"的估算，不是已实现盈亏。
       <br />
-      按调仓发生日期筛选，每笔仍评估到最新收盘。表底合计当前组合和日期范围内的全部记录，跨分页汇总；缺少数据的记录不按 0 计入，并标注缺失笔数。
+      按调仓发生日期筛选，每笔仍评估到最新收盘。表底合计当前组合、研究员和日期范围内的全部记录，跨分页汇总；缺少数据的记录不按 0 计入，并标注缺失笔数。
       {rules ? <><br />评估口径：{rules}</> : null}
     </>
   );
@@ -87,8 +87,10 @@ const columns: ColumnsType<PositionChangeReviewDetail> = [
     // 绝大多数是 AI 建议，一列同色标签没有区分作用：来源用普通文字，只有"未标注"给标签提醒补标
     title: "来源",
     dataIndex: "reason_type",
-    width: 88,
-    render: (value: string) => (value === "unlabeled" ? <Tag>{reasonTypeLabels[value] || "未标注"}</Tag> : reasonTypeLabels[value] || value)
+    width: 150,
+    render: (value: string, row) => row.researcher_code
+      ? row.researcher_name || row.researcher_code
+      : value === "unlabeled" ? <Tag>未标注</Tag> : reasonTypeLabels[value] || value
   },
   {
     title: "标的",
