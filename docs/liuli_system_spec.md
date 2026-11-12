@@ -917,7 +917,7 @@ Android 笔记、待办和标的与赛道详情共用正文优先的笔记卡片
 
 ### 15.3 研究员
 
-当前 profile：`analyst_001` 标的分析师、`valuator_001` 标的估值师、`trend_001` 趋势投资者、`track_001` / `track_analyst_001` 赛道趋势分析者、`portfolio_001` 组合微操大师、`portfolio_002` 组合趋势进攻师。profile 文件带 `researcher_code / display_name` frontmatter，数据库只存路径、hash 和状态。MCP `knowledge_base.get_researcher_profile` 按展示名、code 或 ID 一次返回完整 profile 和三段正文，文件访问限制在研究员目录内。外部提前约定编码，不增加研究员枚举 MCP；新增 profile 的注册和旧报告空身份补齐使用 `tools/dev/backfill_portfolio_researchers.py`，默认只读预览，带明确截止时间，备份成功后才可 `--apply`；不改变表结构，冲突停止，已有非空归属不覆盖。
+当前 profile：`analyst_001` 标的分析师、`valuator_001` 标的估值师、`trend_001` 趋势投资者、`track_001` / `track_analyst_001` 赛道趋势分析者、`portfolio_001` 组合微操大师、`portfolio_002` 组合趋势进攻师。profile 文件带 `researcher_code / display_name` frontmatter，数据库只存路径、hash 和状态。MCP `knowledge_base.get_researcher_profile` 按展示名、code 或 ID 一次返回完整 profile 和三段正文，文件访问限制在研究员目录内。外部提前约定编码，不增加研究员枚举 MCP；线上注册新 profile 与补齐旧报告空身份使用 `tools/db/pgsql/20261112_portfolio_researchers.sql`，默认预览；指定带时区的截止时间，控制台备份并核对预览后将 do_apply 改为 true，事务加锁重验再执行；不改变表结构，冲突停止，已有非空归属不覆盖。profile 文件需随代码部署，SQL 仅写索引。Python 脚本保留供开发环境使用。
 
 ### 15.4 研究回流与导入
 
