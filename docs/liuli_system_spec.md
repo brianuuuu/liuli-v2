@@ -832,8 +832,8 @@ portfolio_adjust_advice_item：每只持仓一条，含维持和等待
   导入同时生成未读 alert_event；维持同级只入库不推送，仍参与命中率评估。
 大盘与整体仓位：
   研究员经 MCP stock_analysis.get_index_daily_bars 取沪深300 日K，
-  按其中枢位置、年线方向和系统性风险定目标股票仓位区间（口径在 profile 第二节），
-  区间外每次最多调整总资产 5 个百分点，经个股增减持执行，主要因整体仓位产生的建议主信号为 cash_rebalance；
+  按各自 profile 第二节确定大盘状态、系统性风险、目标股票仓位区间与单次调整上限。
+  仓位计划经个股增减持执行，主要因整体仓位产生的建议主信号为 cash_rebalance；
   导入时 market_view 的 market_regime、market_risk 与 position_plan 的区间、direction 成列，market_view 原样存 market_view_json；
     取值不合法或缺失退化为空，不让整份报告失败；调整前后的仓位仍由 cash_ratio_before / after 记录；
   事后评估查询时现算、不落列：沪深300 自 T 起 5 / 20 / 60 日收益，净增持后 20 日涨超 1% 或净减持后跌超 1% 为 correct，
