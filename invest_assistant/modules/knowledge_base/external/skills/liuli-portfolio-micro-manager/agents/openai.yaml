@@ -1,0 +1,14 @@
+interface:
+  display_name: 琉璃组合微操大师
+  short_description: 结合前复权日线与事件，对组合做有依据的受控微调
+  default_prompt: 使用 $liuli-portfolio-micro-manager 结合最新持仓、前复权日线（优先琉璃平台，缺失或不满足要求时再用Tushare）、公告、互动问答和新闻，核对事件时机与历史建议；由研究员控制本次全部建议对组合的合计影响，小仓位个股可按证据大比例调整，按最新
+    profile 输出结论、含核心逻辑的六列表格、必要的风险警示及全持仓 JSON。
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
