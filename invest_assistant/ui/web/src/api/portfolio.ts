@@ -105,9 +105,11 @@ export async function getPortfolioReviewPerformance(
   return response.data;
 }
 
-export async function getAdjustAdviceReviews(portfolioId?: number | null, limit = 30): Promise<AdjustAdviceReviews> {
+export type PortfolioReviewFilters = { researcher_code?: string; start_date?: string; end_date?: string };
+
+export async function getAdjustAdviceReviews(portfolioId?: number | null, limit = 30, filters?: PortfolioReviewFilters): Promise<AdjustAdviceReviews> {
   const response = await apiClient.get<AdjustAdviceReviews>("/api/portfolios/adjust-advice", {
-    params: { limit, ...(portfolioId ? { portfolio_id: portfolioId } : {}) }
+    params: { limit, ...(portfolioId ? { portfolio_id: portfolioId } : {}), ...filters }
   });
   return response.data;
 }
@@ -121,7 +123,7 @@ export async function listAdjustAdviceCandidates(stockId: number, changeDate?: s
 
 export async function getPositionChangeReview(
   portfolioId?: number | null,
-  range?: { start_date: string; end_date: string }
+  range?: PortfolioReviewFilters
 ): Promise<PositionChangeReview> {
   const response = await apiClient.get<PositionChangeReview>("/api/portfolios/position-change-review", {
     params: { ...(portfolioId ? { portfolio_id: portfolioId } : {}), ...range }

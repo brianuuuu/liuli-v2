@@ -58,6 +58,7 @@ export function TradeRecordPage() {
     prefill ? { id: prefill.stock_id, name: prefill.stock_name || prefill.stock_code || "未命名标的", code: prefill.stock_code } : null
   );
   const [keyword, setKeyword] = useState("");
+  const [researcherFilter, setResearcherFilter] = useState("");
   const [side, setSide] = useState<TradeSide>("buy");
   const [quantityText, setQuantityText] = useState("");
   const [priceText, setPriceText] = useState("");
@@ -100,7 +101,12 @@ export function TradeRecordPage() {
   const withPrefill = prefill && prefill.stock_id === stock?.id && !candidateList.some((item) => item.id === prefill.id)
     ? [{ ...prefill, linked_change: null }, ...candidateList]
     : candidateList;
-  const matchingCandidates = withPrefill.filter((item) => item.action === adviceAction);
+  const directionalCandidates = withPrefill.filter((item) => item.action === adviceAction);
+  const researcherOptions = [...new Map(directionalCandidates.filter((item) => item.researcher_code)
+    .map((item) => [item.researcher_code!, item.researcher_name || item.researcher_code!])).entries()];
+  const matchingCandidates = directionalCandidates.filter((item) => !researcherFilter || item.researcher_code === researcherFilter);
+
+  useEffect(() => { setResearcherFilter(""); }, [stock?.id, portfolioId, tradeDate, adviceAction]);
 
   const positions = detail.data?.positions ?? [];
   const holding: PortfolioPositionRow | undefined = stock ? positions.find((item) => item.stock_id === stock.id) : undefined;
@@ -388,8 +394,13 @@ export function TradeRecordPage() {
           {reasonType === "ai_advice" ? (
             <div className="trade-row trade-row--stack">
               <span>关联微操建议</span>
-              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (<>
-                {matchingCandidates.every((item) => item.linked_change) ? <small className="trade-hint">这些建议都已关联过调仓，可不关联</small> : null}
+              {researcherOptions.length > 1 ? (
+                <select aria-label="建议研究员筛选" value={researcherFilter} onChange={(event) => { setResearcherFilter(event.target.value); setAdviceId(null); }}>
+                  <option value="">全部研究员</option>
+                  {researcherOptions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                </select>
+              ) : null}
+              {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
                 <div className="trade-options">
                   {matchingCandidates.map((item: AdjustAdviceCandidate) => (
                     <button
@@ -399,12 +410,12 @@ export function TradeRecordPage() {
                       disabled={Boolean(item.linked_change)}
                       onClick={() => setAdviceId(adviceId === item.id ? null : item.id)}
                     >
-                      <strong>{item.target_trade_date} {item.action === "add" ? "增持" : "减持"}{item.quantity ? ` ${formatTradeQuantity(item.quantity)} 股` : ""}</strong>
+                      <strong>{item.researcher_name || item.researcher_code || "未标注研究员"} · {item.target_trade_date} {item.action === "add" ? "增持" : "减持"}{item.quantity ? ` ${formatTradeQuantity(item.quantity)} 股` : ""}</strong>
                       <em>{item.linked_change ? `已关联 · ${linkedChangeLabel(item.linked_change)}` : item.price_low !== null && item.price_low !== undefined ? `${item.price_low}—${item.price_high}` : ""}</em>
                     </button>
                   ))}
                 </div>
-              </>) : <small className="trade-hint">近 10 天没有这只标的的{adviceAction === "add" ? "增持" : "减持"}建议，可不关联</small>}
+              ) : <small className="trade-hint">近10天暂无{adviceAction === "add" ? "增持" : "减持"}建议</small>}
             </div>
           ) : null}
           <label className="trade-row">

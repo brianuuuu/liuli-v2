@@ -596,6 +596,7 @@ html.horizontal-tab-pager-document body { touch-action: pan-y; }
 .recent-trade em { text-align: right; }
 .recent-trade strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .recent-trade strong small { margin-left: 6px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.recent-trade strong .recent-trade-researcher { display: block; margin-left: 0; overflow: hidden; text-overflow: ellipsis; }
 .recent-trade span { font-weight: 650; white-space: nowrap; }
 /* 最近建议：整行可点进记调仓；已执行只是不可点，正常配色（盖掉全局 button:disabled 的半透明），不给按压反馈 */
 button.recent-trade { width: 100%; padding: 0; text-align: left; }

@@ -58,7 +58,7 @@ export function PositionChangeEditModal({ change, portfolioName, onClose, onSave
     options.unshift({
       value: change.advice_item_id,
       disabled: false,
-      label: `${change.advice_target_trade_date ?? ""} ${adviceActionLabels[change.advice_action ?? ""] || ""}（当前关联）`.trim()
+      label: `${change.researcher_name || change.researcher_code || "未标注研究员"} · ${change.advice_target_trade_date ?? ""} ${adviceActionLabels[change.advice_action ?? ""] || ""}（当前关联）`.trim()
     });
   }
   const corporateAction = reasonType === "corporate_action";
@@ -91,7 +91,7 @@ export function PositionChangeEditModal({ change, portfolioName, onClose, onSave
     <Modal title={`编辑调仓${portfolioName ? ` · ${portfolioName}` : ""}`} open onCancel={onClose} onOk={submit} confirmLoading={saving} destroyOnClose>
       <Typography.Paragraph type="secondary">
         {change.stock_name || change.stock_code} {change.stock_code && change.stock_name ? change.stock_code : ""} · {delta > 0 ? "+" : "−"}
-        {Math.abs(delta).toLocaleString("zh-CN")} 股。股数和标的不能改，记错了请在实盘持仓再调一次；改价格或日期不会回改已同步的现金，差额用现金校准。
+        {Math.abs(delta).toLocaleString("zh-CN")} 股。股数和标的不能改；修改记录不调整现金。
       </Typography.Paragraph>
       <Form
         form={form}
@@ -123,15 +123,11 @@ export function PositionChangeEditModal({ change, portfolioName, onClose, onSave
           <InputNumber min={0} precision={3} style={{ width: "100%" }} disabled={corporateAction} placeholder="实际成交价，选填" />
         </Form.Item>
         <Form.Item name="reason_type" label="理由来源">
-          <Select allowClear placeholder="选填，用于复盘对比 AI 建议和个人判断" options={reasonTypeOptions} />
+          <Select allowClear placeholder="选填" options={reasonTypeOptions} />
         </Form.Item>
         {reasonType === "ai_advice" ? (
-          <Form.Item
-            name="advice_item_id"
-            label="关联微操建议"
-            extra={options.length ? "关联后，这笔调仓直接算作该建议已执行；一条建议只能关联一次" : `近 10 天没有这只标的${adviceActionLabels[action]}建议，可不关联`}
-          >
-            <Select allowClear placeholder="选填" options={options} />
+          <Form.Item name="advice_item_id" label="关联微操建议">
+            <Select allowClear showSearch optionFilterProp="label" placeholder="选填" notFoundContent="暂无匹配建议" options={options} />
           </Form.Item>
         ) : null}
         <Form.Item name="note" label="调仓理由">

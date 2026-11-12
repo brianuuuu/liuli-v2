@@ -23,6 +23,18 @@ const data = (reports, overrides = {}) => ({
   risk_stats: [], ...overrides
 });
 
+test("不同研究员的同股同向建议分别计样本，各自的连续重复仍去重", () => {
+  const source = data([
+    report(1, [item(1)]),
+    report(2, [item(2)], { researcher_code: "portfolio_002" }),
+    report(3, [item(3)]),
+    report(4, [item(4)], { researcher_code: "portfolio_002" })
+  ]);
+  const rows = buildAdviceReviewGroups(source, "signal").groups[0].records;
+  const byId = Object.fromEntries(rows.map((row) => [row.item.id, row.inclusion]));
+  assert.deepEqual(byId, { 1: "counted", 2: "counted", 3: "repeat", 4: "repeat" });
+});
+
 test("连续未执行建议只标记一个统计样本，保留每次理由并保持后台汇总", () => {
   const source = data([report(2, [item(2)]), report(1, [item(1)])]);
   const before = JSON.stringify(source);

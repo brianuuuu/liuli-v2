@@ -32,12 +32,13 @@ const stockScope = (report: AdjustAdviceReport, item: AdjustAdviceItem) => `${re
 /** 只用于说明明细是否计入后台样本，去重顺序与后台 _episode_samples 一致；不重算胜率。 */
 function signalMembership(reports: AdjustAdviceReport[], complete: boolean) {
   const membership = new Map<string, ReviewRecord["inclusion"]>();
-  const previous = new Map<number | null, Map<number, AdjustAdviceItem>>();
+  const previous = new Map<string, Map<number, AdjustAdviceItem>>();
   const episodes = new Map<string, boolean>();
   for (const report of reports) {
-    const lastItems = previous.get(report.portfolio_id);
+    const scope = `${report.portfolio_id ?? "all"}:${report.researcher_code ?? ""}`;
+    const lastItems = previous.get(scope);
     for (const item of report.items.filter(directional)) {
-      const key = `${report.portfolio_id ?? "all"}:${item.stock_id}`;
+      const key = stockScope(report, item);
       const last = lastItems?.get(item.stock_id);
       if (!last || last.action !== item.action || last.execution_status === "executed" || last.execution_status === "partial" || !episodes.has(key)) {
         episodes.set(key, false);
@@ -50,7 +51,7 @@ function signalMembership(reports: AdjustAdviceReport[], complete: boolean) {
       }
       membership.set(recordKey(report, item), status);
     }
-    previous.set(report.portfolio_id, new Map(report.items.map((item) => [item.stock_id, item])));
+    previous.set(scope, new Map(report.items.map((item) => [item.stock_id, item])));
   }
   return membership;
 }

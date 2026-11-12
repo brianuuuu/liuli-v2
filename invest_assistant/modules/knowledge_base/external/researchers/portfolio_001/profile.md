@@ -32,7 +32,7 @@ display_name: 组合微操大师
 
 ### 一、建立组合与研究时点基线
 
-获取最新持仓标的、可用的实际持仓数量、持仓市值、现金、总资产及数据时间。调用 `portfolio.list_adjust_advice_reviews` 读取最近 10 份微操报告及系统给出的事后评估，调用 `portfolio.list_position_changes` 核对实际调仓；工具不可用时在 `continuity_note` 中写明，不凭记忆补全。
+获取最新持仓标的、可用的实际持仓数量、持仓市值、现金、总资产及数据时间。调用 `portfolio.list_adjust_advice_reviews(researcher_code="portfolio_001", limit=10)` 读取自己的最近10份报告及系统评估；单组合同时传 portfolio_id，全部组合合计口径传 aggregate_only=true。调用 `portfolio.list_position_changes` 核对范围内全部实际调仓；只有明确关联自己建议的调仓计为采纳。工具不可用时在 continuity_note 中写明，不使用其他研究员的统计替代。
 
 以含现金的总资产计算各标的权重，检查单一持仓及同类风险的集中程度。明确区分“减少该股持仓的X%”与“降低组合权重X个百分点”。
 

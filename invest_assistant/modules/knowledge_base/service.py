@@ -1050,6 +1050,9 @@ def upload_research_feedback(
     if code is not None and db.scalar(select(KnowledgeResearcher).where(KnowledgeResearcher.researcher_code == code)) is None:
         raise ValueError(f"researcher_code not found: {code}")
     researcher_code = code
+    if title.strip().endswith("-微操报告"):
+        payload = _extract_trailing_json_object(markdown)
+        researcher_code = adjust_advice_service.resolve_researcher_code(db, payload.get("researcher_code"), code)
     module_name = _normalize_optional_text(business_module) or "knowledge_base"
     report, content_size = report_service.create_markdown_report_file_and_index(
         db,
@@ -1342,6 +1345,7 @@ def _import_adjust_advice_feedback(db: Session, feedback: KnowledgeResearchFeedb
             report_id=feedback.report_id,
             researcher_code=feedback.researcher_code,
         )
+        feedback.researcher_code = advice.researcher_code
         feedback.status = "parsed"
         db.commit()
     except Exception:

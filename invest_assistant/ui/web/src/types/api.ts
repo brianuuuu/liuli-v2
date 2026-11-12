@@ -1134,6 +1134,8 @@ export type PortfolioCashFlow = {
 };
 
 export type PortfolioPositionChange = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   id: number;
   portfolio_id: number;
   stock_id: number;
@@ -1156,6 +1158,8 @@ export type PortfolioPositionChange = {
 export type PositionChangeReasonType = "ai_advice" | "personal" | "fund_allocation" | "corporate_action" | "other";
 
 export type AdjustAdviceCandidate = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   id: number;
   target_trade_date: string;
   action: "add" | "reduce" | string;
@@ -1190,6 +1194,8 @@ export type PositionChangeReviewRow = {
 
 /** 每笔以自身成交价独立评估（先统一复权尺度）；effect_* 已按方向折算，正数表示判断有利 */
 export type PositionChangeReviewDetail = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   id: number;
   reason_type: PositionChangeReasonType | "unlabeled";
   action: "add" | "reduce";
@@ -1338,6 +1344,8 @@ export type AdjustAdviceItem = {
 };
 
 export type AdjustAdviceReport = {
+  researcher_name?: string | null;
+  portfolio_name?: string | null;
   id: number;
   portfolio_id: number | null;
   report_id?: number | null;
@@ -1362,6 +1370,8 @@ export type PositionDirection = "add" | "reduce" | "hold";
 
 /** 一份报告的大盘与整体仓位判断，按沪深300 自 T 起的收益事后评估；查询时现算 */
 export type MarketReviewRow = {
+  researcher_code?: string | null;
+  researcher_name?: string | null;
   advice_id: number;
   portfolio_id?: number | null;
   target_trade_date: string;
@@ -1404,6 +1414,7 @@ export type AdjustAdviceWinRateRow = {
 };
 
 export type AdjustAdviceReviews = {
+  researcher_options?: { researcher_code: string; display_name: string }[];
   rules: string;
   summary: {
     report_count: number;

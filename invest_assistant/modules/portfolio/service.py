@@ -144,7 +144,7 @@ def record_position_change(
         raise ValueError(f"invalid reason_type: {reason_type}")
     change_date = change_date or _today_shanghai()
     if advice_item_id is not None:
-        adjust_advice.validate_advice_link(db, advice_item_id, stock_id)
+        adjust_advice.validate_advice_link(db, advice_item_id, stock_id, portfolio_id)
         reason_type = "ai_advice"
     if price is not None and price <= 0:
         raise ValueError("price must be positive")
@@ -375,7 +375,7 @@ def update_position_change(db: Session, portfolio_id: int, change_id: int, paylo
         if adjust_advice.advice_item_action(db, advice_item_id) != expected_action:
             raise ValueError("advice direction does not match trade side")
         if advice_item_id != change.advice_item_id:
-            adjust_advice.validate_advice_link(db, advice_item_id, change.stock_id)
+            adjust_advice.validate_advice_link(db, advice_item_id, change.stock_id, portfolio_id)
         reason_type = "ai_advice"
 
     if payload.price is not None:
@@ -394,13 +394,13 @@ def update_position_change(db: Session, portfolio_id: int, change_id: int, paylo
         change.price, change.price_source = price, "estimated" if price is not None else None
 
     affected_items = {item_id for item_id in (change.advice_item_id, advice_item_id) if item_id is not None}
-    affected_dates = {change.change_date, payload.change_date}
     change.change_date = payload.change_date
     change.reason_type = reason_type
     change.advice_item_id = advice_item_id
     change.note = str(payload.note or "").strip() or None
     db.flush()
-    adjust_advice.refresh_stock_execution(db, change.stock_id, affected_items, affected_dates)
+    for item_id in affected_items:
+        adjust_advice.refresh_item_execution(db, item_id)
     try:
         db.commit()
     except IntegrityError:
@@ -445,6 +445,7 @@ def list_position_changes(
     start_date: date | None = None,
     end_date: date | None = None,
     stock_id: int | None = None,
+    researcher_code: str | None = None,
 ) -> list[dict]:
     """调仓记录查询。portfolio_id 留空表示跨组合，供复盘按时间段回看。"""
     stmt = (
@@ -461,6 +462,7 @@ def list_position_changes(
         stmt = stmt.where(PortfolioPositionChange.change_date >= start_date)
     if end_date is not None:
         stmt = stmt.where(PortfolioPositionChange.change_date <= end_date)
+    stmt = adjust_advice.changes_by_researcher(stmt, researcher_code)
     rows = db.execute(stmt.limit(max(1, int(limit)))).all()
     advice_by_item = adjust_advice.advice_brief_by_item(db, {change.advice_item_id for change, _, _ in rows if change.advice_item_id})
     return [_position_change_dict(change, stock, portfolio, advice_by_item) for change, stock, portfolio in rows]
@@ -472,8 +474,7 @@ def _position_change_dict(
     portfolio: Portfolio,
     advice_by_item: dict[int, dict] | None = None,
 ) -> dict:
-    if advice_by_item is None:
-        advice_by_item = {}
+    advice = (advice_by_item or {}).get(change.advice_item_id, {})
     return {
         "id": change.id,
         "portfolio_id": change.portfolio_id,
@@ -489,8 +490,10 @@ def _position_change_dict(
         "price_source": change.price_source,
         "reason_type": change.reason_type,
         "advice_item_id": change.advice_item_id,
-        "advice_target_trade_date": advice_by_item.get(change.advice_item_id, {}).get("target_trade_date"),
-        "advice_action": advice_by_item.get(change.advice_item_id, {}).get("action"),
+        "advice_target_trade_date": advice.get("target_trade_date"),
+        "advice_action": advice.get("action"),
+        "researcher_code": advice.get("researcher_code"),
+        "researcher_name": advice.get("researcher_name"),
         "note": change.note,
         "created_at": change.created_at,
     }
