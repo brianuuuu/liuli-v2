@@ -2,7 +2,7 @@
 
 > 项目名称：`liuli`（琉璃）
 > 当前版本：**1.0.51**（2026-11-08；App 报告中心组合筛选与赛道库排序）
-> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）；App 记调仓页移除研究员选择框（2026-11-13）。
+> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）；App 记调仓页移除研究员选择框、组合趋势进攻师章程修订（2026-11-13）。
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -826,14 +826,16 @@ portfolio_adjust_advice_item：每只持仓一条，含维持和等待
   action：add / reduce / hold / wait；只有查询、统计、评估要用的字段成列，其余原样存 detail_json；
   stock_id 由证券代码解析，失败则整份报告导入失败（整份成功或整份失败）。
 风险警示：
-  级别口径在研究员 profile：年线向下（value_trend_down）单独出现最高只到 watch，且不能作为 warning 的主风险代码；
+  portfolio_001 的量化警示口径：年线向下（value_trend_down）单独出现最高只到 watch，且不能作为 warning 的主风险代码；
   warning 需要 K 线（放量跌破 MA60 或 20 日跑输沪深300 超 8%）与经证实资讯两类证据，或已公告的实质经营事件；
   维持 warning 须有新证据，连续 5 个交易日无新证据降级；风险代码命中率 ≥10 样本且 < 40% 时不得单凭它定 warning。
+  portfolio_002 按风险性质、证据可靠性、影响与可修复性判断，不沿用上述固定阈值或自动降级规则。
   推送：warning / severe 且相对上一份报告（同口径、同研究员、T 不晚于本次的最近一份有效报告）新出现或升级时，
   导入同时生成未读 alert_event；维持同级只入库不推送，仍参与命中率评估。
 大盘与整体仓位：
   研究员经 MCP stock_analysis.get_index_daily_bars 取沪深300 日K，
-  按各自 profile 第二节确定大盘状态、系统性风险、目标股票仓位区间与单次调整上限。
+  按各自 profile 研判市场与组合风险；portfolio_001 沿用其仓位区间与调整约束，
+  portfolio_002 以沪深300和科创板共同作为主要市场参照，综合市场、板块和个股阶段及配置价值判断，不将市场状态映射为固定仓位或交易许可。
   仓位计划经个股增减持执行，主要因整体仓位产生的建议主信号为 cash_rebalance；
   导入时 market_view 的 market_regime、market_risk 与 position_plan 的区间、direction 成列，market_view 原样存 market_view_json；
     取值不合法或缺失退化为空，不让整份报告失败；调整前后的仓位仍由 cash_ratio_before / after 记录；
@@ -917,6 +919,8 @@ Android 笔记、待办和标的与赛道详情共用正文优先的笔记卡片
 ```
 
 ### 15.3 研究员
+
+`portfolio_002` profile 保留简介、价值观及原有研究流程，以已有持仓的资金配置效率为目标，补充行情阶段、预期兑现、左右侧比较和决策复盘；研究原则不设固定交易阈值，但保留四星及以上正式增减持建议的质量门槛，低于门槛归为维持或等待。三星机会单列为报告观察项，以 `rating=3`、`action=wait` 回流，不计入计划仓位、现金变化或合格增减持机会。标准报告格式、JSON 字段与计算口径、身份及上传要求保留在 profile。行情细分阶段及科创板判断写入 `market_view.summary`，既有枚举和复盘基准保持兼容。
 
 当前 profile：`analyst_001` 标的分析师、`valuator_001` 标的估值师、`trend_001` 趋势投资者、`track_001` / `track_analyst_001` 赛道趋势分析者、`portfolio_001` 组合微操大师、`portfolio_002` 组合趋势进攻师。profile 文件带 `researcher_code / display_name` frontmatter，数据库只存路径、hash 和状态。MCP `knowledge_base.get_researcher_profile` 按展示名、code 或 ID 一次返回完整 profile 和三段正文，文件访问限制在研究员目录内。外部提前约定编码，不增加研究员枚举 MCP；线上注册新 profile 与补齐旧报告空身份使用 `tools/db/pgsql/20261112_portfolio_researchers.sql`：历史组合微操报告已确认均属于 portfolio_001，两条 UPDATE 补空身份、一条 INSERT 注册新 profile；备份后、启用新 profile 前直接执行，无需截止时间或预览开关，不改变表结构，已有非空归属不覆盖。profile 文件需随代码部署，SQL 仅写索引。
 
