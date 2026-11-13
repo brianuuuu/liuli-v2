@@ -2,7 +2,7 @@
 
 > 项目名称：`liuli`（琉璃）
 > 当前版本：**1.0.51**（2026-11-08；App 报告中心组合筛选与赛道库排序）
-> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）；App 记调仓页移除研究员选择框、组合趋势进攻师章程修订、研究回流 title 命名与旧名称兼容（2026-11-13）。
+> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）；App 记调仓页移除研究员选择框、组合趋势进攻师章程修订、研究回流 title 命名与旧名称兼容、App 报告中心其他分类与加载更多（2026-11-13）。
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -435,7 +435,9 @@ report 表管"报告索引"，var/reports/{source_module}/YYYY-MM/ 管"报告文
 报告不设一级菜单，入口嵌在工作台、列表卡片、详情页和 Android 报告页。
 ```
 
-Android 报告中心使用底部固定悬浮分段器切换“全部／市场／赛道／标的／组合”，默认全部；复用 App 的 `float-bar` 样式，列表底部预留空间。列表通过 `/api/reports?report_kind=market|track|stock|portfolio` 在分页前筛选，全部省略该参数；分类识别对应的 `source_module`（market_radar / track_discovery / stock_analysis / portfolio），兼容 target_type、report_type 和标题匹配条件。空列表显示对应类型的空状态，加载失败可重试或切换类型。
+Android 报告中心使用底部固定悬浮分段器切换“全部／市场／赛道／标的／组合／其他”，默认全部；复用 App 的 `float-bar` 样式，列表底部预留空间。列表通过 `/api/reports?report_kind=market|track|stock|portfolio|other` 在分页前筛选，全部省略该参数；四个固定分类识别对应的 `source_module`（market_radar / track_discovery / stock_analysis / portfolio），兼容 target_type、report_type 和标题匹配条件，“其他”为未命中这四类的报告，包括 target_type 为空的通用上传报告。
+
+每次加载 50 条，底部“加载更多”按当前分类追加下一页并按报告 ID 去重，加载期间禁用按钮，无下一页时隐藏；分页失败保留已有列表并提供重试，分类间的分页状态独立。空列表显示对应类型的空状态，首屏加载失败可重试或切换类型。
 
 ### 9.7 basic/disclosure_library
 
@@ -1149,7 +1151,7 @@ Prompt 文件放 knowledge_base/prompts/{module}/{task}/，由各模块 ai.py �
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET / POST | `/api/reports` | 列表（分页，`report_kind` = market / track / stock / portfolio）/ 新增索引 |
+| GET / POST | `/api/reports` | 列表（分页，`report_kind` = market / track / stock / portfolio / other）/ 新增索引 |
 | GET / PUT / DELETE | `/api/reports/{id}` | 详情 / 更新 / 删除（可选删文件） |
 | GET | `/api/reports/{id}/content` | 读取正文 |
 | GET | `/api/reports/{id}/download` | 下载文件 |

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArrowLeft, Check, ExternalLink, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -163,28 +163,39 @@ const REPORT_KINDS = [
   { value: "market", label: "市场" },
   { value: "track", label: "赛道" },
   { value: "stock", label: "标的" },
-  { value: "portfolio", label: "组合" }
+  { value: "portfolio", label: "组合" },
+  { value: "other", label: "其他" }
 ] as const;
 
 export function ReportsPage() {
   const navigate = useNavigate();
   const [kind, setKind] = useState<(typeof REPORT_KINDS)[number]["value"]>("all");
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["reports", kind],
-    queryFn: ({ signal }) => mobileApi.reports(0, 50, kind === "all" ? undefined : kind, signal)
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => mobileApi.reports(pageParam, 50, kind === "all" ? undefined : kind, signal),
+    getNextPageParam: (last) => last.has_more && last.items.length ? last.offset + last.items.length : undefined
   });
+  const reports = [...new Map(query.data?.pages.flatMap((page) => page.items).map((report) => [report.id, report])).values()];
   const label = REPORT_KINDS.find((item) => item.value === kind)?.label;
   return (
     <DetailFrame title="报告中心" className="reports-page">
-      {query.isLoading ? <LoadingState /> : query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : query.data?.items.length ? (
-        <div className="report-list">
-          {query.data.items.map((report) => (
-            <button type="button" key={report.id} onClick={() => navigate(`/reports/${report.id}`)}>
-              <span>{formatModule(report.source_module)}</span><strong>{report.title}</strong>
-              <p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time>
+      {query.isLoading ? <LoadingState /> : query.isError && !query.data ? <ErrorState onRetry={() => void query.refetch()} /> : reports.length ? (
+        <>
+          <div className="report-list">
+            {reports.map((report) => (
+              <button type="button" key={report.id} onClick={() => navigate(`/reports/${report.id}`)}>
+                <span>{formatModule(report.source_module)}</span><strong>{report.title}</strong>
+                <p>{plainMarkdownText(report.summary)}</p><time>{formatDateTime(report.publish_time ?? report.created_at)}</time>
+              </button>
+            ))}
+          </div>
+          {query.hasNextPage ? (
+            <button type="button" className="load-more" disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>
+              {query.isFetchingNextPage ? "加载中…" : query.isFetchNextPageError ? "重试加载" : "加载更多"}
             </button>
-          ))}
-        </div>
+          ) : null}
+        </>
       ) : <EmptyState title={kind === "all" ? "暂无报告" : `暂无${label}报告`} />}
       {createPortal(
         <div className="float-bar" data-swipe-ignore="true">

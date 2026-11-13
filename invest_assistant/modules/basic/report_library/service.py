@@ -84,49 +84,43 @@ def list_today_reports(db: Session, limit: int = DEFAULT_TODAY_REPORT_LIMIT) -> 
 
 
 def _filter_reports_by_kind(stmt, report_kind: str | None):
-    if report_kind == "market":
-        return stmt.where(
-            or_(
-                Report.source_module == "market_radar",
-                Report.target_type == "market",
-                Report.target_type == "market_daily",
-                func.lower(Report.report_type).contains("market"),
-                func.lower(Report.title).contains("market"),
-                func.lower(Report.title).contains("市场日报"),
-                func.lower(Report.title).contains("市场雷达日报"),
-            )
-        )
-    if report_kind == "track":
-        return stmt.where(
-            or_(
-                Report.source_module == "track_discovery",
-                Report.target_type == "track",
-                func.lower(Report.report_type).contains("track"),
-                func.lower(Report.title).contains("track"),
-                func.lower(Report.title).contains("赛道"),
-            )
-        )
-    if report_kind == "stock":
-        return stmt.where(
-            or_(
-                Report.source_module == "stock_analysis",
-                Report.target_type == "stock",
-                func.lower(Report.report_type).contains("stock"),
-                func.lower(Report.title).contains("stock"),
-                func.lower(Report.title).contains("标的"),
-            )
-        )
-    if report_kind == "portfolio":
-        return stmt.where(
-            or_(
-                Report.source_module == "portfolio",
-                Report.target_type == "portfolio",
-                func.lower(Report.report_type).contains("portfolio"),
-                Report.report_type == "微操报告",
-                Report.title.endswith("-微操报告"),
-            )
-        )
-    return stmt
+    conditions = {
+        "market": or_(
+            Report.source_module == "market_radar",
+            Report.target_type == "market",
+            Report.target_type == "market_daily",
+            func.lower(Report.report_type).contains("market"),
+            func.lower(Report.title).contains("market"),
+            func.lower(Report.title).contains("市场日报"),
+            func.lower(Report.title).contains("市场雷达日报"),
+        ),
+        "track": or_(
+            Report.source_module == "track_discovery",
+            Report.target_type == "track",
+            func.lower(Report.report_type).contains("track"),
+            func.lower(Report.title).contains("track"),
+            func.lower(Report.title).contains("赛道"),
+        ),
+        "stock": or_(
+            Report.source_module == "stock_analysis",
+            Report.target_type == "stock",
+            func.lower(Report.report_type).contains("stock"),
+            func.lower(Report.title).contains("stock"),
+            func.lower(Report.title).contains("标的"),
+        ),
+        "portfolio": or_(
+            Report.source_module == "portfolio",
+            Report.target_type == "portfolio",
+            func.lower(Report.report_type).contains("portfolio"),
+            Report.report_type == "微操报告",
+            Report.title.endswith("-微操报告"),
+        ),
+    }
+    if report_kind == "other":
+        # 未命中任一固定分类，包括 target_type 为空的上传报告。
+        return stmt.where(or_(*conditions.values()).is_not(True))
+    condition = conditions.get(report_kind)
+    return stmt.where(condition) if condition is not None else stmt
 
 
 def get_report(db: Session, report_id: int) -> Report | None:
