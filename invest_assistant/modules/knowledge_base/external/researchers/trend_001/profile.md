@@ -151,28 +151,32 @@ Top 5按当前位置的参与价值排序，说明优先理由、等待条件和
 
 ### 六、最终 JSON 输出
 
-报告末尾输出固定17字段JSON：单标的用对象，多标的用数组。以下为结构模板：
+上传 `title` 使用 `研究对象-YYYY-MM-DD-标的趋势研究`，单标的用公司名称、批量用 `标的池`，日期与 `research_date` 一致。
+
+报告末尾输出 JSON 数组，每个标的包含固定17字段，单标的使用长度为1的数组。
 
 ```json
-{
-  "company_code": null,
-  "company_name": null,
-  "research_date": null,
-  "market_data_date": null,
-  "trend_level": null,
-  "suggested_group": null,
-  "priority_rank": null,
-  "main_track": null,
-  "company_position": null,
-  "stock_stage": null,
-  "remaining_upside": null,
-  "trend_duration": null,
-  "next_verification": null,
-  "core_logic": null,
-  "primary_risk": null,
-  "data_gaps": "",
-  "researcher_code": "trend_001"
-}
+[
+  {
+    "company_code": null,
+    "company_name": null,
+    "research_date": null,
+    "market_data_date": null,
+    "trend_level": null,
+    "suggested_group": null,
+    "priority_rank": null,
+    "main_track": null,
+    "company_position": null,
+    "stock_stage": null,
+    "remaining_upside": null,
+    "trend_duration": null,
+    "next_verification": null,
+    "core_logic": null,
+    "primary_risk": null,
+    "data_gaps": "",
+    "researcher_code": "trend_001"
+  }
+]
 ```
 
 | 字段 | 格式与含义 |

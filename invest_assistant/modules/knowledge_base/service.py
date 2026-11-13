@@ -70,7 +70,7 @@ DEEPSEEK_TRACK_EVENT_REVIEW_PROMPT_KEY = "track_discovery.review_track_events_de
 RETIRED_DEFAULT_PROMPT_KEYS = {"market_radar.suggest_hotword_merges_deepseek"}
 SCORE_REPORT_TYPE = "标的评级报告"
 VALUATION_REPORT_TYPE = "标的估值报告"
-TREND_REPORT_TYPE = "趋势研究"
+TREND_REPORT_TYPE = "标的趋势研究"
 TRACK_TREND_REPORT_TYPE = "赛道趋势研究"
 ADJUST_ADVICE_REPORT_TYPE = "微操报告"
 # 报告标题：研究对象-YYYY-MM-DD-报告类型。研究对象只是标签，不参与业务解析。
@@ -1596,7 +1596,10 @@ def _parse_feedback_report_title(title: str) -> tuple[str, date, str]:
         parsed_date = date.fromisoformat(report_date)
     except ValueError as exc:
         raise ValueError("报告标题日期格式必须为 YYYY-MM-DD") from exc
-    return subject.strip(), parsed_date, report_type.strip()
+    report_type = report_type.strip()
+    if report_type == "趋势研究":
+        report_type = TREND_REPORT_TYPE
+    return subject.strip(), parsed_date, report_type
 
 
 def _extract_trailing_json_array(markdown: str) -> list:
