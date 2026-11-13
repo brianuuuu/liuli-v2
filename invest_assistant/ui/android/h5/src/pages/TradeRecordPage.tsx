@@ -58,7 +58,6 @@ export function TradeRecordPage() {
     prefill ? { id: prefill.stock_id, name: prefill.stock_name || prefill.stock_code || "未命名标的", code: prefill.stock_code } : null
   );
   const [keyword, setKeyword] = useState("");
-  const [researcherFilter, setResearcherFilter] = useState("");
   const [side, setSide] = useState<TradeSide>("buy");
   const [quantityText, setQuantityText] = useState("");
   const [priceText, setPriceText] = useState("");
@@ -101,12 +100,7 @@ export function TradeRecordPage() {
   const withPrefill = prefill && prefill.stock_id === stock?.id && !candidateList.some((item) => item.id === prefill.id)
     ? [{ ...prefill, linked_change: null }, ...candidateList]
     : candidateList;
-  const directionalCandidates = withPrefill.filter((item) => item.action === adviceAction);
-  const researcherOptions = [...new Map(directionalCandidates.filter((item) => item.researcher_code)
-    .map((item) => [item.researcher_code!, item.researcher_name || item.researcher_code!])).entries()];
-  const matchingCandidates = directionalCandidates.filter((item) => !researcherFilter || item.researcher_code === researcherFilter);
-
-  useEffect(() => { setResearcherFilter(""); }, [stock?.id, portfolioId, tradeDate, adviceAction]);
+  const matchingCandidates = withPrefill.filter((item) => item.action === adviceAction);
 
   const positions = detail.data?.positions ?? [];
   const holding: PortfolioPositionRow | undefined = stock ? positions.find((item) => item.stock_id === stock.id) : undefined;
@@ -394,12 +388,6 @@ export function TradeRecordPage() {
           {reasonType === "ai_advice" ? (
             <div className="trade-row trade-row--stack">
               <span>关联微操建议</span>
-              {researcherOptions.length > 1 ? (
-                <select aria-label="建议研究员筛选" value={researcherFilter} onChange={(event) => { setResearcherFilter(event.target.value); setAdviceId(null); }}>
-                  <option value="">全部研究员</option>
-                  {researcherOptions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                </select>
-              ) : null}
               {candidates.isLoading ? <LoadingState /> : matchingCandidates.length ? (
                 <div className="trade-options">
                   {matchingCandidates.map((item: AdjustAdviceCandidate) => (
