@@ -2,7 +2,7 @@
 
 > 项目名称：`liuli`（琉璃）
 > 当前版本：**1.0.51**（2026-11-08；App 报告中心组合筛选与赛道库排序）
-> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）。
+> 待发布：工作日任务调度（2026-11-10）；多研究员微操与复盘筛选（2026-11-12）；App 记调仓页移除研究员选择框（2026-11-13）。
 > 定位：个人投资辅助系统
 > 形态：后端服务 + 桌面 Web + Android（原生薄壳 + 手机 H5）
 > 用户模式：单用户安全登录，按个人投资系统设计
@@ -793,6 +793,7 @@ change_date 默认当天，可补录；
 price 选填：留空按调仓日前复权收盘价估算（日线未同步时取持仓现价），price_source = manual / estimated；
 reason_type：ai_advice / personal / fund_allocation / corporate_action / other；公司行为不估价；
 advice_item_id：reason_type = ai_advice 时可关联近 10 天同标的的增持/减持建议，只存 ID；
+  手机记调仓页直接展示所有研究员的同方向候选建议，列表保留研究员名称，不提供研究员筛选。
   一条建议条目（报告里的一个标的）只能被一笔调仓关联，不分批（部分唯一索引）；
   候选列表照样给出已关联的条目并带 linked_change（关联调仓的日期和股数），前端置灰标"已关联"、排在可选条目之后。
 调仓记录可修正：PUT /{id}/position-changes/{change_id} 整条覆盖 change_date、price、reason_type、advice_item_id、note，
